@@ -92,8 +92,13 @@
   .pdfbadge b{color:var(--teal)}
   .rungbtn{font-family:var(--mono);font-size:9.5px;background:none;border:1px solid var(--machine-line);color:var(--machine-muted);border-radius:3px;padding:1px 6px}
   .rungbtn:hover{color:var(--teal);border-color:var(--teal)}
-  .pdfcanvaswrap{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:44px 16px 16px;position:relative}
-  .pdfcanvaswrap canvas{background:#fff;box-shadow:0 3px 18px rgba(0,0,0,.4);max-width:100%;height:auto}
+  .pdfcanvaswrap{flex:1;overflow:auto;padding:44px 16px 16px;position:relative;scroll-behavior:smooth}
+  .pdfpage{margin:0 auto 14px;background:#fff;box-shadow:0 3px 18px rgba(0,0,0,.4);position:relative}
+  .pdfpage canvas{display:block;width:100%;height:auto}
+  .pdfpage .pgnum{position:absolute;bottom:6px;right:8px;font-family:var(--mono);font-size:9px;color:#9aa7b0}
+  .pdfpage.jumpflash{animation:pgflash 1.6s ease}
+  @keyframes pgflash{0%,50%{outline:3px solid var(--teal);outline-offset:2px}100%{outline:3px solid transparent}}
+  @media (prefers-reduced-motion: reduce){.pdfcanvaswrap{scroll-behavior:auto}.pdfpage.jumpflash{animation:none}}
   .pdfloading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--mono);font-size:11px;color:var(--machine-text)}
   .pdfnav{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:10px;background:rgba(16,22,27,.85);border-radius:4px;padding:4px 10px}
   .pdfnav button{background:none;border:0;color:var(--machine-text);font-size:15px;padding:0 6px}
@@ -226,8 +231,8 @@
           <div class="pdfbadge">arxiv.org/pdf/<b id="vUrl">1409.7842v3</b><span id="vPage"></span> — served by arXiv, never proxied
             <button class="rungbtn" id="rungBtn" title="D9 fallback ladder: rung 1 iframe / rung 2 PDF.js direct fetch">rung 2 · pdf.js</button></div>
           <iframe id="pdfFrame" title="Paper PDF, served by arxiv.org" loading="lazy" src="about:blank" hidden></iframe>
-          <div class="pdfcanvaswrap" id="pdfCanvasWrap">
-            <canvas id="pdfCanvas" aria-label="Rendered PDF page"></canvas>
+          <div class="pdfcanvaswrap" id="pdfCanvasWrap" aria-label="Rendered PDF, continuous scroll">
+            <div id="pdfPages"></div>
             <div class="pdfloading" id="pdfLoading">fetching from arxiv.org…</div>
           </div>
           <div class="pdfnav" id="pdfNav" hidden>
@@ -351,27 +356,53 @@ const pdfDocs={};               // idv → loaded pdf.js document
 function pdfUrl(idv){return `https://arxiv.org/pdf/${idv}`}
 function show(el,on){el.hidden=!on}
 
+let pageObserver=null;
+async function renderPageInto(div,doc){
+  if(div.dataset.rendered)return;div.dataset.rendered='1';
+  const n=+div.dataset.page;
+  const p=await doc.getPage(n);
+  const dpr=window.devicePixelRatio||1;
+  const base=p.getViewport({scale:1});
+  const wrap=document.getElementById('pdfCanvasWrap');
+  const cssW=Math.min(wrap.clientWidth-32,base.width*1.6);
+  const vp=p.getViewport({scale:cssW/base.width*dpr});
+  const canvas=document.createElement('canvas');
+  canvas.width=vp.width;canvas.height=vp.height;
+  div.style.width=cssW+'px';div.style.height='auto';
+  div.appendChild(canvas);
+  await p.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+}
 async function renderPdf(idv,page){
-  const wrap=document.getElementById('pdfCanvasWrap'),canvas=document.getElementById('pdfCanvas');
+  const wrap=document.getElementById('pdfCanvasWrap'),pages=document.getElementById('pdfPages');
   const loading=document.getElementById('pdfLoading'),err=document.getElementById('pdfError');
-  show(err,false);show(loading,true);canvas.style.opacity=.35;
+  show(err,false);
   try{
     if(!window.pdfjsLib) throw new Error('pdf.js not loaded');
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     let doc=pdfDocs[idv];
-    if(!doc){doc=await pdfjsLib.getDocument({url:pdfUrl(idv)}).promise;pdfDocs[idv]=doc}
+    if(!doc){show(loading,true);doc=await pdfjsLib.getDocument({url:pdfUrl(idv)}).promise;pdfDocs[idv]=doc}
     pdfState.doc=doc;pdfState.numPages=doc.numPages;
-    pdfState.page=Math.min(Math.max(1,page||1),doc.numPages);
-    const p=await doc.getPage(pdfState.page);
-    const dpr=window.devicePixelRatio||1;
-    const base=p.getViewport({scale:1});
-    const scale=Math.min((wrap.clientWidth-32)/base.width,1.6)*dpr;
-    const vp=p.getViewport({scale});
-    canvas.width=vp.width;canvas.height=vp.height;
-    canvas.style.width=(vp.width/dpr)+'px';
-    await p.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
-    canvas.style.opacity=1;show(loading,false);
-    document.getElementById('pgLabel').textContent=`p.${pdfState.page} / ${pdfState.numPages}`;
+    if(pages.dataset.idv!==idv){                      // build placeholders once per doc
+      pages.dataset.idv=idv;pages.innerHTML='';
+      if(pageObserver)pageObserver.disconnect();
+      const first=await doc.getPage(1);
+      const base=first.getViewport({scale:1});
+      const cssW=Math.min(wrap.clientWidth-32,base.width*1.6);
+      const cssH=cssW*base.height/base.width;
+      for(let n=1;n<=doc.numPages;n++){
+        const div=document.createElement('div');
+        div.className='pdfpage';div.dataset.page=n;
+        div.style.width=cssW+'px';div.style.height=cssH+'px';
+        div.innerHTML=`<span class="pgnum">${n}</span>`;
+        pages.appendChild(div);
+      }
+      pageObserver=new IntersectionObserver(es=>{
+        es.forEach(e=>{if(e.isIntersecting)renderPageInto(e.target,doc)});
+      },{root:wrap,rootMargin:'600px 0px'});
+      pages.querySelectorAll('.pdfpage').forEach(d=>pageObserver.observe(d));
+    }
+    show(loading,false);
+    gotoPage(page||1,true);
     show(document.getElementById('pdfNav'),true);
   }catch(e){
     show(loading,false);show(document.getElementById('pdfNav'),false);
@@ -379,20 +410,43 @@ async function renderPdf(idv,page){
     show(err,true);
   }
 }
+function gotoPage(n,instant){
+  n=Math.min(Math.max(1,n),pdfState.numPages);pdfState.page=n;
+  const div=document.querySelector(`.pdfpage[data-page="${n}"]`);
+  if(div){
+    div.scrollIntoView({block:'start',behavior:instant?'auto':'smooth'});
+    div.classList.remove('jumpflash');void div.offsetWidth;div.classList.add('jumpflash');
+  }
+  document.getElementById('pgLabel').textContent=`p.${n} / ${pdfState.numPages}`;
+  document.getElementById('vPage').textContent=` p.${n}`;
+}
+/* keep the page label honest while the user scrolls freely */
+document.getElementById('pdfCanvasWrap').addEventListener('scroll',()=>{
+  const wrap=document.getElementById('pdfCanvasWrap');
+  let best=1,bestDist=1/0;
+  wrap.querySelectorAll('.pdfpage').forEach(d=>{
+    const dist=Math.abs(d.getBoundingClientRect().top-wrap.getBoundingClientRect().top-44);
+    if(dist<bestDist){bestDist=dist;best=+d.dataset.page}
+  });
+  if(best!==pdfState.page){pdfState.page=best;
+    document.getElementById('pgLabel').textContent=`p.${best} / ${pdfState.numPages}`}
+},{passive:true});
+
 function showPdf(idv,page){
-  pdfState.idv=idv;pdfState.page=page||1;
+  pdfState.idv=idv;
   document.getElementById('vUrl').textContent=idv;
-  document.getElementById('vPage').textContent=page?` #page=${page}`:'';
   const iframe=document.getElementById('pdfFrame');
   if(rung==='iframe'){
     show(iframe,true);
     show(document.getElementById('pdfCanvasWrap'),false);show(document.getElementById('pdfNav'),false);
     show(document.getElementById('pdfError'),false);show(document.getElementById('pdfLoading'),false);
+    document.getElementById('vPage').textContent=page?` #page=${page}`:'';
     iframe.src=pdfUrl(idv)+(page?`#page=${page}`:'');
   }else{
     show(iframe,false);iframe.src='about:blank';
     show(document.getElementById('pdfCanvasWrap'),true);
-    renderPdf(idv,page);
+    if(document.getElementById('pdfPages').dataset.idv===idv){gotoPage(page||1)}
+    else renderPdf(idv,page);
   }
 }
 document.getElementById('rungBtn').addEventListener('click',function(){
@@ -400,8 +454,8 @@ document.getElementById('rungBtn').addEventListener('click',function(){
   this.textContent=rung==='pdfjs'?'rung 2 · pdf.js':'rung 1 · iframe';
   if(pdfState.idv)showPdf(pdfState.idv,pdfState.page);
 });
-document.getElementById('pgPrev').addEventListener('click',()=>{if(pdfState.page>1)showPdf(pdfState.idv,pdfState.page-1)});
-document.getElementById('pgNext').addEventListener('click',()=>{if(pdfState.page<pdfState.numPages)showPdf(pdfState.idv,pdfState.page+1)});
+document.getElementById('pgPrev').addEventListener('click',()=>gotoPage(pdfState.page-1));
+document.getElementById('pgNext').addEventListener('click',()=>gotoPage(pdfState.page+1));
 
 function openPaper(id,page){
   const p=PAPERS.find(x=>x.id===id)||PAPERS[0];
