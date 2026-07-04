@@ -941,7 +941,16 @@ agent loop are the make-or-break; UI is work but not risk).
 
 ## 10. Assumptions to validate early
 
-- arXiv allows iframe embedding of PDF URLs (test in milestone 4; ladder ready).
+- ~~arXiv allows iframe embedding of PDF URLs~~ **Validated 2026-07-04**
+  (Playwright headless Chromium + header inspection, two ids old/new):
+  `arxiv.org/pdf/<id>` sends **no X-Frame-Options and no CSP** — framing is
+  unblocked; PDFs render inline in Chromium's viewer and `#page=N` fragments
+  work (viewer opened at page 3/4). Bonus: `Access-Control-Allow-Origin: *`
+  + `Accept-Ranges: bytes`, so the rung-2 PDF.js fallback is *also* CORS-
+  permitted with ranged loading. Caveats carried forward: rendering was
+  verified in new-headless/desktop Chromium — verify Safari/iOS in
+  milestone 4; headers are arXiv policy and could change (the D9 ladder
+  stays in the design for that reason).
 - PyMuPDF4LLM failure rate on this corpus is low single-digit % (measured in milestone 1 stats).
 - Embedded Chroma query latency at ~100k×512d stays well under 100 ms on the VPS class chosen, and its memory footprint fits the 4 GB box alongside Docker (benchmark in milestone 2; pgvector is the named fallback).
 - Haiku 4.5 tool-use is reliable enough for an 8-step loop (milestone 3 CLI phase exists to find out cheaply).
