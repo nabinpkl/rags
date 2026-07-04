@@ -8,3 +8,5 @@ __pycache__/
 
 # generated: citation file download + facet cache
 data/
+
+.DS_Store
