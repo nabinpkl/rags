@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>askRAG — Architecture</title>
+<style>
+  :root {
+    --ink: #1f2a33;
+    --muted: #5c6b76;
+    --paper: #f6f7f5;
+    --panel: #ffffff;
+    --line: #dadfdc;
+    --accent: #0e5f56;
+    --accent-soft: #e4efec;
+    --amber: #b0680f;
+    --amber-soft: #f6ecdd;
+    --rust: #a8412e;
+    --rust-soft: #f5e6e2;
+    --serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .page { max-width: 1080px; margin: 0 auto; padding: 0 24px 96px; }
+  .prose { max-width: 76ch; }
+
+  header.masthead { padding: 56px 0 32px; border-bottom: 2px solid var(--ink); }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 12px;
+  }
+  h1 {
+    font-family: var(--serif); font-size: clamp(34px, 5vw, 48px);
+    line-height: 1.08; margin: 0 0 14px; text-wrap: balance; font-weight: 700;
+  }
+  .lede {
+    font-family: var(--serif); font-size: 19px; line-height: 1.5;
+    color: var(--muted); max-width: 62ch; margin: 0 0 24px;
+  }
+  .meta-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-family: var(--mono); font-size: 12.5px; padding: 5px 10px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 3px;
+    white-space: nowrap;
+  }
+  .chip b { color: var(--accent); font-weight: 600; }
+
+  section { padding: 44px 0 8px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 22px; }
+  .sec-num { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  h2 { font-family: var(--serif); font-size: 27px; margin: 0; font-weight: 700; }
+  h3 { font-family: var(--serif); font-size: 20px; margin: 28px 0 10px; font-weight: 700; }
+  p { margin: 0 0 14px; }
+  .prose p { max-width: 76ch; }
+
+  .diagram-scroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 18px; margin: 18px 0; }
+  .diagram-scroll svg { display: block; min-width: 900px; width: 100%; height: auto; }
+  .diagram-caption { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: -8px 0 18px; }
+
+  /* SVG text defaults set inline per element */
+
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+  .table-scroll { overflow-x: auto; margin: 18px 0; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); }
+  th {
+    text-align: left; font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+    padding: 10px 14px; border-bottom: 1px solid var(--ink); background: var(--panel);
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.mono, .mono { font-family: var(--mono); font-size: 13.5px; }
+  td.num { text-align: right; font-family: var(--mono); font-size: 13.5px; white-space: nowrap; }
+
+  .decision-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin: 18px 0; }
+  .dcard { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+  .dcard .dtag { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 600; }
+  .dcard h4 { font-family: var(--serif); font-size: 16.5px; margin: 0; line-height: 1.3; }
+  .dcard p { font-size: 13.5px; color: var(--muted); margin: 0; }
+  .dcard .revisit { font-size: 12.5px; margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--ink); }
+  .dcard .revisit b { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); font-weight: 600; }
+
+  ol.turn { counter-reset: step; list-style: none; margin: 18px 0; padding: 0; max-width: 76ch; }
+  ol.turn li { counter-increment: step; display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  ol.turn li::before {
+    content: counter(step); font-family: var(--mono); font-size: 13px; color: var(--panel);
+    background: var(--accent); border-radius: 3px; width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center; margin-top: 2px;
+  }
+  ol.turn li:last-child { border-bottom: none; }
+  ol.turn b { font-family: var(--mono); font-size: 13.5px; font-weight: 600; }
+
+  .pill { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; font-weight: 600; }
+  .pill.ok { background: var(--accent-soft); color: var(--accent); }
+  .pill.open { background: var(--amber-soft); color: var(--amber); }
+  .pill.risk { background: var(--rust-soft); color: var(--rust); }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    padding: 12px 16px; margin: 18px 0; font-size: 14.5px; max-width: 76ch;
+  }
+  .note.warn { border-left-color: var(--amber); }
+
+  footer { margin-top: 64px; border-top: 2px solid var(--ink); padding-top: 20px; font-size: 13px; color: var(--muted); }
+  footer p { max-width: 80ch; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="masthead">
+  <p class="eyebrow">Design spec companion · 2026-07-04</p>
+  <h1>askRAG — agentic RAG over the arXiv corpus</h1>
+  <p class="lede">A public corpus explorer where the agent is a side panel that feeds itself:
+  it decides when to search, what to read, and when to compute — inside hard budgets,
+  behind read-only tools, on a $20/month footprint. Every load-bearing decision below is
+  deliberate and carries a written revisit trigger.</p>
+  <div class="meta-chips">
+    <span class="chip"><b>6,460</b> papers / <b>11.6&nbsp;GB</b> PDFs (2007–2026, cs.CL-heavy)</span>
+    <span class="chip">FastAPI (uv) · Next.js static export</span>
+    <span class="chip">SQLite + FTS5 · Chroma embedded</span>
+    <span class="chip">Haiku 4.5, hand-built loop</span>
+    <span class="chip">worst case ≤ <b>$22/mo</b> by construction</span>
+  </div>
+</header>
+
+<section id="runtime">
+  <div class="sec-head"><span class="sec-num">01</span><h2>Runtime architecture</h2></div>
+  <p class="prose">One flat-cost VPS. The browser talks to FastAPI for data and the agent
+  stream; PDF bytes never touch our servers — the user's browser fetches them directly from
+  arxiv.org at the <span class="mono">version-pinned</span> URL matching our extraction.</p>
+
+  <div class="diagram-scroll" role="img" aria-label="Runtime architecture diagram: browser with explorer, viewer and agent panel connects through Cloudflare and Caddy to FastAPI, which runs the budget gate, agent loop and five tools against SQLite, Chroma, traces database, a Docker sandbox, and the Anthropic and embeddings APIs. The browser fetches PDFs directly from arxiv.org.">
+  <svg viewBox="0 0 980 520" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11.5">
+    <defs>
+      <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0.5 L7.5,4 L0,7.5 z" fill="#5c6b76"/>
+      </marker>
+      <marker id="arrA" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0.5 L7.5,4 L0,7.5 z" fill="#0e5f56"/>
+      </marker>
+    </defs>
+
+    <!-- Browser -->
+    <rect x="16" y="60" width="216" height="330" rx="3" fill="#ffffff" stroke="#1f2a33" stroke-width="1.4"/>
+    <text x="28" y="84" font-weight="700" fill="#1f2a33">BROWSER</text>
+    <text x="28" y="100" fill="#5c6b76" font-size="10.5">Next.js static export</text>
+    <rect x="28" y="114" width="192" height="56" rx="2" fill="#f6f7f5" stroke="#dadfdc"/>
+    <text x="38" y="136" fill="#1f2a33">explorer</text>
+    <text x="38" y="152" fill="#5c6b76" font-size="10.5">table · facet filters · search</text>
+    <rect x="28" y="180" width="192" height="72" rx="2" fill="#f6f7f5" stroke="#dadfdc"/>
+    <text x="38" y="202" fill="#1f2a33">viewer (split)</text>
+    <text x="38" y="218" fill="#5c6b76" font-size="10.5">arXiv PDF iframe #page=N</text>
+    <text x="38" y="233" fill="#5c6b76" font-size="10.5">cited-excerpts pane (§6c)</text>
+    <rect x="28" y="262" width="192" height="72" rx="2" fill="#e4efec" stroke="#0e5f56"/>
+    <text x="38" y="284" fill="#0e5f56" font-weight="700">agent panel</text>
+    <text x="38" y="300" fill="#1f2a33" font-size="10.5">tool timeline · cost badge</text>
+    <text x="38" y="315" fill="#1f2a33" font-size="10.5">chat · replay banner</text>
+    <text x="28" y="372" fill="#5c6b76" font-size="10.5">zustand ⇄ URL search params</text>
+
+    <!-- Cloudflare -->
+    <rect x="286" y="150" width="104" height="44" rx="3" fill="#ffffff" stroke="#5c6b76"/>
+    <text x="300" y="171" fill="#1f2a33">Cloudflare</text>
+    <text x="300" y="185" fill="#5c6b76" font-size="10.5">rate-limit · bot</text>
+
+    <!-- VPS -->
+    <rect x="430" y="34" width="380" height="452" rx="3" fill="#ffffff" stroke="#1f2a33" stroke-width="1.4"/>
+    <text x="444" y="58" font-weight="700" fill="#1f2a33">VPS · 2 vCPU / 4 GB · ~$5–8/mo</text>
+    <rect x="444" y="70" width="352" height="34" rx="2" fill="#f6f7f5" stroke="#dadfdc"/>
+    <text x="456" y="91" fill="#1f2a33">Caddy — TLS · static files · /api proxy</text>
+
+    <rect x="444" y="116" width="352" height="196" rx="2" fill="#f6f7f5" stroke="#5c6b76"/>
+    <text x="456" y="138" font-weight="700" fill="#1f2a33">FastAPI (uv)</text>
+    <rect x="456" y="150" width="150" height="34" rx="2" fill="#f6ecdd" stroke="#b0680f"/>
+    <text x="466" y="171" fill="#b0680f">budget gate D11</text>
+    <rect x="620" y="150" width="162" height="34" rx="2" fill="#e4efec" stroke="#0e5f56"/>
+    <text x="630" y="171" fill="#0e5f56" font-weight="700">agent loop D1/D2</text>
+    <rect x="456" y="196" width="326" height="62" rx="2" fill="#ffffff" stroke="#dadfdc"/>
+    <text x="466" y="215" fill="#5c6b76" font-size="10.5">tools · read-only by construction (§5)</text>
+    <text x="466" y="232" fill="#1f2a33" font-size="10.5">search_corpus · query_metadata · read_paper</text>
+    <text x="466" y="247" fill="#1f2a33" font-size="10.5">run_python · drive_ui</text>
+    <text x="456" y="284" fill="#5c6b76" font-size="10.5">/api/explorer · /api/chat (SSE) · /admin</text>
+    <text x="456" y="300" fill="#5c6b76" font-size="10.5">context_window eviction · step cap ≤8</text>
+
+    <!-- stores -->
+    <rect x="444" y="326" width="110" height="58" rx="2" fill="#f6f7f5" stroke="#dadfdc"/>
+    <text x="454" y="347" fill="#1f2a33">corpus.db</text>
+    <text x="454" y="362" fill="#5c6b76" font-size="10">papers·chunks·FTS5</text>
+    <text x="454" y="375" fill="#5c6b76" font-size="10">read-only · frozen</text>
+    <rect x="566" y="326" width="110" height="58" rx="2" fill="#f6f7f5" stroke="#dadfdc"/>
+    <text x="576" y="347" fill="#1f2a33">chroma/</text>
+    <text x="576" y="362" fill="#5c6b76" font-size="10">HNSW · embedded</text>
+    <text x="576" y="375" fill="#5c6b76" font-size="10">same chunk ids</text>
+    <rect x="688" y="326" width="108" height="58" rx="2" fill="#f6f7f5" stroke="#dadfdc"/>
+    <text x="698" y="347" fill="#1f2a33">traces.db</text>
+    <text x="698" y="362" fill="#5c6b76" font-size="10">runs·spend·replays</text>
+    <text x="698" y="375" fill="#5c6b76" font-size="10">read-write</text>
+
+    <!-- sandbox -->
+    <rect x="444" y="400" width="352" height="70" rx="2" fill="#f5e6e2" stroke="#a8412e"/>
+    <text x="456" y="422" fill="#a8412e" font-weight="700">sandbox — fresh docker per exec (D10)</text>
+    <text x="456" y="439" fill="#1f2a33" font-size="10.5">--network none · ro data mounts · 1 cpu / 512 MB / 30 s</text>
+    <text x="456" y="455" fill="#1f2a33" font-size="10.5">tmpfs · non-root · returns stdout + PNGs</text>
+
+    <!-- External -->
+    <rect x="852" y="116" width="116" height="52" rx="3" fill="#ffffff" stroke="#5c6b76"/>
+    <text x="864" y="138" fill="#1f2a33">Anthropic</text>
+    <text x="864" y="153" fill="#5c6b76" font-size="10.5">Haiku 4.5, cached</text>
+    <rect x="852" y="186" width="116" height="52" rx="3" fill="#ffffff" stroke="#5c6b76"/>
+    <text x="864" y="208" fill="#1f2a33">Embeddings</text>
+    <text x="864" y="223" fill="#5c6b76" font-size="10.5">query-time, ¢/mo</text>
+    <rect x="852" y="286" width="116" height="52" rx="3" fill="#ffffff" stroke="#5c6b76"/>
+    <text x="864" y="308" fill="#1f2a33">arxiv.org</text>
+    <text x="864" y="323" fill="#5c6b76" font-size="10.5">serves the PDFs</text>
+
+    <!-- Arrows -->
+    <line x1="232" y1="172" x2="284" y2="172" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr)"/>
+    <line x1="390" y1="172" x2="428" y2="172" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr)"/>
+    <text x="250" y="163" fill="#5c6b76" font-size="10">https</text>
+    <!-- SSE back -->
+    <path d="M430 240 L262 240 L262 262" fill="none" stroke="#0e5f56" stroke-width="1.3" marker-end="url(#arrA)"/>
+    <text x="290" y="233" fill="#0e5f56" font-size="10">SSE: tool_call · ui_action · text · cost</text>
+    <!-- loop to anthropic -->
+    <line x1="782" y1="150" x2="850" y2="138" stroke="#0e5f56" stroke-width="1.3" marker-end="url(#arrA)"/>
+    <!-- fastapi to embeddings -->
+    <line x1="796" y1="212" x2="850" y2="212" stroke="#5c6b76" stroke-width="1.2" marker-end="url(#arr)"/>
+    <!-- tools to stores -->
+    <line x1="530" y1="258" x2="505" y2="324" stroke="#5c6b76" stroke-width="1.2" marker-end="url(#arr)"/>
+    <line x1="600" y1="258" x2="618" y2="324" stroke="#5c6b76" stroke-width="1.2" marker-end="url(#arr)"/>
+    <line x1="700" y1="258" x2="736" y2="324" stroke="#5c6b76" stroke-width="1.2" marker-end="url(#arr)"/>
+    <!-- run_python to sandbox -->
+    <line x1="530" y1="258" x2="530" y2="398" stroke="#a8412e" stroke-width="1.2" marker-end="url(#arr)"/>
+    <!-- browser to arxiv, dashed -->
+    <path d="M124 390 L124 440 L820 440 L820 338 L850 320" fill="none" stroke="#5c6b76" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+    <text x="300" y="432" fill="#5c6b76" font-size="10.5">PDF bytes fetched directly by the browser — arxiv.org/pdf/&lt;id&gt;&lt;vN&gt; (never proxied, §6b)</text>
+  </svg>
+  </div>
+  <p class="diagram-caption">Fig. 1 — runtime. Teal = the agent path; amber = budget enforcement; rust = sandbox blast radius.</p>
+</section>
+
+<section id="loop">
+  <div class="sec-head"><span class="sec-num">02</span><h2>One agent turn (the loop is the product)</h2></div>
+  <p class="prose">The harness never stuffs retrieved context. The model decides when to
+  retrieve, iterates, and stops; the harness owns everything around that decision.</p>
+  <ol class="turn">
+    <li><span><b>budget gate</b> — message, session, per-IP, and global-daily token caps checked before any model call. If the global cap has tripped, the turn is served as a <b>replay</b> of a recorded showcase trace instead of erroring.</span></li>
+    <li><span><b>model call</b> — Haiku 4.5 with prompt-cached system prompt + tool schemas. Streaming; every event mirrored to the browser timeline.</span></li>
+    <li><span><b>tool dispatch</b> — the model calls <b>search_corpus</b> (hybrid retrieval), <b>query_metadata</b> (SELECT-only SQL), <b>read_paper</b> (extracted text spans), <b>run_python</b> (sandboxed analytics), or <b>drive_ui</b> (enum-validated explorer actions). All read-only by construction.</span></li>
+    <li><span><b>fencing</b> — tool results re-enter the prompt wrapped as labeled untrusted corpus content. Paper text is the injection surface; the real defense is that a compromised agent has no harmful capability to invoke.</span></li>
+    <li><span><b>context management</b> — stale tool results evicted/summarized; hard step cap of ~8 tool calls per user message.</span></li>
+    <li><span><b>answer</b> — sanitized markdown (raw HTML disabled), citations verified server-side against real chunk ids before display; quotes capped per §6c. Trace persisted to <b>traces.db</b> with tokens, cost, latency.</span></li>
+  </ol>
+</section>
+
+<section id="ingest">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Ingest pipeline (offline, on the Mac)</h2></div>
+  <div class="diagram-scroll" role="img" aria-label="Ingest pipeline: PDFs flow through extraction, chunking, embedding and index building into corpus.db, chroma and a parquet archive; failures land in a skip list.">
+  <svg viewBox="0 0 980 220" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11.5">
+    <defs>
+      <marker id="arr2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0.5 L7.5,4 L0,7.5 z" fill="#5c6b76"/>
+      </marker>
+    </defs>
+    <rect x="16" y="50" width="128" height="64" rx="3" fill="#ffffff" stroke="#1f2a33" stroke-width="1.3"/>
+    <text x="28" y="76" fill="#1f2a33" font-weight="700">pdfs/</text>
+    <text x="28" y="93" fill="#5c6b76" font-size="10.5">11.6 GB · local only</text>
+
+    <rect x="180" y="50" width="150" height="64" rx="3" fill="#f6f7f5" stroke="#5c6b76"/>
+    <text x="192" y="72" fill="#1f2a33">extract_pdfs</text>
+    <text x="192" y="88" fill="#5c6b76" font-size="10.5">PyMuPDF4LLM (D6)</text>
+    <text x="192" y="103" fill="#5c6b76" font-size="10.5">md + page map</text>
+
+    <rect x="366" y="50" width="150" height="64" rx="3" fill="#f6f7f5" stroke="#5c6b76"/>
+    <text x="378" y="72" fill="#1f2a33">chunk_papers</text>
+    <text x="378" y="88" fill="#5c6b76" font-size="10.5">section-aware ~1k tok</text>
+    <text x="378" y="103" fill="#5c6b76" font-size="10.5">page-anchored (D7)</text>
+
+    <rect x="552" y="50" width="150" height="64" rx="3" fill="#f6f7f5" stroke="#5c6b76"/>
+    <text x="564" y="72" fill="#1f2a33">embed_chunks</text>
+    <text x="564" y="88" fill="#5c6b76" font-size="10.5">te-3-small @512d (D5)</text>
+    <text x="564" y="103" fill="#5c6b76" font-size="10.5">~$2–13 one-time</text>
+
+    <rect x="738" y="50" width="150" height="64" rx="3" fill="#f6f7f5" stroke="#5c6b76"/>
+    <text x="750" y="72" fill="#1f2a33">build_indexes</text>
+    <text x="750" y="88" fill="#5c6b76" font-size="10.5">FTS5 + HNSW</text>
+    <text x="750" y="103" fill="#5c6b76" font-size="10.5">+ license, version fill</text>
+
+    <line x1="144" y1="82" x2="178" y2="82" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr2)"/>
+    <line x1="330" y1="82" x2="364" y2="82" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr2)"/>
+    <line x1="516" y1="82" x2="550" y2="82" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr2)"/>
+    <line x1="702" y1="82" x2="736" y2="82" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr2)"/>
+
+    <!-- outputs -->
+    <rect x="620" y="156" width="118" height="40" rx="2" fill="#ffffff" stroke="#1f2a33"/>
+    <text x="632" y="180" fill="#1f2a33">corpus.db</text>
+    <rect x="750" y="156" width="98" height="40" rx="2" fill="#ffffff" stroke="#1f2a33"/>
+    <text x="762" y="180" fill="#1f2a33">chroma/</text>
+    <rect x="860" y="156" width="108" height="40" rx="2" fill="#ffffff" stroke="#dadfdc"/>
+    <text x="870" y="174" fill="#5c6b76" font-size="10.5">vectors.parquet</text>
+    <text x="870" y="188" fill="#5c6b76" font-size="10.5">rebuild archive</text>
+    <line x1="813" y1="114" x2="700" y2="154" stroke="#5c6b76" stroke-width="1.2" marker-end="url(#arr2)"/>
+    <line x1="813" y1="114" x2="800" y2="154" stroke="#5c6b76" stroke-width="1.2" marker-end="url(#arr2)"/>
+    <line x1="640" y1="114" x2="900" y2="154" stroke="#dadfdc" stroke-width="1.2" marker-end="url(#arr2)"/>
+
+    <!-- skiplist -->
+    <rect x="180" y="156" width="150" height="40" rx="2" fill="#f6ecdd" stroke="#b0680f"/>
+    <text x="192" y="174" fill="#b0680f">skiplist.json</text>
+    <text x="192" y="189" fill="#5c6b76" font-size="10.5">failures, with reasons</text>
+    <line x1="255" y1="114" x2="255" y2="154" stroke="#b0680f" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arr2)"/>
+    <text x="16" y="180" fill="#5c6b76" font-size="10.5">prod ships only corpus.db + chroma/ (~1–2 GB);</text>
+    <text x="16" y="196" fill="#5c6b76" font-size="10.5">the PDFs never deploy (D9/§6b)</text>
+  </svg>
+  </div>
+  <p class="diagram-caption">Fig. 2 — offline artifacts, versioned by snapshot date (D12). Deployed corpus is frozen; refresh is a re-run + upload.</p>
+</section>
+
+<section id="retrieval">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Hybrid retrieval</h2></div>
+  <div class="diagram-scroll" role="img" aria-label="Retrieval diagram: a query fans out to Chroma vector search and FTS5 BM25 in parallel, results are fused with reciprocal rank fusion, metadata filters apply, and an optional eval-gated reranker produces the top-k chunks.">
+  <svg viewBox="0 0 980 170" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11.5">
+    <defs>
+      <marker id="arr3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0.5 L7.5,4 L0,7.5 z" fill="#5c6b76"/>
+      </marker>
+    </defs>
+    <rect x="16" y="60" width="120" height="48" rx="3" fill="#ffffff" stroke="#1f2a33" stroke-width="1.3"/>
+    <text x="28" y="88" fill="#1f2a33">query</text>
+    <rect x="196" y="16" width="180" height="48" rx="3" fill="#f6f7f5" stroke="#5c6b76"/>
+    <text x="208" y="38" fill="#1f2a33">vector · chroma</text>
+    <text x="208" y="54" fill="#5c6b76" font-size="10.5">semantic, filters in where</text>
+    <rect x="196" y="104" width="180" height="48" rx="3" fill="#f6f7f5" stroke="#5c6b76"/>
+    <text x="208" y="126" fill="#1f2a33">BM25 · FTS5</text>
+    <text x="208" y="142" fill="#5c6b76" font-size="10.5">exact: names, acronyms</text>
+    <rect x="436" y="60" width="130" height="48" rx="3" fill="#e4efec" stroke="#0e5f56"/>
+    <text x="448" y="82" fill="#0e5f56" font-weight="700">RRF fusion</text>
+    <text x="448" y="98" fill="#5c6b76" font-size="10.5">no tuned weights</text>
+    <rect x="626" y="60" width="140" height="48" rx="3" fill="#f6f7f5" stroke="#5c6b76"/>
+    <text x="638" y="82" fill="#1f2a33">facet filters</text>
+    <text x="638" y="98" fill="#5c6b76" font-size="10.5">category·year·rigor</text>
+    <rect x="826" y="60" width="140" height="48" rx="3" fill="#ffffff" stroke="#5c6b76" stroke-dasharray="5 4"/>
+    <text x="838" y="82" fill="#1f2a33">rerank?</text>
+    <text x="838" y="98" fill="#5c6b76" font-size="10.5">ships only if evals pay</text>
+    <line x1="136" y1="76" x2="194" y2="44" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr3)"/>
+    <line x1="136" y1="92" x2="194" y2="124" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr3)"/>
+    <line x1="376" y1="44" x2="434" y2="76" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr3)"/>
+    <line x1="376" y1="124" x2="434" y2="92" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr3)"/>
+    <line x1="566" y1="84" x2="624" y2="84" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr3)"/>
+    <line x1="766" y1="84" x2="824" y2="84" stroke="#5c6b76" stroke-width="1.3" marker-end="url(#arr3)"/>
+  </svg>
+  </div>
+  <p class="diagram-caption">Fig. 3 — if the embeddings API is down, the vector leg drops and search degrades to BM25: the site limps, never dies.</p>
+</section>
+
+<section id="decisions">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Decision records — chosen, priced, and triggered</h2></div>
+  <p class="prose">Fourteen records; each names its rejected alternatives and the condition
+  under which it should change. Changing one without hitting its trigger is churn, not engineering.</p>
+  <div class="decision-grid">
+    <div class="dcard"><span class="dtag">D1</span><h4>Agent feeds itself; harness never stuffs context</h4>
+      <p>Retrieval is a tool the model calls. Multi-hop is the demo; the harness owns budgets, eviction, stop conditions.</p>
+      <div class="revisit"><b>Revisit</b> — &gt;30% of eval questions are single-hop and cost binds → add a router.</div></div>
+    <div class="dcard"><span class="dtag">D2</span><h4>Hand-built loop on the raw Anthropic API</h4>
+      <p>~200 lines we own. Every hardening claim points at a line we wrote — no framework between us and the API.</p>
+      <div class="revisit"><b>Revisit</b> — becomes a product (adopt the SDK) or the loop grows past ~500 lines.</div></div>
+    <div class="dcard"><span class="dtag">D3</span><h4>Haiku 4.5 live; strong models offline only</h4>
+      <p>$0.02–0.08 per agentic message with caching. Strong models draft the golden set and judge evals.</p>
+      <div class="revisit"><b>Revisit</b> — evals embarrass it on &gt;20% of the golden set, or prices drop.</div></div>
+    <div class="dcard"><span class="dtag">D4</span><h4>SQLite + FTS5 and embedded Chroma — no DB server</h4>
+      <p>Two embedded stores, shared chunk ids, read-only in prod. Right-sized: a DB server buys nothing at 100k chunks.</p>
+      <div class="revisit"><b>Revisit</b> — ~1M chunks, p95 &gt;300 ms, or prod writes → pgvector (deferred, not rejected).</div></div>
+    <div class="dcard"><span class="dtag">D5</span><h4>API embeddings: text-embedding-3-small @512d</h4>
+      <p>~$2 one-time for ~100M tokens; re-embedding is trivial money, which keeps eval-driven chunking changes honest.</p>
+      <div class="revisit"><b>Revisit</b> — query spend &gt;$5/mo, model deprecated, or a local model wins on evals.</div></div>
+    <div class="dcard"><span class="dtag">D6</span><h4>PyMuPDF4LLM extraction with a recorded skip list</h4>
+      <p>CPU-fast, good on born-digital LaTeX prose. Known floor: tables and math retrieve poorly — measured, not hidden.</p>
+      <div class="revisit"><b>Revisit</b> — v2 table-computation feature, or evals show extraction dominates failures.</div></div>
+    <div class="dcard"><span class="dtag">D7</span><h4>Section-aware ~1k-token chunks, page-anchored</h4>
+      <p>Never cross section boundaries; every chunk carries (paper, section, pages) so citations land on the real page.</p>
+      <div class="revisit"><b>Revisit</b> — recall plateaus and error analysis blames boundaries → sweep as an eval experiment.</div></div>
+    <div class="dcard"><span class="dtag">D8</span><h4>Hybrid: vector + BM25 → RRF; rerank eval-gated</h4>
+      <p>BM25 catches acronyms and names embeddings miss. Every stage must pay rent on the eval set to ship.</p>
+      <div class="revisit"><b>Revisit</b> — a leg contributes nothing (drop it, publish that) or rerank's margin pays its latency.</div></div>
+    <div class="dcard"><span class="dtag">D9</span><h4>Version-pinned arXiv embeds; we never serve PDFs</h4>
+      <p>iframe of <span class="mono">arxiv.org/pdf/&lt;id&gt;&lt;vN&gt;</span> — validated: no framing headers, #page=N works, old versions serve forever. Skew dead by construction.</p>
+      <div class="revisit"><b>Revisit</b> — arXiv adds framing headers → PDF.js direct fetch (CORS-verified) → excerpts + link out.</div></div>
+    <div class="dcard"><span class="dtag">D10</span><h4>Fresh no-network Docker container per execution</h4>
+      <p>Sandbox exists for corpus analytics. No egress + read-only public data + nothing persisted = the whole isolation story.</p>
+      <div class="revisit"><b>Revisit</b> — any private/writable data in reach → gVisor minimum; cold starts hurt → warm pool.</div></div>
+    <div class="dcard"><span class="dtag">D11</span><h4>Free, anonymous, budget-capped; degrades to replays</h4>
+      <p>Layered token caps end at a $0.50/day global ceiling. When it trips, the panel replays recorded traces — a demo, not an error page.</p>
+      <div class="revisit"><b>Revisit</b> — real traffic exhausts the cap regularly → raise it or add BYO-key mode.</div></div>
+    <div class="dcard"><span class="dtag">D12</span><h4>Frozen corpus snapshot in prod, dated in the footer</h4>
+      <p>Live updates would drag the ingest chain onto the VPS and break the read-only posture for one sentence of honesty.</p>
+      <div class="revisit"><b>Revisit</b> — refresh cadence exceeds monthly → build the pipeline as the next portfolio chapter.</div></div>
+    <div class="dcard"><span class="dtag">D13</span><h4>FastAPI (uv) + Next.js static export on one VPS</h4>
+      <p>Flat cost is the only hosting where a public agentic endpoint can't surprise-bill. SSE, not WebSockets. No Node in prod.</p>
+      <div class="revisit"><b>Revisit</b> — a real SSR need appears, or sustained usage outgrows one box.</div></div>
+    <div class="dcard"><span class="dtag">D14</span><h4>Eval harness ships in v1 and gates retrieval decisions</h4>
+      <p>~50 hand-verified golden QA pairs; recall@k + MRR per config; LLM-judged faithfulness. The README quotes the table.</p>
+      <div class="revisit"><b>Revisit</b> — two configs within noise on a decision that matters → grow the set until it discriminates.</div></div>
+  </div>
+</section>
+
+<section id="security">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Threat model &amp; content posture</h2></div>
+  <p class="prose">Assets: the API budget, availability, visitors' browsers, the box. Not
+  data confidentiality — everything on the box is public. The defense thesis: an injected
+  agent should have <em>nothing harmful to do</em>.</p>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Threat</th><th>Vector</th><th>Defense</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill risk">injection</span></td><td>Paper text itself — instructions inside retrieved chunks</td><td>Fenced + labeled untrusted; all tools read-only; sandbox no-egress; <span class="mono">drive_ui</span> enum-only</td></tr>
+      <tr><td><span class="pill risk">wallet</span></td><td>Scripted long agentic conversations</td><td>Token caps per message/session/IP + $0.50/day global → replay mode; step cap ≤8</td></tr>
+      <tr><td><span class="pill risk">xss</span></td><td>Hostile markdown sourced from a paper</td><td>Sanitized markdown, raw HTML disabled; citations verified server-side against real chunk ids</td></tr>
+      <tr><td><span class="pill risk">sandbox</span></td><td>Hostile generated code</td><td>No network, read-only public data, rlimits, fresh container, non-root (kernel escape accepted &amp; stated)</td></tr>
+      <tr><td><span class="pill risk">leakage</span></td><td>Cross-user session bleed</td><td>Ephemeral TTL sessions; no cross-user caches except the immutable corpus; per-exec sandboxes</td></tr>
+      <tr><td><span class="pill risk">sql</span></td><td><span class="mono">query_metadata</span> accepts model SQL by design</td><td>Read-only connection + single-statement SELECT-only parse + row/time limits</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>What users may see of paper text (§6c)</h3>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Surface</th><th>Rule</th><th>Basis</th></tr></thead>
+    <tbody>
+      <tr><td>Metadata</td><td>Titles, abstracts, authors, categories — displayed freely</td><td><span class="pill ok">CC0, verified</span></td></tr>
+      <tr><td>Summaries</td><td>Generated in our own words, cited, labeled AI-generated</td><td><span class="pill ok">precedent</span> Semantic Scholar, alphaXiv…</td></tr>
+      <tr><td>Quotes</td><td>≤50 words each, ≤3 per paper per answer, always cited; no raw chunk dumps</td><td><span class="pill open">conservative</span></td></tr>
+      <tr><td>Full text</td><td>Never displayed for default-license papers; the PDF iframe is the reading surface</td><td><span class="pill risk">required</span> no serving e-prints</td></tr>
+      <tr><td>Attribution</td><td>Verbatim arXiv acknowledgement + non-endorsement in the footer; takedown contact</td><td><span class="pill risk">required</span> brand guidelines</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="cost">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Cost — bounded by construction, not hope</h2></div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Item</th><th class="num">One-time</th><th class="num">Monthly</th></tr></thead>
+    <tbody>
+      <tr><td>Embedding the corpus (~80–100M tokens @ 512d)</td><td class="num">$2–13</td><td class="num">—</td></tr>
+      <tr><td>Golden-set drafting + eval judge (offline, strong model)</td><td class="num">$5–10</td><td class="num">—</td></tr>
+      <tr><td>VPS (Hetzner CX22-class, 2 vCPU / 4 GB)</td><td class="num">—</td><td class="num">$5–8</td></tr>
+      <tr><td>LLM serving (Haiku 4.5, global cap $0.50/day)</td><td class="num">—</td><td class="num">≤$15</td></tr>
+      <tr><td>Query embeddings + domain</td><td class="num">—</td><td class="num">&lt;$2</td></tr>
+      <tr><td><b>Total</b></td><td class="num"><b>~$10–25</b></td><td class="num"><b>≤~$22 worst · $8–12 typical</b></td></tr>
+    </tbody>
+  </table></div>
+  <div class="note warn"><b>The cap cascade:</b> per-message tokens → per-session (~15 messages)
+  → per-IP daily → global $0.50/day. Past the last gate the site doesn't die — the agent
+  panel switches to recorded showcase replays with a banner. Denial-of-wallet is capped;
+  denial-of-demo is impossible.</div>
+</section>
+
+<section id="build">
+  <div class="sec-head"><span class="sec-num">08</span><h2>Build order — risk first, demoable at every exit</h2></div>
+  <ol class="turn">
+    <li><span><b>ingest</b> — repo reorg (collector/, corpus/), extract → chunk → embed → indexes; license + version backfill. <em>Exit: corpus queryable via SQLite and Chroma.</em></span></li>
+    <li><span><b>retrieval + evals</b> — hybrid search + golden set + <b>just eval</b>. <em>Exit: committed eval table justifying D7/D8.</em></span></li>
+    <li><span><b>agent loop (CLI)</b> — loop + all tools except sandbox, driven from a terminal REPL; traces from day one. <em>Exit: multi-hop answer with verified citations in the terminal.</em></span></li>
+    <li><span><b>web app</b> — explorer, split viewer (D9 ladder tested), agent panel with SSE timeline + cost badge. <em>Exit: full demo locally.</em></span></li>
+    <li><span><b>sandbox</b> — container + <b>run_python</b> + chart rendering. <em>Exit: the venue-rigor trend plot works end-to-end.</em></span></li>
+    <li><span><b>hardening + deploy</b> — budget layers, replay mode, VPS + Caddy + Cloudflare, backups; notify arXiv. <em>Exit: public URL, caps verified by attacking it ourselves.</em></span></li>
+    <li><span><b>write-up</b> — decision records, eval results, threat model, "what changes at 10×". <em>Exit: the README is the portfolio piece.</em></span></li>
+  </ol>
+</section>
+
+<section id="assumptions">
+  <div class="sec-head"><span class="sec-num">09</span><h2>Assumptions — validated vs. open</h2></div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Assumption</th><th>Status</th><th>Evidence / plan</th></tr></thead>
+    <tbody>
+      <tr><td>arXiv PDFs embeddable in an iframe, <span class="mono">#page=N</span> works</td><td><span class="pill ok">validated</span></td><td>No X-Frame-Options/CSP; rendered in Chromium; opened at page 3/4 (2026-07-04)</td></tr>
+      <tr><td>Version-pinned URLs serve permanently; skew killable</td><td><span class="pill ok">validated</span></td><td>200/pdf, no redirects; superseded versions still serve; 99.5% of corpus pinnable</td></tr>
+      <tr><td>PDF.js fallback permitted cross-origin</td><td><span class="pill ok">validated</span></td><td><span class="mono">Access-Control-Allow-Origin: *</span> + <span class="mono">Accept-Ranges: bytes</span></td></tr>
+      <tr><td>Policy: hotlink/name/attribution/display rules</td><td><span class="pill ok">resolved</span></td><td>Primary sources read; constraints adopted as §6b/§6c</td></tr>
+      <tr><td>PyMuPDF4LLM failure rate is low single-digit %</td><td><span class="pill open">open</span></td><td>Measured by milestone 1 ingest stats</td></tr>
+      <tr><td>Embedded Chroma latency &lt;100 ms at 100k×512d on the VPS</td><td><span class="pill open">open</span></td><td>Benchmarked in milestone 2; pgvector is the named fallback</td></tr>
+      <tr><td>Haiku 4.5 reliable through an 8-step tool loop</td><td><span class="pill open">open</span></td><td>Milestone 3's CLI phase exists to find out cheaply</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>
+  <p>Companion to <span class="mono">docs/superpowers/specs/2026-07-04-agentic-rag-design.md</span> — the spec is the source of truth; this page is the map.</p>
+  <p>Thank you to arXiv for use of its open access interoperability. This service was not
+  reviewed or approved by, nor does it necessarily express or reflect the policies or
+  opinions of, arXiv.</p>
+</footer>
+
+</div>
+</body>
+</html>
