@@ -327,10 +327,12 @@ with no redirects, superseded old versions remain permanently retrievable,
 and withdrawn papers still serve PDFs at pinned URLs (no stub/404 to handle).
 99.5% of corpus rows have a version; the 31 NULL rows fall back to the
 unpinned URL until backfilled via one batched arXiv API call during ingest.
-Our extracted text (which we *do* own
-the right to process) renders alongside with chunk-level highlights. The
-11.6 GB corpus never deploys; prod ships only the index artifacts —
-`corpus.db` + `chroma/`, ~1–2 GB total with text and vectors.
+Alongside it, a **cited-excerpts pane** (our extraction, display-capped per
+§6c — not a full-text mirror) shows the chunks the agent cited with
+highlights and page anchors. The 11.6 GB corpus never deploys; prod ships
+only the index artifacts — `corpus.db` + `chroma/`, ~1–2 GB total with text
+and vectors (full text stays server-side for the model; §6c governs what
+reaches the UI).
 
 **Why.** Most arXiv papers are under arXiv's non-exclusive license, which does
 **not** grant redistribution — publicly serving our copies is legally gray,
@@ -752,9 +754,9 @@ rags/
 │   │   │   ├── facet-filters.tsx    # category/year/facet controls; writes viewer store filter state
 │   │   │   └── corpus-search-bar.tsx # semantic + keyword search box hitting /api/papers?q=
 │   │   ├── viewer/
-│   │   │   ├── paper-split-view.tsx # layout: pdf frame | extracted text; reads viewer store
-│   │   │   ├── arxiv-pdf-frame.tsx  # D9 rung 1: arxiv.org iframe with #page=N; detects embed failure → ladder
-│   │   │   └── extracted-text-pane.tsx # our text with chunk anchors; citation clicks scroll + highlight
+│   │   │   ├── paper-split-view.tsx # layout: pdf frame | cited excerpts; reads viewer store
+│   │   │   ├── arxiv-pdf-frame.tsx  # D9 rung 1: version-pinned arxiv.org iframe with #page=N; detects embed failure → ladder
+│   │   │   └── cited-excerpts-pane.tsx # cited chunks only, display-capped per §6c; section nav + "PDF page N" anchors
 │   │   ├── agent-panel/
 │   │   │   ├── chat-panel.tsx       # message list + input; wires use-agent-stream to session store
 │   │   │   ├── tool-timeline.tsx    # live tool-call timeline rendered from SSE events (motion)
@@ -939,6 +941,30 @@ and license pages. These are adopted constraints, not optional:
 8. **Courtesy:** arXiv asks to be told when products launch — do that at
    deploy (milestone 6 checklist).
 
+## 6c. Content display posture (what users may see of paper text)
+
+Resolved from the content-license research (primary sources + operating
+precedent: Semantic Scholar TLDRs, Emergent Mind, alphaXiv, HF Papers —
+all display generated summaries + links, none rehost default-license full
+text). Risk management, not legal advice; each rule tagged by its basis.
+
+| Rule | Basis |
+|---|---|
+| Server-side extraction, embedding, and LLM analysis over locally stored PDFs; the model may read full text via `read_paper` | Explicitly anticipated by policy — arXiv's bulk-data program exists for this; its blog names "semantic search interfaces" as an intended use |
+| Titles, abstracts, authors, categories displayed freely in the explorer | Explicitly permitted (CC0) |
+| LLM-generated summaries/answers in our own words, cited (paper id, section, page), labeled AI-generated | Established precedent; policy silent |
+| Verbatim quotes: **≤50 words per quote, ≤3 quotes per paper per answer**, always quotation-marked + cited; raw retrieved chunks are never dumped to the UI; no sequential-excerpt browsing that could reconstruct a section | Conservative choice where policy is silent |
+| **No full-text pane for default-license papers.** The reading surface is the arXiv-served PDF (D9); our pane shows cited excerpts + navigation anchors only | Follows from the no-serving rule — displaying full extracted text is redistribution re-typeset |
+| Per-paper `license` field carried from the Kaggle seed into `corpus.db` at ingest; CC0/CC-BY papers *may* show fuller text with attribution (v2 option, not v1 scope); the "vast majority" default-license papers get the caps above | Conservative choice; the metadata provides the field for exactly this |
+| Takedown path: a contact link, and removal of a paper's summaries/excerpts from the index on author objection | Conservative choice mirroring Semantic Scholar et al. |
+
+Design consequence, applied throughout this spec: the viewer's text pane is
+`cited-excerpts-pane.tsx` — cited excerpts, not a full-text mirror. It renders the chunks
+the agent actually cited (display-capped), section headings as navigation,
+and "open in PDF → page N" anchors — the PDF iframe is the reading surface.
+This costs little: the demo's trust moment is *citation lands on the real
+page*, which survives intact.
+
 ## 7. Cost model
 
 | Item | One-time | Monthly |
@@ -964,8 +990,10 @@ agent loop are the make-or-break; UI is work but not risk).
 1. **Ingest** — first the §4c repo reorganization (collector → `collector/`,
    data → `corpus/`, backend scaffold), then extract → chunk → embed →
    `corpus.db` + `chroma/` (+ `vectors.parquet` archive), as `just` recipes
-   with stats + skip-list reporting. *Exit: corpus queryable via SQLite and
-   Chroma with shared chunk ids.*
+   with stats + skip-list reporting. Also: per-paper `license` field from
+   the Kaggle seed into `corpus.db` (§6c) and version backfill for the 31
+   unversioned rows (D9). *Exit: corpus queryable via SQLite and Chroma
+   with shared chunk ids.*
 2. **Retrieval + evals** — hybrid search + golden set + `just eval`; tune
    until numbers stabilize. *Exit: committed eval table justifying D7/D8 choices.*
 3. **Agent loop (CLI)** — D2 loop + all tools except `run_python`, driven from
