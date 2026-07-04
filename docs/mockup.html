@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- D9 rung 2: PDF.js fetches bytes directly from arxiv.org (ACAO:* verified). Default rung here because embedded webviews often lack a native PDF plugin. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous" defer></script>
 <style>
   :root{
     --paper:#f2f3ef; --panel:#fbfbf9; --ink:#1a2128; --muted:#66727b; --line:#dcdfd9;
@@ -84,10 +86,21 @@
   .paperhead .meta{font-size:12px;color:var(--muted)}
   .paperhead .meta a{color:var(--teal-deep)}
   .split{flex:1;display:grid;grid-template-columns:1fr 320px;min-height:0}
-  .pdfpane{position:relative;background:#3c4650;min-height:0}
+  .pdfpane{position:relative;background:#3c4650;min-height:0;display:flex;flex-direction:column}
   .pdfpane iframe{width:100%;height:100%;border:0}
-  .pdfbadge{position:absolute;top:10px;left:10px;font-family:var(--mono);font-size:10.5px;background:rgba(16,22,27,.85);color:var(--machine-text);padding:4px 9px;border-radius:3px}
+  .pdfbadge{position:absolute;top:10px;left:10px;z-index:5;font-family:var(--mono);font-size:10.5px;background:rgba(16,22,27,.85);color:var(--machine-text);padding:4px 9px;border-radius:3px;display:flex;align-items:center;gap:8px}
   .pdfbadge b{color:var(--teal)}
+  .rungbtn{font-family:var(--mono);font-size:9.5px;background:none;border:1px solid var(--machine-line);color:var(--machine-muted);border-radius:3px;padding:1px 6px}
+  .rungbtn:hover{color:var(--teal);border-color:var(--teal)}
+  .pdfcanvaswrap{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:44px 16px 16px;position:relative}
+  .pdfcanvaswrap canvas{background:#fff;box-shadow:0 3px 18px rgba(0,0,0,.4);max-width:100%;height:auto}
+  .pdfloading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--mono);font-size:11px;color:var(--machine-text)}
+  .pdfnav{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:10px;background:rgba(16,22,27,.85);border-radius:4px;padding:4px 10px}
+  .pdfnav button{background:none;border:0;color:var(--machine-text);font-size:15px;padding:0 6px}
+  .pdfnav button:hover{color:var(--teal)}
+  .pdfnav span{font-family:var(--mono);font-size:10.5px;color:var(--machine-text)}
+  .pdferror{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:12px;color:var(--machine-text);background:rgba(16,22,27,.9);padding:12px 16px;border-radius:4px;max-width:280px;line-height:1.5}
+  .pdferror a{color:var(--teal)}
   .excerpts{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:14px}
   .excerpts h3{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 4px;font-weight:600}
   .excerpts .capnote{font-size:11px;color:var(--muted);margin:0 0 12px;line-height:1.45}
@@ -210,8 +223,20 @@
       </div>
       <div class="split">
         <div class="pdfpane">
-          <div class="pdfbadge">arxiv.org/pdf/<b id="vUrl">1409.7842v3</b><span id="vPage"></span> — served by arXiv, never proxied</div>
-          <iframe id="pdfFrame" title="Paper PDF, served by arxiv.org" loading="lazy" src="about:blank"></iframe>
+          <div class="pdfbadge">arxiv.org/pdf/<b id="vUrl">1409.7842v3</b><span id="vPage"></span> — served by arXiv, never proxied
+            <button class="rungbtn" id="rungBtn" title="D9 fallback ladder: rung 1 iframe / rung 2 PDF.js direct fetch">rung 2 · pdf.js</button></div>
+          <iframe id="pdfFrame" title="Paper PDF, served by arxiv.org" loading="lazy" src="about:blank" hidden></iframe>
+          <div class="pdfcanvaswrap" id="pdfCanvasWrap">
+            <canvas id="pdfCanvas" aria-label="Rendered PDF page"></canvas>
+            <div class="pdfloading" id="pdfLoading">fetching from arxiv.org…</div>
+          </div>
+          <div class="pdfnav" id="pdfNav" hidden>
+            <button id="pgPrev" aria-label="Previous page">‹</button>
+            <span id="pgLabel">p.1 / 1</span>
+            <button id="pgNext" aria-label="Next page">›</button>
+          </div>
+          <div class="pdferror" id="pdfError" hidden>Couldn't fetch the PDF (offline?). Rung 3: read the cited excerpts →
+            <a id="pdfErrorLink" href="#" target="_blank" rel="noopener">open on arXiv ↗</a></div>
         </div>
         <aside class="excerpts" aria-label="Cited excerpts">
           <h3>Cited excerpts</h3>
@@ -317,17 +342,73 @@ document.querySelectorAll('.facet[data-fac]').forEach(b=>b.addEventListener('cli
 const yb=document.getElementById('yearband');
 for(let i=0;i<20;i++){const bar=document.createElement('i');bar.style.height=(8+Math.round(36*Math.pow(i/19,1.8)))+'px';if(i>10)bar.className='on';yb.appendChild(bar)}
 
-/* ── viewer ───────────────────────────────── */
+/* ── viewer + D9 rung ladder ──────────────── */
 const viewE=document.getElementById('viewExplorer'),viewP=document.getElementById('viewPaper');
+let rung='pdfjs';               // 'pdfjs' (rung 2, default: works without a native PDF plugin) | 'iframe' (rung 1)
+const pdfState={idv:null,page:1,numPages:1,doc:null};
+const pdfDocs={};               // idv → loaded pdf.js document
+
+function pdfUrl(idv){return `https://arxiv.org/pdf/${idv}`}
+function show(el,on){el.hidden=!on}
+
+async function renderPdf(idv,page){
+  const wrap=document.getElementById('pdfCanvasWrap'),canvas=document.getElementById('pdfCanvas');
+  const loading=document.getElementById('pdfLoading'),err=document.getElementById('pdfError');
+  show(err,false);show(loading,true);canvas.style.opacity=.35;
+  try{
+    if(!window.pdfjsLib) throw new Error('pdf.js not loaded');
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    let doc=pdfDocs[idv];
+    if(!doc){doc=await pdfjsLib.getDocument({url:pdfUrl(idv)}).promise;pdfDocs[idv]=doc}
+    pdfState.doc=doc;pdfState.numPages=doc.numPages;
+    pdfState.page=Math.min(Math.max(1,page||1),doc.numPages);
+    const p=await doc.getPage(pdfState.page);
+    const dpr=window.devicePixelRatio||1;
+    const base=p.getViewport({scale:1});
+    const scale=Math.min((wrap.clientWidth-32)/base.width,1.6)*dpr;
+    const vp=p.getViewport({scale});
+    canvas.width=vp.width;canvas.height=vp.height;
+    canvas.style.width=(vp.width/dpr)+'px';
+    await p.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+    canvas.style.opacity=1;show(loading,false);
+    document.getElementById('pgLabel').textContent=`p.${pdfState.page} / ${pdfState.numPages}`;
+    show(document.getElementById('pdfNav'),true);
+  }catch(e){
+    show(loading,false);show(document.getElementById('pdfNav'),false);
+    document.getElementById('pdfErrorLink').href=pdfUrl(idv);
+    show(err,true);
+  }
+}
+function showPdf(idv,page){
+  pdfState.idv=idv;pdfState.page=page||1;
+  document.getElementById('vUrl').textContent=idv;
+  document.getElementById('vPage').textContent=page?` #page=${page}`:'';
+  const iframe=document.getElementById('pdfFrame');
+  if(rung==='iframe'){
+    show(iframe,true);
+    show(document.getElementById('pdfCanvasWrap'),false);show(document.getElementById('pdfNav'),false);
+    show(document.getElementById('pdfError'),false);show(document.getElementById('pdfLoading'),false);
+    iframe.src=pdfUrl(idv)+(page?`#page=${page}`:'');
+  }else{
+    show(iframe,false);iframe.src='about:blank';
+    show(document.getElementById('pdfCanvasWrap'),true);
+    renderPdf(idv,page);
+  }
+}
+document.getElementById('rungBtn').addEventListener('click',function(){
+  rung=(rung==='pdfjs')?'iframe':'pdfjs';
+  this.textContent=rung==='pdfjs'?'rung 2 · pdf.js':'rung 1 · iframe';
+  if(pdfState.idv)showPdf(pdfState.idv,pdfState.page);
+});
+document.getElementById('pgPrev').addEventListener('click',()=>{if(pdfState.page>1)showPdf(pdfState.idv,pdfState.page-1)});
+document.getElementById('pgNext').addEventListener('click',()=>{if(pdfState.page<pdfState.numPages)showPdf(pdfState.idv,pdfState.page+1)});
+
 function openPaper(id,page){
   const p=PAPERS.find(x=>x.id===id)||PAPERS[0];
   document.getElementById('vTitle').textContent=p.t;
   document.getElementById('vMeta').innerHTML=`${p.a} · ${p.y} · <span class="cat">${p.c}</span> · <a href="https://arxiv.org/abs/${p.id}" target="_blank" rel="noopener">abs page ↗</a>`;
   document.getElementById('vPin').textContent=`pinned ${p.v}`;
-  const frag=page?`#page=${page}`:'';
-  document.getElementById('vUrl').textContent=p.id+p.v;
-  document.getElementById('vPage').textContent=page?` #page=${page}`:'';
-  document.getElementById('pdfFrame').src=`https://arxiv.org/pdf/${p.id}${p.v}${frag}`;
+  showPdf(p.id+p.v,page?+page:1);
   document.getElementById('sectionNav').innerHTML=['Abstract','§1 Intro','§2 Related','§3 Recipe','§4 Evaluation','§5 Conclusion']
     .map(s=>`<button>${s}</button>`).join('');
   document.getElementById('excList').innerHTML=EXCERPTS.map((e,i)=>`<div class="exc" id="exc${i}">
@@ -339,8 +420,7 @@ function openPaper(id,page){
 document.getElementById('backBtn').addEventListener('click',()=>{viewP.hidden=true;viewE.hidden=false;history.replaceState(null,'','?')});
 document.getElementById('viewPaper').addEventListener('click',e=>{
   const b=e.target.closest('.pagejump[data-p]');if(!b)return;
-  document.getElementById('pdfFrame').src=`https://arxiv.org/pdf/${b.dataset.id}${b.dataset.v}#page=${b.dataset.p}`;
-  document.getElementById('vPage').textContent=` #page=${b.dataset.p}`;
+  showPdf(b.dataset.id+b.dataset.v,+b.dataset.p);
 });
 
 /* ── agent demo turn ──────────────────────── */
