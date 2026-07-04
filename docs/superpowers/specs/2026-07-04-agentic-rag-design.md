@@ -317,8 +317,17 @@ latency.
 
 ### D9. PDF viewer embeds arxiv.org; we never serve our PDF copies
 
-**Decision.** The viewer loads `arxiv.org/pdf/<id>` in an iframe, using
-`#page=N` fragments for citation jumps. Our extracted text (which we *do* own
+**Decision.** The viewer loads the **version-pinned** URL
+`arxiv.org/pdf/<id><version>` (e.g. `…/pdf/2404.04643v2`, from the `version`
+column) in an iframe, using `#page=N` fragments for citation jumps. Pinning
+eliminates version skew *by construction*: the rendered PDF is byte-identical
+to what we extracted, so page anchors and quotes can never silently drift
+when authors revise. **Validated 2026-07-04**: pinned URLs serve 200/pdf
+with no redirects, superseded old versions remain permanently retrievable,
+and withdrawn papers still serve PDFs at pinned URLs (no stub/404 to handle).
+99.5% of corpus rows have a version; the 31 NULL rows fall back to the
+unpinned URL until backfilled via one batched arXiv API call during ingest.
+Our extracted text (which we *do* own
 the right to process) renders alongside with chunk-level highlights. The
 11.6 GB corpus never deploys; prod ships only the index artifacts —
 `corpus.db` + `chroma/`, ~1–2 GB total with text and vectors.
