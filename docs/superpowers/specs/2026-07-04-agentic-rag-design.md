@@ -147,37 +147,50 @@ prices drop (they do) → re-run the arithmetic.
 
 ---
 
-### D4. Storage: everything in SQLite (metadata + FTS5 + sqlite-vec), one file
+### D4. Storage: SQLite (metadata + FTS5) + embedded Chroma (vectors) — no database server
 
-**Decision.** Extend the existing `arxiv.db` pattern: `papers` (already
-exists), `chunks` (text, paper_id, section, page span), FTS5 virtual table
-for BM25, `sqlite-vec` for embeddings. ~100k chunks × 512-dim vectors ≈
-~200 MB; brute-force scan is well under 100 ms. One file. Backup is `cp`.
-Prod DB opens read-only.
+**Decision.** Two embedded stores, zero server processes. SQLite extends the
+existing `arxiv.db` pattern: `papers` (already exists), `chunks` (text,
+paper_id, section, page span), FTS5 virtual table for BM25. Vectors live in
+**Chroma in embedded mode** (`PersistentClient` in-process with FastAPI, HNSW
+index on disk), keyed by the same chunk ids as SQLite. ~100k × 512-dim
+vectors is comfortably inside Chroma's embedded sweet spot. Backup is copying
+a directory. Prod opens everything read-only.
 
 **Why.** At this scale a database *server* is pure liability: another process
 to run, secure, and migrate on a $5 VPS, purchasing performance we cannot use.
-The write-up frames this as the thesis of the whole project — **right-sized
-engineering** — and names the exact migration trigger below, which proves the
-choice was made with eyes open rather than by default.
+Chroma embedded keeps that no-server property while giving a real ANN index,
+a purpose-built vector API (metadata-filtered queries built in), and a
+recognizable line on the stack list. The write-up frames this as the thesis
+of the whole project — **right-sized engineering** — and names the exact
+migration trigger below, which proves the choice was made with eyes open
+rather than by default.
 
 **Rejected.**
-- *Postgres + pgvector*: the correct answer at 10× scale or with writes; here
-  it's ops burden with zero user-visible benefit. Named in the write-up as the
-  designated successor.
+- *Postgres + pgvector*: **explicitly deferred, not rejected** — it is the
+  designated successor and the correct answer at 10× scale or when prod needs
+  writes. Adopting it now buys ops burden with zero user-visible benefit.
 - *Managed vector DBs (Pinecone/Weaviate/Qdrant Cloud)*: monthly cost against a
   $20 ceiling, network hop on every query, and "I paid a vendor" is the
   opposite of the demo's message.
-- *LanceDB / Chroma sidecar*: fine tech, but a second store splits the data
-  model in two for no gain at 100k vectors.
+- *sqlite-vec (everything in one file)*: the maximally-minimal option and it
+  would work here (brute force at 100k vectors is <100 ms), but it's a young
+  extension, and splitting vectors into Chroma keeps the vector layer
+  swappable behind an interface — which is exactly the seam the pgvector
+  migration will use.
+- *Chroma client/server mode*: reintroduces the server process embedded mode
+  exists to avoid.
 
-**Risks accepted.** Brute-force search scales linearly (fine to ~1M vectors);
-SQLite single-writer is irrelevant (read-only in prod); sqlite-vec is a young
-extension (mitigated: vectors are also archived as a parquet artifact of the
-ingest pipeline, so swapping the index layer is a re-load, not a re-embed).
+**Risks accepted.** Two stores means the ingest pipeline is the only thing
+keeping SQLite and Chroma consistent (mitigated: both are rebuilt together as
+one artifact by `just ingest`; chunk id is the shared key; prod is read-only
+so they cannot drift). Chroma's on-disk format changes across versions —
+pin the version; vectors are also archived as a parquet artifact of the
+ingest pipeline, so rebuilding any index layer is a re-load, not a re-embed.
 
 **Revisit when.** Corpus >~50k papers or ~1M chunks, or query p95 >300 ms, or
-prod needs concurrent writes (live updates, D12) → Postgres + pgvector.
+prod needs concurrent writes (live updates, D12) → Postgres + pgvector
+(vectors *and* metadata converge into one server then).
 
 ---
 
@@ -273,9 +286,10 @@ points at chunk boundaries; then sweep size/overlap as an eval experiment.
 
 ### D8. Retrieval: hybrid (vector + BM25 + RRF), filters pushed down; rerank only if evals demand it
 
-**Decision.** `search_corpus` runs vector search (sqlite-vec) and BM25 (FTS5)
+**Decision.** `search_corpus` runs vector search (Chroma) and BM25 (FTS5)
 in parallel, fuses with reciprocal rank fusion, applies metadata filters
-(category, year, facets) in SQL, returns top-k chunks with provenance. A
+(category, year, facets — pushed into Chroma's `where` and SQL respectively),
+returns top-k chunks with provenance. A
 rerank stage (voyage rerank or LLM listwise) is built as an optional flag and
 ships **only if** it beats the baseline on evals by a margin worth its latency.
 
@@ -306,8 +320,8 @@ latency.
 **Decision.** The viewer loads `arxiv.org/pdf/<id>` in an iframe, using
 `#page=N` fragments for citation jumps. Our extracted text (which we *do* own
 the right to process) renders alongside with chunk-level highlights. The
-11.6 GB corpus never deploys; prod ships only the SQLite file (~1–2 GB with
-vectors and text).
+11.6 GB corpus never deploys; prod ships only the index artifacts —
+`corpus.db` + `chroma/`, ~1–2 GB total with text and vectors.
 
 **Why.** Most arXiv papers are under arXiv's non-exclusive license, which does
 **not** grant redistribution — publicly serving our copies is legally gray,
@@ -433,29 +447,38 @@ portfolio chapter (it's D4's pgvector trigger too).
 
 ---
 
-### D13. Stack: FastAPI + React(Vite) on one Hetzner-class VPS, Caddy, SSE
+### D13. Stack: FastAPI (uv) + Next.js, self-hosted on one Hetzner-class VPS, Caddy, SSE
 
-**Decision.** Python FastAPI backend (agent loop, tools, budgets, SSE event
-stream), static React/Vite frontend served by Caddy (auto-TLS), one ~$5–8/mo
-VPS (2 vCPU / 4 GB — sized for Docker headroom per D10), Cloudflare DNS in
-front. Streaming is **SSE, not WebSockets** — the agent event flow is strictly
+**Decision.** Python FastAPI backend managed with **uv** (agent loop, tools,
+budgets, SSE event stream), **Next.js frontend** (pnpm; full stack detail in
+§4b) built as a **static export** (`output: 'export'`) and served by Caddy
+(auto-TLS) — the app is client-rendered against the FastAPI API, so no Node
+process runs in prod unless a future feature demands SSR. One ~$5–8/mo VPS
+(2 vCPU / 4 GB — sized for Docker headroom per D10), Cloudflare DNS in front.
+Streaming is **SSE, not WebSockets** — the agent event flow is strictly
 server→client. Deploy = `docker compose up` via a `just deploy` recipe.
 Traces land in a local SQLite `traces.db` (every agent run: tool calls,
 tokens, cost, latency) — it feeds the timeline UI, the eval harness, and a
 private admin page showing daily spend against cap.
 
 **Why.** The repo is already Python; the ingest code and its `just` culture
-carry straight over. A flat-cost VPS is the only hosting model where a public
-agentic endpoint can't surprise-bill you — usage-priced serverless *is* the
-denial-of-wallet attack surface (compute dimension of D11). Full control of
-Docker is required by D10; most PaaS sandboxing options replace our sandbox
-story with a vendor's.
+carry straight over. Next.js is the frontend ecosystem employers recognize
+and where shadcn/Tailwind v4 tooling is first-class; static export keeps its
+footprint on the VPS at "files behind Caddy," which preserves the flat-cost,
+no-extra-process posture. A flat-cost VPS is the only hosting model where a
+public agentic endpoint can't surprise-bill you — usage-priced serverless
+*is* the denial-of-wallet attack surface (compute dimension of D11). Full
+control of Docker is required by D10; most PaaS sandboxing options replace
+our sandbox story with a vendor's.
 
-**Rejected.** *Vercel/Next + managed services* (slicker DX; splits the stack
-across languages, moves costs to usage-based, and outsources the sandbox);
-*Cloudflare Workers stack* (cheapest at scale, most exotic to build/debug, no
-Docker); *Kubernetes anything* (a joke at this scale, but named because the
-write-up should say why not).
+**Rejected.** *Vercel-hosted Next + managed services* (slicker DX; moves
+costs to usage-based and outsources the sandbox — Next.js the framework
+stays, Vercel the host goes); *Vite SPA* (lighter, but loses the Next
+ecosystem alignment the portfolio wants to signal); *SSR/Node runtime in
+prod* (a second server process with no current feature paying for it —
+adopt only if a real SSR need appears); *Cloudflare Workers stack* (cheapest
+at scale, most exotic to build/debug, no Docker); *Kubernetes anything* (a
+joke at this scale, but named because the write-up should say why not).
 
 **Risks accepted.** We are the ops team: unattended-upgrades, Caddy, fail2ban,
 backups (one SQLite file to object storage nightly). Single box = single
@@ -503,14 +526,14 @@ matters → grow the set until it discriminates.
 ```
 ┌──────────────────────────── VPS (~$5-8/mo, 2vCPU/4GB) ────────────────────────────┐
 │                                                                                    │
-│  Caddy (TLS) ── static React app                                                   │
+│  Caddy (TLS) ── static Next.js export                                              │
 │      │                                                                             │
-│      └─▶ FastAPI                                                                   │
+│      └─▶ FastAPI (uv)                                                              │
 │            ├─ /api/explorer/*      SQL over corpus.db (read-only)                  │
 │            ├─ /api/chat  (SSE)     agent loop (D1/D2)                              │
 │            │     ├─ budget gate (D11)  ── traces.db (spend, sessions)              │
 │            │     ├─ tools:                                                         │
-│            │     │    search_corpus ─▶ corpus.db (sqlite-vec + FTS5 + RRF)         │
+│            │     │    search_corpus ─▶ chroma/ (HNSW) + corpus.db (FTS5) → RRF     │
 │            │     │    query_metadata ─▶ corpus.db (read-only SQL)                  │
 │            │     │    read_paper ─▶ corpus.db (chunk text by paper/page)           │
 │            │     │    run_python ─▶ docker run --network none … (D10)              │
@@ -518,14 +541,71 @@ matters → grow the set until it discriminates.
 │            │     └─ Anthropic API (Haiku 4.5, prompt-cached)                       │
 │            └─ /admin (basic-auth)  spend/trace dashboard                           │
 │                                                                                    │
-│  corpus.db  = papers + chunks + FTS5 + vec (frozen snapshot, D12)                  │
+│  corpus.db  = papers + chunks + FTS5 (frozen snapshot, D12)                        │
+│  chroma/    = embedded Chroma vector store, same chunk ids (D4)                    │
 │  traces.db  = agent runs, tool calls, tokens, cost (D13)                           │
 └────────────────────────────────────────────────────────────────────────────────────┘
    Cloudflare (DNS, rate-limit, bot filter) in front
    PDF bytes: browser ─▶ arxiv.org directly (D9); embeddings API for queries (D5)
 
-Offline (Mac): pdfs/ ─▶ extract (D6) ─▶ chunk (D7) ─▶ embed (D5) ─▶ corpus.db + vectors.parquet
+Offline (Mac): pdfs/ ─▶ extract (D6) ─▶ chunk (D7) ─▶ embed (D5) ─▶ corpus.db + chroma/ + vectors.parquet
 ```
+
+## 4b. Tech stack
+
+One table per layer; **bold** items are the load-bearing choices already
+argued in the decision records, the rest is the supporting cast this stack
+implies. Anything not listed here is not in v1.
+
+### Backend (Python, managed with `uv`)
+
+| Piece | Choice | Role / note |
+|---|---|---|
+| Package/env | **uv** (`pyproject.toml`, locked) | replaces the venv+requirements.txt pattern of the collector; `uv run` in `just` recipes |
+| API | **FastAPI** + uvicorn | routes, SSE via `sse-starlette`, OpenAPI schema doubles as the frontend's type source |
+| Validation | pydantic v2 | request/response + tool-argument schemas (the `drive_ui` enum lives here) |
+| LLM | `anthropic` SDK | Haiku 4.5, prompt caching, streaming (D3) |
+| Embeddings | `openai` SDK | text-embedding-3-small @512d (D5) |
+| Vector store | **chromadb** (embedded, pinned) | D4 |
+| Metadata/FTS/traces | **sqlite3** stdlib + FTS5 | D4, D13; no ORM — the SQL *is* portfolio material |
+| PDF extraction | **pymupdf4llm** | D6, offline only |
+| Tokens | tiktoken / `anthropic.count_tokens` | chunk sizing + budget accounting |
+| HTTP client | httpx | arXiv checks, health probes |
+| Sandbox control | `docker` CLI via subprocess (or docker SDK) | D10; the invocation is ~20 lines, a library is optional |
+| Lint/type/test | ruff, pyright, pytest | CI gate |
+
+### Frontend (Next.js, managed with `pnpm`)
+
+| Piece | Choice | Role / note |
+|---|---|---|
+| Framework | **Next.js** (App Router, `output: 'export'`) | static export served by Caddy (D13); TypeScript strict |
+| Styling | **Tailwind CSS v4** | CSS-first config |
+| Components | **shadcn/ui** (+ radix, lucide-react) | explorer chrome, panel, dialogs |
+| Class utils | **cva + clsx + tailwind-merge** | come with the shadcn pattern; component variants |
+| Server state | **TanStack Query** | explorer data fetching/caching against FastAPI |
+| Client state | **zustand** | agent-panel session, timeline events, viewer state (`drive_ui` lands here) — one store, so TanStack owns server data and zustand owns UI/session state, never both |
+| Animation | **motion** | timeline streaming-in, panel transitions |
+| Tables/lists | TanStack Table + TanStack Virtual | 6,460-row explorer stays smooth |
+| SSE client | `@microsoft/fetch-event-source` | POST + headers support that native `EventSource` lacks |
+| Markdown | react-markdown + remark-gfm, **no raw HTML** | the §6 output-sanitization defense, as a dependency choice |
+| API types | openapi-typescript (generated from FastAPI schema) | backend pydantic models become frontend types; no drift |
+| PDF fallback | react-pdf/pdf.js — **only if** D9's iframe rung fails | do not install preemptively |
+| Lint/test | eslint, prettier, vitest + Testing Library; Playwright smoke on the deployed demo flow | CI gate |
+
+### Data & infra
+
+| Piece | Choice | Role / note |
+|---|---|---|
+| Corpus artifacts | corpus.db + chroma/ + vectors.parquet | built by `just ingest`, versioned by snapshot date (D12) |
+| Sandbox image | pinned python + pandas/numpy/matplotlib | pre-baked, no pip at runtime (D10) |
+| Reverse proxy | Caddy | auto-TLS, static files, `/api` proxy |
+| Orchestration | docker compose (api, caddy; sandbox containers spawned ad-hoc) | one `just deploy` |
+| Edge | Cloudflare free tier (+ Turnstile if needed) | D11 |
+| Backups | nightly copy of corpus.db/chroma/traces.db to object storage (rclone; litestream optional for traces.db) | D13 |
+| CI | GitHub Actions: ruff+pyright+pytest, eslint+vitest, eval smoke subset | keeps D14 honest per PR |
+| Task runner | just | already the repo's culture |
+| Secrets | `.env` on the box only (Anthropic + OpenAI keys); never in the sandbox container | D10/D13 |
+| Analytics | none in v1 (Caddy access logs suffice) | privacy + zero cost; revisit if traffic questions matter |
 
 **Chat event flow.** User message → budget gate → agent loop streams SSE
 events (`thinking`, `tool_call`, `tool_result_summary`, `ui_action`, `text`,
@@ -589,8 +669,9 @@ budget system's public face.
 Each milestone ends demoable; risk is front-loaded (retrieval quality and the
 agent loop are the make-or-break; UI is work but not risk).
 
-1. **Ingest** — extract → chunk → embed → `corpus.db` (+ `vectors.parquet`),
-   as `just` recipes with stats + skip-list reporting. *Exit: corpus queryable in SQLite.*
+1. **Ingest** — extract → chunk → embed → `corpus.db` + `chroma/`
+   (+ `vectors.parquet` archive), as `just` recipes with stats + skip-list
+   reporting. *Exit: corpus queryable via SQLite and Chroma with shared chunk ids.*
 2. **Retrieval + evals** — hybrid search + golden set + `just eval`; tune
    until numbers stabilize. *Exit: committed eval table justifying D7/D8 choices.*
 3. **Agent loop (CLI)** — D2 loop + all tools except `run_python`, driven from
@@ -619,5 +700,5 @@ agent loop are the make-or-break; UI is work but not risk).
 
 - arXiv allows iframe embedding of PDF URLs (test in milestone 4; ladder ready).
 - PyMuPDF4LLM failure rate on this corpus is low single-digit % (measured in milestone 1 stats).
-- sqlite-vec brute-force latency at ~100k×512d stays <100 ms on the VPS class chosen (benchmark in milestone 2; pgvector is the named fallback).
+- Embedded Chroma query latency at ~100k×512d stays well under 100 ms on the VPS class chosen, and its memory footprint fits the 4 GB box alongside Docker (benchmark in milestone 2; pgvector is the named fallback).
 - Haiku 4.5 tool-use is reliable enough for an 8-step loop (milestone 3 CLI phase exists to find out cheaply).
