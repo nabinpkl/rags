@@ -356,7 +356,11 @@ caching-proxy idea is dead, see §6b) → extracted-text-only view with an
 "open on arXiv" button. The split view keeps our text pane primary so the
 demo survives any rung. `#page=N` precision varies by browser viewer —
 citations also always show section + our text anchor, so page-jump is
-enhancement, not correctness.
+enhancement, not correctness. **Observed 2026-07-04:** embedded webviews
+without a native PDF plugin (Electron-style preview panes) turn iframe PDF
+loads into downloads — rung 2 handles these; milestone 4 decides
+per-browser rung selection (possibly PDF.js-by-default with the iframe as
+the enhancement, inverting the ladder).
 
 **Revisit when.** The iframe rung fails in testing (drop a rung), or the
 corpus ever shifts to verified CC-BY-only papers (then self-hosting is clean).
