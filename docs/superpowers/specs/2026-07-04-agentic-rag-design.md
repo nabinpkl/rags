@@ -607,6 +607,247 @@ implies. Anything not listed here is not in v1.
 | Secrets | `.env` on the box only (Anthropic + OpenAI keys); never in the sandbox container | D10/D13 |
 | Analytics | none in v1 (Caddy access logs suffice) | privacy + zero cost; revisit if traffic questions matter |
 
+## 4c. Repository layout
+
+The whole tree, root to leaf. Naming rules first, because they are the point:
+
+- **A file's name states what it does.** There is no `core.py`, `utils.py`,
+  `helpers.py`, `service.py`, `manager.py`, or `misc/` anywhere in this tree.
+  The single tolerated exception is frontend `lib/utils.ts`, which contains
+  exactly the shadcn `cn()` helper and nothing else, because fighting that
+  convention costs more than it buys.
+- **One boundary per file.** Each file has one responsibility, sized to be
+  readable in one context-window pass (soft target: under ~400 lines; a file
+  growing past that is a design smell, not a formatting problem).
+- **One name per concept, everywhere.** `paper`, `chunk`, `trace`, `budget`,
+  `session`, `replay`, `facet` mean the same thing in SQL, Python, SSE event
+  names, TypeScript types, and zustand stores. `grep -r budget` finds every
+  piece of budget logic in the repo; that property is maintained on purpose.
+- **Tests mirror source names.** `budgets.py` ↔ `test_budgets.py`. An agent
+  (or human) finding one immediately knows the path to the other.
+
+Three layout decisions resolved here, deliberately:
+
+1. **The existing collector moves to `collector/`** and its data artifacts to
+   `corpus/` (gitignored). The collector is Part 0 of the pipeline and stays
+   runnable; milestone 1 includes this move (`git mv`, paths updated, its
+   README section adjusted). Root stays clean: three top-level codebases
+   (`collector/`, `backend/`, `frontend/`), one data directory, one deploy
+   directory, docs.
+2. **No dynamic routes in the frontend.** Static export (D13) plus 6,460
+   papers makes `paper/[id]/page.tsx` the wrong tool (it would SSG 6,460
+   pages or fight `generateStaticParams`). The app is one shell; the open
+   paper is a search param (`/?paper=2606.12345&page=4`), owned by the
+   viewer store and synced to the URL so views are shareable/back-button
+   friendly. This is also what makes `drive_ui` trivial: the agent mutates
+   the same store the URL reflects.
+3. **Replays live in `traces.db`.** A showcase replay is just a recorded
+   trace flagged `showcase=1` — no separate format, no second store, and the
+   replay player exercises the same timeline UI code path as live SSE.
+
+```
+rags/
+├── justfile                         # umbrella recipes: ingest, eval, dev, deploy — delegate into backend/frontend
+├── README.md                        # the portfolio front door: pitch, architecture summary, eval table, links
+├── .gitignore                       # corpus/, .env, node_modules, .venv, traces.db
+├── .github/
+│   └── workflows/ci.yml             # ruff+pyright+pytest; eslint+vitest; eval smoke subset (D14)
+├── docs/
+│   └── superpowers/
+│       ├── specs/                   # this document and its predecessors
+│       └── plans/                   # implementation plans (one per milestone)
+├── collector/                       # Part 0 — existing arXiv corpus collector, moved as-is
+│   ├── arxiv_ingest.py              # discovery + download + arxiv.db index (already built)
+│   ├── test_diverse.py
+│   └── README.md                    # current root README moves here
+├── corpus/                          # gitignored data; every artifact `just ingest` reads or writes
+│   ├── pdfs/{YYYY}/{MM}/*.pdf       # 11.6 GB source PDFs (local only, never deployed — D9)
+│   ├── arxiv.db                     # collector's metadata index (input to ingest)
+│   ├── extracted/{arxiv_id}.json    # per-paper extraction cache: markdown, sections, page map (D6)
+│   ├── corpus.db                    # papers + chunks + FTS5 — the deployable index (D4)
+│   ├── chroma/                      # embedded Chroma store, same chunk ids (D4)
+│   ├── vectors.parquet              # embedding archive; index layers rebuild from this (D5)
+│   └── skiplist.json                # papers extraction failed on, with reasons (D6)
+├── backend/
+│   ├── pyproject.toml               # uv-managed; deps pinned, chromadb version pinned (D4)
+│   ├── uv.lock
+│   ├── askrag/
+│   │   ├── config.py                # ALL tunables + env in one pydantic-settings class: paths, model ids, chunk sizes, budget caps, RRF k
+│   │   ├── db.py                    # read-only SQLite connection factories for corpus.db; read-write for traces.db
+│   │   ├── traces.py                # trace record schema + writer/reader; feeds timeline UI, evals, admin, replays
+│   │   ├── api/
+│   │   │   ├── app.py               # FastAPI assembly: routers, CORS, lifespan (opens stores once), static admin
+│   │   │   ├── routes_explorer.py   # GET /api/papers, /api/papers/{id}, /api/facets — browse/filter/search
+│   │   │   ├── routes_chat.py       # POST /api/chat — budget gate → agent loop → SSE stream; replay mode when capped
+│   │   │   ├── routes_admin.py      # GET /admin — basic-auth spend/trace dashboard (D13)
+│   │   │   └── sse_events.py        # the SSE event vocabulary: thinking|tool_call|tool_result_summary|ui_action|text|cost|done — single source, mirrored by frontend lib/sse.ts
+│   │   ├── agent/
+│   │   │   ├── loop.py              # THE hand-built loop (D1/D2): messages, tool dispatch, step cap, stop conditions
+│   │   │   ├── context_window.py    # eviction/summarization of stale tool results; keeps loop under token ceiling
+│   │   │   ├── budgets.py           # D11 layered caps: per-message, per-session, per-IP, global daily; reads/writes traces.db
+│   │   │   ├── prompts.py           # system prompt + the untrusted-content fence for tool results (§6)
+│   │   │   └── replay.py            # streams a showcase=1 trace back through the same SSE vocabulary
+│   │   ├── tools/
+│   │   │   ├── registry.py          # tool JSON schemas sent to the model + name→handler dispatch table
+│   │   │   ├── search_corpus.py     # tool: hybrid retrieval with filters → chunks + provenance
+│   │   │   ├── query_metadata.py    # tool: SELECT-only single-statement SQL, row/time limits (§5)
+│   │   │   ├── read_paper.py        # tool: extracted text spans by paper id + page range
+│   │   │   ├── run_python.py        # tool: dispatch code to sandbox/runner, collect stdout + PNGs
+│   │   │   └── drive_ui.py          # tool: enum-validated UI actions, server-verified against corpus.db (§5)
+│   │   ├── retrieval/
+│   │   │   ├── hybrid_search.py     # vector + BM25 → reciprocal rank fusion → top-k (D8); rerank behind a flag
+│   │   │   ├── vector_store.py      # Chroma wrapper — THE pgvector seam (D4 revisit lands here)
+│   │   │   ├── fts.py               # FTS5/BM25 query construction and escaping
+│   │   │   └── embeddings.py        # embedding API client, one function for corpus batch + query single (D5)
+│   │   ├── ingest/
+│   │   │   ├── extract_pdfs.py      # pdfs/ → corpus/extracted/*.json + skiplist.json (PyMuPDF4LLM, D6)
+│   │   │   ├── chunk_papers.py      # extracted/ → section-aware ~1k-token page-anchored chunks (D7)
+│   │   │   ├── embed_chunks.py      # chunks → vectors.parquet via embeddings API, batched, resumable (D5)
+│   │   │   ├── build_indexes.py     # chunks + vectors → corpus.db (FTS5) + chroma/, shared chunk ids (D4)
+│   │   │   └── ingest_stats.py      # per-stage report: counts, sizes, skip reasons, snapshot datestamp (D12)
+│   │   ├── sandbox/
+│   │   │   ├── runner.py            # docker run --network none, ro-mounts, rlimits, tmpfs, PNG collection (D10)
+│   │   │   └── image/
+│   │   │       └── Dockerfile       # pinned python + pandas/numpy/matplotlib; no pip at runtime
+│   │   └── evals/
+│   │       ├── golden_set.yaml      # ~50 hand-verified question → expected paper/passage pairs (D14)
+│   │       ├── run_retrieval_evals.py  # recall@k, MRR per retrieval config; emits the README table
+│   │       ├── run_answer_evals.py  # end-to-end agent runs judged for faithfulness + citation accuracy
+│   │       └── judge_prompts.py     # LLM-judge rubrics (strong model, offline — D3)
+│   └── tests/                       # mirrors askrag/ module names, one test file per source file
+│       ├── test_loop.py             # loop against a scripted fake model: tool dispatch, step cap, stop
+│       ├── test_context_window.py
+│       ├── test_budgets.py          # every cap layer trips at its boundary; replay mode engages
+│       ├── test_registry.py         # tool schemas validate; unknown tool names rejected
+│       ├── test_query_metadata.py   # SELECT-only enforcement: INSERT/UPDATE/multi-statement/PRAGMA all refused
+│       ├── test_drive_ui.py         # enum validation; nonexistent paper ids refused
+│       ├── test_hybrid_search.py    # RRF math; filters push down; empty-leg degradation (D5 outage mode)
+│       ├── test_chunk_papers.py     # section boundaries respected; page anchors correct; overlap size
+│       ├── test_runner.py           # sandbox: no network, ro-mounts, timeout kill, PNG capture
+│       └── test_sse_events.py       # event vocabulary serializes to what lib/sse.ts expects
+├── frontend/
+│   ├── package.json                 # pnpm; scripts: dev, build (static export), lint, test, gen:api
+│   ├── pnpm-lock.yaml
+│   ├── next.config.ts               # output: 'export' (D13); /api proxy rewrite for dev only
+│   ├── tsconfig.json                # strict
+│   ├── app/                         # Next.js App Router — one shell, no dynamic routes (decision 2 above)
+│   │   ├── layout.tsx               # root layout: fonts, theme, providers (TanStack QueryClient)
+│   │   ├── page.tsx                 # the app: explorer + viewer + agent panel composition
+│   │   └── globals.css              # Tailwind v4 entry + design tokens
+│   ├── components/
+│   │   ├── explorer/
+│   │   │   ├── paper-table.tsx      # TanStack Table + Virtual over /api/papers; row click → viewer store
+│   │   │   ├── facet-filters.tsx    # category/year/facet controls; writes viewer store filter state
+│   │   │   └── corpus-search-bar.tsx # semantic + keyword search box hitting /api/papers?q=
+│   │   ├── viewer/
+│   │   │   ├── paper-split-view.tsx # layout: pdf frame | extracted text; reads viewer store
+│   │   │   ├── arxiv-pdf-frame.tsx  # D9 rung 1: arxiv.org iframe with #page=N; detects embed failure → ladder
+│   │   │   └── extracted-text-pane.tsx # our text with chunk anchors; citation clicks scroll + highlight
+│   │   ├── agent-panel/
+│   │   │   ├── chat-panel.tsx       # message list + input; wires use-agent-stream to session store
+│   │   │   ├── tool-timeline.tsx    # live tool-call timeline rendered from SSE events (motion)
+│   │   │   ├── cost-badge.tsx       # running token/$ per conversation, from cost events
+│   │   │   ├── message-markdown.tsx # react-markdown + remark-gfm, raw HTML disabled (§6), verified-citation chips
+│   │   │   └── replay-banner.tsx    # "live budget spent — watching a recorded session" mode switch
+│   │   └── ui/                      # shadcn-generated primitives, unmodified (regenerate, don't edit)
+│   ├── lib/
+│   │   ├── api-client.ts            # typed fetch wrapper over generated types; single base-URL owner
+│   │   ├── api-types.gen.ts         # openapi-typescript output — GENERATED, never hand-edited
+│   │   ├── sse.ts                   # fetch-event-source wrapper; discriminated union mirroring sse_events.py
+│   │   └── utils.ts                 # cn() only (see naming rules)
+│   ├── stores/
+│   │   ├── agent-session-store.ts   # zustand: messages, timeline events, budget/replay state
+│   │   └── viewer-store.ts          # zustand: open paper, page, filters — drive_ui's target, synced to URL search params
+│   ├── hooks/
+│   │   ├── use-papers-query.ts      # TanStack Query hooks for explorer endpoints
+│   │   └── use-agent-stream.ts      # POST /api/chat via lib/sse.ts → dispatches events into stores
+│   └── tests/
+│       ├── tool-timeline.test.tsx   # events render in order; unknown event types don't crash
+│       ├── message-markdown.test.tsx # raw HTML is stripped; citation chips only for verified ids
+│       └── viewer-store.test.ts     # drive_ui actions mutate store + URL symmetrically
+├── deploy/
+│   ├── compose.yml                  # api + caddy services; corpus artifacts mounted ro; sandbox spawned ad-hoc (not a service)
+│   ├── Caddyfile                    # TLS, static frontend, /api reverse proxy, /admin basic-auth
+│   ├── .env.example                 # every secret/setting the box needs, documented, no values
+│   └── backup.sh                    # nightly rclone of corpus.db, chroma/, traces.db (D13)
+└── e2e/
+    └── demo-flow.spec.ts            # Playwright smoke: load explorer → ask agent → citation opens viewer (against deployed URL)
+```
+
+## 4d. Engineering principles — classic rules, agent-era calibration
+
+The classics still hold; what changed is the *cost model* they were priced
+against. Code is now cheap to write and cheaper to regenerate, but every
+line still costs the same to read, and most readers of this codebase will be
+agents navigating by grep and file names. Each rule below states the classic
+form, what we actually practice, and why.
+
+**KISS → "boring is a feature."** Practice: step on the standard pattern
+(Next.js conventions, FastAPI idioms, shadcn's generated structure) unless a
+decision record says otherwise. Cleverness that saves ten lines but breaks
+the "an agent can predict where things live" property is a net loss. Every
+deviation from convention in this repo has a number (D1–D14) — if a future
+deviation doesn't earn a decision record, it doesn't happen.
+
+**YAGNI → still ruthless, with named exceptions.** Practice: no speculative
+generality — except the seams a decision record's *revisit trigger*
+explicitly names (e.g. `vector_store.py` exists so the pgvector migration is
+a file swap, `arxiv-pdf-frame.tsx` isolates the D9 fallback ladder). A seam
+without a written trigger is speculation; delete it. This is YAGNI upgraded
+from a taste rule to a bookkeeping rule: "gonna need it" claims must be
+written down or they don't count.
+
+**DRY → deduplicate *knowledge*, tolerate duplicated *mechanics*.** The
+classic rule-of-three ("refactor on the third copy") is genuinely debatable
+now: generating a third copy costs nothing, and a wrong abstraction costs an
+agent far more navigation than repetition does — so we bias *later* than
+rule-of-three for code shape. But knowledge — constants, schemas, event
+vocabularies, prompts — must live in exactly one place, because divergent
+copies are the bug class agents introduce most easily. Concretely:
+`config.py` owns every tunable; `sse_events.py` owns the event vocabulary
+and `lib/sse.ts` mirrors it under test (`test_sse_events.py`); pydantic
+models own API shapes and `api-types.gen.ts` is generated, never edited. Two
+route handlers that look similar stay similar-looking until a *knowledge*
+change (not an aesthetic itch) forces them together.
+
+**Single responsibility → one boundary per file, sized for a context
+window.** Practice: the tree above is the enforcement — file names are
+contracts, and a file that needs "and" to describe is two files. Soft cap
+~400 lines. This is the classic rule with a new justification: a file an
+agent can hold in one read gets edited correctly; a 2,000-line module gets
+edited by patch-and-pray.
+
+**Explicit over implicit (grep-first).** No metaprogramming, no dynamic
+imports, no convention-magic dispatch beyond what the frameworks impose. The
+tool registry is a literal dict, not a decorator scan. Agents debug by
+reading and grepping, not by stepping through a debugger — code whose
+behavior is visible in its text is code agents maintain safely. Same rule
+for names: one concept, one name, everywhere (§4c).
+
+**Contracts at boundaries, checked by machines.** pydantic at every API and
+tool edge, TypeScript strict, generated types across the language gap, and
+tests that pin the cross-language mirrors. The type checker is the first
+reviewer of every agent-written diff; the more of the spec that lives in
+types, the less that lives in vibes.
+
+**Tests are the executable spec.** TDD where the behavior is designable
+up-front (budgets, chunking, tool contracts — the `tests/` list in §4c *is*
+the acceptance criteria); test-after is acceptable for exploratory UI work,
+but the security-relevant behaviors (§6 table) are never test-after. A test
+file mirrors its source file so the spec for any module is one `ls` away.
+
+**Comments state constraints, not narration.** A comment exists only to say
+what the code cannot: "read-only by construction, see D4," "this mirror is
+tested by test_sse_events.py — change both." Narration comments rot and
+mislead the next agent; constraint comments are load-bearing.
+
+**Known-unknowns are written, unknown-unknowns get seams.** Everything this
+spec couldn't resolve is in §10 with a validation milestone; the honest
+admission is that some things are only knowable by building (Haiku's loop
+reliability, arXiv's embed behavior). The response isn't more upfront
+design — it's putting those bets behind small files with tested contracts,
+so being wrong is a file swap, not a rewrite.
+
 **Chat event flow.** User message → budget gate → agent loop streams SSE
 events (`thinking`, `tool_call`, `tool_result_summary`, `ui_action`, `text`,
 `cost`) → frontend renders timeline + answer + drives explorer. Every run
@@ -669,9 +910,11 @@ budget system's public face.
 Each milestone ends demoable; risk is front-loaded (retrieval quality and the
 agent loop are the make-or-break; UI is work but not risk).
 
-1. **Ingest** — extract → chunk → embed → `corpus.db` + `chroma/`
-   (+ `vectors.parquet` archive), as `just` recipes with stats + skip-list
-   reporting. *Exit: corpus queryable via SQLite and Chroma with shared chunk ids.*
+1. **Ingest** — first the §4c repo reorganization (collector → `collector/`,
+   data → `corpus/`, backend scaffold), then extract → chunk → embed →
+   `corpus.db` + `chroma/` (+ `vectors.parquet` archive), as `just` recipes
+   with stats + skip-list reporting. *Exit: corpus queryable via SQLite and
+   Chroma with shared chunk ids.*
 2. **Retrieval + evals** — hybrid search + golden set + `just eval`; tune
    until numbers stabilize. *Exit: committed eval table justifying D7/D8 choices.*
 3. **Agent loop (CLI)** — D2 loop + all tools except `run_python`, driven from
