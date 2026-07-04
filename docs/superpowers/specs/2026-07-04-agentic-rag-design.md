@@ -344,14 +344,17 @@ trust moment where the citation lands on the actual page); *PDF.js rendering
 arXiv-fetched bytes* (needs permissive CORS from arXiv — not counted on; see
 risk below).
 
-**Risks accepted.** arXiv may set `X-Frame-Options`/CSP that blocks iframes,
-or rate-limit hot traffic. **Fallback ladder, designed-in:** iframe → PDF.js
-via our thin caching proxy (single-file, short-TTL cache — closer to
-"browsing arXiv" than "redistributing a corpus", still gray, documented) →
-extracted-text-only view with an "open on arXiv" button. The split view keeps
-our text pane primary so the demo survives any rung. `#page=N` precision
-varies by browser viewer — citations also always show section + our text
-anchor, so page-jump is enhancement, not correctness.
+**Risks accepted.** arXiv may someday set `X-Frame-Options`/CSP that blocks
+iframes (none today, verified), or rate-limit hot traffic. **Fallback
+ladder, designed-in:** iframe → **PDF.js fetching the bytes directly from
+arxiv.org in the user's browser** (verified permitted: `Access-Control-
+Allow-Origin: *` + `Accept-Ranges: bytes`; no server proxy — arXiv's API
+terms prohibit serving e-prints from our servers, so the earlier
+caching-proxy idea is dead, see §6b) → extracted-text-only view with an
+"open on arXiv" button. The split view keeps our text pane primary so the
+demo survives any rung. `#page=N` precision varies by browser viewer —
+citations also always show section + our text anchor, so page-jump is
+enhancement, not correctness.
 
 **Revisit when.** The iframe rung fails in testing (drop a rung), or the
 corpus ever shifts to verified CC-BY-only papers (then self-hosting is clean).
@@ -896,6 +899,45 @@ box is public.
 **Residual risks, stated:** kernel-level container escape (accepted — public
 data only); IP-rotation past per-IP budgets (global cap backstops); arXiv
 blocking embeds (fallback ladder in D9). The write-up publishes this table.
+
+## 6b. arXiv policy compliance (primary sources read 2026-07-04)
+
+Researched from arXiv's API Terms of Use, brand guidelines, bulk-data pages,
+and license pages. These are adopted constraints, not optional:
+
+1. **Name.** No "arXiv" in the project name or anything implying official
+   connection (brand guidelines prohibit names that "imply or tend to imply
+   some official connection"). *askRAG* is clean. Never suggest endorsement.
+2. **Attribution, verbatim, in the site footer** (`layout.tsx`): *"Thank you
+   to arXiv for use of its open access interoperability. This service was
+   not reviewed or approved by, nor does it necessarily express or reflect
+   the policies or opinions of, arXiv."* Logo: skip it (use is allowed only
+   for acknowledgement and tightly constrained — the sentence suffices).
+3. **Never serve e-prints from our servers.** Explicitly prohibited by the
+   API ToU. PDFs reach users only via their own browser fetching arxiv.org
+   (iframe rung 1, PDF.js direct cross-origin fetch rung 2 — CORS-verified).
+   This is also why D9's old caching-proxy fallback was deleted.
+4. **Directing users to arXiv is the *encouraged* pattern** — the API ToU
+   says so explicitly, and policy is silent on iframes specifically. Link
+   the abstract page (`arxiv.org/abs/<id>`) alongside the embedded PDF;
+   bulk-data terms require linking back to arXiv for downloads from any
+   full-text-based tool.
+5. **Metadata is CC0 1.0 — abstracts included by name** (API ToU footnote
+   lists "title, abstract, authors, identifiers, and classification terms").
+   The explorer can store, display, and index all of it freely.
+6. **Full text is NOT CC0.** Most papers grant arXiv only a non-exclusive
+   distribution license; arXiv "cannot grant others the right to distribute."
+   Storing and processing full text for retrieval falls under the ToU's
+   "retrieve, store, and use… for research purposes" allowance; exposing
+   bulk full text for download does not. Display posture (summaries,
+   snippet limits) is specified in §6c.
+7. **Ingest-side rate limits** (visitors' organic PDF traffic has no stated
+   limit — "interactive use by human users" is arXiv's stated first
+   priority): legacy API/OAI ≤ 1 request per 3 s single-connection;
+   harvesting only via export.arxiv.org, bursts ≤ 4 req/s with 1 s sleep.
+   The collector already complies.
+8. **Courtesy:** arXiv asks to be told when products launch — do that at
+   deploy (milestone 6 checklist).
 
 ## 7. Cost model
 
