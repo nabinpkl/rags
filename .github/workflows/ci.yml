@@ -1,6 +1,7 @@
-# Backend gate: ruff + pyright + pytest via uv (spec §4b/§4c).
-# Frontend (eslint+vitest) and the eval smoke subset (D14) get their own jobs
-# when #26 / #24 land. No corpus access in CI: tests build tmp fixtures.
+# The single gate: CI runs `just check`, the same command every role runs
+# locally, so local green == CI green by construction (issue #44).
+# frontend-check self-skips until #26 scaffolds frontend/ (then add pnpm here).
+# No corpus access in CI: tests build tmp fixtures. Eval smoke lands with #24.
 name: ci
 
 on:
@@ -9,19 +10,17 @@ on:
   pull_request:
 
 jobs:
-  backend:
+  check:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
+    env:
+      # Every `uv run` inside `just check` asserts uv.lock is current —
+      # replaces the old explicit `uv sync --locked` step.
+      UV_LOCKED: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
-      - run: uv sync --locked
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run pyright
-      - run: uv run pytest
+      - uses: extractions/setup-just@v3
+      - run: just check

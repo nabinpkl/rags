@@ -38,10 +38,26 @@ update *ARGS:
 status *ARGS:
     @just --justfile {{collector}} {{ARGS}} status
 
-# Backend tests (pytest via uv; extra args pass through)
+# Backend gate before any handoff: lint, format, types (ty), fast tests
+backend-check:
+    cd backend && uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest -q
+
+# Frontend gate: lint + typecheck (goes live when #26 scaffolds frontend/)
+frontend-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -d frontend ]; then
+        echo "frontend not scaffolded yet, skipping"
+        exit 0
+    fi
+    cd frontend && pnpm lint && pnpm typecheck
+
+# Full-repo gate — CI runs exactly this, so local green == CI green
+check: backend-check frontend-check
+
+# Backend tests only (pytest via uv; extra args pass through)
 be-test *ARGS:
     cd backend && uv run pytest {{ARGS}}
 
-# Backend lint + format + type gate (ruff, pyright) — mirrors CI
-be-lint:
-    cd backend && uv run ruff check . && uv run ruff format --check . && uv run pyright
+# Thin alias kept for muscle memory; backend-check is the gate
+alias be-lint := backend-check

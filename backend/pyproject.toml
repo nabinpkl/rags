@@ -20,9 +20,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pyright>=1.1.411",
     "pytest>=9.1.1",
     "ruff>=0.15.20",
+    "ty==0.0.56",
 ]
 
 [build-system]
@@ -48,7 +48,6 @@ target-version = "py312"
 # E/F pycodestyle+pyflakes, I import order, UP modernize, B bugbear traps.
 select = ["E", "F", "I", "UP", "B"]
 
-[tool.pyright]
-include = ["askrag", "tests"]
-pythonVersion = "3.12"
-typeCheckingMode = "standard"
+[tool.ty.environment]
+# Checked at the lowest supported version so 3.13-only APIs can't sneak in.
+python-version = "3.12"

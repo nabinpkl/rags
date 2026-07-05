@@ -2,16 +2,24 @@
 
 import re
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from askrag.config import Settings, get_settings
 
 ASKRAG_SRC = Path(__file__).resolve().parent.parent / "askrag"
 
 
-def make_settings(**overrides: object) -> Settings:
-    # _env_file=None keeps tests deterministic: a developer's local .env
-    # must not change test outcomes.
-    return Settings(_env_file=None, **overrides)  # type: ignore[call-arg]
+@pytest.fixture(autouse=True)
+def _no_local_env_file(monkeypatch, tmp_path):
+    # Settings resolves env_file=".env" relative to cwd; running from a bare
+    # tmp dir keeps a developer's local .env from changing test outcomes.
+    monkeypatch.chdir(tmp_path)
+
+
+def make_settings(**overrides: Any) -> Settings:
+    return Settings(**overrides)
 
 
 def test_spec_constants_load_without_env(monkeypatch):

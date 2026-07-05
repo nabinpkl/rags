@@ -111,7 +111,7 @@ def extract_one(pdf_path: Path) -> Extraction:
         if n_pages == 0:
             raise ExtractionSkip("zero pages")
         # page_chunks=True returns one dict per page; the annotation on
-        # to_markdown is too loose for pyright to see that.
+        # annotation on to_markdown is too loose for the type checker.
         pages = cast(list[dict], pymupdf4llm.to_markdown(doc, page_chunks=True))
 
     page_texts = [page["text"] for page in pages]
