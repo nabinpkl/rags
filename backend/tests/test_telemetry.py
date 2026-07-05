@@ -5,6 +5,7 @@ surface, so its test comes first."""
 import json
 import logging
 import socket
+from typing import Any
 
 import pytest
 
@@ -12,8 +13,16 @@ from askrag import telemetry
 from askrag.config import Settings
 
 
-def make_settings(**overrides: object) -> Settings:
-    return Settings(_env_file=None, **overrides)  # type: ignore[unknown-argument]
+@pytest.fixture(autouse=True)
+def _no_local_env_file(monkeypatch, tmp_path):
+    # Settings resolves env_file=".env" relative to cwd; running from a bare
+    # tmp dir keeps a developer's local .env from changing test outcomes
+    # (mirrors tests/test_config.py).
+    monkeypatch.chdir(tmp_path)
+
+
+def make_settings(**overrides: Any) -> Settings:
+    return Settings(**overrides)
 
 
 @pytest.fixture(autouse=True)

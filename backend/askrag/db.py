@@ -9,6 +9,7 @@ writable store (D13).
 import sqlite3
 from pathlib import Path
 
+from askrag import telemetry
 from askrag.config import get_settings
 
 
@@ -18,7 +19,12 @@ def connect_corpus(db_path: Path | None = None) -> sqlite3.Connection:
     # (corpus.db is produced only by `just ingest`) instead of silently
     # creating an empty DB. A read-only factory never mkdirs. as_uri()
     # percent-encodes, so spaces/% in deploy paths can't corrupt the URI.
-    conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    # Tracer is fetched per call, not cached at import: a module-level tracer
+    # captured before telemetry.init() would bind to the no-op provider.
+    with telemetry.get_tracer("askrag.db").start_as_current_span(
+        "askrag.db.connect", attributes={"askrag.db": "corpus", "askrag.db_mode": "ro"}
+    ):
+        conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -28,7 +34,10 @@ def connect_traces(db_path: Path | None = None) -> sqlite3.Connection:
     # The parent may be gitignored/absent on a fresh deploy, and
     # sqlite3.connect never creates parent directories.
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
-    conn.execute("PRAGMA journal_mode=WAL")
+    with telemetry.get_tracer("askrag.db").start_as_current_span(
+        "askrag.db.connect", attributes={"askrag.db": "traces", "askrag.db_mode": "rw"}
+    ):
+        conn = sqlite3.connect(path)
+        conn.execute("PRAGMA journal_mode=WAL")
     conn.row_factory = sqlite3.Row
     return conn

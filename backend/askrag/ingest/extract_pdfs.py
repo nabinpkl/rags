@@ -18,11 +18,19 @@ sections share their boundary page, and sections always cover pages
 1..n_pages (an untitled preamble/whole-document section fills any gap).
 Failures are recorded, never silently dropped: skiplist.json maps
 arxiv_id -> {pdf, reason, failed_at}.
+
+Telemetry (D15): the run emits an askrag.ingest.extract span; each
+successful extraction becomes an askrag.ingest.extract.pdf child span
+whose timestamps the worker measured itself (spawned workers emit
+nothing — see askrag/telemetry.py's process model). Skips surface as
+correlated warning logs plus run-span counts, not spans: the exception
+that crosses the pool boundary stays message-only.
 """
 
 import argparse
 import concurrent.futures as cf
 import json
+import logging
 import re
 import sys
 import time
@@ -34,7 +42,10 @@ from typing import cast
 import pymupdf
 import pymupdf4llm
 
+from askrag import telemetry
 from askrag.config import get_settings
+
+_log = logging.getLogger("askrag.ingest.extract_pdfs")
 
 _HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*$", re.MULTILINE)
 _PROGRESS_EVERY = 100  # logging cadence (progress lines / skiplist flushes), not behavior
@@ -69,6 +80,15 @@ class Extraction:
     sections: list[Section]
     pages: list[PageSpan]
     n_pages: int
+
+
+@dataclass(frozen=True)
+class WorkerTiming:
+    """Worker-measured wall clock for one successful extraction; the parent
+    turns it into the askrag.ingest.extract.pdf span."""
+
+    start_unix_ns: int
+    end_unix_ns: int
 
 
 @dataclass(frozen=True)
@@ -153,9 +173,14 @@ def _write_json_atomic(path: Path, payload: dict, indent: int | None = None) -> 
     tmp.replace(path)
 
 
-def _extract_worker(pdf_path: Path, out_path: Path) -> None:
+def _extract_worker(pdf_path: Path, out_path: Path) -> WorkerTiming:
     """Pool worker. Raises ExtractionSkip (pickle-safe) for every failure mode;
-    the pool re-raises it in the parent, which owns the skiplist."""
+    the pool re-raises it in the parent, which owns the skiplist.
+
+    Returns its own wall-clock (D15 process model): spawned workers have no
+    tracer, so they hand timestamps back and the parent emits the span.
+    """
+    start_unix_ns = time.time_ns()
     try:
         payload = extract_one(pdf_path)
     except ExtractionSkip:
@@ -166,6 +191,7 @@ def _extract_worker(pdf_path: Path, out_path: Path) -> None:
         # message-only ExtractionSkip always does.
         raise ExtractionSkip(f"{type(exc).__name__}: {exc}") from exc
     _write_json_atomic(out_path, asdict(payload))
+    return WorkerTiming(start_unix_ns=start_unix_ns, end_unix_ns=time.time_ns())
 
 
 def _load_skiplist(path: Path) -> dict[str, SkipEntry]:
@@ -215,37 +241,62 @@ def run(
         else:
             todo.append(pdf)
 
+    tracer = telemetry.get_tracer("askrag.ingest.extract_pdfs")
     started = time.monotonic()
     done = 0
-    with cf.ProcessPoolExecutor(max_workers=workers) as pool:
-        futures = {
-            pool.submit(_extract_worker, pdf, extracted_dir / f"{pdf.stem}.json"): pdf
-            for pdf in todo
-        }
-        for future in cf.as_completed(futures):
-            pdf = futures[future]
-            try:
-                future.result()
-            except ExtractionSkip as exc:
-                stats.skiplisted_new += 1
-                skiplist[pdf.stem] = SkipEntry(
-                    pdf=str(pdf),
-                    reason=str(exc),
-                    failed_at=datetime.now(UTC).isoformat(timespec="seconds"),
-                )
-            else:
-                stats.extracted += 1
-                # A retried skiplist entry that now extracts is no longer skipped.
-                skiplist.pop(pdf.stem, None)
-            done += 1
-            if done % _PROGRESS_EVERY == 0:
-                _save_skiplist(skiplist_path, skiplist)
-                rate = done / (time.monotonic() - started)
-                eta_min = (len(todo) - done) / rate / 60 if rate else 0
-                print(
-                    f"  {done}/{len(todo)} this run ({rate:.1f} PDFs/s, ~{eta_min:.0f} min left)",
-                    flush=True,
-                )
+    with tracer.start_as_current_span("askrag.ingest.extract") as run_span:
+        run_span.set_attribute("askrag.pdfs_total", stats.total)
+        run_span.set_attribute("askrag.pdfs_todo", len(todo))
+        run_span.set_attribute("askrag.workers", workers)
+        with cf.ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(_extract_worker, pdf, extracted_dir / f"{pdf.stem}.json"): pdf
+                for pdf in todo
+            }
+            for future in cf.as_completed(futures):
+                pdf = futures[future]
+                try:
+                    timing = future.result()
+                except ExtractionSkip as exc:
+                    stats.skiplisted_new += 1
+                    skiplist[pdf.stem] = SkipEntry(
+                        pdf=str(pdf),
+                        reason=str(exc),
+                        failed_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                    )
+                    # Skips surface as correlated warnings (trace_id from the
+                    # run span), never as spans — the reason is on the skiplist.
+                    _log.warning(
+                        "skiplisted %s: %s",
+                        pdf.stem,
+                        exc,
+                        extra={"askrag_extra": {"askrag.arxiv_id": pdf.stem}},
+                    )
+                else:
+                    stats.extracted += 1
+                    # A retried skiplist entry that now extracts is no longer skipped.
+                    skiplist.pop(pdf.stem, None)
+                    # The worker measured the wall clock; the parent (the only
+                    # process with a tracer) emits the child span with those
+                    # timestamps.
+                    pdf_span = tracer.start_span(
+                        "askrag.ingest.extract.pdf",
+                        start_time=timing.start_unix_ns,
+                        attributes={"askrag.arxiv_id": pdf.stem},
+                    )
+                    pdf_span.end(end_time=timing.end_unix_ns)
+                done += 1
+                if done % _PROGRESS_EVERY == 0:
+                    _save_skiplist(skiplist_path, skiplist)
+                    rate = done / (time.monotonic() - started)
+                    eta_min = (len(todo) - done) / rate / 60 if rate else 0
+                    print(
+                        f"  {done}/{len(todo)} this run "
+                        f"({rate:.1f} PDFs/s, ~{eta_min:.0f} min left)",
+                        flush=True,
+                    )
+        run_span.set_attribute("askrag.extracted", stats.extracted)
+        run_span.set_attribute("askrag.skiplisted_new", stats.skiplisted_new)
 
     _save_skiplist(skiplist_path, skiplist)
     elapsed = time.monotonic() - started
@@ -266,6 +317,9 @@ def run(
 
 def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
+    # The entrypoint owns telemetry setup (D15): every CLI calls init() once
+    # before any span or log, and flushes on the way out.
+    telemetry.init(settings)
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--workers", type=int, default=settings.extract_workers)
     parser.add_argument(
@@ -275,14 +329,19 @@ def main(argv: list[str] | None = None) -> int:
         "--retry-skipped", action="store_true", help="re-attempt PDFs already on the skiplist"
     )
     args = parser.parse_args(argv)
-    run(
-        pdfs_dir=settings.pdfs_dir,
-        extracted_dir=settings.extracted_dir,
-        skiplist_path=settings.skiplist_path,
-        workers=args.workers,
-        limit=args.limit,
-        retry_skipped=args.retry_skipped,
-    )
+    try:
+        run(
+            pdfs_dir=settings.pdfs_dir,
+            extracted_dir=settings.extracted_dir,
+            skiplist_path=settings.skiplist_path,
+            workers=args.workers,
+            limit=args.limit,
+            retry_skipped=args.retry_skipped,
+        )
+    finally:
+        # Flush before exit: the CLI process ends right after the run span, and
+        # SimpleSpanProcessor writes synchronously, but OTLP export batches.
+        telemetry.shutdown()
     return 0
 
 
