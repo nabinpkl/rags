@@ -61,11 +61,15 @@ class Settings(BaseSettings):
     # List price for voyage-4-lite; runs draw on the 200M free-token quota
     # first, so this prices the estimate, not necessarily the invoice.
     embedding_usd_per_mtok: float = 0.02
-    # Voyage hard caps are 1,000 inputs and 1M tokens per request (4-lite);
-    # defaults sit well under both so one throttled request never wastes much
-    # work, and cl100k n_tokens under-/over-counting Voyage tokens stays safe.
+    # Measured 2026-07-05 (Voyage 429 body): accounts WITHOUT a payment method
+    # get 3 RPM / 10K TPM; the documented 2,000 RPM / 16M TPM table is Tier 1
+    # (payment method added). Defaults fit the unpaid tier: ~9k-token batches
+    # (cl100k ≈ Voyage tokens, measured ratio 1.009) + a 62s pause ≈ one
+    # request and ~8.7k tokens per minute window. Request hard caps (1,000
+    # inputs / 1M tokens) stay far away at any tier; retune via env on Tier 1.
     embed_batch_max_items: int = 128
-    embed_batch_max_tokens: int = 100_000
+    embed_batch_max_tokens: int = 9_000
+    embed_batch_pause_seconds: float = 62.0
     embed_retry_max_attempts: int = 6
     embed_retry_base_seconds: float = 2.0
     embed_request_timeout_seconds: float = 120.0

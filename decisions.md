@@ -45,9 +45,10 @@ one-time). The owner directed the pivot to Voyage AI, whose free tier grants
 200M tokens per current-generation model. Verified against docs.voyageai.com
 on 2026-07-05: `voyage-4-lite` is the cheapest current text model with
 `output_dimension=512` support ($0.02/Mtok list, 200M free tokens, 1,000
-inputs / 1M tokens per request, basic-tier limits 2,000 RPM / 16M TPM).
-voyage-3.5-lite — the model D5 originally named as the alternative — is the
-same list price but gets **no** free quota as a superseded model.
+inputs / 1M tokens per request; the documented 2,000 RPM / 16M TPM table is
+Tier 1, which requires a payment method on file — see measured correction
+below). voyage-3.5-lite — the model D5 originally named as the alternative —
+is the same list price but gets **no** free quota as a superseded model.
 **Decision:** embed with `voyage-4-lite` at 512 dims via raw httpx against
 `POST /v1/embeddings` (httpx is §4b pre-approved; one endpoint does not
 justify the `voyageai` package — the `openai` dep leaves the lockfile, this
@@ -60,7 +61,16 @@ prices every run first, and full runs need an explicit owner/coordinator go.
 The working corpus (~4.5M cl100k tokens) and even the full corpus (~80–100M)
 fit inside the 200M free quota, so the expected one-time cost is $0. Chunk
 `n_tokens` remain cl100k_base counts — estimates and batch caps carry margin
-because Voyage bills on its own tokenizer; billed truth is API-reported usage.
+because Voyage bills on its own tokenizer; billed truth is API-reported usage
+(measured ratio on real chunks 2026-07-05: 1.009 Voyage per cl100k token).
+**Measured correction (2026-07-05, first full run):** our no-payment-method
+account gets **3 RPM / 10K TPM** (stated verbatim in Voyage's 429 body; the
+docs publish no sub-Tier-1 numbers). Any batch over ~10k tokens can never
+pass, which 429'd the first run's 100k-token batches permanently. Config
+defaults now fit the unpaid tier: 9,000-token batches + 62s inter-batch pause
+(`embed_batch_pause_seconds`) ≈ 8.7k tokens/min → the working corpus takes
+~8.6 h, resumable throughout. Tier 1 (payment method added, still $0 via free
+tokens) would cut this to minutes — the owner's call, not ours.
 **Alternatives rejected:** staying on OpenAI (real dollars for no quality
 argument yet); `voyageai` SDK (new dependency for one POST); voyage-3.5-lite
 (no free quota).

@@ -260,6 +260,15 @@ def test_transport_errors_retry(paths, monkeypatch):
     assert stats.embedded == 1
 
 
+def test_pause_between_batches_not_after_last(paths, monkeypatch):
+    sleeps: list[float] = []
+    monkeypatch.setattr(embed_chunks.time, "sleep", sleeps.append)
+    write_chunks(paths["chunks"], make_chunks(6))
+    stats = run(paths, FakeBackend(), batch_max_items=2, pause_seconds=62.0)
+    assert stats.batches == 3
+    assert sleeps == [62.0, 62.0]  # between batches only; no trailing wait
+
+
 # --- Voyage adapter: request/response contract, offline (MockTransport) --------
 
 

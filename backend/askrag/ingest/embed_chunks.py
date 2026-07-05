@@ -299,6 +299,7 @@ def run(
     usd_per_mtok: float,
     retry_max_attempts: int,
     retry_base_seconds: float,
+    pause_seconds: float = 0.0,
     limit: int | None = None,
     estimate: bool = False,
 ) -> EmbedStats:
@@ -333,7 +334,8 @@ def run(
 
     with tracer.start_as_current_span("askrag.ingest.embed") as run_span:
         shard_seq = len(list(shards_dir.glob("*.parquet")))
-        for batch in _batches(todo, batch_max_items, batch_max_tokens):
+        batches = _batches(todo, batch_max_items, batch_max_tokens)
+        for batch_index, batch in enumerate(batches):
             with tracer.start_as_current_span("askrag.ingest.embed.batch") as batch_span:
                 result = _embed_with_retry(
                     backend,
@@ -362,6 +364,11 @@ def run(
                 f"embedded {stats.already_embedded + stats.embedded}/{stats.chunks_total} "
                 f"chunks, {stats.tokens_billed:,} tokens, ${stats.usd:.4f} so far"
             )
+            # Pacing for TPM/RPM-capped tiers (unpaid Voyage: 3 RPM / 10K
+            # TPM, measured 2026-07-05): waiting out the minute window up
+            # front beats burning the retry ladder on guaranteed 429s.
+            if pause_seconds > 0 and batch_index < len(batches) - 1:
+                time.sleep(pause_seconds)
 
         # Merge only when the corpus is fully embedded (a --limit smoke run
         # leaves its shards for the next resume) and there are shards to fold
@@ -413,6 +420,7 @@ def main(argv: list[str] | None = None) -> int:
                 usd_per_mtok=settings.embedding_usd_per_mtok,
                 retry_max_attempts=settings.embed_retry_max_attempts,
                 retry_base_seconds=settings.embed_retry_base_seconds,
+                pause_seconds=settings.embed_batch_pause_seconds,
                 limit=args.limit,
                 estimate=args.estimate,
             )
