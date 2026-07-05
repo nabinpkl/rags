@@ -104,8 +104,9 @@ def chunk(one_paper, **overrides) -> list[Chunk]:
 
 
 def test_n_tokens_matches_tokenizer():
-    n = chunk_papers.count_tokens("hello world from askrag")
-    assert n == chunk_papers.count_tokens("hello world from askrag")
+    enc = make_settings().tokenizer_encoding
+    n = chunk_papers.count_tokens("hello world from askrag", enc)
+    assert n == chunk_papers.count_tokens("hello world from askrag", enc)
     assert n > 0
 
 

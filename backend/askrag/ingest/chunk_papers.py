@@ -77,7 +77,9 @@ def _encoding(name: str) -> tiktoken.Encoding:
     return tiktoken.get_encoding(name)
 
 
-def count_tokens(text: str, encoding: str = "cl100k_base") -> int:
+def count_tokens(text: str, encoding: str) -> int:
+    # `encoding` is required (no default): the encoding name lives once, in
+    # config.tokenizer_encoding, so callers pass it rather than duplicate it.
     return len(_encoding(encoding).encode(text))
 
 
