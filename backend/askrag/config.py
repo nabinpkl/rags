@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     session_message_cap: int = 15
     ip_daily_spend_cap_usd: float = 0.10
     global_daily_spend_cap_usd: float = 0.50  # trips into replay mode (D11)
+    # Salt for the per-IP budget key (D11): raw IPs are NEVER stored — traces.py
+    # persists salted SHA-256 only (privacy posture, §6). Set in prod .env so
+    # hashes are not reversible via a public rainbow table; the empty default
+    # still hashes (dev/tests), it just isn't secret.
+    trace_ip_hash_salt: SecretStr = Field(default=SecretStr(""))
 
     # --- telemetry (D15) ----------------------------------------------------
     telemetry_enabled: bool = True
