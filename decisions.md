@@ -14,6 +14,26 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Idiomatic-by-default with autonomous deviation logging (owner directive)
+
+**Context:** the review checklist covered hard constraints, correctness,
+contract drift, and tests, but had no idiom dimension (Python, FastAPI,
+React, state management, state machines).
+**Decision:** binding per-path idiom rules live in `.claude/rules/`
+(`python-backend.md`, `frontend.md`); implementor and reviewer briefs and
+`docs/sdlc.md` wire to them. When idiomatic is unaffordable or hurts, the
+implementor deviates and logs a decisions.md entry (what, why, revisit
+trigger) in the same PR — explicitly WITHOUT human sign-off; entries exist
+for later revisiting, not gating.
+**Alternatives rejected:** per-PR human approval of deviations (defeats the
+autonomous loop); baking idiom into CLAUDE.md prose (bloats the always-on
+contract; path-scoped rules load only where relevant).
+**Consequence:** reviewer gains a priority-5 idiom dimension, severity by
+blast radius; undocumented non-idiom is a finding, documented deviations
+are judged against their own reasoning.
+Spec updated: no (process-only).
+
+
 ## 2026-07-05 — Ops telemetry: OpenTelemetry + JSON logs from the start (owner directive)
 
 **Context:** running agents were invisible; owner wants telemetry of every
