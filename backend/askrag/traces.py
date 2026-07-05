@@ -169,6 +169,19 @@ def spend_for_ip_today(ip_hash: str, *, settings: Settings | None = None) -> flo
     )
 
 
+def message_count_for_session(session_id: str, *, settings: Settings | None = None) -> int:
+    """How many runs (one per user message turn) this session has recorded —
+    the per-session message cap's state (D11: session budget is a message count)."""
+    conn = _connect(_settings(settings))
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM runs WHERE session_id = ?", (session_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return int(row[0])
+
+
 def _row_to_run(row) -> Run:
     return Run(
         run_id=row["run_id"],

@@ -89,6 +89,14 @@ def test_spend_for_session_sums_that_session_only(settings):
     assert traces.spend_for_session("b", settings=settings) == pytest.approx(1.00)
 
 
+def test_message_count_for_session_counts_runs(settings):
+    assert traces.message_count_for_session("s", settings=settings) == 0
+    traces.record_run(**sample_run(session_id="s"), settings=settings)
+    traces.record_run(**sample_run(session_id="s"), settings=settings)
+    traces.record_run(**sample_run(session_id="other"), settings=settings)
+    assert traces.message_count_for_session("s", settings=settings) == 2
+
+
 def test_spend_for_ip_today_sums_that_ip_only(settings):
     traces.record_run(**sample_run(ip="1.1.1.1", cost_usd=0.04), settings=settings)
     traces.record_run(**sample_run(ip="1.1.1.1", cost_usd=0.04), settings=settings)

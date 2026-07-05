@@ -440,6 +440,9 @@ minutes and deny live access to others — accepted, because the denial-of-
 wallet is capped and the replay fallback keeps the site alive. IP-based
 budgeting is weak against rotation — accepted; the global cap is the real
 backstop, the per-IP layer just keeps one visitor from accidentally hogging.
+The budget gate (#21) is a pre-flight read, so concurrent in-flight requests
+can overshoot the cap by at most (in-flight count) × (per-message cost cap) —
+accepted-and-bounded, tightened at #23/#30 if needed (decisions.md 2026-07-05).
 
 **Revisit when.** Real traffic regularly exhausts the cap (a good problem:
 raise it, or add opt-in BYO-key for power users). Abuse defeats Cloudflare
