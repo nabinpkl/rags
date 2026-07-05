@@ -539,6 +539,38 @@ matters → grow the set until it discriminates.
 
 ---
 
+### D15. Operational telemetry: OpenTelemetry, JSON-first, built in from the start
+
+**Decision.** `askrag/telemetry.py` is the single telemetry setup point,
+initialized at every entrypoint from day one (ingest CLIs now, the FastAPI
+lifespan when it exists). OpenTelemetry tracer + meter + logging
+correlation; default export is structured JSON lines on stdout (zero cost,
+greppable, journald/Caddy-friendly on the VPS). OTLP export sits behind a
+config flag, off by default, so a collector (Jaeger in Docker, Grafana
+Cloud free tier) can attach later with no code change. Ops telemetry stays
+distinct from `traces.db`: traces.db is the product record (replays, evals,
+timeline UI); OTel carries latency, errors, throughput, and token/cost span
+attributes. Tracked as issue #43.
+
+**Why.** Telemetry bolted on later means re-touching every tool, route, and
+ingest stage; making it a from-the-start invariant (owner directive
+2026-07-05) means every signal is machine-queryable from the first sample
+run, within the ≤$22/mo budget (no APM vendor).
+
+**Rejected.** *Paid APM/SaaS* (cost cap; ops data leaves our box);
+*print-style logging* (unstructured, no trace correlation); *reusing
+traces.db for ops signals* (conflates product data with ops and couples
+their retention).
+
+**Risks accepted.** Four more pinned deps and a little per-request
+overhead — negligible at our QPS, measured in #43's acceptance. Stdout
+JSON needs log rotation on the VPS (deploy issue's concern).
+
+**Revisit when.** p95 overhead attributable to telemetry exceeds ~5 ms, or
+debugging demands a live collector — set `otlp_endpoint` and attach one.
+
+---
+
 ## 4. Architecture
 
 ```
@@ -580,6 +612,7 @@ implies. Anything not listed here is not in v1.
 | Piece | Choice | Role / note |
 |---|---|---|
 | Package/env | **uv** (`pyproject.toml`, locked) | repo-wide convention, collector included since #9; `uv run` in `just` recipes |
+| Telemetry | **opentelemetry-sdk** + otlp-http exporter + fastapi/httpx instrumentation (pinned) | ops signals from day one; JSON stdout default, OTLP env-gated (D15) |
 | API | **FastAPI** + uvicorn | routes, SSE via `sse-starlette`, OpenAPI schema doubles as the frontend's type source |
 | Validation | pydantic v2 | request/response + tool-argument schemas (the `drive_ui` enum lives here) |
 | LLM | `anthropic` SDK | Haiku 4.5, prompt caching, streaming (D3) |
@@ -696,6 +729,7 @@ rags/
 │   ├── uv.lock
 │   ├── askrag/
 │   │   ├── config.py                # ALL tunables + env in one pydantic-settings class: paths, model ids, chunk sizes, budget caps, RRF k
+│   │   ├── telemetry.py             # single OTel setup: tracer/meter/log correlation; JSON stdout default, OTLP env-gated (D15)
 │   │   ├── db.py                    # read-only SQLite connection factories for corpus.db; read-write for traces.db
 │   │   ├── traces.py                # trace record schema + writer/reader; feeds timeline UI, evals, admin, replays
 │   │   ├── api/
