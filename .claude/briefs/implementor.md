@@ -21,12 +21,21 @@ Read, in order:
 
 ## Per task
 
-1. Branch: `issue-<n>-<short-slug>` off latest `main`.
+1. Branch: `issue-<n>-<short-slug>` off latest `main`. **Open a draft PR
+   after the first meaningful commit and push at every green milestone**
+   (tests pass, lint clean, feature lands) — the owner watches progress on
+   GitHub, not in your terminal. One-line PR comments at milestones; long
+   runs go through a named log file, path posted before the run starts.
+   Mark ready-for-review only after self-review (step 4).
 2. Implement the issue's **Build** section exactly; its file list comes from
    the spec's §4c tree. Grep for a concept before creating any file or
    function; extend what exists. Tests mirror source file names 1:1.
    Security-relevant behavior (spec §6 table) is written test-first, never
-   test-after.
+   test-after. Code is idiomatic for its ecosystem by default — the binding
+   rules are `.claude/rules/python-backend.md` and `.claude/rules/frontend.md`.
+   When idiomatic is unaffordable or actively hurts (measured perf, clarity,
+   a framework bug), deviate AND log a `decisions.md` entry (what, why,
+   revisit trigger) in the same PR; no human sign-off needed.
 3. Tunables go in `askrag/config.py`, never as literals. No new dependency
    without the gate in `docs/sdlc.md` (propose it to the coordinator with
    the numbers; wait for the approved decisions.md entry).

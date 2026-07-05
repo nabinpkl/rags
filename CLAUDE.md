@@ -54,6 +54,9 @@ work is broken into GitHub issues.
   metaprogramming, no decorator scans, no dynamic imports.
 - Comments state constraints the code can't ("read-only by construction,
   see D4"), never narration.
+- Idiomatic by default: per-path language/framework rules in
+  `.claude/rules/`; deviating needs a `decisions.md` entry (why + revisit
+  trigger), no human sign-off.
 - Any deviation from a spec decision needs a new/updated decision record in
   the spec — no silent architecture drift.
 
