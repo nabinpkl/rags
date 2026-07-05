@@ -17,12 +17,18 @@ build_indexes (#14):
      "text": str,
      "n_tokens": int}                   # counted with config.tokenizer_encoding
 
-Section text spans are re-derived from the same heading regex extract_pdfs
-uses (imported, not duplicated): the k-th markdown heading is the k-th titled
-section in document order, so a section runs from its heading to the next.
-This tiles the document exactly, unlike the extractor's page-range sections
-which deliberately share boundary pages. Page anchors for a chunk come from
-mapping its char range back through the extraction's page map.
+Section LABELS come from the extraction's authoritative stored `sections`
+list (one source, per D6); char BOUNDARIES come from the same heading regex
+extract_pdfs uses (imported, not duplicated). The two are aligned 1:1 by
+position — exact because extract_pdfs creates one stored section per heading
+match, in order, plus an optional leading preamble. A section runs from its
+heading to the next, tiling the document, unlike the extractor's page-range
+sections which deliberately share boundary pages. Labels are NOT re-derived by
+re-cleaning heading text and matching a filtered title list: a bold heading
+that pymupdf4llm splits into a stray ``# ***`` line adds a regex match with an
+empty stored title, and index-pairing against non-empty titles would shift
+every later label (reviewer round 1, corpus/extracted/2606.08629.json). Page
+anchors come from mapping a chunk's char range back through the page map.
 
 Determinism (acceptance): ids are a per-paper sequence over papers processed
 in sorted id order; the whole file is rewritten each run, so a re-run over the
@@ -84,26 +90,55 @@ class _SectionSpan:
     char_end: int
 
 
-def _section_spans(markdown: str, titles: list[str]) -> list[_SectionSpan]:
-    """Locate each section's char range by heading position.
+def _section_spans(markdown: str, sections: list[dict]) -> list[_SectionSpan]:
+    """Map the extractor's authoritative section list to char ranges.
 
-    The k-th heading match is the k-th titled section (extract_pdfs builds
-    sections from these same matches). A leading gap before the first heading
-    is the preamble; a heading-free document is one preamble span.
+    LABELS come from the ONE authoritative source — the extraction's stored
+    `sections` list, in order, keeping empty-title entries (extract_pdfs
+    creates one section per heading match, plus an optional leading preamble
+    for content before the first heading). Char BOUNDARIES come from the same
+    heading regex the extractor used; the two are aligned positionally, which
+    is exact because both derive from the identical ordered set of matches.
+
+    This is NOT a second label-deriving pass: re-cleaning heading text and
+    pairing it against a *filtered* title list drifts when pymupdf4llm splits
+    a bold heading into a stray ``# ***`` line (that becomes a title="" stored
+    section but an extra regex match), shifting every later label. Taking
+    labels from the stored list and asserting the 1:1 alignment removes that
+    class of bug (reviewer round 1, corpus/extracted/2606.08629.json).
     """
     heads = [m.start() for m in _HEADING_RE.finditer(markdown)]
     spans: list[_SectionSpan] = []
-    # Preamble: content before the first heading (or the whole doc if none).
-    first = heads[0] if heads else len(markdown)
-    if first > 0:
-        spans.append(_SectionSpan(PREAMBLE_SECTION, 0, first))
 
-    titled = [t for t in titles if t != ""]
+    # extract_pdfs prepends a stored preamble section ONLY when the first
+    # heading is not on page 1; then len(sections) == len(heads) + 1 and
+    # sections[0] is that preamble. Otherwise the counts are equal. Decide by
+    # count (not by "is there text before the first heading"): a paper whose
+    # first heading sits on page 1 after a title/arXiv-header line has leading
+    # text but no stored preamble section.
+    has_stored_preamble = len(sections) == len(heads) + 1
+    aligned = sections[1:] if has_stored_preamble else sections
+
+    # Invariant (extract_pdfs construction): one stored section per heading
+    # match after any preamble. A mismatch means the extraction contract
+    # changed — raise rather than silently mislabel (D6/D7 move in lockstep).
+    if len(aligned) != len(heads):
+        raise ValueError(
+            f"section/heading mismatch: {len(aligned)} sections vs {len(heads)} "
+            "headings — extraction contract changed (see chunk_papers docstring)"
+        )
+
+    # Leading content before the first heading still needs page anchors. Label
+    # it from the stored preamble when one exists, else the sentinel; text is
+    # never silently dropped.
+    lead_end = heads[0] if heads else len(markdown)
+    if lead_end > 0:
+        label = sections[0]["title"] if has_stored_preamble else ""
+        spans.append(_SectionSpan(label or PREAMBLE_SECTION, 0, lead_end))
+
     for i, start in enumerate(heads):
         end = heads[i + 1] if i + 1 < len(heads) else len(markdown)
-        # Fall back to the sentinel if the heading count and the extraction's
-        # title list disagree (defensive; they are produced by the same regex).
-        title = titled[i] if i < len(titled) else PREAMBLE_SECTION
+        title = aligned[i]["title"] or PREAMBLE_SECTION
         spans.append(_SectionSpan(title, start, end))
     return spans
 
@@ -170,7 +205,7 @@ def chunk_paper(
     payload = json.loads(extraction_path.read_text(encoding="utf-8"))
     markdown: str = payload["markdown"]
     pages: list[dict] = payload["pages"]
-    titles: list[str] = [s["title"] for s in payload["sections"]]
+    sections: list[dict] = payload["sections"]
 
     enc = _encoding(settings.tokenizer_encoding)
     seq = 0
@@ -187,7 +222,7 @@ def chunk_paper(
     )
     seq += 1
 
-    for span in _section_spans(markdown, titles):
+    for span in _section_spans(markdown, sections):
         for section, text, page_start, page_end, n_tokens in _chunk_section(
             span, markdown, pages, enc, settings.chunk_size_tokens, settings.chunk_overlap_ratio
         ):

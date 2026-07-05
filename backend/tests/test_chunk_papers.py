@@ -137,14 +137,53 @@ def test_ids_are_sequential_and_deterministic(one_paper):
 # --- section boundaries never crossed ---------------------------------------
 
 
+def _section_texts(page_texts: list[str], sections: list[dict]) -> dict[str, str]:
+    """The markdown owned by each label, derived independently of chunk_papers:
+    a section runs from its heading to the next heading in the concatenated
+    markdown. Used to assert a chunk's text really lies in the section it names.
+    """
+    import re
+
+    md = "".join(page_texts)
+    heads = [m.start() for m in re.finditer(r"^#{1,6}\s+(.+?)\s*$", md, re.MULTILINE)]
+    out: dict[str, str] = {}
+    # align by the same rule chunk_papers must use: matches map 1:1 to the
+    # non-preamble stored sections, in order.
+    stored = sections[1:] if len(sections) == len(heads) + 1 else sections
+    for i, start in enumerate(heads):
+        end = heads[i + 1] if i + 1 < len(heads) else len(md)
+        label = stored[i]["title"] if i < len(stored) else ""
+        out.setdefault(label, "")
+        out[label] += md[start:end]
+    return out
+
+
 def test_chunks_never_cross_section_boundaries(one_paper):
     chunks = chunk(one_paper)
     body = [c for c in chunks if c.section != chunk_papers.PAPER_SECTION]
     sections = {c.section for c in body}
     assert sections == {"Intro", "Methods"}
-    # Every body chunk's text lies wholly within its section's markdown.
     for c in body:
         assert c.section in ("Intro", "Methods")
+
+
+def test_chunk_text_lies_within_its_labeled_section(one_paper):
+    """The label must name the section the text actually came from — not merely
+    be a member of the known-labels set (the split-bold-heading correctness)."""
+    import json
+
+    payload = json.loads(
+        (one_paper["extracted"] / f"{one_paper['id']}.json").read_text(encoding="utf-8")
+    )
+    page_texts = [payload["markdown"][p["char_start"] : p["char_end"]] for p in payload["pages"]]
+    owned = _section_texts(page_texts, payload["sections"])
+    for c in chunk(one_paper):
+        if c.section == chunk_papers.PAPER_SECTION:
+            continue
+        # Chunk text (an overlapping token window) must be contained in the
+        # markdown region owned by the label it carries.
+        assert c.text.strip()
+        assert c.text in owned[c.section], f"chunk labeled {c.section!r} came from elsewhere"
 
 
 # --- chunk size respects the token budget -----------------------------------
@@ -214,3 +253,54 @@ def test_untitled_preamble_section_labeled(tmp_path):
     body = [c for c in chunks if c.section != chunk_papers.PAPER_SECTION]
     assert body  # preamble content still chunked
     assert all(c.section == chunk_papers.PREAMBLE_SECTION for c in body)
+
+
+# --- split-bold headings: labels must not shift (reviewer round 1) -----------
+
+
+def test_split_bold_heading_does_not_shift_labels(tmp_path):
+    """Reproduces corpus/extracted/2606.08629.json: pymupdf4llm splits a bold
+    heading so a stray '# ***' line appears in the markdown. extract_pdfs stores
+    it as a title="" section (one per heading match, in order); the concat
+    heading regex therefore finds MORE matches than there are non-empty titles.
+    Pairing chunks to the non-empty title list by index shifts every label after
+    the split. Labels must come from the authoritative stored section list.
+    """
+    # Two real sections with a split-bold artifact heading between them.
+    intro = "# Alpha\n\n" + SENT * 40 + "\n"
+    split_artifact = "# ***\n\n"  # cleans to "" -> a title="" stored section
+    beta = "# Beta\n\n" + SENT * 40 + "\n"
+    page1 = intro
+    page2 = split_artifact + beta
+    write_extraction(
+        tmp_path / "extracted",
+        "2601.00003",
+        [page1, page2],
+        # extract_pdfs stores ONE section per heading match, in order, keeping
+        # the empty-title one — this is the authoritative shape.
+        [
+            {"title": "Alpha", "page_start": 1, "page_end": 1},
+            {"title": "", "page_start": 2, "page_end": 2},
+            {"title": "Beta", "page_start": 2, "page_end": 2},
+        ],
+    )
+    settings = make_settings()
+    chunks = list(
+        chunk_papers.chunk_paper(
+            "2601.00003",
+            tmp_path / "extracted" / "2601.00003.json",
+            title="Split Paper",
+            abstract="Has a split heading.",
+            settings=settings,
+        )
+    )
+    body = [c for c in chunks if c.section != chunk_papers.PAPER_SECTION]
+    labels = {c.section for c in body}
+    # Beta content must be labeled "Beta" — not shifted onto the empty/preamble
+    # sentinel, and "Beta" must not vanish.
+    assert "Beta" in labels, f"Beta label lost; got {labels}"
+    assert "Alpha" in labels
+    # The Beta text (the SENT body after '# Beta') must carry the Beta label.
+    beta_chunks = [c for c in body if c.section == "Beta"]
+    assert beta_chunks
+    assert all(SENT.strip() in c.text for c in beta_chunks)
