@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000
     chunk_overlap_ratio: float = 0.15
+    # cl100k_base matches text-embedding-3-small (D5); chunk token counts must
+    # be measured with the same encoding the embedder bills on.
+    tokenizer_encoding: str = "cl100k_base"
 
     # --- retrieval (D8; defaults until measured) --------------------------
     rrf_k: int = 60
@@ -99,6 +102,12 @@ class Settings(BaseSettings):
     @property
     def extracted_dir(self) -> Path:
         return self.corpus_dir / "extracted"
+
+    @property
+    def chunks_jsonl_path(self) -> Path:
+        # One chunk record per line (D7 output): streamable into embed_chunks,
+        # greppable, rebuilt in full each run so ids stay deterministic.
+        return self.corpus_dir / "chunks.jsonl"
 
     @property
     def vectors_parquet_path(self) -> Path:
