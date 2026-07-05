@@ -1,6 +1,8 @@
 """Tests for askrag.ingest.embed_chunks — faked backend, no network, no key."""
 
+import email.utils
 import json
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pyarrow.parquet as pq
@@ -192,6 +194,26 @@ def test_new_chunks_appended_without_reembedding(paths):
     assert len(read_vectors(paths)) == 6
 
 
+def test_crash_between_merge_and_cleanup_stays_exactly_once(paths):
+    # The window the module docstring promises: vectors.parquet is fully
+    # merged, but a crash left a shard behind whose rows it already contains.
+    chunks = make_chunks(4)
+    write_chunks(paths["chunks"], chunks)
+    run(paths, FakeBackend())
+    paths["shards"].mkdir()
+    leftover = pq.read_table(paths["vectors"]).slice(0, 2)
+    pq.write_table(leftover, paths["shards"] / "shard_000000.parquet")
+
+    backend = FakeBackend()
+    stats = run(paths, backend)
+    assert backend.calls == []  # nothing re-embedded, nothing spent
+    assert stats.merged  # leftover folded back in and cleaned up
+    table = pq.read_table(paths["vectors"])
+    assert table.num_rows == 4  # exactly once — dedup, not append
+    assert sorted(table["chunk_id"].to_pylist()) == sorted(c.chunk_id for c in chunks)
+    assert not paths["shards"].exists()
+
+
 def test_limit_defers_merge(paths):
     write_chunks(paths["chunks"], make_chunks(6))
     stats = run(paths, FakeBackend(), limit=4)
@@ -294,6 +316,30 @@ def test_adapter_throttle_and_5xx_are_transient(monkeypatch, status):
     assert excinfo.value.retry_after == 7.0
 
 
+def test_adapter_parses_http_date_retry_after(monkeypatch):
+    # RFC 9110 allows an HTTP-date form; CDN throttle pages use it.
+    stamp = email.utils.format_datetime(datetime.now(tz=UTC) + timedelta(seconds=30))
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, headers={"Retry-After": stamp})
+
+    with adapter(monkeypatch, handler) as backend:
+        with pytest.raises(TransientEmbeddingError) as excinfo:
+            backend.embed(["alpha"])
+    assert excinfo.value.retry_after == pytest.approx(30.0, abs=5.0)
+
+
+@pytest.mark.parametrize("header", ["soon", ""])
+def test_adapter_unparseable_retry_after_degrades_to_none(monkeypatch, header):
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, headers={"Retry-After": header})
+
+    with adapter(monkeypatch, handler) as backend:
+        with pytest.raises(TransientEmbeddingError) as excinfo:
+            backend.embed(["alpha"])
+    assert excinfo.value.retry_after is None
+
+
 def test_adapter_client_errors_fail_loudly_not_retried(monkeypatch):
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(400, json={"detail": "bad request"})
@@ -322,6 +368,12 @@ def test_estimate_prices_pending_without_a_backend(paths):
     run(paths, FakeBackend(), limit=5)
     stats = run(paths, None, estimate=True)
     assert stats.already_embedded == 5 and stats.estimated_tokens == 3000
+
+
+def test_estimate_honors_limit(paths):
+    write_chunks(paths["chunks"], make_chunks(8, tokens_each=1000))
+    stats = run(paths, None, estimate=True, limit=3)
+    assert stats.estimated_tokens == 3000  # prices the gated run, not the backlog
 
 
 def test_run_without_backend_outside_estimate_raises(paths):

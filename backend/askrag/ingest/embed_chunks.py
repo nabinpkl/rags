@@ -30,17 +30,18 @@ token + cost counters are logged per batch and use API-reported usage.
 
 import argparse
 import contextlib
+import email.utils
 import json
 import logging
 import sys
 import time
 import types
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, Self
 
 import httpx
-import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -71,6 +72,27 @@ class TransientEmbeddingError(EmbeddingError):
 
 # Transport faults (connect/read/timeout) retry alongside throttling.
 _RETRYABLE = (TransientEmbeddingError, httpx.TransportError)
+
+
+def _parse_retry_after(header: str | None) -> float | None:
+    """RFC 9110 Retry-After: delay-seconds or an HTTP-date (CDN throttle pages).
+
+    Unparseable values degrade to None (plain exponential backoff) — a weird
+    header from a middlebox must never crash a throttled run.
+    """
+    if header is None:
+        return None
+    try:
+        return float(header)
+    except ValueError:
+        pass
+    try:
+        target = email.utils.parsedate_to_datetime(header)
+    except (TypeError, ValueError):
+        return None
+    if target.tzinfo is None:
+        target = target.replace(tzinfo=UTC)  # RFC 9110 dates are GMT
+    return max((target - datetime.now(tz=UTC)).total_seconds(), 0.0)
 
 
 @dataclass(frozen=True)
@@ -139,10 +161,9 @@ class VoyageEmbeddings:
             },
         )
         if response.status_code == 429 or response.status_code >= 500:
-            header = response.headers.get("retry-after")
-            retry_after = float(header) if header is not None else None
             raise TransientEmbeddingError(
-                f"HTTP {response.status_code} from embeddings API", retry_after=retry_after
+                f"HTTP {response.status_code} from embeddings API",
+                retry_after=_parse_retry_after(response.headers.get("retry-after")),
             )
         response.raise_for_status()
         payload = response.json()
@@ -204,8 +225,8 @@ def _batches(chunks: list[ChunkText], max_items: int, max_tokens: int) -> list[l
 
 
 def _vectors_table(chunk_ids: list[str], vectors: list[list[float]], dims: int) -> pa.Table:
-    flat = np.asarray(vectors, dtype=np.float32).reshape(-1)
-    vector_array = pa.FixedSizeListArray.from_arrays(pa.array(flat, type=pa.float32()), dims)
+    flat = pa.array([value for vector in vectors for value in vector], type=pa.float32())
+    vector_array = pa.FixedSizeListArray.from_arrays(flat, dims)
     return pa.table({"chunk_id": pa.array(chunk_ids, type=pa.string()), "vector": vector_array})
 
 
@@ -242,7 +263,7 @@ def _embed_with_retry(
                 f"{attempt + 1}/{max_attempts}, backing off {wait:.0f}s"
             )
             time.sleep(wait)
-    raise EmbeddingError("unreachable: retry loop exhausted without raising")
+    raise AssertionError("unreachable: the last attempt re-raises inside the loop")
 
 
 def _merge_shards(vectors_path: Path, shards_dir: Path) -> None:
@@ -289,24 +310,26 @@ def run(
     done = _existing_chunk_ids(vectors_path, shards_dir)
     todo = [c for c in chunks if c.chunk_id not in done]
     stats.already_embedded = stats.chunks_total - len(todo)
+    # --limit applies before the estimate so --estimate --limit N prices
+    # exactly the run it gates, not the whole backlog.
+    deferred = 0
+    if limit is not None:
+        deferred = max(len(todo) - limit, 0)
+        todo = todo[:limit]
     stats.estimated_tokens = sum(c.n_tokens for c in todo)
     stats.estimated_usd = stats.estimated_tokens / 1e6 * usd_per_mtok
 
     if estimate:
         _log.info(
-            f"estimate: {len(todo)} chunks to embed ({stats.already_embedded} already done), "
-            f"~{stats.estimated_tokens:,} tokens, ~${stats.estimated_usd:.2f} "
-            f"at ${usd_per_mtok}/Mtok",
+            f"estimate: {len(todo)} chunks to embed ({stats.already_embedded} already done, "
+            f"{deferred} beyond --limit), ~{stats.estimated_tokens:,} tokens, "
+            f"~${stats.estimated_usd:.2f} at ${usd_per_mtok}/Mtok",
             extra={"askrag_extra": {"askrag.estimated_tokens": stats.estimated_tokens}},
         )
         return stats
 
     if backend is None:
         raise EmbeddingError("a backend is required unless estimate=True")
-    deferred = 0
-    if limit is not None:
-        deferred = max(len(todo) - limit, 0)
-        todo = todo[:limit]
 
     with tracer.start_as_current_span("askrag.ingest.embed") as run_span:
         shard_seq = len(list(shards_dir.glob("*.parquet")))
@@ -370,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--estimate",
         action="store_true",
-        help="sum stored n_tokens and price the run; no API key, no network",
+        help="sum stored n_tokens and price the run (honors --limit); no API key, no network",
     )
     parser.add_argument(
         "--limit", type=int, default=None, help="embed at most N pending chunks (smoke runs)"

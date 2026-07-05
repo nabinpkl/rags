@@ -14,6 +14,30 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Dependency gate: pyarrow==24.0.0 (vectors.parquet, D5) (#13)
+
+**Context:** D4/D5 and the §4c tree name `corpus/vectors.parquet` as the
+embedding archive, but §4b listed no parquet implementation; pyarrow entered
+the lockfile in PR #53 without a gate record (review finding, coordinator-
+approved contingent on this record).
+**Gate record — pyarrow 24.0.0** (all numbers measured 2026-07-05):
+*Popular:* 390,713,980 PyPI downloads last month (pypistats.org) — top-tier;
+apache/arrow 16,904 GitHub stars. *Maintained:* 24.0.0 is the latest release,
+uploaded 2026-04-21 (PyPI), Apache Arrow project (ASF governance,
+human-reviewed merges). *Security:* `pip-audit` on the synced backend env —
+no advisories against pyarrow; installs from binary wheels (the wheel format
+has no install-script hook), canonical name from the Apache project, no
+typosquat surface. *Pinned:* `==24.0.0`. **PASS.**
+*Alternatives rejected:* fastparquet (a fraction of the adoption, no Arrow
+interop); duckdb (a whole query engine for one read/write path); polars
+(dataframe library where only the Arrow storage layer is needed).
+*Side observation for the coordinator:* the same audit flags pre-existing
+`chromadb 1.5.9` → PYSEC-2026-311 (no fix version published yet) — on main
+before this PR, tracked outside it.
+Spec updated: §4b table (Vector archive row).
+
+---
+
 ## 2026-07-05 — Embeddings: Voyage AI free tier replaces OpenAI (owner directive 2026-07-05) (#13)
 
 **Context:** D5 defaulted to OpenAI text-embedding-3-small @512d (~$2–13

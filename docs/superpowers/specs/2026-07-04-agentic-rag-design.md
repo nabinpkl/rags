@@ -643,6 +643,7 @@ implies. Anything not listed here is not in v1.
 | Validation | pydantic v2 | request/response + tool-argument schemas (the `drive_ui` enum lives here) |
 | LLM | `anthropic` SDK | Haiku 4.5, prompt caching, streaming (D3) |
 | Embeddings | httpx → Voyage REST API | voyage-4-lite @512d, free tier (D5 as amended); one POST endpoint, no SDK |
+| Vector archive | **pyarrow** (pinned) | writes/reads `vectors.parquet` — the D4/D5 embedding archive index layers rebuild from; gate record in decisions.md 2026-07-05 |
 | Vector store | **chromadb** (embedded, pinned) | D4 |
 | Metadata/FTS/traces | **sqlite3** stdlib + FTS5 | D4, D13; no ORM — the SQL *is* portfolio material |
 | PDF extraction | **pymupdf4llm** | D6, offline only |
