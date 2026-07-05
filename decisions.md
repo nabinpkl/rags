@@ -14,6 +14,25 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — ty replaces pyright; tiered `just check` recipes (owner directive)
+
+**Context:** the toolchain was uv + ruff + pyright; checks were scattered
+(`be-test`, `be-lint`, CI steps hand-listed).
+**Decision:** ty (Astral) is the backend type checker — one vendor for
+env/lint/format/types, one speed profile. Check recipes are tiered:
+`just backend-check` (ruff, format, ty, fast tests), `just frontend-check`
+(pnpm lint + ts checks; graceful skip until #26), `just check` (both) —
+and CI runs `just check`, so the local gate and the CI gate cannot drift.
+Tracked as issue #44.
+**Alternatives rejected:** keeping pyright (second vendor, slower, config
+duplication); change-detection inside `just check` (git-diff-driven recipe
+selection is cleverness the two side-specific recipes already cover).
+**Consequence:** ty is newer than pyright — if it misses real type errors
+pyright catches, or false-positives block work, that is the revisit
+trigger (swap back is a two-line change since the gate is one recipe).
+Spec updated: §4b table, §4c tree.
+
+
 ## 2026-07-05 — Idiomatic-by-default with autonomous deviation logging (owner directive)
 
 **Context:** the review checklist covered hard constraints, correctness,
