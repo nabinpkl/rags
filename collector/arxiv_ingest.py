@@ -106,6 +106,9 @@ def thread_session() -> requests.Session:
 # --- storage ----------------------------------------------------------------
 
 def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
+    # corpus/ is gitignored (spec §4c), so a fresh clone doesn't have it, and
+    # sqlite3.connect never creates parent directories.
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(
