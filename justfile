@@ -1,5 +1,5 @@
 # askRAG umbrella recipes — delegate into the per-part justfiles (spec §4c).
-# Run `just` to list. backend/ and frontend/ recipes land with issues #10/#26.
+# Run `just` to list. Remaining backend/frontend recipes land with #11+/#26.
 #
 # Collector variable overrides pass through as args,
 # e.g.  just diverse max_gb=8 permonth=5
@@ -37,3 +37,11 @@ update *ARGS:
 # Show collector store stats and the incremental watermark
 status *ARGS:
     @just --justfile {{collector}} {{ARGS}} status
+
+# Backend tests (pytest via uv; extra args pass through)
+be-test *ARGS:
+    cd backend && uv run pytest {{ARGS}}
+
+# Backend lint + format + type gate (ruff, pyright) — mirrors CI
+be-lint:
+    cd backend && uv run ruff check . && uv run ruff format --check . && uv run pyright
