@@ -5,14 +5,19 @@ chunker (#12); changing its shape is spec-amendment territory:
 
     {"markdown": str,
      "sections": [{"title": str, "page_start": int, "page_end": int}],
+     "pages": [{"page": int, "char_start": int, "char_end": int}],
      "n_pages": int}
 
-Page numbers are 1-based and inclusive, matching the PDF viewer's #page=N
-anchors (D9): a section's content runs from its heading to the next heading,
-so adjacent sections share their boundary page. Sections always cover pages
-1..n_pages (an untitled preamble/whole-document section fills any gap), so
-the chunker can page-anchor every chunk. Failures are recorded, never
-silently dropped: skiplist.json maps arxiv_id -> {pdf, reason, failed_at}.
+Page numbers are 1-based, matching the PDF viewer's #page=N anchors (D9).
+"pages" is D6's page map: char_start inclusive / char_end exclusive spans
+into `markdown` that tile it exactly (page i+1 starts where page i ends;
+the last char_end == len(markdown)), so the chunker can map any markdown
+character range to its page(s) without re-parsing the PDF. Section ranges
+are inclusive: content runs from a heading to the next heading, so adjacent
+sections share their boundary page, and sections always cover pages
+1..n_pages (an untitled preamble/whole-document section fills any gap).
+Failures are recorded, never silently dropped: skiplist.json maps
+arxiv_id -> {pdf, reason, failed_at}.
 """
 
 import argparse
@@ -38,13 +43,17 @@ class ExtractionSkip(Exception):
     """Raised for PDFs that cannot be extracted; the message is the skiplist reason."""
 
 
+_TITLE_TAG_RE = re.compile(r"</?(?:u|i|b|sup|sub)>")
+
+
 def _clean_title(raw: str) -> str:
     # pymupdf4llm renders bold headings as "# **Title**", often with the
-    # bold run split mid-title ("for** **_m_ scales"). Titles are section
-    # metadata (navigation anchors), not content, so bold markers go
-    # everywhere and other emphasis goes at the ends; the markdown body
-    # keeps every marker.
-    return raw.replace("**", "").strip().strip("*_").strip()
+    # bold run split mid-title ("for** **_m_ scales"), and lets inline HTML
+    # through ("Zero <u>(PC5)</u>"). Titles are section metadata (navigation
+    # anchors), not content, so bold markers and inline tags go everywhere
+    # and other emphasis goes at the ends; the markdown body keeps every
+    # marker.
+    return _TITLE_TAG_RE.sub("", raw.replace("**", "")).strip().strip("*_").strip()
 
 
 def extract_one(pdf_path: Path) -> dict:
@@ -59,13 +68,20 @@ def extract_one(pdf_path: Path) -> dict:
         # to_markdown is too loose for pyright to see that.
         pages = cast(list[dict], pymupdf4llm.to_markdown(doc, page_chunks=True))
 
-    markdown = "".join(page["text"] for page in pages)
+    page_texts = [page["text"] for page in pages]
+    markdown = "".join(page_texts)
     if not markdown.strip():
         raise ExtractionSkip("no extractable text (scanned image PDF?)")
 
+    page_map: list[dict] = []
+    offset = 0
+    for page_no, text in enumerate(page_texts, start=1):
+        page_map.append({"page": page_no, "char_start": offset, "char_end": offset + len(text)})
+        offset += len(text)
+
     headings: list[tuple[int, str]] = []
-    for page_no, page in enumerate(pages, start=1):
-        for match in _HEADING_RE.finditer(page["text"]):
+    for page_no, text in enumerate(page_texts, start=1):
+        for match in _HEADING_RE.finditer(text):
             headings.append((page_no, _clean_title(match.group(1))))
 
     sections: list[dict] = []
@@ -78,14 +94,16 @@ def extract_one(pdf_path: Path) -> dict:
         page_end = headings[i + 1][0] if i + 1 < len(headings) else n_pages
         sections.append({"title": title, "page_start": page_no, "page_end": page_end})
 
-    return {"markdown": markdown, "sections": sections, "n_pages": n_pages}
+    return {"markdown": markdown, "sections": sections, "pages": page_map, "n_pages": n_pages}
 
 
 def _write_json_atomic(path: Path, payload: dict, indent: int | None = None) -> None:
     # A killed run must never leave a truncated JSON that a resume would
     # then trust; rename is atomic on POSIX.
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=indent))
+    # encoding pinned: the full-corpus run may happen under a C/POSIX locale
+    # (cron/ssh), where the preferred encoding is ASCII.
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=indent), encoding="utf-8")
     tmp.replace(path)
 
 
@@ -104,7 +122,7 @@ def _extract_worker(pdf_path: Path, out_path: Path) -> tuple[str, str]:
 def _load_skiplist(path: Path) -> dict[str, dict]:
     if not path.exists():
         return {}
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _save_skiplist(path: Path, skiplist: dict[str, dict]) -> None:

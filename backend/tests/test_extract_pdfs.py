@@ -63,6 +63,26 @@ def test_clean_title_strips_emphasis_only():
     assert extract_pdfs._clean_title("2.1 Simplification for** **_m_ scales") == (
         "2.1 Simplification for _m_ scales"
     )
+    # Inline HTML let through by pymupdf4llm (real corpus: 2009.08859).
+    assert extract_pdfs._clean_title("Zero <u>(PC5)</u>") == "Zero (PC5)"
+    assert extract_pdfs._clean_title("**Kevin Buchin**<sup>1</sup>") == "Kevin Buchin1"
+
+
+def test_page_map_tiles_the_markdown(tmp_path):
+    pdf = make_pdf(tmp_path / "2606.99999.pdf", ["1 One", "2 Two", "3 Three"])
+    payload = extract_pdfs.extract_one(pdf)
+    pages = payload["pages"]
+    # 1-based, one entry per page, contiguous half-open spans that tile the
+    # markdown exactly — the chunker maps any char range to a page (D6/D7).
+    assert [p["page"] for p in pages] == [1, 2, 3]
+    assert pages[0]["char_start"] == 0
+    assert all(a["char_end"] == b["char_start"] for a, b in zip(pages, pages[1:], strict=False))
+    assert pages[-1]["char_end"] == len(payload["markdown"])
+    # Spans slice back to per-page content: page 2's heading lives inside
+    # page 2's span and nowhere else.
+    md = payload["markdown"]
+    assert "2 Two" in md[pages[1]["char_start"] : pages[1]["char_end"]]
+    assert "2 Two" not in md[pages[0]["char_start"] : pages[0]["char_end"]]
 
 
 def test_sections_and_page_anchors(tmp_path):
@@ -72,6 +92,7 @@ def test_sections_and_page_anchors(tmp_path):
         body_pages_after=1,
     )
     payload = extract_pdfs.extract_one(pdf)
+    assert set(payload) == {"markdown", "sections", "pages", "n_pages"}
     assert payload["n_pages"] == 4
     assert BODY.strip() in payload["markdown"]
     titles = [s["title"] for s in payload["sections"]]
