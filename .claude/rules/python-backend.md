@@ -10,12 +10,25 @@ Idiomatic by default. A deviation needs a `decisions.md` entry (what, why,
 revisit trigger) in the same PR — no human sign-off. Non-idiomatic code
 without a logged decision is a review finding.
 
+## Toolchain (the Astral trio + just)
+
+- **uv** owns environments and deps; **ruff** owns lint + format; **ty**
+  owns type checking. No pyright, no mypy, no pip — one vendor, one speed
+  profile. All three run in CI and in `just backend-check`.
+- `just backend-check` is the gate before any handoff: ruff check, ruff
+  format --check, ty, fast tests. `just check` runs backend and frontend
+  checks together; run the side-specific one when only one side changed.
+
 ## Python
 
-- Type hints on every public function; pyright stays clean. `pathlib` over
-  `os.path`, f-strings, `dataclasses`/pydantic models over dict-shaped data
-  crossing any boundary, `Enum`/`Literal` over bare string constants for
+- Type hints on every public function; ty stays clean. `pathlib` over
+  `os.path`, f-strings, `Enum`/`Literal` over bare string constants for
   closed sets.
+- **No bare dicts as data.** Structured data crossing any boundary
+  (function return, file format, wire, queue) is a frozen dataclass or a
+  pydantic model — dicts are for genuinely open key-value maps only.
+- **Imports: absolute always** (`from askrag.ingest import ...`), even
+  inside the package; no relative imports.
 - Exceptions over sentinel returns: raise narrow types, catch narrowly,
   never bare `except`. A broken invariant raises; no silent fallbacks.
 - Resources (connections, files, subprocesses) are owned by context
