@@ -26,6 +26,7 @@ import json
 import re
 import sys
 import time
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
@@ -36,11 +37,47 @@ import pymupdf4llm
 from askrag.config import get_settings
 
 _HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*$", re.MULTILINE)
-_PROGRESS_EVERY = 100  # completions between progress lines / skiplist flushes
+_PROGRESS_EVERY = 100  # logging cadence (progress lines / skiplist flushes), not behavior
 
 
 class ExtractionSkip(Exception):
-    """Raised for PDFs that cannot be extracted; the message is the skiplist reason."""
+    """Raised for PDFs that cannot be extracted; the message is the skiplist reason.
+
+    Carries only its message so it survives pickling across the process pool.
+    """
+
+
+@dataclass(frozen=True)
+class Section:
+    title: str
+    page_start: int  # 1-based, inclusive
+    page_end: int
+
+
+@dataclass(frozen=True)
+class PageSpan:
+    page: int  # 1-based
+    char_start: int  # inclusive offset into Extraction.markdown
+    char_end: int  # exclusive
+
+
+@dataclass(frozen=True)
+class Extraction:
+    """The frozen cache payload; asdict() of this is the on-disk JSON schema."""
+
+    markdown: str
+    sections: list[Section]
+    pages: list[PageSpan]
+    n_pages: int
+
+
+@dataclass
+class RunStats:
+    total: int = 0
+    resumed: int = 0
+    skiplisted_prior: int = 0
+    extracted: int = 0
+    skiplisted_new: int = 0
 
 
 _TITLE_TAG_RE = re.compile(r"</?(?:u|i|b|sup|sub)>")
@@ -56,8 +93,8 @@ def _clean_title(raw: str) -> str:
     return _TITLE_TAG_RE.sub("", raw.replace("**", "")).strip().strip("*_").strip()
 
 
-def extract_one(pdf_path: Path) -> dict:
-    """One PDF -> the frozen JSON payload. Raises ExtractionSkip with a reason."""
+def extract_one(pdf_path: Path) -> Extraction:
+    """One PDF -> the frozen cache payload. Raises ExtractionSkip with a reason."""
     with pymupdf.open(pdf_path) as doc:
         if doc.needs_pass:
             raise ExtractionSkip("encrypted (needs password)")
@@ -73,10 +110,10 @@ def extract_one(pdf_path: Path) -> dict:
     if not markdown.strip():
         raise ExtractionSkip("no extractable text (scanned image PDF?)")
 
-    page_map: list[dict] = []
+    page_map: list[PageSpan] = []
     offset = 0
     for page_no, text in enumerate(page_texts, start=1):
-        page_map.append({"page": page_no, "char_start": offset, "char_end": offset + len(text)})
+        page_map.append(PageSpan(page=page_no, char_start=offset, char_end=offset + len(text)))
         offset += len(text)
 
     headings: list[tuple[int, str]] = []
@@ -84,17 +121,17 @@ def extract_one(pdf_path: Path) -> dict:
         for match in _HEADING_RE.finditer(text):
             headings.append((page_no, _clean_title(match.group(1))))
 
-    sections: list[dict] = []
+    sections: list[Section] = []
     if not headings or headings[0][0] > 1:
         # Front matter before the first detected heading (or a heading-free
         # document) still needs page anchors for the chunker.
         preamble_end = headings[0][0] if headings else n_pages
-        sections.append({"title": "", "page_start": 1, "page_end": preamble_end})
+        sections.append(Section(title="", page_start=1, page_end=preamble_end))
     for i, (page_no, title) in enumerate(headings):
         page_end = headings[i + 1][0] if i + 1 < len(headings) else n_pages
-        sections.append({"title": title, "page_start": page_no, "page_end": page_end})
+        sections.append(Section(title=title, page_start=page_no, page_end=page_end))
 
-    return {"markdown": markdown, "sections": sections, "pages": page_map, "n_pages": n_pages}
+    return Extraction(markdown=markdown, sections=sections, pages=page_map, n_pages=n_pages)
 
 
 def _write_json_atomic(path: Path, payload: dict, indent: int | None = None) -> None:
@@ -107,16 +144,19 @@ def _write_json_atomic(path: Path, payload: dict, indent: int | None = None) -> 
     tmp.replace(path)
 
 
-def _extract_worker(pdf_path: Path, out_path: Path) -> tuple[str, str]:
-    """Pool worker: returns (status, detail); status is 'ok' or 'skip'."""
+def _extract_worker(pdf_path: Path, out_path: Path) -> None:
+    """Pool worker. Raises ExtractionSkip (pickle-safe) for every failure mode;
+    the pool re-raises it in the parent, which owns the skiplist."""
     try:
         payload = extract_one(pdf_path)
-    except ExtractionSkip as exc:
-        return "skip", str(exc)
-    except Exception as exc:  # corrupt files raise all over pymupdf's C surface
-        return "skip", f"{type(exc).__name__}: {exc}"
-    _write_json_atomic(out_path, payload)
-    return "ok", ""
+    except ExtractionSkip:
+        raise
+    except Exception as exc:
+        # Corrupt files raise all over pymupdf's C surface; arbitrary
+        # exceptions may not survive pickling back to the parent, a
+        # message-only ExtractionSkip always does.
+        raise ExtractionSkip(f"{type(exc).__name__}: {exc}") from exc
+    _write_json_atomic(out_path, asdict(payload))
 
 
 def _load_skiplist(path: Path) -> dict[str, dict]:
@@ -143,7 +183,7 @@ def run(
     workers: int,
     limit: int | None = None,
     retry_skipped: bool = False,
-) -> dict[str, int]:
+) -> RunStats:
     """Extract every PDF under pdfs_dir; returns counts for the run summary."""
     extracted_dir.mkdir(parents=True, exist_ok=True)
     skiplist = _load_skiplist(skiplist_path)
@@ -155,23 +195,16 @@ def run(
         stride = len(all_pdfs) // limit
         all_pdfs = all_pdfs[::stride][:limit]
 
+    stats = RunStats(total=len(all_pdfs))
     todo: list[Path] = []
-    resumed = skiplisted_prior = 0
     for pdf in all_pdfs:
         if _is_current(extracted_dir / f"{pdf.stem}.json", pdf):
-            resumed += 1
+            stats.resumed += 1
         elif pdf.stem in skiplist and not retry_skipped:
-            skiplisted_prior += 1
+            stats.skiplisted_prior += 1
         else:
             todo.append(pdf)
 
-    stats = {
-        "total": len(all_pdfs),
-        "resumed": resumed,
-        "skiplisted_prior": skiplisted_prior,
-        "extracted": 0,
-        "skiplisted_new": 0,
-    }
     started = time.monotonic()
     done = 0
     with cf.ProcessPoolExecutor(max_workers=workers) as pool:
@@ -181,18 +214,19 @@ def run(
         }
         for future in cf.as_completed(futures):
             pdf = futures[future]
-            status, detail = future.result()
-            if status == "ok":
-                stats["extracted"] += 1
-                # A retried skiplist entry that now extracts is no longer skipped.
-                skiplist.pop(pdf.stem, None)
-            else:
-                stats["skiplisted_new"] += 1
+            try:
+                future.result()
+            except ExtractionSkip as exc:
+                stats.skiplisted_new += 1
                 skiplist[pdf.stem] = {
                     "pdf": str(pdf),
-                    "reason": detail,
+                    "reason": str(exc),
                     "failed_at": datetime.now(UTC).isoformat(timespec="seconds"),
                 }
+            else:
+                stats.extracted += 1
+                # A retried skiplist entry that now extracts is no longer skipped.
+                skiplist.pop(pdf.stem, None)
             done += 1
             if done % _PROGRESS_EVERY == 0:
                 _save_skiplist(skiplist_path, skiplist)
@@ -205,15 +239,15 @@ def run(
 
     _save_skiplist(skiplist_path, skiplist)
     elapsed = time.monotonic() - started
-    if not stats["total"]:
+    if not stats.total:
         print(f"extract_pdfs: no PDFs found under {pdfs_dir}", flush=True)
         return stats
-    ok = stats["extracted"] + stats["resumed"]
-    failed = stats["skiplisted_new"] + stats["skiplisted_prior"]
+    ok = stats.extracted + stats.resumed
+    failed = stats.skiplisted_new + stats.skiplisted_prior
     print(
-        f"extract_pdfs: {stats['total']} PDFs -> {ok} extracted "
-        f"({stats['resumed']} already current), {failed} skiplisted; "
-        f"success rate {ok / stats['total']:.2%}",
+        f"extract_pdfs: {stats.total} PDFs -> {ok} extracted "
+        f"({stats.resumed} already current), {failed} skiplisted; "
+        f"success rate {ok / stats.total:.2%}",
         flush=True,
     )
     print(f"  elapsed {elapsed / 60:.1f} min; skiplist: {skiplist_path}", flush=True)
