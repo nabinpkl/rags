@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     ip_daily_spend_cap_usd: float = 0.10
     global_daily_spend_cap_usd: float = 0.50  # trips into replay mode (D11)
 
+    # --- telemetry (D15) ----------------------------------------------------
+    telemetry_enabled: bool = True
+    # Empty => JSON lines on stdout only (zero network by construction);
+    # set => OTLP HTTP export attaches in addition, no code change.
+    otlp_endpoint: str = ""
+    log_level: str = "INFO"
+
     # --- query_metadata limits (§5; defaults until measured) ---------------
     query_metadata_max_rows: int = 500
     query_metadata_timeout_seconds: float = 2.0

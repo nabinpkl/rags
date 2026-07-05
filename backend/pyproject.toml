@@ -11,6 +11,8 @@ dependencies = [
     "fastapi>=0.139.0",
     "httpx>=0.28.1",
     "openai>=2.44.0",
+    "opentelemetry-exporter-otlp-proto-http==1.43.0",
+    "opentelemetry-sdk==1.43.0",
     "pydantic-settings>=2.14.2",
     "pymupdf4llm>=1.28.0",
     "sse-starlette>=3.4.5",
