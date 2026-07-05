@@ -1,0 +1,105 @@
+# SDLC workflow — coordinator / implementor / reviewer
+
+One coordinator session, one persistent implementor agent, one persistent
+reviewer agent. Work flows through GitHub PRs; the coordinator is the only
+role that merges. Role briefs live in `.claude/briefs/`.
+
+## Roles
+
+- **Coordinator** (the main session): owns the board, assigns one issue at a
+  time to the implementor, relays diffs and findings between the two agents,
+  arbitrates disputes (spec is the tiebreaker), merges PRs, closes issues,
+  promotes newly unblocked board items, and maintains `decisions.md`,
+  `CLAUDE.md`, and the spec.
+- **Implementor** (one instance, continued across tasks): implements exactly
+  one issue at a time on a branch, self-reviews the diff before handoff,
+  opens the PR, judges every review finding (fix, or reject with stated
+  reasoning), pushes fix commits. Never merges.
+- **Reviewer** (one instance, continued across tasks): read-only. Reviews
+  the PR diff fresh each round, files findings with file:line, severity, and
+  a concrete failure scenario. Never edits code. Verdict per round:
+  `GREEN` or `FINDINGS`.
+
+No parallel implementors, no fresh implementor per task: continuity of
+context is the point. If the coordinator session restarts, re-spawn roles
+with their briefs; durable context lives in artifacts (PRs, issue comments,
+decisions.md, the spec), not in any agent's memory.
+
+## The loop (per issue)
+
+1. Coordinator picks the top item from the board's **Ready** column, moves it
+   to **In progress**, sends the implementor the issue number plus any
+   coordinator notes.
+2. Implementor: branch `issue-<n>-<slug>` → implement + tests → self-review
+   the whole diff as one system → `gh pr create` (body: what/why, acceptance
+   checklist status, verification evidence, risks) → hands back PR number.
+3. Coordinator moves the card to **In review**, sends the PR to the reviewer.
+4. Reviewer files findings as one PR comment per round (structured, see
+   brief), ending with `VERDICT: GREEN` or `VERDICT: FINDINGS`.
+5. On FINDINGS: coordinator relays to implementor. Implementor replies to
+   each finding on the PR: `FIXED <commit>` or `REJECTED: <reasoning>`,
+   pushes fixes. Coordinator sends the new diff back to the reviewer.
+6. Repeat. **After 3 FINDINGS rounds the coordinator arbitrates**: each
+   unresolved finding is decided against the spec, the decision goes in the
+   PR thread, and if it changed anything architectural, in `decisions.md`.
+7. On GREEN + the full green definition below: coordinator squash-merges
+   (`gh pr merge --squash`), subject `<type>: <summary> (#<issue>)`, closes
+   the issue with measured numbers commented, moves the card to **Done**,
+   searches the issue number and promotes newly unblocked issues to
+   **Ready**.
+
+## Green definition (all required)
+
+- CI green (lint, types, tests).
+- Issue acceptance checklist fully checked, measured numbers recorded.
+- Anything user-visible: verified on the real surface via Playwright
+  (`e2e/demo-flow.spec.ts` once it exists; ad-hoc Playwright before then),
+  screenshot or trace attached to the PR. "The code looks right" is not
+  verification.
+- Reviewer `VERDICT: GREEN` on the final diff.
+- No finding left in an unjudged state (every one FIXED or REJECTED with
+  reasoning).
+
+## Decisions outside the spec
+
+Any choice the spec doesn't already make (or contradicts) stops the loop:
+
+1. Coordinator logs it in `decisions.md` (dated entry: context, decision,
+   alternatives, consequence).
+2. The spec gets a new or amended decision record **in the same PR** as the
+   code that depends on it. `decisions.md` says which spec section changed;
+   "Spec updated: pending" is only acceptable for process-only decisions.
+3. Silent drift between code and spec is a bug (CLAUDE.md hard rule).
+
+## Dependency gate
+
+Spec §4b packages are pre-approved. Anything else, before it enters a
+lockfile:
+
+- **Popular**: meaningful adoption (registry download rank, stars, known
+  users) — not a judgment call, cite the number.
+- **Actively maintained**: a release within the last 12 months AND
+  human-reviewed merges (not only bot commits).
+- **Security**: no unresolved critical advisories (`pip-audit` /
+  `pnpm audit` + GitHub advisory DB); check for install scripts
+  (`preinstall`/`postinstall`) and typosquat-adjacent names; pin the version.
+- Result recorded as a `decisions.md` entry (name, version, numbers checked,
+  verdict). The implementor proposes, the coordinator approves the entry
+  before the dep lands.
+
+## GitHub mechanics and constraints
+
+- All three roles act as one GitHub account, so GitHub blocks formal PR
+  approval on our own PRs. The reviewer's `VERDICT: GREEN` comment is the
+  approval of record; the coordinator's merge is the sign-off.
+- Branch per issue, deleted after squash-merge. `main` stays releasable.
+- The board README's lane rules still apply; the coordinator owns all card
+  moves so lane state has one writer.
+
+## Escalation to the human
+
+Stop and ask @nabinpkl when: an issue is labeled `needs-human` and its human
+step is reached; a decision would change a spec hard constraint (§6b/§6c,
+budgets, read-only tools); the 3-round arbitration would overrule a security
+finding; or a dependency fails the gate but seems necessary (the alternative
+is scope change).
