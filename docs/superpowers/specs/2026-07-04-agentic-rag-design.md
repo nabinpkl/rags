@@ -623,7 +623,7 @@ implies. Anything not listed here is not in v1.
 | Tokens | tiktoken / `anthropic.count_tokens` | chunk sizing + budget accounting |
 | HTTP client | httpx | arXiv checks, health probes |
 | Sandbox control | `docker` CLI via subprocess (or docker SDK) | D10; the invocation is ~20 lines, a library is optional |
-| Lint/type/test | ruff, pyright, pytest | CI gate |
+| Lint/type/test | ruff, **ty**, pytest | CI gate — Astral trio (uv+ruff+ty), one vendor; entry point `just check` |
 
 ### Frontend (Next.js, managed with `pnpm`)
 
@@ -653,7 +653,7 @@ implies. Anything not listed here is not in v1.
 | Orchestration | docker compose (api, caddy; sandbox containers spawned ad-hoc) | one `just deploy` |
 | Edge | Cloudflare free tier (+ Turnstile if needed) | D11 |
 | Backups | nightly copy of corpus.db/chroma/traces.db to object storage (rclone; litestream optional for traces.db) | D13 |
-| CI | GitHub Actions: ruff+pyright+pytest, eslint+vitest, eval smoke subset | keeps D14 honest per PR |
+| CI | GitHub Actions runs `just check` (ruff+ty+pytest; frontend lint+types once scaffolded; eval smoke subset) | keeps D14 honest per PR; local gate == CI gate |
 | Task runner | just | already the repo's culture |
 | Secrets | `.env` on the box only (Anthropic + OpenAI keys); never in the sandbox container | D10/D13 |
 | Analytics | none in v1 (Caddy access logs suffice) | privacy + zero cost; revisit if traffic questions matter |
@@ -702,7 +702,7 @@ rags/
 ├── README.md                        # the portfolio front door: pitch, architecture summary, eval table, links
 ├── .gitignore                       # corpus/, .env, node_modules, .venv, traces.db
 ├── .github/
-│   └── workflows/ci.yml             # ruff+pyright+pytest; eslint+vitest; eval smoke subset (D14)
+│   └── workflows/ci.yml             # runs `just check`: ruff+ty+pytest; frontend lint+types; eval smoke subset (D14)
 ├── docs/
 │   └── superpowers/
 │       ├── specs/                   # this document and its predecessors
