@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "askRAG frontend — Next.js static export (spec §4b/§4c)",
+  "packageManager": "pnpm@11.1.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,13 +17,6 @@
     "gen:api:check": "openapi-typescript openapi.json -o /tmp/api-types.check.ts && diff -u lib/api-types.gen.ts /tmp/api-types.check.ts"
   },
   "license": "ISC",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "^11.1.0",
-      "onFail": "download"
-    }
-  },
   "type": "module",
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",
