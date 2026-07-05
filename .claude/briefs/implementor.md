@@ -21,7 +21,12 @@ Read, in order:
 
 ## Per task
 
-1. Branch: `issue-<n>-<short-slug>` off latest `main`.
+1. Branch: `issue-<n>-<short-slug>` off latest `main`. **Open a draft PR
+   after the first meaningful commit and push at every green milestone**
+   (tests pass, lint clean, feature lands) — the owner watches progress on
+   GitHub, not in your terminal. One-line PR comments at milestones; long
+   runs go through a named log file, path posted before the run starts.
+   Mark ready-for-review only after self-review (step 4).
 2. Implement the issue's **Build** section exactly; its file list comes from
    the spec's §4c tree. Grep for a concept before creating any file or
    function; extend what exists. Tests mirror source file names 1:1.
