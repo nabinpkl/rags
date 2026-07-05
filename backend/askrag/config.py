@@ -32,14 +32,14 @@ class Settings(BaseSettings):
     agent_usd_per_mtok_in: float = 1.00
     agent_usd_per_mtok_out: float = 5.00
     agent_usd_per_mtok_cache_read: float = 0.10
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dims: int = 512  # Matryoshka truncation (D5)
+    embedding_model: str = "voyage-4-lite"
+    embedding_dims: int = 512  # output_dimension param; Matryoshka truncation (D5)
 
     # --- API keys (env-only; standard names, no ASKRAG_ prefix) -----------
     anthropic_api_key: SecretStr = Field(
         default=SecretStr(""), validation_alias="ANTHROPIC_API_KEY"
     )
-    openai_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="OPENAI_API_KEY")
+    voyage_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="VOYAGE_API_KEY")
 
     # --- ingest: extraction (D6) -------------------------------------------
     extract_workers: int = 8  # process pool size; extraction is CPU-bound C
@@ -47,14 +47,28 @@ class Settings(BaseSettings):
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000
     chunk_overlap_ratio: float = 0.15
-    # cl100k_base matches text-embedding-3-small (D5); chunk token counts must
-    # be measured with the same encoding the embedder bills on.
+    # cl100k_base sizes chunks and batches. Voyage bills on its own tokenizer
+    # (D5 amendment), so stored n_tokens are estimates there — batch caps and
+    # --estimate carry margin for the difference; billing truth is API usage.
     tokenizer_encoding: str = "cl100k_base"
     # 0 = no merge (current strict-D7 behavior). The eval-sweep knob wired in
     # #19: chunk COUNT is eval-gated (D7 revisit + D14), not a target, so
     # tail-merge of sub-threshold chunks stays disabled until evals measure
     # whether the small-chunk tail hurts recall (decisions.md 2026-07-05).
     chunk_min_tokens: int = 0
+
+    # --- ingest: embedding (D5, Voyage AI per decisions.md 2026-07-05) ------
+    # List price for voyage-4-lite; runs draw on the 200M free-token quota
+    # first, so this prices the estimate, not necessarily the invoice.
+    embedding_usd_per_mtok: float = 0.02
+    # Voyage hard caps are 1,000 inputs and 1M tokens per request (4-lite);
+    # defaults sit well under both so one throttled request never wastes much
+    # work, and cl100k n_tokens under-/over-counting Voyage tokens stays safe.
+    embed_batch_max_items: int = 128
+    embed_batch_max_tokens: int = 100_000
+    embed_retry_max_attempts: int = 6
+    embed_retry_base_seconds: float = 2.0
+    embed_request_timeout_seconds: float = 120.0
 
     # --- retrieval (D8; defaults until measured) --------------------------
     rrf_k: int = 60
@@ -122,6 +136,12 @@ class Settings(BaseSettings):
     @property
     def vectors_parquet_path(self) -> Path:
         return self.corpus_dir / "vectors.parquet"
+
+    @property
+    def vectors_shards_dir(self) -> Path:
+        # One shard per embedded batch; merged into vectors.parquet at the
+        # end of a complete run (embed_chunks resume mechanism, D5).
+        return self.corpus_dir / "vectors_shards"
 
     @property
     def skiplist_path(self) -> Path:

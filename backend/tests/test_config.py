@@ -29,7 +29,7 @@ def test_spec_constants_load_without_env(monkeypatch):
         monkeypatch.delenv(var)
     settings = make_settings()
     assert settings.agent_model == "claude-haiku-4-5-20251001"  # D3
-    assert settings.embedding_model == "text-embedding-3-small"  # D5
+    assert settings.embedding_model == "voyage-4-lite"  # D5 (amended 2026-07-05)
     assert settings.embedding_dims == 512  # D5
     assert settings.chunk_size_tokens == 1000  # D7
     assert settings.chunk_overlap_ratio == 0.15  # D7
@@ -53,10 +53,10 @@ def test_env_overrides_with_prefix(monkeypatch):
 
 def test_api_keys_use_standard_env_names(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-oai-test")
+    monkeypatch.setenv("VOYAGE_API_KEY", "pa-voy-test")
     settings = make_settings()
     assert settings.anthropic_api_key.get_secret_value() == "sk-ant-test"
-    assert settings.openai_api_key.get_secret_value() == "sk-oai-test"
+    assert settings.voyage_api_key.get_secret_value() == "pa-voy-test"
     # SecretStr keeps keys out of reprs/logs.
     assert "sk-ant-test" not in repr(settings)
 
