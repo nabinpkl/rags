@@ -31,8 +31,14 @@ work is broken into GitHub issues.
   as issue comments; several close spec §10 assumptions.
 - Issues labeled `needs-human` end with a step only @nabinpkl can do — park
   in "In review" and say what's needed.
-- Work in-place on `main` unless told otherwise. Never create branches or
-  worktrees on your own initiative.
+- **Delivery flow is the PR loop in `docs/sdlc.md`**: coordinator assigns,
+  one persistent implementor builds on `issue-<n>-<slug>` branches, one
+  persistent reviewer files verdicts, coordinator merges. Role briefs:
+  `.claude/briefs/`. Only the coordinator merges or moves board cards.
+- Decisions the spec doesn't cover stop the work: log in `decisions.md`,
+  amend the spec in the same PR (see sdlc.md).
+- New dependencies pass the gate in `docs/sdlc.md` (popular, actively
+  maintained, advisory-clean, logged) — spec §4b packages are pre-approved.
 
 ## House rules (spec §4d, condensed)
 
