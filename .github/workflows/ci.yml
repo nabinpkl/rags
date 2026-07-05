@@ -1,0 +1,27 @@
+# Backend gate: ruff + pyright + pytest via uv (spec §4b/§4c).
+# Frontend (eslint+vitest) and the eval smoke subset (D14) get their own jobs
+# when #26 / #24 land. No corpus access in CI: tests build tmp fixtures.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pyright
+      - run: uv run pytest
