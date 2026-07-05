@@ -14,6 +14,32 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Chunk count is eval-gated, not a target; strict per-section packing ships (#12)
+
+**Context:** strict-D7 chunking (each section packed into ~1k-token windows,
+never crossing a section boundary) measured ~7,974 chunks over a real
+200-paper extraction set — ~258k projected full-corpus, roughly 2x issue
+#12's non-binding 80–120k estimate. 24% of chunks are <200 tokens (short
+sections each become a chunk, plus a small tail window per section). One
+paper produced 819 chunks — verified genuine (398-page monograph, 16 clean
+headings), not a heading over-match.
+**Decision:** chunk COUNT is not a spec target; it is eval-gated — D7's
+revisit trigger is eval recall@k (D7/D14), not a count. Ship strict
+per-section packing as-is. Add `chunk_min_tokens` (default 0 = disabled) to
+config.py as the #19 eval-sweep knob; do not change chunking behavior now.
+**Alternatives rejected:** tail-merge of sub-threshold chunks (opt 2) —
+unmeasured recall risk: a short precise section (a key definition, a dataset
+name) is exactly what hybrid retrieval should surface cleanly, and diluting
+it into a neighbor could hurt recall; premature before #19 measures it.
+Coalescing small adjacent sections (opt 3) — changes D7's "never cross
+section boundaries" semantics without eval evidence.
+**Consequence:** ~2x baseline chunk count accepted for the demo (embed cost
+delta ~$1.5 one-time, <2 GB vectors — no budget concern); revisit at #19.
+Spec updated: D7 (appended: count is eval-gated not count-targeted;
+`chunk_min_tokens` merge knob exists disabled by default; revisit = #19).
+
+---
+
 ## 2026-07-05 — Dependency gate covers CI actions; SHA pins mandatory
 
 **Context:** reviewer questions on PR #45 — the gate said "before it enters

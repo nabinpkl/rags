@@ -282,6 +282,14 @@ one config.
 **Revisit when.** Eval recall@k plateaus below target and error analysis
 points at chunk boundaries; then sweep size/overlap as an eval experiment.
 
+**Amendment (2026-07-05, #12).** Chunk *count* is eval-gated, not a target:
+strict per-section packing produces ~2x the original 80–120k planning
+estimate (24% of chunks <200 tokens), accepted for the demo because the
+revisit trigger above is recall@k, not a count. A `chunk_min_tokens` merge
+knob exists in config, disabled by default (0 = no merge); the #19 eval sweep
+decides whether merging the small-chunk tail helps recall before it is
+enabled. See decisions.md 2026-07-05.
+
 ---
 
 ### D8. Retrieval: hybrid (vector + BM25 + RRF), filters pushed down; rerank only if evals demand it
