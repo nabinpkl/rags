@@ -14,6 +14,36 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Budget gate is sequentially correct; concurrent overshoot accepted-and-bounded (#21)
+
+**Context:** `budgets.check(session, ip)` is a pre-flight gate — it reads
+current spend/counts from traces.py and returns Allow/Deny/Replay *before* a
+turn runs. Real cost is known only after the LLM call and written by
+`record_run()` afterward, so there is a check-then-record window. D11 does not
+specify a concurrency model, and no request-serialization layer exists yet
+(that lands with #23 loop / #30 chat route).
+**Decision:** enforce SEQUENTIAL correctness now — the gate never Allows once
+spend is at/over a cap, so no *sequence* of requests overshoots by more than
+one request's cost. Accept the concurrent overshoot as bounded by
+`(in-flight request count) × (per-message cost cap)` on top of the $0.50/day
+global cap. This preserves D11's ~$15/mo ceiling intent, especially behind
+Cloudflare rate-limiting; per-request cost is itself capped by the per-message
+token budget, so the bound is small.
+**Alternatives rejected:** pre-flight reservation (option 2) — cost is unknown
+pre-flight, so it must estimate worst case, pessimistically denying legit
+requests near the cap, and adds a reservation-reconciliation path for crashed
+requests — speculative complexity for serving layers not yet designed.
+App-level locking (option 3) — belongs in whatever runs the request (#23/#30),
+not in this pure read-only gate.
+**Revisit trigger:** tighten at #23 (loop) / #30 (chat route) with a
+reserve-or-serialize step IF real abuse overshoots meaningfully. Money
+comparisons use float (matches traces.db `cost_usd REAL` and D3 pricing
+floats); sub-cent float drift is negligible against a $0.50 cap.
+Spec updated: D11 (appended one sentence on the accepted-and-bounded
+concurrent overshoot).
+
+---
+
 ## 2026-07-05 — Chunk count is eval-gated, not a target; strict per-section packing ships (#12)
 
 **Context:** strict-D7 chunking (each section packed into ~1k-token windows,
