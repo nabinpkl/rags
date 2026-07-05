@@ -14,6 +14,32 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Dependency gate covers CI actions; SHA pins mandatory
+
+**Context:** reviewer questions on PR #45 — the gate said "before it enters
+a lockfile", which GitHub Actions never do; the workflow tag-pinned
+everything (`@v3`/`@v4`/`@v6`, mutable); and one PR cited a remembered
+star count ("~1k") that measured 153.
+**Decision:** (1) CI actions ARE dependencies (they run with the repo
+token) and pass the same gate; (2) every action is pinned to a full commit
+SHA with the version as a trailing comment — one rule including
+first-party; (3) gate evidence carries measured, dated numbers.
+**Gate record — extractions/setup-just (v3):** 153 GitHub stars (measured
+2026-07-05), the installer casey/just's own README recommends, last push
+2026-06-24, no install-script surface, no known advisories. PASS.
+`taiki-e/install-action` considered (broader, heavier); apt install
+rejected (~10x slower). actions/checkout v4 and astral-sh/setup-uv v6
+grandfathered as gate-PASS (first-party GitHub / Astral, both already in
+use since #10) — re-pinned to SHAs like everything else.
+**Alternatives rejected:** SHA-pin third-party only (per-action judgment
+calls; one rule is auditable); Dependabot-managed tags (mutable window
+remains between releases).
+**Consequence:** workflow files show SHAs; bumping an action version is a
+deliberate diff. sdlc.md dependency gate amended in this PR.
+Spec updated: no (process-only).
+
+---
+
 ## 2026-07-05 — ty replaces pyright; tiered `just check` recipes (owner directive)
 
 **Context:** the toolchain was uv + ruff + pyright; checks were scattered

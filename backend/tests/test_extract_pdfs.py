@@ -127,7 +127,7 @@ def test_encrypted_pdf_raises_skip(tmp_path):
     doc.new_page().insert_text((72, 90), "secret", fontsize=10)
     path = tmp_path / "2606.44444.pdf"
     # Constant exists at runtime; pymupdf's stubs don't declare it.
-    aes256 = pymupdf.PDF_ENCRYPT_AES_256  # pyright: ignore[reportAttributeAccessIssue]
+    aes256 = pymupdf.PDF_ENCRYPT_AES_256  # ty: ignore[unresolved-attribute]
     doc.save(path, encryption=aes256, user_pw="pw")
     doc.close()
     with pytest.raises(extract_pdfs.ExtractionSkip, match="encrypted"):
