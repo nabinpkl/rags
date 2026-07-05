@@ -39,10 +39,12 @@ class ExtractionSkip(Exception):
 
 
 def _clean_title(raw: str) -> str:
-    # pymupdf4llm renders bold headings as "# **Title**". Titles are section
-    # metadata (navigation anchors), not content, so emphasis markers go;
-    # the markdown body keeps them.
-    return raw.strip().strip("*_").strip()
+    # pymupdf4llm renders bold headings as "# **Title**", often with the
+    # bold run split mid-title ("for** **_m_ scales"). Titles are section
+    # metadata (navigation anchors), not content, so bold markers go
+    # everywhere and other emphasis goes at the ends; the markdown body
+    # keeps every marker.
+    return raw.replace("**", "").strip().strip("*_").strip()
 
 
 def extract_one(pdf_path: Path) -> dict:

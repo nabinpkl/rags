@@ -58,6 +58,11 @@ def test_clean_title_strips_emphasis_only():
     assert extract_pdfs._clean_title("**1 Introduction**") == "1 Introduction"
     assert extract_pdfs._clean_title("_Abstract_ ") == "Abstract"
     assert extract_pdfs._clean_title("2 Related Work") == "2 Related Work"
+    # Bold runs split mid-title by pymupdf4llm; single underscores stay
+    # (they can be content, e.g. variable names).
+    assert extract_pdfs._clean_title("2.1 Simplification for** **_m_ scales") == (
+        "2.1 Simplification for _m_ scales"
+    )
 
 
 def test_sections_and_page_anchors(tmp_path):
