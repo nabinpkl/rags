@@ -12,6 +12,11 @@ from pathlib import Path
 from askrag import telemetry
 from askrag.config import get_settings
 
+# How long a writer waits for a concurrent writer's lock before raising
+# "database is locked" (traces.db, D13). A protocol fact of the WAL setup, not
+# a per-deployment tunable — kept beside the connection it configures.
+_BUSY_TIMEOUT_SECONDS = 5.0
+
 
 def connect_corpus(db_path: Path | None = None) -> sqlite3.Connection:
     path = db_path if db_path is not None else get_settings().corpus_db_path
@@ -37,7 +42,12 @@ def connect_traces(db_path: Path | None = None) -> sqlite3.Connection:
     with telemetry.get_tracer("askrag.db").start_as_current_span(
         "askrag.db.connect", attributes={"askrag.db": "traces", "askrag.db_mode": "rw"}
     ):
-        conn = sqlite3.connect(path)
+        conn = sqlite3.connect(path, timeout=_BUSY_TIMEOUT_SECONDS)
         conn.execute("PRAGMA journal_mode=WAL")
+        # WAL lets readers and one writer coexist, but concurrent WRITERS still
+        # serialize; without a busy timeout the loser raises "database is
+        # locked" immediately. The timeout makes it wait for the lock instead
+        # (traces.db has many concurrent agent-run writers — D13).
+        conn.execute(f"PRAGMA busy_timeout={int(_BUSY_TIMEOUT_SECONDS * 1000)}")
     conn.row_factory = sqlite3.Row
     return conn
