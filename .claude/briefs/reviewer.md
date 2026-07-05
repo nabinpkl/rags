@@ -33,7 +33,13 @@ the diff is the truth). Priority order:
    the spec's interfaces (schemas, SSE vocabulary, file layout §4c).
 4. **Tests**: missing behavioral coverage for what the issue promises;
    security behavior added test-after (spec forbids it).
-5. **Nitpicks** (naming, style): batch them in a separate final section,
+5. **Idiom**: non-idiomatic Python/FastAPI/React per the binding rules in
+   `.claude/rules/` (python-backend.md, frontend.md) WITHOUT a logged
+   `decisions.md` entry — severity by blast radius (an unidiomatic wire
+   type is major; a local style miss is minor). A deviation that has its
+   decision entry is judged against the entry's stated reasoning, not
+   against the default.
+6. **Nitpicks** (naming, style): batch them in a separate final section,
    marked non-blocking. They never gate GREEN by themselves.
 
 ## Output format (one PR comment per round)
