@@ -14,6 +14,39 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Embeddings: Voyage AI free tier replaces OpenAI (owner directive 2026-07-05) (#13)
+
+**Context:** D5 defaulted to OpenAI text-embedding-3-small @512d (~$2–13
+one-time). The owner directed the pivot to Voyage AI, whose free tier grants
+200M tokens per current-generation model. Verified against docs.voyageai.com
+on 2026-07-05: `voyage-4-lite` is the cheapest current text model with
+`output_dimension=512` support ($0.02/Mtok list, 200M free tokens, 1,000
+inputs / 1M tokens per request, basic-tier limits 2,000 RPM / 16M TPM).
+voyage-3.5-lite — the model D5 originally named as the alternative — is the
+same list price but gets **no** free quota as a superseded model.
+**Decision:** embed with `voyage-4-lite` at 512 dims via raw httpx against
+`POST /v1/embeddings` (httpx is §4b pre-approved; one endpoint does not
+justify the `voyageai` package — the `openai` dep leaves the lockfile, this
+was its only consumer). Corpus chunks send `input_type="document"`; the query
+side (#15) must send `input_type="query"`.
+**Frugality consequence:** while on the free tier, spend discipline is a hard
+constraint: tests never call the API (faked backend + MockTransport), backoff
+honors Retry-After and never retry-storms, `--estimate` (no key, no network)
+prices every run first, and full runs need an explicit owner/coordinator go.
+The working corpus (~4.5M cl100k tokens) and even the full corpus (~80–100M)
+fit inside the 200M free quota, so the expected one-time cost is $0. Chunk
+`n_tokens` remain cl100k_base counts — estimates and batch caps carry margin
+because Voyage bills on its own tokenizer; billed truth is API-reported usage.
+**Alternatives rejected:** staying on OpenAI (real dollars for no quality
+argument yet); `voyageai` SDK (new dependency for one POST); voyage-3.5-lite
+(no free quota).
+**Revisit trigger:** Voyage free-tier terms change or quota exhausts;
+milestone-2 evals (#19) show a better-retrieving model worth paying for; or
+query-time latency/outage behavior forces a second provider.
+Spec updated: D5 (amendment), §4b table (Embeddings row).
+
+---
+
 ## 2026-07-05 — Frontend scaffold: ESLint pinned to 9; CI gains pnpm/node actions (#26)
 
 **Context:** scaffolding `frontend/` (Next 16 App Router, static export, React

@@ -224,6 +224,21 @@ scary).
 traffic), or the vendor deprecates the model, or a local model wins on the
 eval set by enough to matter.
 
+**Amendment (2026-07-05, #13 — owner directive).** Provider is **Voyage AI**,
+not OpenAI: model `voyage-4-lite` at `output_dimension=512`, $0.02/Mtok list
+price with a **200M free-token quota** (per docs.voyageai.com, measured
+2026-07-05) — the full corpus (~80–100M tokens) fits inside the free quota,
+so the one-time cost drops from $2–13 to ~$0. voyage-3.5-lite (the alternative
+this record originally named) is the same price but, as a superseded model,
+gets no free quota; voyage-4-lite is its current successor. The 512-dim
+`vectors.parquet` contract and the outage posture (D8 degrades to FTS5-only)
+are unchanged. Client is raw httpx against the single REST endpoint — the
+`openai` SDK leaves §4b; corpus embeds send `input_type="document"`, query
+embeds must send `input_type="query"`. Frugality is a constraint while on the
+free tier: rate-limit-aware batching, Retry-After-honoring backoff, and a
+no-network `--estimate` gate before any paid/full run. Extra revisit trigger:
+Voyage free-tier terms change, or milestone-2 evals justify a paid model.
+
 ---
 
 ### D6. PDF extraction: PyMuPDF4LLM, with a skip list, not a GPU parser
@@ -627,7 +642,7 @@ implies. Anything not listed here is not in v1.
 | API | **FastAPI** + uvicorn | routes, SSE via `sse-starlette`, OpenAPI schema doubles as the frontend's type source |
 | Validation | pydantic v2 | request/response + tool-argument schemas (the `drive_ui` enum lives here) |
 | LLM | `anthropic` SDK | Haiku 4.5, prompt caching, streaming (D3) |
-| Embeddings | `openai` SDK | text-embedding-3-small @512d (D5) |
+| Embeddings | httpx → Voyage REST API | voyage-4-lite @512d, free tier (D5 as amended); one POST endpoint, no SDK |
 | Vector store | **chromadb** (embedded, pinned) | D4 |
 | Metadata/FTS/traces | **sqlite3** stdlib + FTS5 | D4, D13; no ORM — the SQL *is* portfolio material |
 | PDF extraction | **pymupdf4llm** | D6, offline only |
