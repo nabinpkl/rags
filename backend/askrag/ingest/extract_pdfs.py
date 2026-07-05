@@ -71,6 +71,15 @@ class Extraction:
     n_pages: int
 
 
+@dataclass(frozen=True)
+class SkipEntry:
+    """One skiplist.json record; asdict() of this is the on-disk entry shape."""
+
+    pdf: str
+    reason: str
+    failed_at: str  # UTC ISO 8601
+
+
 @dataclass
 class RunStats:
     total: int = 0
@@ -159,16 +168,17 @@ def _extract_worker(pdf_path: Path, out_path: Path) -> None:
     _write_json_atomic(out_path, asdict(payload))
 
 
-def _load_skiplist(path: Path) -> dict[str, dict]:
+def _load_skiplist(path: Path) -> dict[str, SkipEntry]:
     if not path.exists():
         return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {arxiv_id: SkipEntry(**entry) for arxiv_id, entry in raw.items()}
 
 
-def _save_skiplist(path: Path, skiplist: dict[str, dict]) -> None:
+def _save_skiplist(path: Path, skiplist: dict[str, SkipEntry]) -> None:
     # Sorted + indented: the skiplist is a human-read artifact (issue #11
     # acceptance) and feeds ingest_stats (D12).
-    ordered = dict(sorted(skiplist.items()))
+    ordered = {arxiv_id: asdict(entry) for arxiv_id, entry in sorted(skiplist.items())}
     _write_json_atomic(path, ordered, indent=2)
 
 
@@ -218,11 +228,11 @@ def run(
                 future.result()
             except ExtractionSkip as exc:
                 stats.skiplisted_new += 1
-                skiplist[pdf.stem] = {
-                    "pdf": str(pdf),
-                    "reason": str(exc),
-                    "failed_at": datetime.now(UTC).isoformat(timespec="seconds"),
-                }
+                skiplist[pdf.stem] = SkipEntry(
+                    pdf=str(pdf),
+                    reason=str(exc),
+                    failed_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                )
             else:
                 stats.extracted += 1
                 # A retried skiplist entry that now extracts is no longer skipped.
