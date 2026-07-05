@@ -14,6 +14,23 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Ops telemetry: OpenTelemetry + JSON logs from the start (owner directive)
+
+**Context:** running agents were invisible; owner wants telemetry of every
+kind available from day one, not bolted on when the demo is live.
+**Decision:** OpenTelemetry initialized at every entrypoint from the start;
+JSON-lines stdout is the default exporter, OTLP env-gated off;
+`askrag/telemetry.py` is the single setup point; ops telemetry stays
+separate from product traces.db. Tracked as issue #43.
+**Alternatives rejected:** paid APM (cost cap, data leaves the box); plain
+logging (no structure or trace correlation); reusing traces.db for ops
+(product vs ops conflation).
+**Consequence:** four pinned opentelemetry packages enter §4b pre-approved;
+later issues attach spans to the documented naming convention instead of
+inventing their own logging.
+Spec updated: D15 (new), §4b table, §4c tree.
+
+
 ## 2026-07-04 — PR-loop SDLC adopted: coordinator / implementor / reviewer
 
 **Context:** execution of the spec begins; agents need a repeatable flow.
