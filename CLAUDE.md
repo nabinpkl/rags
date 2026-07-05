@@ -72,8 +72,9 @@ work is broken into GitHub issues.
 
 ## Commands
 
-- Collector: `just status`, `just diverse`, etc. (see `collector/` after #9;
-  currently repo root). Corpus artifacts live under `corpus/` (gitignored).
+- Collector: `just status`, `just diverse`, etc. (recipes in
+  `collector/justfile`, uv-managed; root `justfile` delegates). Corpus
+  artifacts live under `corpus/` (gitignored).
 - Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`,
   `just eval`. Frontend (after #26): `pnpm build`, `pnpm gen:api`.
   <!-- Update this section as recipes land; wrong commands are worse than none. -->

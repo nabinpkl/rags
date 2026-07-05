@@ -579,7 +579,7 @@ implies. Anything not listed here is not in v1.
 
 | Piece | Choice | Role / note |
 |---|---|---|
-| Package/env | **uv** (`pyproject.toml`, locked) | replaces the venv+requirements.txt pattern of the collector; `uv run` in `just` recipes |
+| Package/env | **uv** (`pyproject.toml`, locked) | repo-wide convention, collector included since #9; `uv run` in `just` recipes |
 | API | **FastAPI** + uvicorn | routes, SSE via `sse-starlette`, OpenAPI schema doubles as the frontend's type source |
 | Validation | pydantic v2 | request/response + tool-argument schemas (the `drive_ui` enum lives here) |
 | LLM | `anthropic` SDK | Haiku 4.5, prompt caching, streaming (D3) |
@@ -674,13 +674,18 @@ rags/
 │   └── superpowers/
 │       ├── specs/                   # this document and its predecessors
 │       └── plans/                   # implementation plans (one per milestone)
-├── collector/                       # Part 0 — existing arXiv corpus collector, moved as-is
+├── collector/                       # Part 0 — existing arXiv corpus collector (moved in #9)
+│   ├── pyproject.toml               # uv-managed, uv.lock committed
+│   ├── justfile                     # collector recipes; root justfile delegates here
 │   ├── arxiv_ingest.py              # discovery + download + arxiv.db index (already built)
+│   ├── test_arxiv_ingest.py
 │   ├── test_diverse.py
-│   └── README.md                    # current root README moves here
+│   └── README.md                    # collector usage (formerly the root README)
 ├── corpus/                          # gitignored data; every artifact `just ingest` reads or writes
 │   ├── pdfs/{YYYY}/{MM}/*.pdf       # 11.6 GB source PDFs (local only, never deployed — D9)
 │   ├── arxiv.db                     # collector's metadata index (input to ingest)
+│   ├── archive.zip                  # Kaggle metadata seed (~1.7 GB) the collector reads ids from
+│   ├── data/                        # collector caches: facet pickles, internal-citations.json
 │   ├── extracted/{arxiv_id}.json    # per-paper extraction cache: markdown, sections, page map (D6)
 │   ├── corpus.db                    # papers + chunks + FTS5 — the deployable index (D4)
 │   ├── chroma/                      # embedded Chroma store, same chunk ids (D4)

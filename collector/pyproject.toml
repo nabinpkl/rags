@@ -1,0 +1,17 @@
+# uv-managed (spec §4b: one dependency convention repo-wide). The collector is
+# flat scripts, not an installable package, so no [build-system] on purpose --
+# `uv sync` / `uv run` manage .venv straight from this file.
+[project]
+name = "askrag-collector"
+version = "1.0.0"
+description = "arXiv full-text corpus collector (askRAG Part 0)"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "defusedxml>=0.7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
