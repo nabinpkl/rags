@@ -17,10 +17,12 @@ jobs:
       # replaces the old explicit `uv sync --locked` step.
       UV_LOCKED: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      # Actions SHA-pinned per the dependency gate (sdlc.md, 6950549); the
+      # trailing comment names the tag each SHA was resolved from.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
       - run: just check
