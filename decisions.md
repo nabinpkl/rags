@@ -14,6 +14,27 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Live agent LLM: OpenRouter-routed model via env (owner directive)
+
+**Context:** owner provisioned `OPENROUTER_API_KEY` + `OPENROUTER_MODEL`
+(currently a DeepSeek "flash"-class reasoning model) in `backend/.env`,
+replacing D3's Haiku-on-Anthropic-API plan for the live agent.
+**Decision:** the live agent model is whatever `OPENROUTER_MODEL` names,
+called through OpenRouter's OpenAI-compatible API. Known quirk to build
+for (owner-reported, verify against provider docs when #22/#23 land):
+reasoning/thinking-token models on OpenRouter require the reasoning blocks
+from prior assistant turns to be passed BACK in subsequent requests during
+tool-use loops, or tool calling degrades/fails. The hand-built loop (D2)
+must persist and round-trip reasoning content per turn.
+**Alternatives rejected:** staying on Haiku/Anthropic (owner chose
+otherwise; revisit trigger unchanged — model swap is a config change).
+**Consequence:** loop.py (#22/#23) is built provider-agnostic against the
+OpenAI-compatible schema with reasoning round-trip support; D2/D3 spec
+amendment lands in the same PR as that code. Cost model (§7) re-checked
+then (DeepSeek pricing differs from Haiku).
+Spec updated: pending — D2/D3 amended in the agent-loop PR (#22/#23).
+
+
 ## 2026-07-05 — Frontend scaffold: ESLint pinned to 9; CI gains pnpm/node actions (#26)
 
 **Context:** scaffolding `frontend/` (Next 16 App Router, static export, React
