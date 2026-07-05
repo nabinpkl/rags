@@ -10,7 +10,7 @@ collector := "collector/justfile"
 default:
     @just --list
 
-# One-time collector setup: venv + dependencies
+# One-time collector setup: uv-managed environment + dependencies
 setup *ARGS:
     @just --justfile {{collector}} {{ARGS}} setup
 

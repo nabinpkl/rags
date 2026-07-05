@@ -28,7 +28,7 @@ you don't have to remember flags. Run them from `collector/` (the repo-root
 justfile delegates the common ones, e.g. `just status` works from the root too):
 
 ```bash
-just setup             # venv + deps
+just setup             # uv-managed env + deps
 just latest            # Part 1: newest papers up to 4 GB, exact (recommended)
 just sample            # Part 1: a few papers per month across all years (trends)
 just diverse           # Part 1: diverse spread across the impact/topic distribution
@@ -44,13 +44,16 @@ The raw CLI is documented below.
 
 ## Setup (manual)
 
+Dependencies are declared in `pyproject.toml` and managed with
+[`uv`](https://docs.astral.sh/uv/) (locked in `uv.lock`):
+
 ```bash
 cd collector
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
 
-The raw CLI examples below assume this cwd (`collector/`) and venv.
+The raw CLI examples below assume this cwd (`collector/`); `uv run` uses the
+managed environment (and syncs it automatically if missing).
 
 ## Part 1: get a large dataset (~4 GB to start)
 
@@ -62,7 +65,7 @@ per-object sizes**, so it fills the budget precisely and downloads only the
 selected PDFs (never non-matching categories).
 
 ```bash
-python arxiv_ingest.py latest --seed-file ../corpus/archive.zip --category-prefix cs.CL --max-gb 4
+uv run arxiv_ingest.py latest --seed-file ../corpus/archive.zip --category-prefix cs.CL --max-gb 4
 ```
 
 - **Exact 4 GB** — sizes are known from the listing before anything downloads.
@@ -83,9 +86,9 @@ within each month, for every month on the mirror. Small, but it lets you watch
 how the field's titles/topics shift over the years without any embeddings.
 
 ```bash
-python arxiv_ingest.py sample --seed-file ../corpus/archive.zip --category-prefix cs.CL --per-month 3
+uv run arxiv_ingest.py sample --seed-file ../corpus/archive.zip --category-prefix cs.CL --per-month 3
 # bound the range or cap size:
-python arxiv_ingest.py sample --seed-file ../corpus/archive.zip --category-prefix cs.CL \
+uv run arxiv_ingest.py sample --seed-file ../corpus/archive.zip --category-prefix cs.CL \
     --per-month 5 --from-year 2015 --to-year 2026 --max-gb 2
 ```
 
@@ -120,10 +123,10 @@ RAG can re-rank/filter on them at query time:
 | `venue_rigor` | rigor: 0–3 from venue extraction (+ optional CORE tiers) |
 
 ```bash
-python arxiv_ingest.py diverse --seed-file ../corpus/archive.zip --category-prefix cs \
+uv run arxiv_ingest.py diverse --seed-file ../corpus/archive.zip --category-prefix cs \
     --per-month 20 --max-gb 8
 # tune the blend, bound the range, add CORE venue tiers:
-python arxiv_ingest.py diverse --seed-file ../corpus/archive.zip --category-prefix cs \
+uv run arxiv_ingest.py diverse --seed-file ../corpus/archive.zip --category-prefix cs \
     --per-month 20 --from-year 2010 --to-year 2026 \
     --weights authority=0.3,niche=0.2,novelty=0.15,revisions=0.1,venue=0.25 \
     --core-file core-rankings.csv
@@ -159,7 +162,7 @@ straight out of the zip; PDFs come from the free Google-hosted mirror
 (`storage.googleapis.com/arxiv-dataset`, ~11 MB/s, no rate limit, no auth).
 
 ```bash
-python arxiv_ingest.py backfill --seed-file ../corpus/archive.zip --source gcs \
+uv run arxiv_ingest.py backfill --seed-file ../corpus/archive.zip --source gcs \
     --category-prefix cs.CL --from 2024-01-01 --max-gb 4
 ```
 
@@ -179,7 +182,7 @@ For when you can't get the Kaggle file, or want live OAI discovery:
 
 ```bash
 # no seed: crawl OAI-PMH for ids, scrape PDFs from export.arxiv.org
-python arxiv_ingest.py backfill --set cs --source arxiv \
+uv run arxiv_ingest.py backfill --set cs --source arxiv \
     --category-prefix cs.CL --from 2024-01-01 --max-gb 4
 ```
 
@@ -196,10 +199,10 @@ skipped entirely (no re-download). Pass `--reprocess` to force re-download.
 
 ```bash
 # Fetch everything arXiv touched since the last run's watermark, upsert by id.
-python arxiv_ingest.py update --set cs
+uv run arxiv_ingest.py update --set cs
 
 # Run it daily (cron / launchd):
-# 0 6 * * *  cd /Users/nabin/projects/rags/collector && .venv/bin/python arxiv_ingest.py update --set cs
+# 0 6 * * *  cd /Users/nabin/projects/rags/collector && ~/.local/bin/uv run arxiv_ingest.py update --set cs
 ```
 
 The watermark (`last_until`) is stored in the DB, so `update` is idempotent and
@@ -210,13 +213,13 @@ does not re-fetch historical papers whose content changed long ago — by design
 ## Inspect
 
 ```bash
-python arxiv_ingest.py status
+uv run arxiv_ingest.py status
 sqlite3 ../corpus/arxiv.db "SELECT arxiv_id, version, size_bytes, title FROM papers LIMIT 5;"
 ls ../corpus/pdfs/                    # year folders: 2007/ ... 2026/
 ls ../corpus/pdfs/2026/06/ | head     # the corpus itself
 ```
 
-PDFs are organized as `corpus/pdfs/{YYYY}/{MM}/{id}.pdf`. `python arxiv_ingest.py
+PDFs are organized as `corpus/pdfs/{YYYY}/{MM}/{id}.pdf`. `uv run arxiv_ingest.py
 reorganize` migrates any older layout (flat or `{YYMM}/`) into place — it's
 idempotent and layout-agnostic.
 

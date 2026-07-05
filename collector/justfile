@@ -1,7 +1,7 @@
 # arXiv RAG ingester — recipes. Run `just` to list.
 # Override any variable inline, e.g.  just max_gb=8 category=cs.LG seeded-backfill
 
-python   := "./.venv/bin/python"
+run      := "uv run"          # uv-managed env (pyproject.toml); auto-syncs on first run
 seed     := "../corpus/archive.zip"   # Kaggle arXiv snapshot (.zip)
 category := "cs.CL"         # primary-category prefix filter
 since    := "2024-01-01"    # backfill start (submission date)
@@ -18,10 +18,9 @@ alias update   := oai-update
 default:
     @just --list
 
-# One-time setup: venv + dependencies
+# One-time setup: uv-managed environment (deps from pyproject.toml)
 setup:
-    python3 -m venv .venv
-    {{python}} -m pip install -q -r requirements.txt
+    uv sync
 
 # Newest-first: pull the most recent papers up to the budget. Uses the seed for
 # the category filter and the GCS listing for exact sizes, so it hits max_gb
@@ -29,7 +28,7 @@ setup:
 #
 # Part 1 — most recent papers (newest-first, exact budget)
 latest:
-    {{python}} arxiv_ingest.py latest \
+    {{run}} arxiv_ingest.py latest \
         --seed-file {{seed}} \
         --category-prefix {{category}} \
         --max-gb {{max_gb}} \
@@ -40,7 +39,7 @@ latest:
 #
 # Part 1 — temporal sample (N per month, all years)
 sample:
-    {{python}} arxiv_ingest.py sample \
+    {{run}} arxiv_ingest.py sample \
         --seed-file {{seed}} \
         --category-prefix {{category}} \
         --per-month {{permonth}} \
@@ -56,7 +55,7 @@ sample:
 #
 # Part 1 — diverse spread (blended-facet score, all years)
 diverse:
-    {{python}} arxiv_ingest.py diverse \
+    {{run}} arxiv_ingest.py diverse \
         --seed-file {{seed}} \
         --category-prefix cs \
         --per-month {{permonth}} \
@@ -68,7 +67,7 @@ diverse:
 #
 # Part 1 — bulk backfill from a date (Kaggle seed + GCS mirror)
 seeded-backfill:
-    {{python}} arxiv_ingest.py backfill \
+    {{run}} arxiv_ingest.py backfill \
         --seed-file {{seed}} \
         --source gcs \
         --category-prefix {{category}} \
@@ -82,7 +81,7 @@ seeded-backfill:
 #
 # Part 1 — bulk backfill by crawling OAI-PMH live (arXiv scraper)
 oai-backfill:
-    {{python}} arxiv_ingest.py backfill \
+    {{run}} arxiv_ingest.py backfill \
         --set {{set}} \
         --source arxiv \
         --category-prefix {{category}} \
@@ -94,8 +93,8 @@ oai-backfill:
 #
 # Part 2 — incremental pull via OAI-PMH
 oai-update:
-    {{python}} arxiv_ingest.py update --set {{set}}
+    {{run}} arxiv_ingest.py update --set {{set}}
 
 # Show store stats and the incremental watermark
 status:
-    {{python}} arxiv_ingest.py status
+    {{run}} arxiv_ingest.py status
