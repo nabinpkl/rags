@@ -1,0 +1,10 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "askRAG API (placeholder)",
+    "version": "0.0.0",
+    "description": "PLACEHOLDER schema. The backend FastAPI app (#27/#30) does not exist yet; `pnpm gen:api` reads this file until it does, then points at the live http://localhost:8000/openapi.json. Replace this file with the backend's exported schema when the API lands — do NOT hand-edit lib/api-types.gen.ts."
+  },
+  "paths": {},
+  "components": { "schemas": {} }
+}

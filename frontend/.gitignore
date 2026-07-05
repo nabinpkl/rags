@@ -1,0 +1,16 @@
+# Next.js build + export output
+/.next/
+/out/
+
+# dependencies
+/node_modules/
+
+# Next.js generated ambient types
+/next-env.d.ts
+
+# test/tooling caches
+/coverage/
+*.tsbuildinfo
+
+# local env
+.env*.local

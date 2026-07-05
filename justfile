@@ -42,7 +42,8 @@ status *ARGS:
 backend-check:
     cd backend && uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest -q
 
-# Frontend gate: lint + typecheck (goes live when #26 scaffolds frontend/)
+# Frontend gate: lint + typecheck + tests + generated-types drift check.
+# CI installs deps first (see ci.yml); locally, run `pnpm install` in frontend/ once.
 frontend-check:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -50,7 +51,7 @@ frontend-check:
         echo "frontend not scaffolded yet, skipping"
         exit 0
     fi
-    cd frontend && pnpm lint && pnpm typecheck
+    cd frontend && pnpm lint && pnpm typecheck && pnpm test && pnpm gen:api:check
 
 # Full-repo gate — CI runs exactly this, so local green == CI green
 check: backend-check frontend-check

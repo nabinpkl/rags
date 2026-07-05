@@ -1,6 +1,6 @@
 # The single gate: CI runs `just check`, the same command every role runs
 # locally, so local green == CI green by construction (issue #44).
-# frontend-check self-skips until #26 scaffolds frontend/ (then add pnpm here).
+# frontend-check runs pnpm lint+typecheck+test+typegen-drift (issue #26).
 # No corpus access in CI: tests build tmp fixtures. Eval smoke lands with #24.
 name: ci
 
@@ -25,4 +25,13 @@ jobs:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
       - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
+      # Frontend toolchain for `just check`'s frontend-check tier (#26).
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
       - run: just check
