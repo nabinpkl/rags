@@ -52,6 +52,14 @@ def run(corpus, **kwargs):
 # --- extract_one: the frozen schema ----------------------------------------
 
 
+def test_clean_title_strips_emphasis_only():
+    # Real corpus headings arrive as "**1 Introduction**"; body markdown is
+    # untouched, only the section-title metadata is normalized.
+    assert extract_pdfs._clean_title("**1 Introduction**") == "1 Introduction"
+    assert extract_pdfs._clean_title("_Abstract_ ") == "Abstract"
+    assert extract_pdfs._clean_title("2 Related Work") == "2 Related Work"
+
+
 def test_sections_and_page_anchors(tmp_path):
     pdf = make_pdf(
         tmp_path / "2606.11111.pdf",

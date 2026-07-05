@@ -38,6 +38,13 @@ class ExtractionSkip(Exception):
     """Raised for PDFs that cannot be extracted; the message is the skiplist reason."""
 
 
+def _clean_title(raw: str) -> str:
+    # pymupdf4llm renders bold headings as "# **Title**". Titles are section
+    # metadata (navigation anchors), not content, so emphasis markers go;
+    # the markdown body keeps them.
+    return raw.strip().strip("*_").strip()
+
+
 def extract_one(pdf_path: Path) -> dict:
     """One PDF -> the frozen JSON payload. Raises ExtractionSkip with a reason."""
     with pymupdf.open(pdf_path) as doc:
@@ -57,7 +64,7 @@ def extract_one(pdf_path: Path) -> dict:
     headings: list[tuple[int, str]] = []
     for page_no, page in enumerate(pages, start=1):
         for match in _HEADING_RE.finditer(page["text"]):
-            headings.append((page_no, match.group(1)))
+            headings.append((page_no, _clean_title(match.group(1))))
 
     sections: list[dict] = []
     if not headings or headings[0][0] > 1:
