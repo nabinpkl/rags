@@ -17,9 +17,9 @@ Jobs, one pipeline:
   update    -- Part 2: incremental pull. Fetch everything with an OAI-PMH
                datestamp since the last successful run, then upsert by id.
 
-Downloads PDFs to pdfs/ and records one metadata row per paper in a local
-SQLite index (arxiv.db), keyed by arxiv_id. The corpus IS the PDF files; the DB
-is just an index. No text extraction / chunking -- if you want RAG later, run it
+Downloads PDFs to corpus/pdfs/ and records one metadata row per paper in a
+local SQLite index (corpus/arxiv.db), keyed by arxiv_id. The corpus IS the PDF
+files; the DB is just an index. No text extraction / chunking -- if you want RAG later, run it
 over the collected PDFs then.
 
 Free, no accounts.
@@ -73,9 +73,12 @@ MAX_RETRIES = 5
 OAI_NS = "{http://www.openarchives.org/OAI/2.0/}"
 ARX_NS = "{http://arxiv.org/OAI/arXiv/}"
 
+# Data artifacts live in the repo-level corpus/ dir (gitignored, spec §4c),
+# resolved from this file's location so every command works regardless of cwd.
 ROOT = Path(__file__).resolve().parent
-DB_PATH = ROOT / "arxiv.db"
-PDF_DIR = ROOT / "pdfs"
+CORPUS_DIR = ROOT.parent / "corpus"
+DB_PATH = CORPUS_DIR / "arxiv.db"
+PDF_DIR = CORPUS_DIR / "pdfs"
 
 
 def polite_sleep(base: float) -> None:
@@ -103,6 +106,9 @@ def thread_session() -> requests.Session:
 # --- storage ----------------------------------------------------------------
 
 def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
+    # corpus/ is gitignored (spec §4c), so a fresh clone doesn't have it, and
+    # sqlite3.connect never creates parent directories.
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(
@@ -846,7 +852,7 @@ def run_sample(*, seed_file: str, category_prefix: str | None, per_month: int,
 # re-ranking. Signals: authority (head), niche_idf (tail), author_novelty
 # (emerging), revisions (maturity), venue_rigor (rigor).
 
-DATA_DIR = ROOT / "data"
+DATA_DIR = CORPUS_DIR / "data"
 CITATIONS_URL = ("https://storage.googleapis.com/arxiv-dataset/"
                  "metadata-v5/internal-citations.json")
 
@@ -1102,7 +1108,7 @@ def _diverse_tables(seed_file: str, category_prefix: str | None,
     cache = DATA_DIR / f"facets_{hashlib.md5(sig.encode()).hexdigest()[:12]}.pkl"
     if cache.exists():
         # Trusted local cache: this process is the only writer (below), under the
-        # repo's own data/ dir. Not loaded from any external/untrusted source.
+        # repo's own corpus/data/ dir. Not loaded from any external/untrusted source.
         print(f"loading cached facet table {cache.name}...", file=sys.stderr)
         with open(cache, "rb") as f:
             return pickle.load(f)
