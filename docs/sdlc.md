@@ -74,7 +74,8 @@ Any choice the spec doesn't already make (or contradicts) stops the loop:
 ## Dependency gate
 
 Spec §4b packages are pre-approved. Anything else, before it enters a
-lockfile:
+lockfile **or a CI workflow file** (GitHub Actions are dependencies: they
+run with the repo token):
 
 - **Popular**: meaningful adoption (registry download rank, stars, known
   users) — not a judgment call, cite the number.
@@ -83,6 +84,13 @@ lockfile:
 - **Security**: no unresolved critical advisories (`pip-audit` /
   `pnpm audit` + GitHub advisory DB); check for install scripts
   (`preinstall`/`postinstall`) and typosquat-adjacent names; pin the version.
+- **CI actions**: pass the same popularity/maintenance/security checks and
+  are **pinned to a full commit SHA** with the version as a trailing
+  comment (`uses: owner/action@<sha>  # vN`). A mutable tag is not a pin.
+  Applies to every action, first-party included — one rule, no judgment
+  calls per action.
+- Gate evidence carries **measured numbers** (checked on the day, source
+  named), never remembered ones.
 - Result recorded as a `decisions.md` entry (name, version, numbers checked,
   verdict). The implementor proposes, the coordinator approves the entry
   before the dep lands.
