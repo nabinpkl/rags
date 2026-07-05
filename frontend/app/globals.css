@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* Tailwind v4 CSS-first config. Design tokens are bound to the font CSS
+   variables set by next/font in layout.tsx (self-hosted at build time — the
+   deployed app makes no request to any font CDN, §4b). The full design-token
+   palette lands with the design pass; this scaffold establishes the wiring. */
+@theme inline {
+  --font-sans: var(--font-instrument-sans);
+  --font-serif: var(--font-stix-two-text);
+  --font-mono: var(--font-spline-sans-mono);
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}

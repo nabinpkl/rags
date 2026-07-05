@@ -1,0 +1,7 @@
+# Static export (next.config.ts images.unoptimized) never invokes sharp's
+# native binary, and unrs-resolver ships a pure-JS fallback — so neither build
+# script needs to run. Declaring them false tells pnpm the skip is deliberate
+# (otherwise `pnpm run` fails its pre-run check with ERR_PNPM_IGNORED_BUILDS).
+allowBuilds:
+  sharp: false
+  unrs-resolver: false

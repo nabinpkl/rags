@@ -14,6 +14,34 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Frontend scaffold: ESLint pinned to 9; CI gains pnpm/node actions (#26)
+
+**Context:** scaffolding `frontend/` (Next 16 App Router, static export, React
+19, Tailwind v4, TypeScript 6 — all §4b pre-approved and latest stable). Two
+choices diverge from "just take latest" and need recording.
+**Decision:** (1) **ESLint pinned to 9.x, not the latest 10.** ESLint 10.6
+breaks an internal API (`scopeManager.addGlobals`) that eslint-config-next 16's
+bundled typescript-eslint parser calls, so lint crashes under ESLint 10.
+eslint-config-next 16's peer is `eslint >=9`; 9.x is its supported line and
+Next 16's documented pairing. Latest-stable of the *compatible* line, not the
+newest release. (2) **CI gains two SHA-pinned actions** for the frontend gate:
+`pnpm/action-setup@b906aff` (v4, pnpm's own official action) and
+`actions/setup-node@49933ea` (v4, first-party GitHub — grandfathered like
+actions/checkout per the CI-actions gate). Both run `frontend-check`'s
+lint/typecheck/test/typegen-drift in CI.
+**Alternatives rejected:** ESLint 10 + overrides/patches (fighting a
+bleeding-edge major the plugin ecosystem hasn't caught up to — churn for no
+benefit); no CI frontend steps (frontend-check would silently pass without
+Node/pnpm present).
+**Revisit trigger:** bump ESLint to 10 once eslint-config-next declares
+`eslint >=10` support and lint runs clean. `sharp`/`unrs-resolver` native
+builds stay disabled (pnpm-workspace.yaml allowBuilds:false) — revisit only if
+static export ever needs image optimization.
+Spec updated: no (all packages are §4b pre-approved; this records version pins
++ CI-action gate records, not a stack change).
+
+---
+
 ## 2026-07-05 — Budget gate is sequentially correct; concurrent overshoot accepted-and-bounded (#21)
 
 **Context:** `budgets.check(session, ip)` is a pre-flight gate — it reads

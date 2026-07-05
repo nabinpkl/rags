@@ -1,0 +1,4 @@
+lib/api-types.gen.ts
+out/
+.next/
+pnpm-lock.yaml
