@@ -34,6 +34,11 @@ packages = ["askrag"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    # pymupdf's SWIG bindings emit these, not our code; tracked upstream.
+    "ignore:builtin type Swig:DeprecationWarning",
+    "ignore:builtin type swigvarlink:DeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 100

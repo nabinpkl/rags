@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     )
     openai_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="OPENAI_API_KEY")
 
+    # --- ingest: extraction (D6) -------------------------------------------
+    extract_workers: int = 8  # process pool size; extraction is CPU-bound C
+
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000
     chunk_overlap_ratio: float = 0.15
@@ -102,6 +105,12 @@ class Settings(BaseSettings):
     def arxiv_db_path(self) -> Path:
         # The collector's index — ingest input, never served (spec §4c).
         return self.corpus_dir / "arxiv.db"
+
+    @property
+    def pdfs_dir(self) -> Path:
+        # The collector's {YYYY}/{MM}/{arxiv_id}.pdf tree — extraction input,
+        # local only, never deployed (D9/§4c).
+        return self.corpus_dir / "pdfs"
 
 
 @lru_cache
