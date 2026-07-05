@@ -31,7 +31,11 @@ Read, in order:
    the spec's §4c tree. Grep for a concept before creating any file or
    function; extend what exists. Tests mirror source file names 1:1.
    Security-relevant behavior (spec §6 table) is written test-first, never
-   test-after.
+   test-after. Code is idiomatic for its ecosystem by default — the binding
+   rules are `.claude/rules/python-backend.md` and `.claude/rules/frontend.md`.
+   When idiomatic is unaffordable or actively hurts (measured perf, clarity,
+   a framework bug), deviate AND log a `decisions.md` entry (what, why,
+   revisit trigger) in the same PR; no human sign-off needed.
 3. Tunables go in `askrag/config.py`, never as literals. No new dependency
    without the gate in `docs/sdlc.md` (propose it to the coordinator with
    the numbers; wait for the approved decisions.md entry).

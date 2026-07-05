@@ -87,6 +87,17 @@ lockfile:
   verdict). The implementor proposes, the coordinator approves the entry
   before the dep lands.
 
+## Idiom defaults
+
+Code is idiomatic for its ecosystem by default; the binding per-path rules
+live in `.claude/rules/` (`python-backend.md`, `frontend.md`) and apply to
+both implementor and reviewer. When idiomatic is unaffordable or actively
+hurts, the implementor deviates and logs a `decisions.md` entry (what, why,
+revisit trigger) in the same PR — **no human sign-off needed**; the entry
+exists so the deviation can be revisited, not to gate it. The reviewer
+treats undocumented non-idiom as a finding (severity by blast radius) and
+reviews documented deviations against their stated reasoning.
+
 ## GitHub mechanics and constraints
 
 - All three roles act as one GitHub account, so GitHub blocks formal PR
