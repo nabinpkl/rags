@@ -1,101 +1,39 @@
-# arXiv RAG ingester — recipes. Run `just` to list.
-# Override any variable inline, e.g.  just max_gb=8 category=cs.LG seeded-backfill
+# askRAG umbrella recipes — delegate into the per-part justfiles (spec §4c).
+# Run `just` to list. backend/ and frontend/ recipes land with issues #10/#26.
+#
+# Collector variable overrides pass through as args,
+# e.g.  just diverse max_gb=8 permonth=5
 
-python   := "./.venv/bin/python"
-seed     := "archive.zip"   # Kaggle arXiv snapshot (.zip)
-category := "cs.CL"         # primary-category prefix filter
-since    := "2024-01-01"    # backfill start (submission date)
-max_gb   := "4"             # backfill size budget
-conc     := "8"             # parallel GCS downloads
-permonth := "3"             # papers per month for the temporal sample
-set      := "cs"            # OAI archive for live crawl + updates
-
-# Friendly aliases for the default paths
-alias backfill := seeded-backfill
-alias update   := oai-update
+collector := "collector/justfile"
 
 # List recipes
 default:
     @just --list
 
-# One-time setup: venv + dependencies
-setup:
-    python3 -m venv .venv
-    {{python}} -m pip install -q -r requirements.txt
+# One-time collector setup: venv + dependencies
+setup *ARGS:
+    @just --justfile {{collector}} {{ARGS}} setup
 
-# Newest-first: pull the most recent papers up to the budget. Uses the seed for
-# the category filter and the GCS listing for exact sizes, so it hits max_gb
-# precisely and downloads only the selected PDFs. Walks backward from today.
-#
-# Part 1 — most recent papers (newest-first, exact budget)
-latest:
-    {{python}} arxiv_ingest.py latest \
-        --seed-file {{seed}} \
-        --category-prefix {{category}} \
-        --max-gb {{max_gb}} \
-        --concurrency {{conc}}
+# Collector Part 1 — most recent papers (newest-first, exact budget)
+latest *ARGS:
+    @just --justfile {{collector}} {{ARGS}} latest
 
-# Temporal sample: a few papers per month across all years, so the corpus spans
-# time and you can see how titles/topics shift -- no embeddings needed.
-#
-# Part 1 — temporal sample (N per month, all years)
-sample:
-    {{python}} arxiv_ingest.py sample \
-        --seed-file {{seed}} \
-        --category-prefix {{category}} \
-        --per-month {{permonth}} \
-        --concurrency {{conc}}
+# Collector Part 1 — temporal sample (N per month, all years)
+sample *ARGS:
+    @just --justfile {{collector}} {{ARGS}} sample
 
-# Diverse sample: per month, score candidates on five self-contained facets
-# (authority, niche, novelty, revisions, venue rigor) and take permonth spread
-# across the blended score -- so the corpus spans the impact/topic distribution,
-# not just the newest slice. Facets are stored per paper for query-time
-# re-ranking. First run downloads + caches the frozen citation file (~172 MB)
-# and builds the facet table (~2-3 min); later runs reuse the cache. For CORE
-# venue tiers, add --core-file <csv> to the command below.
-#
-# Part 1 — diverse spread (blended-facet score, all years)
-diverse:
-    {{python}} arxiv_ingest.py diverse \
-        --seed-file {{seed}} \
-        --category-prefix cs \
-        --per-month {{permonth}} \
-        --max-gb {{max_gb}} \
-        --concurrency {{conc}}
+# Collector Part 1 — diverse spread (blended-facet score, all years)
+diverse *ARGS:
+    @just --justfile {{collector}} {{ARGS}} diverse
 
-# Oldest-first from a start date: seed ids from archive.zip, PDFs from the GCS
-# mirror. Unthrottled and fast. Use when you want a specific historical window.
-#
-# Part 1 — bulk backfill from a date (Kaggle seed + GCS mirror)
-seeded-backfill:
-    {{python}} arxiv_ingest.py backfill \
-        --seed-file {{seed}} \
-        --source gcs \
-        --category-prefix {{category}} \
-        --date-field submitted \
-        --from {{since}} \
-        --max-gb {{max_gb}} \
-        --concurrency {{conc}}
+# Collector Part 1 — bulk backfill from a date (Kaggle seed + GCS mirror)
+backfill *ARGS:
+    @just --justfile {{collector}} {{ARGS}} seeded-backfill
 
-# Zero-setup fallback: no seed file. Crawls OAI-PMH for ids and scrapes PDFs from
-# export.arxiv.org (rate-limited, slow). Use only if you can't get archive.zip.
-#
-# Part 1 — bulk backfill by crawling OAI-PMH live (arXiv scraper)
-oai-backfill:
-    {{python}} arxiv_ingest.py backfill \
-        --set {{set}} \
-        --source arxiv \
-        --category-prefix {{category}} \
-        --from {{since}} \
-        --max-gb {{max_gb}}
+# Collector Part 2 — incremental pull via OAI-PMH
+update *ARGS:
+    @just --justfile {{collector}} {{ARGS}} oai-update
 
-# Live-freshness job (cron this). Pulls since the stored watermark, upserts by id.
-# Updates are always OAI — Kaggle can't do a clean delta.
-#
-# Part 2 — incremental pull via OAI-PMH
-oai-update:
-    {{python}} arxiv_ingest.py update --set {{set}}
-
-# Show store stats and the incremental watermark
-status:
-    {{python}} arxiv_ingest.py status
+# Show collector store stats and the incremental watermark
+status *ARGS:
+    @just --justfile {{collector}} {{ARGS}} status
