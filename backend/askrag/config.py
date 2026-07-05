@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     # cl100k_base matches text-embedding-3-small (D5); chunk token counts must
     # be measured with the same encoding the embedder bills on.
     tokenizer_encoding: str = "cl100k_base"
+    # 0 = no merge (current strict-D7 behavior). The eval-sweep knob wired in
+    # #19: chunk COUNT is eval-gated (D7 revisit + D14), not a target, so
+    # tail-merge of sub-threshold chunks stays disabled until evals measure
+    # whether the small-chunk tail hurts recall (decisions.md 2026-07-05).
+    chunk_min_tokens: int = 0
 
     # --- retrieval (D8; defaults until measured) --------------------------
     rrf_k: int = 60
