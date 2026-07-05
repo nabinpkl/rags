@@ -36,7 +36,9 @@ class Settings(BaseSettings):
     embedding_dims: int = 512  # Matryoshka truncation (D5)
 
     # --- API keys (env-only; standard names, no ASKRAG_ prefix) -----------
-    anthropic_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="ANTHROPIC_API_KEY")
+    anthropic_api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="ANTHROPIC_API_KEY"
+    )
     openai_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="OPENAI_API_KEY")
 
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
