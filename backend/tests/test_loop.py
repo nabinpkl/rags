@@ -174,6 +174,10 @@ def test_unknown_tool_becomes_an_error_tool_result_not_a_crash(tmp_path):
 
     tool_result_block = result.messages[2]["content"][0]
     assert tool_result_block["is_error"] is True
+    # The error content is fenced exactly like a success result (§6: the
+    # fence is total by construction, no unfenced model-facing content path).
+    assert tool_result_block["content"].startswith(f"<{prompts.FENCE_TAG}>")
+    assert tool_result_block["content"].endswith(f"</{prompts.FENCE_TAG}>")
     assert "hack_the_mainframe" in tool_result_block["content"]
 
 

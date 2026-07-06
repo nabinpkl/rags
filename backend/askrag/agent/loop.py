@@ -162,8 +162,21 @@ def _dispatch_tool_calls(
             # tool, bad args, a lookup-target that doesn't exist) becomes an
             # is_error tool_result the model can react to, never a crashed turn.
             error = str(exc)
+            # Fenced exactly like a success result (§6: the fence is total by
+            # construction, not by auditing every tool's exception strings).
+            # Today's raise sites only interpolate model-given args, never
+            # retrieved corpus text — but a future tool (read_paper,
+            # search_corpus) could echo corpus text in an error message, and
+            # an unfenced is_error block would then read as MORE trusted than
+            # a normal tool_result, exactly backwards. `is_error` still flags
+            # the outcome; the content is untrusted like every other result.
             result_blocks.append(
-                {"type": "tool_result", "tool_use_id": block.id, "content": error, "is_error": True}
+                {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": fence({"error": error}),
+                    "is_error": True,
+                }
             )
             records.append(ToolCallRecord(name=name, args=args, ok=False, error=error))
             on_event(AgentEvent(EventKind.TOOL_RESULT, {"name": name, "ok": False, "error": error}))
@@ -234,7 +247,11 @@ def run_turn(
     # full input rate; `cache_read` at the reduced rate (D3 prompt caching).
     # Both count toward real context size for the budget check and the
     # persisted `tokens_in` total below — only the PRICE differs, not whether
-    # a cache-read token counts as "used".
+    # a cache-read token counts as "used". Folding cache_creation into the
+    # full input rate is a deliberate approximation: Anthropic actually bills
+    # cache WRITES at ~1.25x input, and config has no
+    # agent_usd_per_mtok_cache_write — the delta is sub-cent on a few k of
+    # system+tools tokens, negligible against the $0.50/day cap (D11).
     fresh_in = out = cache_read = 0
     stop_reason = StopReason.END_TURN
     final_text = ""
