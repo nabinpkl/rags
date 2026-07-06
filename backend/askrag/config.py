@@ -130,6 +130,11 @@ class Settings(BaseSettings):
     search_top_k: int = 10
     rerank_enabled: bool = False  # ships only if evals justify it (D8)
 
+    # --- tools (§5) ----------------------------------------------------------
+    # search_corpus clamps a model-supplied k to this ceiling — a pathological
+    # tool call can't ask for the whole corpus in one shot.
+    search_corpus_max_k: int = 25
+
     # --- agent loop (D1/D2) ------------------------------------------------
     max_tool_steps_per_message: int = 8
 
@@ -156,6 +161,35 @@ class Settings(BaseSettings):
     # --- query_metadata limits (§5; defaults until measured) ---------------
     query_metadata_max_rows: int = 500
     query_metadata_timeout_seconds: float = 2.0
+    # Function-NAME allow-list for the authorizer's SQLITE_FUNCTION action
+    # (review finding, PR #57): a blanket SQLITE_FUNCTION allow lets a single
+    # memory-allocating scalar call (e.g. `length(randomblob(950000000))`)
+    # skip both the row cap and the progress-handler timeout in ONE VM
+    # opcode — the handler is polled between opcodes, not during one. Only
+    # these names pass; everything else (randomblob, zeroblob, printf, hex,
+    # ...) is denied regardless of how it's composed.
+    query_metadata_allowed_functions: tuple[str, ...] = (
+        "count",
+        "sum",
+        "avg",
+        "min",
+        "max",
+        "length",
+        "round",
+        "lower",
+        "upper",
+        "abs",
+        "coalesce",
+        "ifnull",
+        "nullif",
+        "date",
+        "time",
+        "datetime",
+        "julianday",
+        "strftime",
+        "total",
+        "group_concat",
+    )
 
     # --- sandbox rlimits (D10) ---------------------------------------------
     # Only the resource numbers are tunable. `--network none`, ro-mounts,
