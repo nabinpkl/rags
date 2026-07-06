@@ -5,6 +5,11 @@ operators (AND/OR/NOT/NEAR), column filters (`col:value`), prefix `*`, and
 initial-token `^`. `build_match_query` neutralizes ALL of it by reducing the
 input to whitespace-separated terms, each double-quoted (internal quotes
 doubled — FTS5 string escaping), so user text can only ever be literal terms.
+C0 control characters (U+0000-U+001F) and DEL (U+007F) are stripped from each
+term before quoting — sqlite3 raises `OperationalError: unterminated string`
+if a raw NUL reaches a double-quoted MATCH term, which would otherwise turn
+"worst case zero rows" into a syntax error escaping the quotes meant to
+prevent exactly that.
 
 Terms join with OR, not FTS5's implicit AND: natural-language queries should
 rank partial matches (BM25 scores multi-term hits higher anyway), not return
@@ -13,11 +18,15 @@ zero rows because one word is missing.
 
 import sqlite3
 
+_CONTROL_CHARS = "".join(chr(c) for c in range(0x20)) + "\x7f"
+_CONTROL_TABLE = str.maketrans("", "", _CONTROL_CHARS)
+
 
 def build_match_query(user_query: str) -> str:
     """Any string -> a safe FTS5 MATCH expression (possibly "" = no query)."""
     terms = user_query.split()
-    quoted = ['"' + term.replace('"', '""') + '"' for term in terms]
+    cleaned = [term.translate(_CONTROL_TABLE) for term in terms]
+    quoted = ['"' + term.replace('"', '""') + '"' for term in cleaned if term]
     return " OR ".join(quoted)
 
 

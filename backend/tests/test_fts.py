@@ -23,6 +23,7 @@ from askrag.retrieval import fts
         '"unbalanced quote',
         "-minus +plus",
         "semi;colon 'quote' --comment",
+        "a\x00b",  # embedded NUL — survives str.split(), breaks a quoted term
     ],
 )
 def test_hostile_input_is_neutralized(fts_db, hostile):
@@ -32,6 +33,48 @@ def test_hostile_input_is_neutralized(fts_db, hostile):
     match = fts.build_match_query(hostile)
     conn.execute("SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ?", (match,)).fetchall()
     conn.close()  # reaching here without OperationalError IS the assertion
+
+
+@pytest.mark.parametrize(
+    "pure_control",
+    [
+        "\x01\x1f",  # C0 controls with no NUL — no literal chars survive
+        "\x7f",  # DEL (outside the C0 range but must be stripped too)
+    ],
+)
+def test_pure_control_char_term_builds_empty_match(pure_control):
+    # A term made entirely of control chars strips to nothing: build_match_query
+    # must drop it rather than emit an empty quoted term ('""'), which FTS5
+    # itself rejects as a syntax error independent of our escaping.
+    assert fts.build_match_query(pure_control) == ""
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    [
+        "a\x00b",
+        "\x01\x1f",
+        "\x7f",
+        "a\x00b \x01\x1f c",
+    ],
+)
+def test_search_bm25_never_raises_on_control_chars(fts_db, hostile):
+    # The finding (PR #56): a NUL byte reached a double-quoted FTS5 term and
+    # sqlite3 raised OperationalError, crashing the whole hybrid_search request
+    # because the BM25 leg sits outside D8's fail-soft try/except. A pure
+    # control-char term must degrade to zero rows, not an exception.
+    conn = sqlite3.connect(fts_db)
+    hits = fts.search_bm25(conn, hostile, k=10)
+    conn.close()
+    assert hits == []
+
+
+def test_control_chars_are_stripped_not_left_in_match():
+    # 'a\x00b' -> the NUL is stripped, not left inside the quoted term.
+    assert fts.build_match_query("a\x00b") == '"ab"'
+    # A term made entirely of control chars degrades to no term at all.
+    assert fts.build_match_query("\x01\x1f") == ""
+    assert fts.build_match_query("\x7f") == ""
 
 
 def test_quotes_inside_terms_are_doubled():
