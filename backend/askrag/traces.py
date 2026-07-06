@@ -20,7 +20,7 @@ stored, so the per-IP budget layer (D11) works without holding a raw address.
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -49,6 +49,20 @@ CREATE INDEX IF NOT EXISTS idx_runs_showcase ON runs (showcase);
 
 
 @dataclass(frozen=True)
+class ToolCallRecord:
+    """One tool call within an agent run — name, the args it was invoked
+    with, and its outcome. Loop-owned shape (askrag/agent/loop.py constructs
+    these on every dispatch); traces.py just persists/reads them back (D13).
+    Replaces the bare `dict[str, Any]` this field used before #23 defined the
+    real per-call shape (carry-forward review note, #20/#23)."""
+
+    name: str
+    args: dict[str, Any]
+    ok: bool
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class Run:
     """One persisted agent run; the shape budgets/admin/replay read back."""
 
@@ -61,7 +75,7 @@ class Run:
     tokens_out: int
     cost_usd: float
     latency_ms: float
-    tool_calls: list[dict[str, Any]]
+    tool_calls: tuple[ToolCallRecord, ...]
     showcase: bool
 
 
@@ -93,7 +107,7 @@ def record_run(
     tokens_out: int,
     cost_usd: float,
     latency_ms: float,
-    tool_calls: list[dict[str, Any]],
+    tool_calls: list[ToolCallRecord],
     showcase: bool,
     created_at: str | None = None,
     settings: Settings | None = None,
@@ -122,7 +136,7 @@ def record_run(
                     tokens_out,
                     cost_usd,
                     latency_ms,
-                    json.dumps(tool_calls, ensure_ascii=False),
+                    json.dumps([asdict(t) for t in tool_calls], ensure_ascii=False),
                     int(showcase),
                 ),
             )
@@ -193,7 +207,10 @@ def _row_to_run(row) -> Run:
         tokens_out=row["tokens_out"],
         cost_usd=row["cost_usd"],
         latency_ms=row["latency_ms"],
-        tool_calls=json.loads(row["tool_calls"]),
+        tool_calls=tuple(
+            ToolCallRecord(name=t["name"], args=t["args"], ok=t["ok"], error=t.get("error"))
+            for t in json.loads(row["tool_calls"])
+        ),
         showcase=bool(row["showcase"]),
     )
 
