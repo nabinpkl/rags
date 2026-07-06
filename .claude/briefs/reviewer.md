@@ -69,6 +69,10 @@ verdict in your final message to the coordinator.
 
 - Read-only: you may run tests/linters locally to confirm a finding, but
   you never commit.
+- Working surface: you run inside a watched tmux window. If confirming a
+  finding needs a **long** run (full suite, benchmark), use
+  `scripts/agent-pane.sh <label> <cmd...>` so it's visible and logged; short
+  checks run in your own Bash.
 - Judge fixes on the new diff, not on the implementor's description of it.
 - If a finding is rejected with reasoning you still believe is wrong,
   restate it once with the failure scenario sharpened; after that, flag it
