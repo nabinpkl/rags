@@ -348,7 +348,10 @@ def test_real_model_smoke_dims_norm_determinism():
     norm = math.sqrt(sum(x * x for x in first.vectors[0]))
     assert norm == pytest.approx(1.0, abs=1e-3)  # normalized, non-degenerate
     assert first.vectors[0] != first.vectors[1]  # different texts differ
-    assert first.vectors[0] == pytest.approx(again.vectors[0], abs=1e-5)  # deterministic
+    # fp16 encode (config default) drifts ~1e-4/component across batch
+    # compositions; different texts differ at ~1e-1, so 1e-3 still cleanly
+    # separates "same embedding" from "different embedding".
+    assert first.vectors[0] == pytest.approx(again.vectors[0], abs=1e-3)  # deterministic
 
 
 # --- Voyage adapter: request/response contract, offline (MockTransport) --------

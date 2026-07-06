@@ -58,6 +58,13 @@ class Settings(BaseSettings):
 
     # --- ingest: extraction (D6) -------------------------------------------
     extract_workers: int = 8  # process pool size; extraction is CPU-bound C
+    # 0 = no cap. When a --limit SAMPLE is built, PDFs over this page count
+    # are excluded from selection first (owner directive 2026-07-05: one
+    # 398-page monograph was 10% of all working-sample chunks, distorting
+    # it). Full-corpus runs ignore the cap; excluded papers are not
+    # skiplisted — they are valid, just not sample material. Applies at the
+    # next sample rebuild; the current working corpus is NOT regenerated.
+    sample_max_pages: int = 0
 
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000
@@ -82,12 +89,29 @@ class Settings(BaseSettings):
     # accounts get 3 RPM / 10K TPM (docs' 2,000 RPM / 16M TPM is Tier 1,
     # payment method added), so use max_tokens≈9000 + pause≈62 there
     # (cl100k ≈ Voyage tokens, measured ratio 1.009).
-    embed_batch_max_items: int = 128
-    embed_batch_max_tokens: int = 100_000
+    # 1,024-chunk shards keep the encode loop hot (an idle process between
+    # small shard writes is an eviction target under memory pressure —
+    # coordinator diagnosis 2026-07-05); with ~560-token mean chunks the
+    # items cap binds first.
+    embed_batch_max_items: int = 1024
+    embed_batch_max_tokens: int = 1_000_000
     # Inner encode() micro-batch for the local backend. Measured 2026-07-05
     # on M-series MPS with ~1k-token chunks: 16 → 0.25s/chunk; the ST default
     # (32) tips unified memory into thrash (~7.5s/chunk, 30x slower).
     embed_encode_batch_size: int = 16
+    # Local backend working-set controls (coordinator diagnosis 2026-07-05:
+    # an fp32 run at the model-default 8192 seq length swapped out on a
+    # loaded box — 9MB worker RSS, chaotic batch times, 28.5 chunks/min).
+    # float16 halves model+activation memory (retrieval-quality impact
+    # negligible); max_seq caps activation size — measured over all 7,974
+    # working-corpus chunks with the nomic tokenizer: p99=1,290 model
+    # tokens, only 3 chunks exceed 1,536 (max 3,747; their tails truncate,
+    # acceptable for retrieval) vs the 8192 model default.
+    embed_local_dtype: Literal["float16", "float32"] = "float16"
+    embed_max_seq_tokens: int = 1536
+    # "" = library auto-pick (MPS on this Mac); "cpu" is the measured
+    # fallback if MPS+swap loses to plain CPU on a loaded box.
+    embed_device: str = ""
     embed_batch_pause_seconds: float = 0.0
     embed_retry_max_attempts: int = 6
     embed_retry_base_seconds: float = 2.0

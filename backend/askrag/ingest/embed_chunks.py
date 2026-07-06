@@ -263,6 +263,7 @@ class LocalEmbeddings:
             )
         # Heavyweight import deferred so --estimate, the Voyage path, and the
         # test suite never pay torch's import cost (decisions.md 2026-07-05).
+        import torch
         from sentence_transformers import SentenceTransformer
 
         self._doc_prefix = settings.embedding_doc_prefix
@@ -272,7 +273,14 @@ class LocalEmbeddings:
             revision=settings.embedding_model_revision,
             cache_folder=str(settings.embedding_cache_dir),
             truncate_dim=settings.embedding_dims,
+            device=settings.embed_device or None,
+            # float16 halves the resident working set — the fix for the
+            # measured swap-thrash failure mode (config.py, 2026-07-05).
+            model_kwargs={"torch_dtype": getattr(torch, settings.embed_local_dtype)},
         )
+        # Cap activations at the measured corpus p99+margin instead of the
+        # model default 8192 (rationale on config.embed_max_seq_tokens).
+        self._model.max_seq_length = settings.embed_max_seq_tokens
 
     def __enter__(self) -> Self:
         return self
