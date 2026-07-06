@@ -130,6 +130,11 @@ class Settings(BaseSettings):
     search_top_k: int = 10
     rerank_enabled: bool = False  # ships only if evals justify it (D8)
 
+    # --- tools (§5) ----------------------------------------------------------
+    # search_corpus clamps a model-supplied k to this ceiling — a pathological
+    # tool call can't ask for the whole corpus in one shot.
+    search_corpus_max_k: int = 25
+
     # --- agent loop (D1/D2) ------------------------------------------------
     max_tool_steps_per_message: int = 8
 
