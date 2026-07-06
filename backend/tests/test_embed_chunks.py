@@ -320,18 +320,59 @@ def test_read_vectors_refuses_provenance_free_parquet(paths, tmp_path):
 
 def test_make_backend_dispatches_on_backend_flag(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)  # keep a developer's real .env out of scope
-    created: list[str] = []
-    monkeypatch.setattr(embed_chunks, "LocalEmbeddings", lambda s: created.append("local"))
-    monkeypatch.setattr(embed_chunks, "VoyageEmbeddings", lambda s: created.append("voyage"))
+    created: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        embed_chunks,
+        "LocalEmbeddings",
+        lambda s, input_kind="document": created.append(("local", input_kind)),
+    )
+    monkeypatch.setattr(
+        embed_chunks,
+        "VoyageEmbeddings",
+        lambda s, input_kind="document": created.append(("voyage", input_kind)),
+    )
     embed_chunks.make_backend(Settings(embedding_backend="local"))
     embed_chunks.make_backend(Settings(embedding_backend="voyage"))
-    assert created == ["local", "voyage"]
+    embed_chunks.make_backend(Settings(embedding_backend="local"), input_kind="query")
+    assert created == [("local", "document"), ("voyage", "document"), ("local", "query")]
 
 
 def test_local_backend_requires_pinned_revision(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(EmbeddingError, match="revision"):
         embed_chunks.LocalEmbeddings(Settings(embedding_model_revision=""))
+
+
+def test_local_backend_prefixes_by_input_kind(monkeypatch, tmp_path):
+    # The asymmetric-retrieval contract (#16 warning): documents get
+    # search_document:, queries get search_query: — a miss degrades recall
+    # SILENTLY, so this is pinned without loading real weights.
+    import sys
+    import types as types_mod
+
+    encoded: list[list[str]] = []
+
+    class FakeST:
+        def __init__(self, *args, **kwargs):
+            self.max_seq_length = 0
+
+        def encode(self, texts, **kwargs):
+            encoded.append(list(texts))
+            return [[0.0, 1.0]] * len(texts)
+
+    fake_st = types_mod.ModuleType("sentence_transformers")
+    setattr(fake_st, "SentenceTransformer", FakeST)  # noqa: B010 — fake module attr
+    fake_torch = types_mod.ModuleType("torch")
+    setattr(fake_torch, "float16", "float16")  # noqa: B010
+    setattr(fake_torch, "float32", "float32")  # noqa: B010
+    # Both heavyweights faked: the fast suite never pays torch's import cost.
+    monkeypatch.setitem(sys.modules, "sentence_transformers", fake_st)
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.chdir(tmp_path)
+
+    embed_chunks.LocalEmbeddings(Settings()).embed(["some text"])
+    embed_chunks.LocalEmbeddings(Settings(), input_kind="query").embed(["some text"])
+    assert encoded == [["search_document: some text"], ["search_query: some text"]]
 
 
 @pytest.mark.skipif(
@@ -352,6 +393,11 @@ def test_real_model_smoke_dims_norm_determinism():
     # compositions; different texts differ at ~1e-1, so 1e-3 still cleanly
     # separates "same embedding" from "different embedding".
     assert first.vectors[0] == pytest.approx(again.vectors[0], abs=1e-3)  # deterministic
+    # Asymmetric prefixes are real model behavior, not just string plumbing:
+    # the same text embeds differently in document vs query mode (#16).
+    with embed_chunks.LocalEmbeddings(settings, input_kind="query") as query_backend:
+        as_query = query_backend.embed(["Transformers use self-attention."])
+    assert as_query.vectors[0] != pytest.approx(first.vectors[0], abs=1e-3)
 
 
 # --- Voyage adapter: request/response contract, offline (MockTransport) --------
@@ -399,6 +445,32 @@ def test_adapter_sends_voyage_contract_and_parses_response(monkeypatch):
     }
     assert result.total_tokens == 42
     assert result.vectors == [[0.0] * DIMS, [1.0] * DIMS]
+
+
+def test_adapter_query_kind_sends_query_input_type(monkeypatch):
+    # The parked path honors the same asymmetric contract as local (#16):
+    # query-mode construction flips Voyage's input_type.
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"embedding": [0.0] * DIMS, "index": 0}],
+                "usage": {"total_tokens": 3},
+            },
+        )
+
+    monkeypatch.setenv("VOYAGE_API_KEY", "pa-test-key")
+    settings = Settings(
+        embedding_backend="voyage", embedding_model="voyage-4-lite", embedding_dims=DIMS
+    )
+    with VoyageEmbeddings(
+        settings, transport=httpx.MockTransport(handler), input_kind="query"
+    ) as backend:
+        backend.embed(["what is attention"])
+    assert json.loads(seen[0].content)["input_type"] == "query"
 
 
 @pytest.mark.parametrize("status", [429, 500, 503])
