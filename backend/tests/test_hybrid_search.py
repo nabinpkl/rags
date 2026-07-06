@@ -1,5 +1,7 @@
 """Tests for askrag.retrieval.hybrid_search — RRF math, pushdown, degradation."""
 
+import chromadb.errors
+import httpx
 import pytest
 
 from askrag.config import Settings
@@ -7,6 +9,12 @@ from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
 from askrag.ingest.embed_chunks import EmbeddingError
 from askrag.retrieval.hybrid_search import Filters, HybridSearch, ScoredChunk, rrf_fuse
 from askrag.retrieval.vector_store import VectorStoreError
+
+
+def _http_status_error(status: int) -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", "https://api.voyageai.com/v1/embeddings")
+    response = httpx.Response(status, request=request)
+    return httpx.HTTPStatusError(f"HTTP {status}", request=request, response=response)
 
 
 @pytest.fixture(autouse=True)
@@ -141,7 +149,10 @@ def test_filters_push_down_to_both_legs(corpus_db):
 def test_vector_leg_down_degrades_to_bm25_only(corpus_db):
     # D8's deliberate fail-soft, scoped to a genuine OUTAGE: NO exception,
     # BM25-only results, all legs annotated bm25. (corpus.db failing stays
-    # fatal — that's the floor.)
+    # fatal — that's the floor.) `EmbeddingError` is what embeddings.py's
+    # boundary translates a real transport outage or a 5xx into
+    # (test_embeddings.py covers that translation directly) — hybrid_search
+    # itself only ever sees this codebase's own vocabulary.
     s = searcher(corpus_db, embedder=FakeEmbedder(fail_with=EmbeddingError("voyage API down")))
     results = s.search("attention", k=4)
     assert results  # BM25 still found chunks
@@ -149,6 +160,9 @@ def test_vector_leg_down_degrades_to_bm25_only(corpus_db):
 
 
 def test_vector_store_error_also_degrades_to_bm25_only(corpus_db):
+    # `VectorStoreError` is what vector_store.py's boundary translates a real
+    # operational chromadb failure (e.g. `InternalError`) into
+    # (test_vector_store.py covers that translation directly).
     s = searcher(corpus_db, store=FakeStore([], fail_with=VectorStoreError("collection missing")))
     results = s.search("attention", k=4)
     assert results
@@ -157,7 +171,17 @@ def test_vector_store_error_also_degrades_to_bm25_only(corpus_db):
 
 @pytest.mark.parametrize(
     "fail_with",
-    [KeyError("chunk_id"), AttributeError("no such attr"), ValueError("dim mismatch")],
+    [
+        KeyError("chunk_id"),
+        AttributeError("no such attr"),
+        ValueError("dim mismatch"),
+        # A non-retryable 4xx (embed_chunks.py raises this bare for OUR bug/
+        # bad request) and a real chromadb code-bug exception — this
+        # module's operational tuple names neither httpx nor chromadb at
+        # all (PR #59 review findings 2/3), so both must still fail loud.
+        _http_status_error(400),
+        chromadb.errors.InvalidDimensionException("dim mismatch"),
+    ],
 )
 def test_vector_leg_code_bug_fails_loud_not_degrades(corpus_db, fail_with):
     # 2026-07-06 checkpoint finding 3: a bare `except Exception` used to

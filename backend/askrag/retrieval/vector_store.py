@@ -23,6 +23,18 @@ class VectorStoreError(Exception):
     """The store or the per-model collection is missing/unusable."""
 
 
+# ChromaError subclasses that mean OUR code passed a bad call (wrong
+# embedding dimension, a malformed argument) — code bugs, not outages; these
+# must stay loud, never translated to the operational VectorStoreError below
+# (PR #59 review finding 3). Every OTHER ChromaError (InternalError,
+# RateLimitError, an auth/quota/version failure, ...) is a genuine store-side
+# operational failure and gets wrapped.
+_CHROMA_CODE_BUG_ERRORS = (
+    chromadb.errors.InvalidDimensionException,
+    chromadb.errors.InvalidArgumentError,
+)
+
+
 class VectorStore:
     """query(embedding, k, filters) -> rank-ordered chunk_ids."""
 
@@ -64,7 +76,12 @@ class VectorStore:
         with tracer.start_as_current_span("askrag.retrieval.vector") as span:
             span.set_attribute("askrag.model_slug", self._slug)
             span.set_attribute("askrag.k", k)
-            result = self._collection.query(
-                query_embeddings=[embedding], n_results=k, where=where, include=[]
-            )
+            try:
+                result = self._collection.query(
+                    query_embeddings=[embedding], n_results=k, where=where, include=[]
+                )
+            except _CHROMA_CODE_BUG_ERRORS:
+                raise
+            except chromadb.errors.ChromaError as exc:
+                raise VectorStoreError(f"chroma query failed: {exc}") from exc
         return result["ids"][0]

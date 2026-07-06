@@ -6,6 +6,7 @@ these must be refused before a single row is read, by construction
 the model's SQL text.
 """
 
+import json
 import time
 
 import pytest
@@ -86,6 +87,18 @@ def test_to_model_payload_is_a_plain_dict_of_lists(corpus_db):
         "rows": [["2401.00001", "2024-01-01"], ["2401.00002", "2023-01-01"]],
         "truncated": False,
     }
+
+
+def test_blob_literal_values_are_hex_encoded_and_json_safe(corpus_db):
+    # A BLOB literal (`X'...'`) is legal SELECT syntax, not a function call —
+    # it never touches the SQLITE_FUNCTION allow-list and comes back as raw
+    # `bytes`. The dataclass field keeps the real bytes; the payload must be
+    # JSON-safe regardless (PR #59 review finding 1).
+    result = query("SELECT X'48656c6c6f' AS b", corpus_db)
+    assert result.rows == ((b"Hello",),)
+    payload = result.to_model_payload()
+    assert payload["rows"] == [["48656c6c6f"]]
+    json.dumps(payload)  # must not raise
 
 
 def test_aggregate_and_join_work(corpus_db):

@@ -2,6 +2,7 @@
 
 import chromadb
 import chromadb.config
+import chromadb.errors
 import pytest
 
 from askrag.config import Settings
@@ -70,3 +71,29 @@ def test_missing_collection_is_a_named_error(tmp_path):
     )
     with pytest.raises(VectorStoreError, match=SLUG):
         VectorStore(settings(), chroma_dir=empty)
+
+
+def test_wrong_dimension_query_is_a_code_bug_that_stays_raw(chroma_dir):
+    # A real chroma dimension mismatch (query embedding dims != the
+    # collection's — this chromadb version raises InvalidArgumentError for
+    # it, not InvalidDimensionException) is a code/config bug (drifted
+    # embedding_dims), not an outage. Must propagate unchanged, never
+    # wrapped as VectorStoreError (PR #59 review finding 3).
+    store = VectorStore(settings(), chroma_dir=chroma_dir)
+    with pytest.raises(chromadb.errors.InvalidArgumentError, match="dimension"):
+        store.query([0.0, 1.0], k=1)  # 2 dims, collection is DIMS=4
+
+
+def test_internal_chroma_failure_is_wrapped_as_vector_store_error(chroma_dir, monkeypatch):
+    # A genuine store-side operational failure (corrupted index, internal
+    # engine error) — must translate to OUR vocabulary so hybrid_search's
+    # fail-soft boundary can degrade without knowing chromadb exists
+    # (PR #59 review finding 3).
+    store = VectorStore(settings(), chroma_dir=chroma_dir)
+
+    def _broken_query(*args, **kwargs):
+        raise chromadb.errors.InternalError("engine failure")
+
+    monkeypatch.setattr(store._collection, "query", _broken_query)
+    with pytest.raises(VectorStoreError, match="engine failure"):
+        store.query(axis_vector(1), k=1)
