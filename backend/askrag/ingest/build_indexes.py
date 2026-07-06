@@ -32,6 +32,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import chromadb
+import chromadb.errors
 import httpx
 
 from askrag import telemetry
@@ -326,7 +327,7 @@ def _load_chroma(
     client = chromadb.PersistentClient(path=str(chroma_dir))
     try:
         client.delete_collection(collection_name)  # drop-and-rebuild
-    except Exception:  # chroma raises its own NotFoundError; absence is fine
+    except chromadb.errors.NotFoundError:  # first build — nothing to drop
         pass
     collection = client.create_collection(
         collection_name,
