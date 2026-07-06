@@ -56,6 +56,16 @@ frontend-check:
 # Full-repo gate — CI runs exactly this, so local green == CI green
 check: backend-check frontend-check
 
+# Spine checkpoint (#16): hybrid retrieval over the real corpus.
+# Both call forms work: `just ask q="chain of thought"` / `just ask "chain of thought"`
+ask *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Recipe args arrive via interpolation ({{ARGS}}), never via shell $*.
+    query={{quote(ARGS)}}
+    query="${query#q=}"
+    cd backend && uv run python -m askrag.retrieval.hybrid_search "$query"
+
 # Backend tests only (pytest via uv; extra args pass through)
 be-test *ARGS:
     cd backend && uv run pytest {{ARGS}}
