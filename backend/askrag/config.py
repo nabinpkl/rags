@@ -117,6 +117,14 @@ class Settings(BaseSettings):
     embed_retry_base_seconds: float = 2.0
     embed_request_timeout_seconds: float = 120.0
 
+    # --- ingest: index build (D4; issue #14) --------------------------------
+    # One Chroma .add() per batch; 1.x rejects batches in the several-
+    # thousands, and index build is offline so throughput tuning is moot.
+    chroma_add_batch_size: int = 1000
+    # The one sanctioned network call of the index build (D9): a single
+    # batched export.arxiv.org query backfilling NULL-version rows.
+    version_backfill_timeout_seconds: float = 30.0
+
     # --- retrieval (D8; defaults until measured) --------------------------
     rrf_k: int = 60
     search_top_k: int = 10
@@ -215,6 +223,12 @@ class Settings(BaseSettings):
         # The collector's {YYYY}/{MM}/{arxiv_id}.pdf tree — extraction input,
         # local only, never deployed (D9/§4c).
         return self.corpus_dir / "pdfs"
+
+    @property
+    def kaggle_seed_path(self) -> Path:
+        # Kaggle arxiv-metadata snapshot zip: the only source that carries
+        # per-paper license (§6b metadata duty; build_indexes reads it).
+        return self.corpus_dir / "archive.zip"
 
 
 @lru_cache
