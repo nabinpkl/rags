@@ -9,9 +9,14 @@ to accept model SQL"). Safety is by construction, never by string-matching:
   (raises `ProgrammingError`) — single-statement by construction, no `;`
   splitting or regex needed.
 - `Connection.set_authorizer` runs at PREPARE time, before any row is read,
-  and denies every action code except SELECT/read/function calls. This is
-  parse-time enforcement: ATTACH, PRAGMA, INSERT/UPDATE/DELETE/DDL, and
-  multi-db access are all authorizer denials, not a keyword blocklist.
+  and denies every action code except SELECT/read and a NAMED allow-list of
+  scalar/aggregate functions (`query_metadata_allowed_functions`, checked
+  against the authorizer's own `arg2`). This is parse-time enforcement:
+  ATTACH, PRAGMA, INSERT/UPDATE/DELETE/DDL, and multi-db access are all
+  authorizer denials, not a keyword blocklist. A blanket `SQLITE_FUNCTION`
+  allow would let a single memory-allocating call (`randomblob`/`zeroblob`,
+  however composed) skip the timeout below in one VM opcode — the function
+  allow-list is what closes that (review finding, PR #57).
 - `Connection.set_progress_handler` aborts a query once it runs past
   `query_metadata_timeout_seconds` (SQLite polls the deadline periodically
   during execution, including during `fetchmany`).
@@ -21,6 +26,7 @@ to accept model SQL"). Safety is by construction, never by string-matching:
 
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,10 +39,6 @@ from askrag.config import Settings, get_settings
 # deadline — a protocol tuning knob for set_progress_handler, not a caller
 # tunable (SQLite docs recommend the low hundreds-to-thousands range).
 _PROGRESS_HANDLER_POLL_INSTRUCTIONS = 1000
-
-_ALLOWED_AUTHORIZER_ACTIONS = frozenset(
-    {sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION}
-)
 
 
 class QueryMetadataError(Exception):
@@ -57,14 +59,30 @@ class QueryMetadataResult:
     truncated: bool  # more rows matched than query_metadata_max_rows allows
 
 
-def _authorize(
-    action: int,
-    _arg1: str | None,
-    _arg2: str | None,
-    _db_name: str | None,
-    _trigger: str | None,
-) -> int:
-    return sqlite3.SQLITE_OK if action in _ALLOWED_AUTHORIZER_ACTIONS else sqlite3.SQLITE_DENY
+_Authorizer = Callable[[int, str | None, str | None, str | None, str | None], int]
+
+
+def _make_authorizer(allowed_functions: frozenset[str]) -> _Authorizer:
+    """Build the per-run authorizer: SELECT/read unconditionally, function
+    calls only by NAME (`arg2`), against the config allow-list. Everything
+    else — writes, DDL, PRAGMA, ATTACH, and any function not on the list —
+    is denied."""
+
+    def _authorize(
+        action: int,
+        _arg1: str | None,
+        arg2: str | None,
+        _db_name: str | None,
+        _trigger: str | None,
+    ) -> int:
+        if action in (sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ):
+            return sqlite3.SQLITE_OK
+        if action == sqlite3.SQLITE_FUNCTION:
+            name = (arg2 or "").lower()
+            return sqlite3.SQLITE_OK if name in allowed_functions else sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_DENY
+
+    return _authorize
 
 
 def run(
@@ -76,7 +94,7 @@ def run(
     settings = settings if settings is not None else get_settings()
     conn = db.connect_corpus(corpus_db_path)
     try:
-        conn.set_authorizer(_authorize)
+        conn.set_authorizer(_make_authorizer(frozenset(settings.query_metadata_allowed_functions)))
         deadline = time.monotonic() + settings.query_metadata_timeout_seconds
         conn.set_progress_handler(
             lambda: 1 if time.monotonic() > deadline else 0,

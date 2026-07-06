@@ -17,6 +17,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from askrag.config import Settings, get_settings
 from askrag.retrieval.hybrid_search import Filters, HybridSearch, ScoredChunk
 
+# The JSON schema's advertised ceiling for `k` (review finding, PR #57: `ge=1`
+# alone left the model-facing schema silent about the real limit). Read off
+# Settings' own default rather than a second literal — config.py stays the
+# one place `search_corpus_max_k` is declared; run() still clamps against the
+# ACTUAL settings passed in, so an overridden config ceiling is still honored
+# even where this static schema bound can't see it.
+_DEFAULT_MAX_K = Settings.model_fields["search_corpus_max_k"].default
+
 
 class SearchCorpusArgs(BaseModel):
     """Model-facing args: a closed set of fields, never an open filter dict."""
@@ -27,7 +35,7 @@ class SearchCorpusArgs(BaseModel):
     category: str | None = Field(default=None, description="arXiv primary category, e.g. cs.CL")
     year_min: int | None = Field(default=None, description="inclusive lower bound on paper year")
     year_max: int | None = Field(default=None, description="inclusive upper bound on paper year")
-    k: int = Field(default=10, ge=1, description="number of chunks to return")
+    k: int = Field(default=10, ge=1, le=_DEFAULT_MAX_K, description="number of chunks to return")
 
 
 @dataclass(frozen=True)

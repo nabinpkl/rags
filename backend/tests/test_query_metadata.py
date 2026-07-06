@@ -88,6 +88,62 @@ def test_aggregate_and_join_work(corpus_db):
     assert set(result.rows) == {("2401.00001", 1), ("2401.00002", 1)}
 
 
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT COUNT(*) FROM papers",
+        "SELECT LENGTH(arxiv_id), LOWER(arxiv_id), UPPER(arxiv_id) FROM papers",
+        "SELECT ROUND(1.5), ABS(-1), COALESCE(NULL, 'x') FROM papers LIMIT 1",
+        "SELECT MIN(published), MAX(published), SUM(1), AVG(1) FROM papers",
+        "SELECT date('now'), strftime('%Y', published) FROM papers LIMIT 1",
+    ],
+)
+def test_allow_listed_functions_still_work(corpus_db, sql):
+    query(sql, corpus_db)  # not raising IS the assertion
+
+
+# --- review finding (PR #57): a blanket SQLITE_FUNCTION allow bypasses the ---
+# --- row cap and timeout in a single VM opcode -------------------------------
+
+
+@pytest.mark.parametrize(
+    "hostile_sql",
+    [
+        "SELECT randomblob(10)",
+        "SELECT zeroblob(10)",
+        # composed: the allocator is nested inside an otherwise-harmless call
+        "SELECT length(randomblob(950000000))",
+        "SELECT hex(randomblob(10))",
+        "SELECT printf('%s', randomblob(10))",
+    ],
+)
+def test_unlisted_functions_are_refused_even_when_composed(corpus_db, hostile_sql):
+    with pytest.raises(QueryMetadataError):
+        query(hostile_sql, corpus_db)
+
+
+def test_a_single_call_cannot_bypass_the_timeout_via_a_memory_allocator(corpus_db):
+    # The exact failure scenario from the review finding: one allocator call
+    # is one VM opcode, so a between-opcode progress-handler poll can't
+    # preempt it mid-allocation — the function-name allow-list is what
+    # refuses it instead, before any allocation happens.
+    start = time.monotonic()
+    with pytest.raises(QueryMetadataError):
+        query(
+            "SELECT length(randomblob(950000000))",
+            corpus_db,
+            query_metadata_timeout_seconds=0.001,
+        )
+    assert time.monotonic() - start < 1  # refused up front, no ~1s allocation
+
+
+def test_load_extension_is_unreachable_regardless_of_the_authorizer(corpus_db):
+    # Python's sqlite3 disables extension loading by default; confirm the
+    # tool never turns it on, independent of the function allow-list.
+    with pytest.raises(QueryMetadataError):
+        query("SELECT load_extension('anything')", corpus_db)
+
+
 # --- refused at parse time, not by keyword matching --------------------------
 
 

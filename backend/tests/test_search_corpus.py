@@ -68,6 +68,9 @@ def test_run_wraps_hybrid_search_and_returns_scored_chunks(corpus_db):
 
 
 def test_k_is_clamped_to_search_corpus_max_k(corpus_db):
+    # 20 is within the schema's static `le` ceiling (the config default, 25)
+    # but above this run's overridden settings ceiling (3) — run() must clamp
+    # to the ACTUAL settings, not just the schema's advertised default.
     store = FakeStore(["2401.00001#0"])
     searcher = HybridSearch(
         Settings(search_corpus_max_k=3),
@@ -76,7 +79,7 @@ def test_k_is_clamped_to_search_corpus_max_k(corpus_db):
         corpus_db_path=corpus_db,
     )
     run(
-        SearchCorpusArgs(query="attention", k=999),
+        SearchCorpusArgs(query="attention", k=20),
         searcher=searcher,
         settings=Settings(search_corpus_max_k=3),
     )
@@ -86,6 +89,14 @@ def test_k_is_clamped_to_search_corpus_max_k(corpus_db):
 def test_args_reject_an_open_filter_dict():
     with pytest.raises(Exception):  # noqa: B017 — pydantic ValidationError
         SearchCorpusArgs.model_validate({"query": "x", "filters": {"anything": "goes"}})
+
+
+def test_args_reject_k_past_the_schema_ceiling():
+    # The JSON schema advertises a `le` bound (the config default) so the
+    # model sees the real ceiling instead of an unbounded `k` (review
+    # finding, PR #57).
+    with pytest.raises(Exception):  # noqa: B017 — pydantic ValidationError
+        SearchCorpusArgs(query="attention", k=999)
 
 
 def test_args_require_a_nonblank_query():
