@@ -31,9 +31,11 @@ Implementor and reviewer run as interactive `claude` CLIs in windows of the
 human's **pre-existing** `rags` tmux session, so both the coordinator and the
 human can watch them work (decisions.md 2026-07-06). Scripts in `scripts/`:
 
-- `agent-spawn.sh <role> [task-file]` — one window per role, pinned to a known
-  `--session-id` so the coordinator knows which jsonl to read. **Fails loud if
-  the session is absent; never creates it** (the human owns its lifecycle).
+- `agent-spawn.sh <role> [task-file]` — adds the worker as a **pane in one
+  shared `agents` window** (tiled grid, titled borders, so every worker is
+  visible at once), pinned to a known `--session-id` so the coordinator knows
+  which jsonl to read. **Fails loud if the session is absent; never creates
+  it** (the human owns its lifecycle).
 - `agent-send.sh <role> <msg>` — deliver a short control message (type, settle,
   submit). Big context (task specs, findings) goes in a file or PR comment;
   send a one-line "read <path> and act", not kilobytes through tmux.

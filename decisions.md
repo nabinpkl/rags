@@ -22,11 +22,13 @@ only) and gave the human no way to peek and catch a wrong action mid-flight;
 subagents also lost re-messageability across a coordinator compaction (their
 transcripts persist on disk, but the runtime handle does not cross the session
 boundary). Observed twice while landing #16.
-**Decision:** implementor/reviewer run as interactive `claude` CLIs in windows
-of the human's **pre-existing** `rags` tmux session (real name may be
-group-suffixed, e.g. `rags-0`). Four scripts under `scripts/`:
-`agent-spawn.sh` (one window per role, session-id pinned so the coordinator
-knows the jsonl path; fails loud if the session is absent — never creates it),
+**Decision:** implementor/reviewer run as interactive `claude` CLIs in tiled
+**panes of one `agents` window** in the human's **pre-existing** `rags` tmux
+session (real name may be group-suffixed, e.g. `rags-0`), so every worker is
+visible at once without switching windows. Four scripts under `scripts/`:
+`agent-spawn.sh` (adds a titled pane per role, session-id pinned so the
+coordinator knows the jsonl path, pane-id recorded so agent-send targets it;
+fails loud if the session is absent — never creates it),
 `agent-send.sh` (type + settle + Enter; short control messages only, big
 context goes via files/PR), `agent-feed.sh` (human peek: one line per tool
 call, MUTATE-flagged, read from the live-appended session jsonl — not scraped
