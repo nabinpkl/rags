@@ -14,6 +14,111 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-06 — OpenRouter becomes validation-only (cheap-first smoke); live serving reverts to direct Anthropic/Haiku, superseding 2026-07-05's OpenRouter-as-primary plan (issue #23, owner directive)
+
+**Context:** 2026-07-05's "Live agent LLM: OpenRouter-routed model via env"
+entry planned OpenRouter's OpenAI-compatible API as the LIVE agent's primary
+provider (replacing D3's Haiku-on-Anthropic plan outright), with reasoning-
+block round-tripping as a named build requirement for #22/#23. That wiring
+was never built (neither #22 nor this PR touched an OpenAI-compatible
+client). The owner redirected before #23 landed: validate the hand-built
+loop against a CHEAP model first, keep prod serving on Haiku.
+**Decision:** the loop's `ModelClient` seam is `anthropic`-SDK-shaped
+throughout — no OpenAI-compatible client exists anywhere. `config.py` gains
+`agent_api_base_url` (default `""` ⇒ real Anthropic, D3's Haiku), an
+env-only `openrouter_api_key`, and `smoke_model` (`deepseek/deepseek-v4-flash`).
+Setting `agent_api_base_url` routes the SAME `anthropic.Anthropic` client at
+OpenRouter's **Anthropic-compatible** endpoint (not its OpenAI-compatible
+one) — one client, config-only branching, no second SDK, no branching inside
+`loop.py` itself (`anthropic_client_from_settings` is the only place that
+looks at the setting). Two empirically-resolved integration details, recorded
+because the docs left them ambiguous: (1) base_url is
+`https://openrouter.ai/api` **without** a trailing `/v1` — the anthropic SDK
+appends `/v1/messages` itself, so `.../api/v1` double-`/v1`s to a 404; (2)
+auth is `auth_token=` (Bearer) via the SDK, not `api_key=` (x-api-key) —
+OpenRouter documents Bearer, Anthropic's native header is x-api-key. Pricing
+for cost accounting stays Haiku's (`agent_usd_per_mtok_*`) regardless of
+which model actually served a smoke call — the smoke validates loop
+plumbing, not billing, so its trace cost is an approximation by design.
+Because the loop always appends `response.content` verbatim back into the
+next call (the standard Anthropic tool-use round-trip, needed regardless of
+provider), the "reasoning blocks must round-trip" requirement from the
+superseded plan is satisfied as a side effect of ordinary tool-use handling —
+it never needed special-casing once the client is Anthropic-shaped.
+**Alternatives rejected:** building the OpenAI-compatible client as
+2026-07-05 planned (never implemented; superseded before any code existed,
+so there is nothing to migrate away from); smoke-testing directly against
+Haiku first (defeats the "cheap-first" point of validating an unbuilt loop
+before spending on the prod model).
+**Consequence:** the 2026-07-05 "Live agent LLM: OpenRouter-routed model via
+env" entry below is superseded — its OpenAI-compatible-API plan for the live
+agent does not ship; treat it as historical context, not current behavior.
+Running the live smoke needs a real `OPENROUTER_API_KEY` (coordinator/human
+step); `just smoke-agent q="..."` documents how. Fake-model tests
+(`test_loop.py`) are the PR's actual acceptance gate; the smoke is the
+owner's separate confirmation, per the issue's acceptance checklist.
+Spec updated: D3 (one-line note: a cheap OpenRouter model validates the loop
+before Haiku spend; D3's prod decision — Haiku, direct Anthropic — is
+unchanged).
+
+---
+
+## 2026-07-06 — #23 ships only the system-prompt quote-discipline instruction; the server-side ≤3-quote/≤50-word per-answer gate stays #30's job (issue #23)
+
+**Context:** an #23 issue comment (carried forward from #22/#58) called the
+per-answer quote-accounting gate a "hard acceptance gate... not optional" for
+this issue. The 2026-07-06 `read_paper` decisions.md entry (below) already
+moved that cap downstream to "answer-assembly (#23/#30)" once `read_paper`'s
+own tool-level cap was removed as contradicting §6c row 1/D1. #23's own task
+brief scopes the server-side gate out explicitly: building it needs verified
+citations (which answer-assembly, not the loop, produces) and the issue's
+own **Build** list names only `prompts.py`/`context_window.py`/`loop.py`.
+**Decision:** #23 implements the quote-discipline **instruction** only
+(`prompts.py`'s QUOTES paragraph: prefer paraphrase, keep verbatim quotes
+short and quoted). It does NOT implement per-answer/per-conversation
+quote-count enforcement — there is no answer-assembly stage in this PR to
+enforce it in. The hard, server-side ≤3-quotes-per-paper/≤50-word cap (§6c
+row 4) remains #30's responsibility, unchanged from the `read_paper` entry.
+**Alternatives rejected:** bolting quote-counting onto `loop.py` now (the
+loop only ever sees one turn's raw tool results, not an assembled answer with
+resolved citations — the same reasoning the `read_paper` entry already used
+to reject enforcing it at the tool boundary applies here too, one level up).
+**Consequence:** none of this PR's user-facing surfaces exist yet (no route,
+no frontend), so there is no shippable path that could return an unguarded
+quote today; the gate is still required before #30 exposes one. Noted here
+so the boundary is explicit rather than inferred from silence.
+Spec updated: no (§6c's clarifying note already covers this from the
+`read_paper` side; this entry just confirms #23 doesn't build the other end).
+
+---
+
+## 2026-07-06 — Agent loop context window: evict-only, not evict-then-summarize (issue #23)
+
+**Context:** issue #23 named "evict/summarize stale tool results" as the
+context-window mechanism without picking one.
+**Decision:** v1 evicts only — the oldest still-live `tool_result` block is
+replaced with a short `[evicted: earlier <tool> result]` stub, one block at a
+time, until the running estimate fits `message_token_budget` or nothing
+evictable remains. Summarization is not built.
+**Alternatives rejected:** evict-then-summarize (an LLM call to summarize
+stale context needs the model client mid-eviction, which breaks the
+API-free test story — house rule, tests never call an LLM — and spends part
+of the very token/cost budget the mechanism exists to protect); a rolling
+window by message count instead of tokens (message count doesn't track
+actual context cost — a single `read_paper` result can be worth many short
+turns).
+**Consequence:** `test_context_window.py` covers oldest-first ordering, the
+current-turn/system-prompt exclusion, and the "nothing left to evict"
+termination case. A pathological turn can still end up over budget once
+every tool_result is stubbed — accepted, because `max_tool_steps_per_message`
+is the real backstop against runaway turns, not eviction.
+**Revisit trigger:** eviction demonstrably drops context an answer needed
+(measured via eval failures traceable to a stubbed-out tool result).
+Spec updated: no (D1/D2 already name "evict/summarize" as the mechanism
+class; this entry just resolves which one v1 ships).
+
+---
+
 ## 2026-07-06 — query_metadata prefactor: enum'd shapes replace raw model SQL, done before #23 (issue #60)
 
 **Context:** #23's agent loop is about to become `query_metadata`'s first
