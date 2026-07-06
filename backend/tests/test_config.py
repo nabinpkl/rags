@@ -29,8 +29,10 @@ def test_spec_constants_load_without_env(monkeypatch):
         monkeypatch.delenv(var)
     settings = make_settings()
     assert settings.agent_model == "claude-haiku-4-5-20251001"  # D3
-    assert settings.embedding_model == "text-embedding-3-small"  # D5
+    assert settings.embedding_backend == "local"  # D5 (second amendment)
+    assert settings.embedding_model == "nomic-ai/nomic-embed-text-v1.5"  # D5
     assert settings.embedding_dims == 512  # D5
+    assert settings.embedding_model_revision != ""  # pinned, never floating
     assert settings.chunk_size_tokens == 1000  # D7
     assert settings.chunk_overlap_ratio == 0.15  # D7
     assert settings.max_tool_steps_per_message == 8  # D1
@@ -53,10 +55,10 @@ def test_env_overrides_with_prefix(monkeypatch):
 
 def test_api_keys_use_standard_env_names(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-oai-test")
+    monkeypatch.setenv("VOYAGE_API_KEY", "pa-voy-test")
     settings = make_settings()
     assert settings.anthropic_api_key.get_secret_value() == "sk-ant-test"
-    assert settings.openai_api_key.get_secret_value() == "sk-oai-test"
+    assert settings.voyage_api_key.get_secret_value() == "pa-voy-test"
     # SecretStr keeps keys out of reprs/logs.
     assert "sk-ant-test" not in repr(settings)
 
@@ -66,9 +68,17 @@ def test_derived_paths_follow_corpus_dir(tmp_path):
     assert settings.corpus_db_path == tmp_path / "corpus" / "corpus.db"
     assert settings.chroma_dir == tmp_path / "corpus" / "chroma"
     assert settings.extracted_dir == tmp_path / "corpus" / "extracted"
-    assert settings.vectors_parquet_path == tmp_path / "corpus" / "vectors.parquet"
+    slug = settings.embedding_model_slug
+    assert settings.vectors_parquet_path == tmp_path / "corpus" / "vectors" / f"{slug}.parquet"
     assert settings.skiplist_path == tmp_path / "corpus" / "skiplist.json"
     assert settings.arxiv_db_path == tmp_path / "corpus" / "arxiv.db"
+
+
+def test_embedding_model_slug_keys_vector_paths():
+    settings = make_settings(embedding_model="org/Some-Model-V1.5", embedding_dims=512)
+    assert settings.embedding_model_slug == "some-model-v1.5_512"
+    assert settings.vectors_parquet_path.name == "some-model-v1.5_512.parquet"
+    assert settings.vectors_shards_dir.name == "some-model-v1.5_512_shards"
 
 
 def test_get_settings_is_cached():

@@ -14,6 +14,165 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-05 — Embeddings pivot to local-first: nomic-embed-text-v1.5 replaces Voyage as default (D5 second amendment, owner directive) (#13)
+
+**Context:** the Voyage free tier turned out throttled to 3 RPM / 10K TPM for
+no-payment-method accounts (previous entry below) — an 8.6h paced run for the
+working corpus alone, and the same throughput cap would hit query-time in
+production. The owner redirected: run embeddings **locally** by default,
+keep Voyage working behind a flag for later.
+**Decision:** `embedding_backend: Literal["local", "voyage"]` (default
+`"local"`) in `config.py`; `make_backend()` is a literal two-branch dispatch
+(§4d: no metaprogramming). Local backend is `sentence-transformers` running
+**nomic-ai/nomic-embed-text-v1.5**, pinned to HF revision
+`e9b6763023c676ca8431644204f50c2b100d9aab`, `truncate_dim=512`. Weights cache
+under `corpus/models/` (gitignored — `.gitignore`'s existing `corpus/` rule
+already covers it), never committed.
+**Model choice, evaluated against the three stated criteria:**
+(a) *Retrieval quality (English scientific text)*: nomic-embed-text-v1.5
+publishes MTEB retrieval numbers including `ArxivClusteringP2P`/`S2S`
+directly relevant to this corpus (HF model-index, checked 2026-07-05); no
+sub-150M-parameter English-retrieval model found beats it on MTEB while also
+meeting (b) and (c) below — checked against bge-small-en-v1.5 (33M, native
+384 dims, no MRL to 512 — disqualified on (c)), gte-modernbert-base (149M,
+~55.3 MTEB retrieval, no confirmed native 512-dim MRL), snowflake-arctic-
+embed-m-v2.0 (305M, stronger retrieval but 2–3x the param budget), Qwen3-
+Embedding-0.6B (600M) and jina-embeddings-v3 (570M) (both stronger but 4–5x
+over budget), nomic-embed-text-v2-moe (475M total/305M active, multilingual-
+focused — English BEIR ≈52.86, *lower* than v1.5's English MTEB). Models
+that do beat v1.5 on raw retrieval are all 2–4x its parameter count, which
+matters directly for (b).
+(b) *Query-time CPU feasibility*: 137M parameters — the same model runs
+query-time embedding inside the FastAPI process on the production VPS once
+retrieval lands (#16), CPU-only, no GPU on that box. This is the load-bearing
+argument for staying in the 30–120M-ish band rather than chasing raw MTEB
+rank; ingest-time speed doesn't matter (Mac + MPS, one-time job) but
+query-time speed on a small VPS does, every request.
+(c) *512 dims via MRL*: the model card documents a trained (not just
+truncated) Matryoshka checkpoint table — 768d: 62.28 MTEB, 512d: 61.96,
+256d: 61.04, 128d: 59.34, 64d: 56.10 (huggingface.co/nomic-ai/nomic-embed-
+text-v1.5, checked 2026-07-05) — 512 dims costs 0.32 points versus native
+768, negligible. D5's 512-dim pin holds unchanged.
+Nomic's asymmetric retrieval convention is mandatory, not optional: ingest
+prepends `search_document: `, the query side (#16) MUST prepend
+`search_query: ` or recall silently degrades — both prefixes are config
+knobs (`embedding_doc_prefix`/`embedding_query_prefix`) read by both sides.
+**Dependency gate — sentence-transformers==5.6.0** (measured 2026-07-05):
+*Popular:* 18,878 GitHub stars (huggingface/sentence-transformers, via GitHub
+API), 16.25M lifetime downloads of nomic-embed-text-v1.5 alone on the HF Hub.
+*Maintained:* latest release 5.6.0 uploaded 2026-06-16 (PyPI), repo last
+pushed 2026-07-03 (GitHub API) — Hugging Face org, human-reviewed merges.
+*Security:* `pip-audit` (via `uvx pip-audit`, synced backend env) — no known
+vulnerabilities; ships as wheels, no install-script surface; canonical HF
+name, no typosquat risk. *Pinned:* `==5.6.0`. **PASS.**
+**Dependency gate — torch==2.12.1** (measured 2026-07-05): *Popular:*
+101,518 GitHub stars (pytorch/pytorch). *Maintained:* 2.12.1 uploaded
+2026-06-17 (PyPI), repo pushed 2026-07-05 (GitHub API) — Meta/PyTorch
+Foundation governance. *Security:* same `pip-audit` run, clean; wheel-only
+install. *Pinned:* `==2.12.1`. **PASS.** (pypistats.org download-rank checks
+were attempted but rate-limited (HTTP 429) on 2026-07-05; GitHub stars +
+PyPI/HF metadata above are the substitute evidence — both packages are
+unambiguously top-tier by any measure, so the gate holds despite the gap.)
+*Alternatives rejected:* ONNX Runtime direct (skips sentence-transformers'
+prompt/pooling/MRL-truncation handling — reimplementing that correctly for
+one model is the kind of cleverness the gate exists to avoid); staying on
+Voyage only and just fixing the pacing (doesn't solve the production
+query-time throughput problem, which is the deeper reason for this pivot).
+**Per-model artifact keying (the owner's core requirement for this pivot):**
+every embedding artifact is now keyed by `embedding_model_slug` (short model
+name + dims) so two models' vectors can never mix: `corpus/vectors/
+<slug>.parquet`, shard dir `corpus/vectors/<slug>_shards/`, and the parquet
+FILE METADATA additionally carries full provenance (model, revision, dims,
+backend, created_at) via `EmbeddingProvenance`; `read_vectors()` refuses a
+slug mismatch rather than silently reading another model's vectors. The
+pre-existing Voyage partial shards moved under `voyage-4-lite_512_shards/`
+under the same convention. Downstream: #14 keys Chroma collections by the
+same slug; #18 tags eval runs by it — both issues carry matching coordinator
+notes.
+**Consequence:** the corpus embed run is now $0 (previously ~$0 net of the
+Voyage free quota, but throttled); the tradeoff is CPU cost at query time
+on the production VPS instead of an API call — untested until #16 lands and
+is measured on real request latency. Voyage stays fully wired behind
+`embedding_backend=voyage` for a future paid-tier or eval-driven swap; its
+tests, pacing config, and decisions.md history are unchanged.
+**Revisit when:** a paid embeddings tier enters the budget (Tier-1 billing
+addresses the throughput problem outright), or #18 evals show a paid/larger
+model retrieves meaningfully better than nomic-v1.5 on this corpus, or #16's
+measured query-time CPU latency on the target VPS spec is unacceptable (in
+which case a smaller model, not a cloud API, is the first thing to try given
+the throughput argument that motivated this pivot).
+Spec updated: D5 (second amendment), §4b table (Embeddings + Vector archive
+rows), §4c tree (`corpus/vectors/<model_slug>.parquet`).
+
+---
+
+## 2026-07-05 — Dependency gate: pyarrow==24.0.0 (vectors.parquet, D5) (#13)
+
+**Context:** D4/D5 and the §4c tree name `corpus/vectors.parquet` as the
+embedding archive, but §4b listed no parquet implementation; pyarrow entered
+the lockfile in PR #53 without a gate record (review finding, coordinator-
+approved contingent on this record).
+**Gate record — pyarrow 24.0.0** (all numbers measured 2026-07-05):
+*Popular:* 390,713,980 PyPI downloads last month (pypistats.org) — top-tier;
+apache/arrow 16,904 GitHub stars. *Maintained:* 24.0.0 is the latest release,
+uploaded 2026-04-21 (PyPI), Apache Arrow project (ASF governance,
+human-reviewed merges). *Security:* `pip-audit` on the synced backend env —
+no advisories against pyarrow; installs from binary wheels (the wheel format
+has no install-script hook), canonical name from the Apache project, no
+typosquat surface. *Pinned:* `==24.0.0`. **PASS.**
+*Alternatives rejected:* fastparquet (a fraction of the adoption, no Arrow
+interop); duckdb (a whole query engine for one read/write path); polars
+(dataframe library where only the Arrow storage layer is needed).
+*Side observation for the coordinator:* the same audit flags pre-existing
+`chromadb 1.5.9` → PYSEC-2026-311 (no fix version published yet) — on main
+before this PR, tracked outside it.
+Spec updated: §4b table (Vector archive row).
+
+---
+
+## 2026-07-05 — Embeddings: Voyage AI free tier replaces OpenAI (owner directive 2026-07-05) (#13)
+
+**Context:** D5 defaulted to OpenAI text-embedding-3-small @512d (~$2–13
+one-time). The owner directed the pivot to Voyage AI, whose free tier grants
+200M tokens per current-generation model. Verified against docs.voyageai.com
+on 2026-07-05: `voyage-4-lite` is the cheapest current text model with
+`output_dimension=512` support ($0.02/Mtok list, 200M free tokens, 1,000
+inputs / 1M tokens per request; the documented 2,000 RPM / 16M TPM table is
+Tier 1, which requires a payment method on file — see measured correction
+below). voyage-3.5-lite — the model D5 originally named as the alternative —
+is the same list price but gets **no** free quota as a superseded model.
+**Decision:** embed with `voyage-4-lite` at 512 dims via raw httpx against
+`POST /v1/embeddings` (httpx is §4b pre-approved; one endpoint does not
+justify the `voyageai` package — the `openai` dep leaves the lockfile, this
+was its only consumer). Corpus chunks send `input_type="document"`; the query
+side (#15) must send `input_type="query"`.
+**Frugality consequence:** while on the free tier, spend discipline is a hard
+constraint: tests never call the API (faked backend + MockTransport), backoff
+honors Retry-After and never retry-storms, `--estimate` (no key, no network)
+prices every run first, and full runs need an explicit owner/coordinator go.
+The working corpus (~4.5M cl100k tokens) and even the full corpus (~80–100M)
+fit inside the 200M free quota, so the expected one-time cost is $0. Chunk
+`n_tokens` remain cl100k_base counts — estimates and batch caps carry margin
+because Voyage bills on its own tokenizer; billed truth is API-reported usage
+(measured ratio on real chunks 2026-07-05: 1.009 Voyage per cl100k token).
+**Measured correction (2026-07-05, first full run):** our no-payment-method
+account gets **3 RPM / 10K TPM** (stated verbatim in Voyage's 429 body; the
+docs publish no sub-Tier-1 numbers). Any batch over ~10k tokens can never
+pass, which 429'd the first run's 100k-token batches permanently. Config
+defaults now fit the unpaid tier: 9,000-token batches + 62s inter-batch pause
+(`embed_batch_pause_seconds`) ≈ 8.7k tokens/min → the working corpus takes
+~8.6 h, resumable throughout. Tier 1 (payment method added, still $0 via free
+tokens) would cut this to minutes — the owner's call, not ours.
+**Alternatives rejected:** staying on OpenAI (real dollars for no quality
+argument yet); `voyageai` SDK (new dependency for one POST); voyage-3.5-lite
+(no free quota).
+**Revisit trigger:** Voyage free-tier terms change or quota exhausts;
+milestone-2 evals (#19) show a better-retrieving model worth paying for; or
+query-time latency/outage behavior forces a second provider.
+Spec updated: D5 (amendment), §4b table (Embeddings row).
+
+---
+
 ## 2026-07-05 — Live agent LLM: OpenRouter-routed model via env (owner directive)
 
 **Context:** owner provisioned `OPENROUTER_API_KEY` + `OPENROUTER_MODEL`
@@ -34,6 +193,7 @@ amendment lands in the same PR as that code. Cost model (§7) re-checked
 then (DeepSeek pricing differs from Haiku).
 Spec updated: pending — D2/D3 amended in the agent-loop PR (#22/#23).
 
+---
 
 ## 2026-07-05 — Frontend scaffold: ESLint pinned to 9; CI gains pnpm/node actions (#26)
 

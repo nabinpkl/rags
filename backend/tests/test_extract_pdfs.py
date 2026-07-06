@@ -191,3 +191,25 @@ def test_limit_takes_even_stride(corpus):
     assert stats.total == 3
     extracted = sorted(p.stem for p in corpus["extracted"].glob("*.json"))
     assert extracted == ["2600.00001", "2603.00001", "2606.00001"]
+
+
+def test_sample_page_cap_excludes_monsters_without_skiplisting(corpus):
+    # Sampling policy (issue #11): monster papers are excluded from sample
+    # SELECTION, not extraction — they stay off the skiplist entirely.
+    for i in range(4):
+        make_pdf(corpus["pdfs"] / "2601" / f"2601.0000{i}.pdf", ["1 A"])
+    make_pdf(corpus["pdfs"] / "2601" / "2601.99999.pdf", ["1 A"], body_pages_after=5)  # 6 pages
+    stats = run(corpus, limit=4, sample_max_pages=3)
+    assert stats.total == 4
+    extracted = sorted(p.stem for p in corpus["extracted"].glob("*.json"))
+    assert "2601.99999" not in extracted
+    assert not corpus["skiplist"].exists() or "2601.99999" not in json.loads(
+        corpus["skiplist"].read_text()
+    )
+
+
+def test_page_cap_ignored_on_full_corpus_runs(corpus):
+    make_pdf(corpus["pdfs"] / "2601" / "2601.00001.pdf", ["1 A"], body_pages_after=5)
+    stats = run(corpus, sample_max_pages=3)  # no limit -> not a sample build
+    assert stats.extracted == 1
+    assert (corpus["extracted"] / "2601.00001.json").exists()

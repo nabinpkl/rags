@@ -212,6 +212,17 @@ def _is_current(out_path: Path, pdf_path: Path) -> bool:
     return out_path.exists() and out_path.stat().st_mtime >= pdf_path.stat().st_mtime
 
 
+def _page_count(pdf_path: Path) -> int:
+    # Metadata-only open, no rendering. An unopenable PDF returns 0 so it
+    # stays in the sample and fails through the normal skiplist path with a
+    # real reason, instead of being silently size-filtered.
+    try:
+        with pymupdf.open(pdf_path) as doc:
+            return doc.page_count
+    except Exception:
+        return 0
+
+
 def run(
     pdfs_dir: Path,
     extracted_dir: Path,
@@ -219,6 +230,7 @@ def run(
     workers: int,
     limit: int | None = None,
     retry_skipped: bool = False,
+    sample_max_pages: int = 0,
 ) -> RunStats:
     """Extract every PDF under pdfs_dir; returns counts for the run summary."""
     extracted_dir.mkdir(parents=True, exist_ok=True)
@@ -226,6 +238,20 @@ def run(
 
     all_pdfs = sorted(pdfs_dir.rglob("*.pdf"))
     if limit is not None and limit < len(all_pdfs):
+        # Sampling policy (owner directive 2026-07-05, issue #11): monster
+        # papers distort a sample (one 398-page monograph was 10% of all
+        # working-sample chunks), so a page cap filters them out BEFORE
+        # selection. Full-corpus runs never apply the cap; excluded PDFs are
+        # not skiplisted — they are valid papers, just not sample material.
+        if sample_max_pages > 0:
+            before = len(all_pdfs)
+            all_pdfs = [p for p in all_pdfs if _page_count(p) <= sample_max_pages]
+            _log.info(
+                "sample page cap %d: excluded %d of %d PDFs from selection",
+                sample_max_pages,
+                before - len(all_pdfs),
+                before,
+            )
         # Evenly strided sample: spans the year folders instead of the
         # oldest slice, so sample latency projects onto the full corpus.
         stride = len(all_pdfs) // limit
@@ -337,6 +363,7 @@ def main(argv: list[str] | None = None) -> int:
             workers=args.workers,
             limit=args.limit,
             retry_skipped=args.retry_skipped,
+            sample_max_pages=settings.sample_max_pages,
         )
     finally:
         # Flush before exit: the CLI process ends right after the run span, and
