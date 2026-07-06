@@ -806,7 +806,7 @@ rags/
 │   │   ├── tools/
 │   │   │   ├── registry.py          # tool JSON schemas sent to the model + name→handler dispatch table
 │   │   │   ├── search_corpus.py     # tool: hybrid retrieval with filters → chunks + provenance
-│   │   │   ├── query_metadata.py    # tool: SELECT-only single-statement SQL, row/time limits (§5)
+│   │   │   ├── query_metadata.py    # tool: enum'd count/histogram/point-lookup ops; no model SQL (§5)
 │   │   │   ├── read_paper.py        # tool: extracted text spans by paper id + page range
 │   │   │   ├── run_python.py        # tool: dispatch code to sandbox/runner, collect stdout + PNGs
 │   │   │   └── drive_ui.py          # tool: enum-validated UI actions, server-verified against corpus.db (§5)
@@ -835,7 +835,7 @@ rags/
 │       ├── test_context_window.py
 │       ├── test_budgets.py          # every cap layer trips at its boundary; replay mode engages
 │       ├── test_registry.py         # tool schemas validate; unknown tool names rejected
-│       ├── test_query_metadata.py   # SELECT-only enforcement: INSERT/UPDATE/multi-statement/PRAGMA all refused
+│       ├── test_query_metadata.py   # per-op correctness; off-enum group_by + free-form sql field refused
 │       ├── test_drive_ui.py         # enum validation; nonexistent paper ids refused
 │       ├── test_hybrid_search.py    # RRF math; filters push down; empty-leg degradation (D5 outage mode)
 │       ├── test_chunk_papers.py     # section boundaries respected; page anchors correct; overlap size
@@ -976,7 +976,7 @@ All tools are **read-only by construction**, not by convention:
 | Tool | Contract | Enforcement |
 |---|---|---|
 | `search_corpus(query, filters, k)` | hybrid top-k chunks + provenance | filters validated against schema enum |
-| `query_metadata(sql)` | SELECT over `papers`/`chunks` views | SQLite opened read-only; single-statement SELECT-only parse; row + time limits |
+| `query_metadata(op)` | enum'd structured metadata queries — `count_papers` (scalar/histogram), `paper_facets` (point lookup), `corpus_stats` (totals); no model-authored SQL | discriminated union of exactly 3 typed ops (mirrors `drive_ui`); every op runs a fixed parameterized SQL template, `group_by` resolves through a server-side column map, never string-interpolated |
 | `read_paper(id, pages?)` | extracted text spans | id must exist in DB |
 | `run_python(code)` | stdout + PNGs | D10 container: no net, ro-mounts, rlimits |
 | `drive_ui(action)` | `open_paper\|goto_page\|set_filters` + validated args | server validates against enum + DB before forwarding; never free-form URLs/HTML |
@@ -997,7 +997,7 @@ box is public.
 | Output-side XSS | Model emits hostile markdown/HTML sourced from a paper | Render as sanitized markdown (no raw HTML); citations verified server-side against real chunk ids before display |
 | Sandbox abuse | Injected/hostile code in `run_python` | D10: no network, read-only public data, rlimits, fresh container, non-root |
 | Cross-user leakage | Session bleed, shared caches | Ephemeral sessions (TTL, server-side); no cross-user caches except the immutable corpus; per-execution sandboxes |
-| SQL injection (ish) | `query_metadata` is *designed* to accept model SQL | Read-only connection + SELECT-only single-statement parse + limits; worst case = reading public data slowly, bounded by timeout |
+| SQL injection (ish) | N/A — no model-authored SQL; `query_metadata` is an enum'd union of parameterized shapes only (decisions.md 2026-07-06, pre-#23) | Vector retired: filters bind as `?`, `group_by` resolves through a server-side column map, no free-form SQL field exists in the schema |
 | Box compromise | Standard VPS surface | Caddy auto-TLS, ssh keys only, fail2ban, unattended-upgrades, admin behind basic-auth + Cloudflare |
 
 **Residual risks, stated:** kernel-level container escape (accepted — public
