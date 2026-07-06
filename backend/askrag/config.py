@@ -7,6 +7,7 @@ askrag. Enforced by tests/test_config.py, which scans the source tree.
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,29 +33,89 @@ class Settings(BaseSettings):
     agent_usd_per_mtok_in: float = 1.00
     agent_usd_per_mtok_out: float = 5.00
     agent_usd_per_mtok_cache_read: float = 0.10
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dims: int = 512  # Matryoshka truncation (D5)
+    # Backend + model are a PAIR: "local" expects a Hugging Face model id,
+    # "voyage" expects a Voyage model name (voyage-4-lite is the parked-but-
+    # working operating point — decisions.md 2026-07-05, D5 amendment).
+    embedding_backend: Literal["local", "voyage"] = "local"
+    embedding_model: str = "nomic-ai/nomic-embed-text-v1.5"
+    embedding_dims: int = 512  # a documented trained MRL point for this model (D5)
+    # Local backend only: HF revision pin so a model-card force-push can't
+    # silently change our vectors; weights cache under corpus/ (gitignored),
+    # never committed.
+    embedding_model_revision: str = "e9b6763023c676ca8431644204f50c2b100d9aab"
+    embedding_cache_dir: Path = _REPO_ROOT / "corpus" / "models"
+    # Asymmetric retrieval prompts — MANDATORY for nomic (model card).
+    # Ingest prepends doc_prefix; the query side (#16) MUST prepend
+    # query_prefix or recall silently degrades.
+    embedding_doc_prefix: str = "search_document: "
+    embedding_query_prefix: str = "search_query: "
 
     # --- API keys (env-only; standard names, no ASKRAG_ prefix) -----------
     anthropic_api_key: SecretStr = Field(
         default=SecretStr(""), validation_alias="ANTHROPIC_API_KEY"
     )
-    openai_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="OPENAI_API_KEY")
+    voyage_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="VOYAGE_API_KEY")
 
     # --- ingest: extraction (D6) -------------------------------------------
     extract_workers: int = 8  # process pool size; extraction is CPU-bound C
+    # 0 = no cap. When a --limit SAMPLE is built, PDFs over this page count
+    # are excluded from selection first (owner directive 2026-07-05: one
+    # 398-page monograph was 10% of all working-sample chunks, distorting
+    # it). Full-corpus runs ignore the cap; excluded papers are not
+    # skiplisted — they are valid, just not sample material. Applies at the
+    # next sample rebuild; the current working corpus is NOT regenerated.
+    sample_max_pages: int = 0
 
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000
     chunk_overlap_ratio: float = 0.15
-    # cl100k_base matches text-embedding-3-small (D5); chunk token counts must
-    # be measured with the same encoding the embedder bills on.
+    # cl100k_base sizes chunks and batches. Voyage bills on its own tokenizer
+    # (D5 amendment), so stored n_tokens are estimates there — batch caps and
+    # --estimate carry margin for the difference; billing truth is API usage.
     tokenizer_encoding: str = "cl100k_base"
     # 0 = no merge (current strict-D7 behavior). The eval-sweep knob wired in
     # #19: chunk COUNT is eval-gated (D7 revisit + D14), not a target, so
     # tail-merge of sub-threshold chunks stays disabled until evals measure
     # whether the small-chunk tail hurts recall (decisions.md 2026-07-05).
     chunk_min_tokens: int = 0
+
+    # --- ingest: embedding (D5 as amended; decisions.md 2026-07-05) ---------
+    # Prices the --estimate for API backends; local runs cost $0 by
+    # construction (voyage-4-lite list price kept for the parked path).
+    embedding_usd_per_mtok: float = 0.02
+    # Batch caps size one encode/POST call and one resume shard. Defaults fit
+    # the local backend. The parked Voyage path on an unpaid account must
+    # retune via env — measured 2026-07-05 (Voyage 429 body): no-payment
+    # accounts get 3 RPM / 10K TPM (docs' 2,000 RPM / 16M TPM is Tier 1,
+    # payment method added), so use max_tokens≈9000 + pause≈62 there
+    # (cl100k ≈ Voyage tokens, measured ratio 1.009).
+    # 1,024-chunk shards keep the encode loop hot (an idle process between
+    # small shard writes is an eviction target under memory pressure —
+    # coordinator diagnosis 2026-07-05); with ~560-token mean chunks the
+    # items cap binds first.
+    embed_batch_max_items: int = 1024
+    embed_batch_max_tokens: int = 1_000_000
+    # Inner encode() micro-batch for the local backend. Measured 2026-07-05
+    # on M-series MPS with ~1k-token chunks: 16 → 0.25s/chunk; the ST default
+    # (32) tips unified memory into thrash (~7.5s/chunk, 30x slower).
+    embed_encode_batch_size: int = 16
+    # Local backend working-set controls (coordinator diagnosis 2026-07-05:
+    # an fp32 run at the model-default 8192 seq length swapped out on a
+    # loaded box — 9MB worker RSS, chaotic batch times, 28.5 chunks/min).
+    # float16 halves model+activation memory (retrieval-quality impact
+    # negligible); max_seq caps activation size — measured over all 7,974
+    # working-corpus chunks with the nomic tokenizer: p99=1,290 model
+    # tokens, only 3 chunks exceed 1,536 (max 3,747; their tails truncate,
+    # acceptable for retrieval) vs the 8192 model default.
+    embed_local_dtype: Literal["float16", "float32"] = "float16"
+    embed_max_seq_tokens: int = 1536
+    # "" = library auto-pick (MPS on this Mac); "cpu" is the measured
+    # fallback if MPS+swap loses to plain CPU on a loaded box.
+    embed_device: str = ""
+    embed_batch_pause_seconds: float = 0.0
+    embed_retry_max_attempts: int = 6
+    embed_retry_base_seconds: float = 2.0
+    embed_request_timeout_seconds: float = 120.0
 
     # --- retrieval (D8; defaults until measured) --------------------------
     rrf_k: int = 60
@@ -120,8 +181,25 @@ class Settings(BaseSettings):
         return self.corpus_dir / "chunks.jsonl"
 
     @property
+    def embedding_model_slug(self) -> str:
+        # Keys every embedding artifact so two models' outputs can never mush
+        # together (D5 per-model provenance): short model name + dims.
+        name = self.embedding_model.split("/")[-1].lower()
+        return f"{name}_{self.embedding_dims}"
+
+    @property
+    def vectors_dir(self) -> Path:
+        return self.corpus_dir / "vectors"
+
+    @property
     def vectors_parquet_path(self) -> Path:
-        return self.corpus_dir / "vectors.parquet"
+        return self.vectors_dir / f"{self.embedding_model_slug}.parquet"
+
+    @property
+    def vectors_shards_dir(self) -> Path:
+        # One shard per embedded batch; merged into the per-model parquet at
+        # the end of a complete run (embed_chunks resume mechanism, D5).
+        return self.vectors_dir / f"{self.embedding_model_slug}_shards"
 
     @property
     def skiplist_path(self) -> Path:

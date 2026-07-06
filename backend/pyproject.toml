@@ -10,13 +10,15 @@ dependencies = [
     "chromadb==1.5.9",
     "fastapi>=0.139.0",
     "httpx>=0.28.1",
-    "openai>=2.44.0",
     "opentelemetry-exporter-otlp-proto-http==1.43.0",
     "opentelemetry-sdk==1.43.0",
+    "pyarrow==24.0.0",
     "pydantic-settings>=2.14.2",
     "pymupdf4llm>=1.28.0",
+    "sentence-transformers==5.6.0",
     "sse-starlette>=3.4.5",
     "tiktoken>=0.13.0",
+    "torch==2.12.1",
     "uvicorn>=0.50.0",
 ]
 
