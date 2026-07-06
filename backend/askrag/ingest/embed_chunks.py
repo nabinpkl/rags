@@ -47,7 +47,7 @@ import types
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol, Self
+from typing import Literal, Protocol, Self
 
 import httpx
 import pyarrow as pa
@@ -195,9 +195,16 @@ class VoyageEmbeddings:
 
     Owns its httpx.Client as a context manager. `transport` is a test seam
     (httpx.MockTransport) so the request/response contract is provable offline.
+    `input_kind` is the asymmetric-retrieval role (D5): "document" at ingest,
+    "query" on the retrieval side (#16) — values match Voyage's input_type.
     """
 
-    def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        transport: httpx.BaseTransport | None = None,
+        input_kind: Literal["document", "query"] = "document",
+    ) -> None:
         key = settings.voyage_api_key.get_secret_value()
         if not key:
             raise EmbeddingError(
@@ -212,6 +219,7 @@ class VoyageEmbeddings:
         )
         self._model = settings.embedding_model
         self._dims = settings.embedding_dims
+        self._input_type = input_kind
 
     def __enter__(self) -> Self:
         return self
@@ -230,7 +238,7 @@ class VoyageEmbeddings:
             json={
                 "model": self._model,
                 "input": texts,
-                "input_type": "document",
+                "input_type": self._input_type,
                 "output_dimension": self._dims,
             },
         )
@@ -255,7 +263,11 @@ class LocalEmbeddings:
     (#16), which is why D5's amendment favors a small CPU-friendly model.
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        input_kind: Literal["document", "query"] = "document",
+    ) -> None:
         if not settings.embedding_model_revision:
             raise EmbeddingError(
                 "embedding_model_revision must pin a HF commit hash — an "
@@ -266,7 +278,14 @@ class LocalEmbeddings:
         import torch
         from sentence_transformers import SentenceTransformer
 
-        self._doc_prefix = settings.embedding_doc_prefix
+        # The asymmetric-retrieval contract (model card, D5): documents get
+        # embedding_doc_prefix, queries MUST get embedding_query_prefix or
+        # recall silently degrades — no error, just worse results (#16).
+        self._prefix = (
+            settings.embedding_doc_prefix
+            if input_kind == "document"
+            else settings.embedding_query_prefix
+        )
         self._encode_batch_size = settings.embed_encode_batch_size
         self._model = SentenceTransformer(
             settings.embedding_model,
@@ -299,18 +318,27 @@ class LocalEmbeddings:
         # Normalized so downstream cosine/IP treat both backends alike;
         # truncate_dim above applies MRL truncation before normalization.
         vectors = self._model.encode(
-            [self._doc_prefix + text for text in texts],
+            [self._prefix + text for text in texts],
             batch_size=self._encode_batch_size,
             normalize_embeddings=True,
         )
         return BatchEmbedding(vectors=[list(map(float, v)) for v in vectors], total_tokens=0)
 
 
-def make_backend(settings: Settings) -> LocalEmbeddings | VoyageEmbeddings:
-    """The backend registry — a literal dispatch, no metaprogramming (§4d)."""
+def make_backend(
+    settings: Settings,
+    *,
+    input_kind: Literal["document", "query"] = "document",
+) -> LocalEmbeddings | VoyageEmbeddings:
+    """The backend registry — a literal dispatch, no metaprogramming (§4d).
+
+    Ingest uses the "document" default; retrieval/embeddings.py (#16) is the
+    only "query" caller — both roles share one factory so the prefix pairing
+    can never drift between sides.
+    """
     if settings.embedding_backend == "local":
-        return LocalEmbeddings(settings)
-    return VoyageEmbeddings(settings)
+        return LocalEmbeddings(settings, input_kind=input_kind)
+    return VoyageEmbeddings(settings, input_kind=input_kind)
 
 
 @dataclass
