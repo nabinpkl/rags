@@ -67,6 +67,20 @@ def test_run_wraps_hybrid_search_and_returns_scored_chunks(corpus_db):
     assert result.chunks[0].paper_id == "2401.00001"
 
 
+def test_to_model_payload_is_a_plain_dict_of_chunk_dicts(corpus_db):
+    searcher = HybridSearch(
+        Settings(),
+        embedder=FakeEmbedder(),
+        vector_store=FakeStore(["2401.00001#0"]),
+        corpus_db_path=corpus_db,
+    )
+    result = run(SearchCorpusArgs(query="attention"), searcher=searcher)
+    payload = result.to_model_payload()
+    assert isinstance(payload, dict)
+    assert isinstance(payload["chunks"], list)
+    assert payload["chunks"][0]["paper_id"] == "2401.00001"
+
+
 def test_k_is_clamped_to_search_corpus_max_k(corpus_db):
     # 20 is within the schema's static `le` ceiling (the config default, 25)
     # but above this run's overridden settings ceiling (3) — run() must clamp

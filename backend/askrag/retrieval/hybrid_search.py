@@ -7,8 +7,16 @@ summed across legs — so no leg weights to tune (D8).
 
 Degradation contract (D8, deliberate): the VECTOR leg failing (model gone,
 API outage on the parked path) degrades to BM25-only results with a warning
-— the site limps, it does not die. corpus.db failing is fatal by design:
-without it there is no text to return at all.
+— the site limps, it does not die. Only the operational error set
+(`_VECTOR_LEG_OPERATIONAL_ERRORS`) triggers this, expressed ENTIRELY in this
+codebase's own exception vocabulary (`VectorStoreError`, `EmbeddingError`,
+raw `OSError`) — this module never names an httpx or chromadb type itself;
+`vector_store.py` and `embeddings.py` translate their own library's
+operational errors into that vocabulary at their own boundary (a code bug
+there stays raw and propagates, PR #59 review findings 2/3). A code bug in
+the embed/query path fails loud instead of degrading (2026-07-06 checkpoint
+finding 3). corpus.db failing is fatal by design: without it there is no
+text to return at all.
 
 Rerank (config.rerank_enabled) ships only if evals justify it (D8/#19); the
 flag exists, the stage does not yet.
@@ -30,9 +38,20 @@ from typing import Protocol
 
 from askrag import db, telemetry
 from askrag.config import Settings, get_settings
+from askrag.ingest.embed_chunks import EmbeddingError
 from askrag.retrieval import fts
 from askrag.retrieval.embeddings import QueryEmbedder
-from askrag.retrieval.vector_store import VectorStore
+from askrag.retrieval.vector_store import VectorStore, VectorStoreError
+
+# The vector leg's fail-soft set (D8): store/collection unusable, the
+# embedding API/model unreachable, or a raw local IO failure — all genuine
+# OUTAGES, named ONLY in this codebase's own vocabulary (never an httpx or
+# chromadb type — that leaks a library taxonomy up past the
+# VectorStoreLike/pgvector seam, D4; PR #59 review findings 2/3). Anything
+# else (KeyError, AttributeError, a dimension mismatch, a non-retryable 4xx)
+# is a CODE BUG, not an outage, and must fail loud instead of masquerading as
+# a silent BM25-only degrade (2026-07-06 checkpoint finding 3).
+_VECTOR_LEG_OPERATIONAL_ERRORS = (VectorStoreError, EmbeddingError, OSError)
 
 _log = logging.getLogger("askrag.retrieval.hybrid_search")
 
@@ -146,10 +165,12 @@ class HybridSearch:
                     year_min=filters.year_min,
                     year_max=filters.year_max,
                 )
-            except Exception:
+            except _VECTOR_LEG_OPERATIONAL_ERRORS:
                 # Fail-soft BY DESIGN (D8): a dead vector leg degrades to
                 # BM25-only, never a dead site. corpus.db errors below stay
-                # fatal — without it there is nothing to return.
+                # fatal — without it there is nothing to return. Narrowed to
+                # the operational error set (finding 3): a code bug now
+                # propagates instead of silently degrading.
                 _log.warning("vector leg failed; degrading to BM25-only (D8)", exc_info=True)
                 span.set_attribute("askrag.degraded", True)
 

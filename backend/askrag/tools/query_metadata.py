@@ -29,6 +29,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -52,11 +53,27 @@ class QueryMetadataArgs(BaseModel):
     sql: str = Field(min_length=1, description="a single read-only SELECT statement")
 
 
+def _json_safe_cell(value: object) -> object:
+    """A BLOB literal (e.g. `SELECT X'48656c6c6f'`) is legal, authorizer-blind
+    SQL syntax, not a function call, so it slips the SQLITE_FUNCTION
+    allow-list and comes back as `bytes` — not JSON-shaped (PR #59 review
+    finding 1). Hex-encode: readable in a debug/trace payload and stable
+    under repeated encode/decode, unlike base64's padding/charset quirks."""
+    return value.hex() if isinstance(value, bytes) else value
+
+
 @dataclass(frozen=True)
 class QueryMetadataResult:
     columns: tuple[str, ...]
     rows: tuple[tuple[object, ...], ...]
     truncated: bool  # more rows matched than query_metadata_max_rows allows
+
+    def to_model_payload(self) -> dict[str, Any]:
+        return {
+            "columns": list(self.columns),
+            "rows": [[_json_safe_cell(v) for v in row] for row in self.rows],
+            "truncated": self.truncated,
+        }
 
 
 _Authorizer = Callable[[int, str | None, str | None, str | None, str | None], int]

@@ -17,7 +17,7 @@ loosely-optional mega-schema.
 
 import sqlite3
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
@@ -28,14 +28,23 @@ class DriveUiError(Exception):
     """The action's target (paper id, page, category) does not exist (§5)."""
 
 
-class OpenPaperArgs(BaseModel):
+class _DriveUiAction(BaseModel):
+    """Shared by the three action shapes: the registry's uniform fence seam
+    (§5/§6, 2026-07-06 checkpoint finding 2) — `model_dump()` is already a
+    plain dict, so this just names that as the tool-result contract."""
+
+    def to_model_payload(self) -> dict[str, Any]:
+        return self.model_dump()
+
+
+class OpenPaperArgs(_DriveUiAction):
     model_config = ConfigDict(extra="forbid")
 
     action: Literal["open_paper"] = "open_paper"
     paper_id: str = Field(min_length=1)
 
 
-class GotoPageArgs(BaseModel):
+class GotoPageArgs(_DriveUiAction):
     model_config = ConfigDict(extra="forbid")
 
     action: Literal["goto_page"] = "goto_page"
@@ -43,7 +52,7 @@ class GotoPageArgs(BaseModel):
     page: int = Field(ge=1)
 
 
-class SetFiltersArgs(BaseModel):
+class SetFiltersArgs(_DriveUiAction):
     model_config = ConfigDict(extra="forbid")
 
     action: Literal["set_filters"] = "set_filters"

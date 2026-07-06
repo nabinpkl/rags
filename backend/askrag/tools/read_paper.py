@@ -1,17 +1,21 @@
-"""tool: read_paper — extracted text spans by paper id + page range (§5/§6c).
+"""tool: read_paper — page-bounded extracted text for the MODEL's deep read
+(§5/§6c row 1).
 
 Reads from `chunks` (already extracted, section-chunked text — D6/D7), never
 from `corpus/pdfs/` — this tool has no PDF bytes to serve or cache even by
 accident (§6b: PDFs reach users only via their own browser hitting arxiv.org,
-D9). Every span is truncated to `quote_max_words` words and the whole result
-is capped to `max_quotes_per_paper` spans (§6c) — the tool physically cannot
-hand back a paper's full text, independent of whatever the eventual
-answer-level display cap (frontend, #26+) also does.
+D9). The result is a page-ordered prefix of the matching chunks, bounded by
+`read_paper_max_tokens` (summed from each chunk's stored `n_tokens`) — a real
+budget for a real deep read (§6c row 1, D1), not the ≤50-word/≤3-quote
+*display* cap. That cap governs verbatim quotes surfacing in an ANSWER (§6c
+row 4, decisions.md 2026-07-06) and is enforced at answer-assembly (#23/#30)
+and the frontend (#26) — never here.
 """
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -37,31 +41,36 @@ class TextSpan:
     page_start: int
     page_end: int
     text: str
-    truncated: bool  # this span held more than quote_max_words words
 
 
 @dataclass(frozen=True)
 class ReadPaperResult:
     paper_id: str
     spans: tuple[TextSpan, ...]
-    spans_available: int  # chunks matching the page range, before the max_quotes_per_paper cap
+    spans_available: int  # chunks matching the page range, before the token budget cut
+    tokens_used: int  # sum of the returned spans' stored n_tokens
+    truncated: bool  # more chunks matched than read_paper_max_tokens allowed through
+
+    def to_model_payload(self) -> dict[str, Any]:
+        # Explicit dict, not bare `asdict(self)`: asdict() would leave
+        # `spans` as a tuple of dicts, not the plain list a JSON-facing
+        # payload should carry (§5/§6 fence seam, 2026-07-06 checkpoint
+        # finding 2).
+        return {
+            "paper_id": self.paper_id,
+            "spans": [asdict(s) for s in self.spans],
+            "spans_available": self.spans_available,
+            "tokens_used": self.tokens_used,
+            "truncated": self.truncated,
+        }
 
 
-def _truncate_words(text: str, max_words: int) -> tuple[str, bool]:
-    words = text.split()
-    if len(words) <= max_words:
-        return text, False
-    return " ".join(words[:max_words]), True
-
-
-def _make_span(row: sqlite3.Row, max_words: int) -> TextSpan:
-    text, truncated = _truncate_words(row["text"], max_words)
+def _make_span(row: sqlite3.Row) -> TextSpan:
     return TextSpan(
         section=row["section"],
         page_start=row["page_start"],
         page_end=row["page_end"],
-        text=text,
-        truncated=truncated,
+        text=row["text"],
     )
 
 
@@ -80,7 +89,9 @@ def run(
         if exists is None:
             raise ReadPaperError(f"no paper with id {args.paper_id!r} in corpus.db")
 
-        query = "SELECT section, page_start, page_end, text FROM chunks WHERE paper_id = ?"
+        query = (
+            "SELECT section, page_start, page_end, text, n_tokens FROM chunks WHERE paper_id = ?"
+        )
         params: list[object] = [args.paper_id]
         if args.page_start is not None:
             query += " AND page_end >= ?"
@@ -93,6 +104,22 @@ def run(
     finally:
         conn.close()
 
-    capped = rows[: settings.max_quotes_per_paper]
-    spans = tuple(_make_span(row, settings.quote_max_words) for row in capped)
-    return ReadPaperResult(paper_id=args.paper_id, spans=spans, spans_available=len(rows))
+    # Page-ordered prefix under the token budget. Always take at least one
+    # chunk even if it alone exceeds the budget — the tool must not go silent
+    # on a paper whose single matching chunk is oversized.
+    included: list[sqlite3.Row] = []
+    tokens_used = 0
+    for row in rows:
+        if included and tokens_used + row["n_tokens"] > settings.read_paper_max_tokens:
+            break
+        included.append(row)
+        tokens_used += row["n_tokens"]
+
+    spans = tuple(_make_span(row) for row in included)
+    return ReadPaperResult(
+        paper_id=args.paper_id,
+        spans=spans,
+        spans_available=len(rows),
+        tokens_used=tokens_used,
+        truncated=len(included) < len(rows),
+    )

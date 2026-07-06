@@ -134,6 +134,15 @@ class Settings(BaseSettings):
     # search_corpus clamps a model-supplied k to this ceiling — a pathological
     # tool call can't ask for the whole corpus in one shot.
     search_corpus_max_k: int = 25
+    # read_paper's model-facing token budget (§6c row 1: "the model may read
+    # full text via read_paper" — a real deep-read, not the ≤50w/≤3-quote
+    # display cap, which moved to answer-assembly/#23/#30, decisions.md
+    # 2026-07-06). 16,000 ≈ 20% of message_token_budget: generous enough to
+    # cover a full short arXiv CS paper's chunks (~1,000 tokens/chunk, D7) or
+    # a substantial page range of a longer one, while still leaving room for
+    # several more tool calls within one message's budget (max_tool_steps_
+    # per_message=8) instead of one read_paper call alone spending it.
+    read_paper_max_tokens: int = 16_000
 
     # --- agent loop (D1/D2) ------------------------------------------------
     max_tool_steps_per_message: int = 8
