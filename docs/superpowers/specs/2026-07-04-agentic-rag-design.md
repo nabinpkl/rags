@@ -239,6 +239,37 @@ free tier: rate-limit-aware batching, Retry-After-honoring backoff, and a
 no-network `--estimate` gate before any paid/full run. Extra revisit trigger:
 Voyage free-tier terms change, or milestone-2 evals justify a paid model.
 
+**Second amendment (2026-07-05, #13 — owner directive).** Default backend is
+now **local**, not Voyage: the measured unpaid-tier throttle (3 RPM / 10K
+TPM, previous amendment) made the one-time corpus embed an 8.6h paced job and
+— the sharper problem — would cap query-time throughput in production too.
+`config.py` gets `embedding_backend: Literal["local", "voyage"]` (default
+`"local"`); Voyage stays fully wired behind the flag, unchanged, for a future
+paid tier. Local default model: **nomic-ai/nomic-embed-text-v1.5** (137M
+params) via `sentence-transformers`, pinned to HF revision
+`e9b6763023c676ca8431644204f50c2b100d9aab`, `truncate_dim=512` — its model
+card documents trained-in Matryoshka checkpoints (768d: 62.28 MTEB, 512d:
+61.96, negligible loss) rather than untested truncation, and its MTEB suite
+includes arXiv-domain retrieval/clustering tasks directly relevant to this
+corpus. Chosen over stronger-retrieval alternatives (snowflake-arctic-embed-
+m-v2.0, Qwen3-Embedding-0.6B, jina-embeddings-v3 — all 300M-600M params)
+because **the same model serves query-time embedding inside the FastAPI
+process on the production VPS** (#16) — CPU-only, no GPU — so parameter count
+against that budget outweighs a few MTEB points; ingest-time speed doesn't
+carry the same weight (Mac + MPS, one-time job). Uses Nomic's mandatory
+asymmetric prefixes (`search_document: ` / `search_query: `) — both sides
+read the same config knobs, or recall silently degrades. Full gate record
+(sentence-transformers, torch) and the model-selection evidence: decisions.md
+2026-07-05. **Per-model artifact keying** (new invariant, this amendment):
+every vectors parquet lives at `corpus/vectors/<model_slug>.parquet` (slug =
+short model name + dims) with full provenance in the parquet file metadata
+(model, revision, dims, backend, created_at); readers refuse a slug mismatch
+instead of silently mixing two models' vectors. Downstream: #14 keys Chroma
+collections by the same slug, #19 tags eval runs by it. Extra revisit
+trigger: a paid embeddings tier enters the budget, #19 evals show a paid or
+larger model retrieves meaningfully better on this corpus, or #16's measured
+query-time CPU latency on the target VPS is unacceptable.
+
 ---
 
 ### D6. PDF extraction: PyMuPDF4LLM, with a skip list, not a GPU parser
@@ -642,8 +673,8 @@ implies. Anything not listed here is not in v1.
 | API | **FastAPI** + uvicorn | routes, SSE via `sse-starlette`, OpenAPI schema doubles as the frontend's type source |
 | Validation | pydantic v2 | request/response + tool-argument schemas (the `drive_ui` enum lives here) |
 | LLM | `anthropic` SDK | Haiku 4.5, prompt caching, streaming (D3) |
-| Embeddings | httpx → Voyage REST API | voyage-4-lite @512d, free tier (D5 as amended); one POST endpoint, no SDK |
-| Vector archive | **pyarrow** (pinned) | writes/reads `vectors.parquet` — the D4/D5 embedding archive index layers rebuild from; gate record in decisions.md 2026-07-05 |
+| Embeddings | **sentence-transformers** (local, default) / httpx → Voyage REST API (parked) | nomic-embed-text-v1.5 @512d, `embedding_backend` flag (D5 second amendment); Voyage (voyage-4-lite @512d) stays wired behind the flag |
+| Vector archive | **pyarrow** (pinned) | writes/reads per-model `corpus/vectors/<model_slug>.parquet` — the D4/D5 embedding archive index layers rebuild from; gate record in decisions.md 2026-07-05 |
 | Vector store | **chromadb** (embedded, pinned) | D4 |
 | Metadata/FTS/traces | **sqlite3** stdlib + FTS5 | D4, D13; no ORM — the SQL *is* portfolio material |
 | PDF extraction | **pymupdf4llm** | D6, offline only |
@@ -749,7 +780,8 @@ rags/
 │   ├── extracted/{arxiv_id}.json    # per-paper extraction cache: markdown, sections, page map (D6)
 │   ├── corpus.db                    # papers + chunks + FTS5 — the deployable index (D4)
 │   ├── chroma/                      # embedded Chroma store, same chunk ids (D4)
-│   ├── vectors.parquet              # embedding archive; index layers rebuild from this (D5)
+│   ├── vectors/<model_slug>.parquet # embedding archive, one file per model+dims (D5 2nd amendment); parquet metadata carries model/revision/dims/backend/created_at
+│   ├── models/                      # local backend HF weights cache, gitignored, never committed (D5 2nd amendment)
 │   └── skiplist.json                # papers extraction failed on, with reasons (D6)
 ├── backend/
 │   ├── pyproject.toml               # uv-managed; deps pinned, chromadb version pinned (D4)
@@ -786,7 +818,7 @@ rags/
 │   │   ├── ingest/
 │   │   │   ├── extract_pdfs.py      # pdfs/ → corpus/extracted/*.json + skiplist.json (PyMuPDF4LLM, D6)
 │   │   │   ├── chunk_papers.py      # extracted/ → section-aware ~1k-token page-anchored chunks (D7)
-│   │   │   ├── embed_chunks.py      # chunks → vectors.parquet via embeddings API, batched, resumable (D5)
+│   │   │   ├── embed_chunks.py      # chunks → vectors/<model_slug>.parquet, local (default) or Voyage backend, batched, resumable (D5)
 │   │   │   ├── build_indexes.py     # chunks + vectors → corpus.db (FTS5) + chroma/, shared chunk ids (D4)
 │   │   │   └── ingest_stats.py      # per-stage report: counts, sizes, skip reasons, snapshot datestamp (D12)
 │   │   ├── sandbox/

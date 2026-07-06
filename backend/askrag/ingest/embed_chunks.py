@@ -1,10 +1,18 @@
-"""corpus/chunks.jsonl -> corpus/vectors.parquet (D5).
+"""corpus/chunks.jsonl -> corpus/vectors/<model_slug>.parquet (D5).
 
-Voyage AI voyage-4-lite at output_dimension=512 (D5 as amended 2026-07-05:
-Voyage free tier replaces OpenAI). Raw httpx against the one REST endpoint —
-no SDK (§4b: httpx is pre-approved; one POST does not justify a new dep).
-Corpus chunks are embedded with input_type="document"; the query side
-(retrieval/embeddings.py, #15) must use input_type="query" to match.
+Two backends behind config's `embedding_backend` flag (D5 second amendment,
+2026-07-05): "local" (default) runs a sentence-transformers model in-process
+— $0, MPS-fast on the ingest Mac, and the same model later serves query-time
+embedding inside FastAPI (#16); "voyage" is the parked-but-working API path
+(raw httpx, no SDK; unpaid-tier pacing documented in config.py). Document vs
+query prompt prefixes must agree between ingest and the query side (#15) —
+both read the same config knobs.
+
+Every artifact is keyed by model slug (short name + dims) so two models'
+vectors can never mush together: the parquet PATH carries the slug and the
+parquet FILE METADATA carries full provenance (model, revision, dims,
+backend, created_at); `read_vectors` refuses a slug mismatch. Downstream:
+#14 keys Chroma collections by the same slug; #19 tags eval runs with it.
 Parquet schema — a FROZEN interface consumed by build_indexes (#14):
 
     chunk_id  string                      (chunk_papers' "{paper_id}#{seq}")
@@ -106,10 +114,76 @@ class ChunkText:
 
 @dataclass(frozen=True)
 class BatchEmbedding:
-    """One embeddings-API response: vectors in input order + billed tokens."""
+    """One embed call's result: vectors in input order + billed tokens.
+
+    Local backends bill nothing and report total_tokens=0.
+    """
 
     vectors: list[list[float]]
     total_tokens: int
+
+
+@dataclass(frozen=True)
+class EmbeddingProvenance:
+    """WHICH model produced a vectors artifact — carried in parquet metadata.
+
+    Downstream consumers (#14 Chroma collections, #19 eval tags) key by
+    `slug`; a mismatch is an error, never a silent mix (D5 amendment).
+    """
+
+    model: str
+    revision: str
+    dims: int
+    backend: str
+    slug: str
+    created_at: str
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "EmbeddingProvenance":
+        return cls(
+            model=settings.embedding_model,
+            revision=settings.embedding_model_revision,
+            dims=settings.embedding_dims,
+            backend=settings.embedding_backend,
+            slug=settings.embedding_model_slug,
+            created_at=datetime.now(tz=UTC).isoformat(timespec="seconds"),
+        )
+
+    def to_metadata(self) -> dict[bytes, bytes]:
+        # Namespaced parquet schema metadata (an open kv map by format).
+        return {
+            f"askrag.embedding.{key}".encode(): str(value).encode()
+            for key, value in vars(self).items()
+        }
+
+    @classmethod
+    def from_metadata(cls, metadata: dict[bytes, bytes] | None) -> "EmbeddingProvenance":
+        metadata = metadata or {}
+        try:
+            return cls(
+                model=metadata[b"askrag.embedding.model"].decode(),
+                revision=metadata[b"askrag.embedding.revision"].decode(),
+                dims=int(metadata[b"askrag.embedding.dims"]),
+                backend=metadata[b"askrag.embedding.backend"].decode(),
+                slug=metadata[b"askrag.embedding.slug"].decode(),
+                created_at=metadata[b"askrag.embedding.created_at"].decode(),
+            )
+        except KeyError as exc:
+            raise EmbeddingError(
+                f"parquet carries no embedding provenance (missing {exc}) — "
+                "written before per-model keying? re-embed or re-key it"
+            ) from exc
+
+
+def read_vectors(path: Path, expected_slug: str) -> pa.Table:
+    """The read-side contract for #14/#19: refuse another model's vectors."""
+    table = pq.read_table(path)
+    provenance = EmbeddingProvenance.from_metadata(table.schema.metadata)
+    if provenance.slug != expected_slug:
+        raise EmbeddingError(
+            f"{path.name} holds '{provenance.slug}' vectors, expected '{expected_slug}'"
+        )
+    return table
 
 
 class EmbeddingsBackend(Protocol):
@@ -173,6 +247,64 @@ class VoyageEmbeddings:
         )
 
 
+class LocalEmbeddings:
+    """sentence-transformers adapter: in-process, $0, MPS on the ingest Mac.
+
+    Weights come from the PINNED revision into the gitignored cache dir —
+    never committed. The same model serves query-time embedding on the VPS
+    (#16), which is why D5's amendment favors a small CPU-friendly model.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        if not settings.embedding_model_revision:
+            raise EmbeddingError(
+                "embedding_model_revision must pin a HF commit hash — an "
+                "unpinned model can silently change our vectors (D5 amendment)"
+            )
+        # Heavyweight import deferred so --estimate, the Voyage path, and the
+        # test suite never pay torch's import cost (decisions.md 2026-07-05).
+        from sentence_transformers import SentenceTransformer
+
+        self._doc_prefix = settings.embedding_doc_prefix
+        self._encode_batch_size = settings.embed_encode_batch_size
+        self._model = SentenceTransformer(
+            settings.embedding_model,
+            revision=settings.embedding_model_revision,
+            cache_folder=str(settings.embedding_cache_dir),
+            truncate_dim=settings.embedding_dims,
+        )
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: types.TracebackType | None,
+    ) -> None:
+        # No handle to release; symmetric with VoyageEmbeddings so main()
+        # treats every backend uniformly.
+        return None
+
+    def embed(self, texts: list[str]) -> BatchEmbedding:
+        # Normalized so downstream cosine/IP treat both backends alike;
+        # truncate_dim above applies MRL truncation before normalization.
+        vectors = self._model.encode(
+            [self._doc_prefix + text for text in texts],
+            batch_size=self._encode_batch_size,
+            normalize_embeddings=True,
+        )
+        return BatchEmbedding(vectors=[list(map(float, v)) for v in vectors], total_tokens=0)
+
+
+def make_backend(settings: Settings) -> LocalEmbeddings | VoyageEmbeddings:
+    """The backend registry — a literal dispatch, no metaprogramming (§4d)."""
+    if settings.embedding_backend == "local":
+        return LocalEmbeddings(settings)
+    return VoyageEmbeddings(settings)
+
+
 @dataclass
 class EmbedStats:
     chunks_total: int = 0
@@ -224,10 +356,16 @@ def _batches(chunks: list[ChunkText], max_items: int, max_tokens: int) -> list[l
     return batches
 
 
-def _vectors_table(chunk_ids: list[str], vectors: list[list[float]], dims: int) -> pa.Table:
+def _vectors_table(
+    chunk_ids: list[str],
+    vectors: list[list[float]],
+    dims: int,
+    provenance: EmbeddingProvenance,
+) -> pa.Table:
     flat = pa.array([value for vector in vectors for value in vector], type=pa.float32())
     vector_array = pa.FixedSizeListArray.from_arrays(flat, dims)
-    return pa.table({"chunk_id": pa.array(chunk_ids, type=pa.string()), "vector": vector_array})
+    table = pa.table({"chunk_id": pa.array(chunk_ids, type=pa.string()), "vector": vector_array})
+    return table.replace_schema_metadata(provenance.to_metadata())
 
 
 def _write_parquet_atomic(path: Path, table: pa.Table) -> None:
@@ -266,8 +404,8 @@ def _embed_with_retry(
     raise AssertionError("unreachable: the last attempt re-raises inside the loop")
 
 
-def _merge_shards(vectors_path: Path, shards_dir: Path) -> None:
-    """Everything embedded -> one vectors.parquet; dedupe guards the
+def _merge_shards(vectors_path: Path, shards_dir: Path, provenance: EmbeddingProvenance) -> None:
+    """Everything embedded -> one per-model parquet; dedupe guards the
     crash-between-merge-and-cleanup window (both copies briefly exist)."""
     sources = [vectors_path, *sorted(shards_dir.glob("*.parquet"))]
     parts = [pq.read_table(f) for f in sources if f.exists()]
@@ -280,6 +418,7 @@ def _merge_shards(vectors_path: Path, shards_dir: Path) -> None:
             keep.append(i)
     if len(keep) < merged.num_rows:
         merged = merged.take(keep)
+    merged = merged.replace_schema_metadata(provenance.to_metadata())
     _write_parquet_atomic(vectors_path, merged)
     for f in shards_dir.glob("*.parquet"):
         f.unlink()
@@ -293,6 +432,7 @@ def run(
     shards_dir: Path,
     backend: EmbeddingsBackend | None,
     *,
+    provenance: EmbeddingProvenance,
     dims: int,
     batch_max_items: int,
     batch_max_tokens: int,
@@ -303,7 +443,7 @@ def run(
     limit: int | None = None,
     estimate: bool = False,
 ) -> EmbedStats:
-    """Embed every not-yet-embedded chunk; merge to vectors.parquet when done."""
+    """Embed every not-yet-embedded chunk; merge to the per-model parquet when done."""
     tracer = telemetry.get_tracer("askrag.ingest")
     stats = EmbedStats()
     chunks = _read_chunks(chunks_path)
@@ -351,7 +491,8 @@ def run(
                 shards_dir.mkdir(parents=True, exist_ok=True)
                 shard = shards_dir / f"shard_{shard_seq:06d}.parquet"
                 _write_parquet_atomic(
-                    shard, _vectors_table([c.chunk_id for c in batch], result.vectors, dims)
+                    shard,
+                    _vectors_table([c.chunk_id for c in batch], result.vectors, dims, provenance),
                 )
                 shard_seq += 1
                 stats.batches += 1
@@ -374,9 +515,11 @@ def run(
         # leaves its shards for the next resume) and there are shards to fold
         # in — including leftovers from a crash between merge and cleanup.
         if deferred == 0 and any(shards_dir.glob("*.parquet")):
-            _merge_shards(vectors_path, shards_dir)
+            _merge_shards(vectors_path, shards_dir, provenance)
             stats.merged = True
 
+        run_span.set_attribute("askrag.model_slug", provenance.slug)
+        run_span.set_attribute("askrag.backend", provenance.backend)
         run_span.set_attribute("askrag.chunks_total", stats.chunks_total)
         run_span.set_attribute("askrag.already_embedded", stats.already_embedded)
         run_span.set_attribute("askrag.embedded", stats.embedded)
@@ -408,12 +551,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         with contextlib.ExitStack() as stack:
-            backend = None if args.estimate else stack.enter_context(VoyageEmbeddings(settings))
+            backend = None if args.estimate else stack.enter_context(make_backend(settings))
             run(
                 chunks_path=settings.chunks_jsonl_path,
                 vectors_path=settings.vectors_parquet_path,
                 shards_dir=settings.vectors_shards_dir,
                 backend=backend,
+                provenance=EmbeddingProvenance.from_settings(settings),
                 dims=settings.embedding_dims,
                 batch_max_items=settings.embed_batch_max_items,
                 batch_max_tokens=settings.embed_batch_max_tokens,

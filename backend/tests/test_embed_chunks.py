@@ -2,6 +2,8 @@
 
 import email.utils
 import json
+import math
+import os
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -19,6 +21,15 @@ from askrag.ingest.embed_chunks import (
 )
 
 DIMS = 8  # small dims keep fixtures readable; the real 512 is config
+
+PROVENANCE = embed_chunks.EmbeddingProvenance(
+    model="fake/fake-embed",
+    revision="deadbeef",
+    dims=DIMS,
+    backend="local",
+    slug=f"fake-embed_{DIMS}",
+    created_at="2026-07-05T00:00:00+00:00",
+)
 
 
 def vector_for(text: str) -> list[float]:
@@ -81,6 +92,7 @@ def run(paths, backend, **kwargs):
     kwargs.setdefault("usd_per_mtok", 0.02)
     kwargs.setdefault("retry_max_attempts", 3)
     kwargs.setdefault("retry_base_seconds", 0.0)
+    kwargs.setdefault("provenance", PROVENANCE)
     return embed_chunks.run(
         chunks_path=paths["chunks"],
         vectors_path=paths["vectors"],
@@ -269,13 +281,85 @@ def test_pause_between_batches_not_after_last(paths, monkeypatch):
     assert sleeps == [62.0, 62.0]  # between batches only; no trailing wait
 
 
+# --- per-model provenance (D5 amendment: no two models ever mush together) -----
+
+
+def test_merged_parquet_carries_provenance_metadata(paths):
+    write_chunks(paths["chunks"], make_chunks(3))
+    run(paths, FakeBackend())
+    table = embed_chunks.read_vectors(paths["vectors"], expected_slug=PROVENANCE.slug)
+    assert table.num_rows == 3
+    read_back = embed_chunks.EmbeddingProvenance.from_metadata(table.schema.metadata)
+    assert read_back == PROVENANCE
+
+
+def test_shards_carry_provenance_too(paths):
+    write_chunks(paths["chunks"], make_chunks(4))
+    run(paths, FakeBackend(), limit=2)  # no merge yet: shards only
+    shard = next(iter(paths["shards"].glob("*.parquet")))
+    prov = embed_chunks.EmbeddingProvenance.from_metadata(pq.read_table(shard).schema.metadata)
+    assert prov.slug == PROVENANCE.slug
+
+
+def test_read_vectors_refuses_other_models_artifact(paths):
+    write_chunks(paths["chunks"], make_chunks(2))
+    run(paths, FakeBackend())
+    with pytest.raises(EmbeddingError, match="expected 'other-model_16'"):
+        embed_chunks.read_vectors(paths["vectors"], expected_slug="other-model_16")
+
+
+def test_read_vectors_refuses_provenance_free_parquet(paths, tmp_path):
+    write_chunks(paths["chunks"], make_chunks(2))
+    run(paths, FakeBackend())
+    bare = pq.read_table(paths["vectors"]).replace_schema_metadata(None)
+    legacy = tmp_path / "legacy.parquet"
+    pq.write_table(bare, legacy)
+    with pytest.raises(EmbeddingError, match="no embedding provenance"):
+        embed_chunks.read_vectors(legacy, expected_slug=PROVENANCE.slug)
+
+
+def test_make_backend_dispatches_on_backend_flag(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)  # keep a developer's real .env out of scope
+    created: list[str] = []
+    monkeypatch.setattr(embed_chunks, "LocalEmbeddings", lambda s: created.append("local"))
+    monkeypatch.setattr(embed_chunks, "VoyageEmbeddings", lambda s: created.append("voyage"))
+    embed_chunks.make_backend(Settings(embedding_backend="local"))
+    embed_chunks.make_backend(Settings(embedding_backend="voyage"))
+    assert created == ["local", "voyage"]
+
+
+def test_local_backend_requires_pinned_revision(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(EmbeddingError, match="revision"):
+        embed_chunks.LocalEmbeddings(Settings(embedding_model_revision=""))
+
+
+@pytest.mark.skipif(
+    os.environ.get("ASKRAG_MODEL_SMOKE") != "1",
+    reason="real-weights smoke; opt in with ASKRAG_MODEL_SMOKE=1 (CI stays weight-free)",
+)
+def test_real_model_smoke_dims_norm_determinism():
+    # The ONE test that loads actual weights: pinned revision, real config.
+    settings = Settings()
+    with embed_chunks.LocalEmbeddings(settings) as backend:
+        first = backend.embed(["Transformers use self-attention.", "Graphs have nodes."])
+        again = backend.embed(["Transformers use self-attention."])
+    assert [len(v) for v in first.vectors] == [settings.embedding_dims] * 2
+    norm = math.sqrt(sum(x * x for x in first.vectors[0]))
+    assert norm == pytest.approx(1.0, abs=1e-3)  # normalized, non-degenerate
+    assert first.vectors[0] != first.vectors[1]  # different texts differ
+    assert first.vectors[0] == pytest.approx(again.vectors[0], abs=1e-5)  # deterministic
+
+
 # --- Voyage adapter: request/response contract, offline (MockTransport) --------
 
 
 def adapter(monkeypatch, handler) -> VoyageEmbeddings:
     # Env vars outrank any local .env file, so the fake key always wins.
     monkeypatch.setenv("VOYAGE_API_KEY", "pa-test-key")
-    settings = Settings(embedding_dims=DIMS)
+    settings = Settings(
+        embedding_backend="voyage", embedding_model="voyage-4-lite", embedding_dims=DIMS
+    )
     return VoyageEmbeddings(settings, transport=httpx.MockTransport(handler))
 
 
