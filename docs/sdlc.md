@@ -27,15 +27,20 @@ decisions.md, the spec), not in any agent's memory.
 
 ## Worker harness (tmux)
 
-Implementor and reviewer run as interactive `claude` CLIs in windows of the
-human's **pre-existing** `rags` tmux session, so both the coordinator and the
-human can watch them work (decisions.md 2026-07-06). Scripts in `scripts/`:
+Workers run as interactive `claude` CLIs in tiled panes of one `agents` window
+in the human's **pre-existing** `rags` tmux session, so both the coordinator and
+the human can watch them work (decisions.md 2026-07-06). Three roles:
+`implementor`, `reviewer` (per-PR, Sonnet), and `auditor` (Opus, read-only,
+slice-boundary coherence — see below). Scripts in `scripts/`:
 
-- `agent-spawn.sh <role> [task-file]` — adds the worker as a **pane in one
-  shared `agents` window** (tiled grid, titled borders, so every worker is
-  visible at once), pinned to a known `--session-id` so the coordinator knows
-  which jsonl to read. **Fails loud if the session is absent; never creates
-  it** (the human owns its lifecycle).
+- `agent-spawn.sh <role> [task-file]` — adds the worker as a **pane in the
+  shared `agents` window** (tiled grid, `@role` titled borders), running in its
+  **own git worktree** at `.worktrees/<role>` so worker git ops never collide
+  with the coordinator (who stays on `main` in the primary repo) or other
+  workers. Pinned to a known `--session-id`. Knobs: `AGENT_BASE` (ref the
+  worktree is detached at, default `origin/main`; `origin/<pr-branch>` for the
+  reviewer), `AGENT_MODEL` (e.g. `opus` for the auditor). **Fails loud if the
+  session is absent; never creates it** (the human owns its lifecycle).
 - `agent-send.sh <role> <msg>` — deliver a short control message (type, settle,
   submit). Big context (task specs, findings) goes in a file or PR comment;
   send a one-line "read <path> and act", not kilobytes through tmux.
@@ -49,11 +54,23 @@ Two channels, kept separate: the on-disk jsonl is the coordinator's machine
 signal (tool calls + terminal result event); the tmux window + feed is the
 human's live view and manual override (attach, Ctrl-C to halt, type to steer).
 At a coherent task boundary the coordinator kills and re-spawns the worker
-(compaction-by-respawn). Workers run same-account, so this makes limit deaths
-visible and cheap-to-resume, not impossible; `ANTHROPIC_API_KEY` on the workers
-is the unwired escape hatch for true isolation. Human vigilance is sampling,
-not a gate: actions that must never happen are stopped by permission mode and
-hooks, not by someone watching.
+(compaction-by-respawn) and removes its worktree. Workers run same-account, so
+this makes limit deaths visible and cheap-to-resume, not impossible;
+`ANTHROPIC_API_KEY` on the workers is the unwired escape hatch for true
+isolation. Human vigilance is sampling, not a gate: actions that must never
+happen are stopped by permission mode and hooks, not by someone watching.
+
+**Coherence checkpoints (the `auditor` role).** Per-PR review — at any model
+tier — only sees the diff; it cannot see cross-issue drift. At each vertical
+slice / epic boundary, and before any architecturally load-bearing issue, the
+coordinator spawns the auditor (Opus) to read the *whole* slice + spec +
+`decisions.md` + the previous checkpoint and judge coherence: concept
+duplication, cross-layer contract rot, spec divergence, and emergent boundary
+gaps (e.g. the two-`read_paper`-calls §6c breach that a single diff never
+shows). It writes `docs/checkpoints/<date>-<slice>.md` with a `COHERENT` /
+`NEEDS-WORK` verdict; `NEEDS-WORK` items gate the next slice. Load-bearing PRs
+(the agent loop, the public API/SSE surface) additionally get an Opus review
+pass on top of the standard Sonnet review; routine PRs stay Sonnet.
 
 ## The loop (per issue)
 
