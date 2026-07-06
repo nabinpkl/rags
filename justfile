@@ -66,6 +66,17 @@ ask *ARGS:
     query="${query#q=}"
     cd backend && uv run python -m askrag.retrieval.hybrid_search "$query"
 
+# Agent loop smoke (#23): cheap-first validation via OpenRouter before
+# spending on Haiku. Needs ASKRAG_AGENT_API_BASE_URL=https://openrouter.ai/api
+# (no trailing /v1 — the anthropic SDK appends /v1/messages itself) and
+# OPENROUTER_API_KEY in backend/.env. Both call forms work, same as `ask`.
+smoke-agent *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    question={{quote(ARGS)}}
+    question="${question#q=}"
+    cd backend && uv run python -m askrag.agent.loop "$question"
+
 # Backend tests only (pytest via uv; extra args pass through)
 be-test *ARGS:
     cd backend && uv run pytest {{ARGS}}

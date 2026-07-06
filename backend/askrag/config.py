@@ -55,6 +55,19 @@ class Settings(BaseSettings):
         default=SecretStr(""), validation_alias="ANTHROPIC_API_KEY"
     )
     voyage_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="VOYAGE_API_KEY")
+    # Cheap-first provider validation seam (#23, owner directive 2026-07-06):
+    # empty => the anthropic SDK's real-Anthropic default (prod, D3 intact).
+    # Set to OpenRouter's Anthropic-compatible base (no trailing /v1 — the SDK
+    # appends /v1/messages itself) to route the loop through `smoke_model`
+    # instead, for a cheap live smoke before spending on Haiku. Prod serving
+    # never sets this.
+    agent_api_base_url: str = ""
+    openrouter_api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="OPENROUTER_API_KEY"
+    )
+    # Smoke-only model, routed through OpenRouter when agent_api_base_url is
+    # set. Prod agent stays `agent_model` (Haiku, D3) regardless.
+    smoke_model: str = "deepseek/deepseek-v4-flash"
 
     # --- ingest: extraction (D6) -------------------------------------------
     extract_workers: int = 8  # process pool size; extraction is CPU-bound C
@@ -146,6 +159,12 @@ class Settings(BaseSettings):
 
     # --- agent loop (D1/D2) ------------------------------------------------
     max_tool_steps_per_message: int = 8
+    # The API's required per-call output cap (a generation ceiling, not a
+    # context-window budget — message_token_budget governs that). D3's
+    # arithmetic assumes ~2k output tokens per step; this leaves headroom for
+    # a longer synthesis turn without being large enough to blow the budget
+    # on its own.
+    agent_max_output_tokens: int = 4096
 
     # --- budget caps (D11; every layer server-enforced) --------------------
     # A typical 5-step turn is ~50k in + ~2k out (D3 arithmetic); the

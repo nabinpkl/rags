@@ -34,7 +34,7 @@ def sample_run(**overrides):
         tokens_out=200,
         cost_usd=0.012,
         latency_ms=850.0,
-        tool_calls=[{"tool": "search_corpus", "ms": 120}],
+        tool_calls=[traces.ToolCallRecord(name="search_corpus", args={"query": "x"}, ok=True)],
         showcase=False,
     )
     base.update(overrides)
@@ -122,7 +122,8 @@ def test_get_showcase_traces_returns_only_flagged(settings):
 
 
 def test_recorded_run_roundtrips_fields(settings):
-    rid = traces.record_run(**sample_run(tool_calls=[{"tool": "read_paper"}]), settings=settings)
+    call = traces.ToolCallRecord(name="read_paper", args={"paper_id": "2401.00001"}, ok=True)
+    rid = traces.record_run(**sample_run(tool_calls=[call]), settings=settings)
     run = traces.get_run(rid, settings=settings)
     assert run is not None
     assert run.run_id == rid
@@ -130,7 +131,17 @@ def test_recorded_run_roundtrips_fields(settings):
     assert run.tokens_out == 200
     assert run.cost_usd == pytest.approx(0.012)
     assert run.latency_ms == pytest.approx(850.0)
-    assert run.tool_calls == [{"tool": "read_paper"}]
+    assert run.tool_calls == (call,)
+
+
+def test_recorded_run_roundtrips_tool_call_error(settings):
+    call = traces.ToolCallRecord(
+        name="read_paper", args={"paper_id": "bogus"}, ok=False, error="no such paper"
+    )
+    rid = traces.record_run(**sample_run(tool_calls=[call]), settings=settings)
+    run = traces.get_run(rid, settings=settings)
+    assert run is not None
+    assert run.tool_calls == (call,)
 
 
 # --- concurrency: WAL actually allows concurrent writers --------------------

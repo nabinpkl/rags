@@ -145,6 +145,13 @@ portfolio-wise than silently better answers.
 golden set → try Sonnet behind the same caps and publish the delta. Model
 prices drop (they do) → re-run the arithmetic.
 
+**Note (2026-07-06, #23).** The loop validates cheap-first: a config-only
+`base_url` seam (`agent_api_base_url`) can route the same `anthropic` client
+at a cheap OpenRouter model (`smoke_model`) for a live smoke before spending
+on Haiku. Prod serving is unchanged — empty `agent_api_base_url` is direct
+Anthropic/Haiku, this decision's arithmetic still holds. Full record:
+decisions.md 2026-07-06.
+
 ---
 
 ### D4. Storage: SQLite (metadata + FTS5) + embedded Chroma (vectors) — no database server
