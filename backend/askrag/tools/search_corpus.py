@@ -10,7 +10,8 @@ Read-only by construction: `HybridSearch.search` only ever opens
 `db.connect_corpus` (mode=ro, §4c) and queries the embedded Chroma store.
 """
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,6 +42,9 @@ class SearchCorpusArgs(BaseModel):
 @dataclass(frozen=True)
 class SearchCorpusResult:
     chunks: tuple[ScoredChunk, ...]
+
+    def to_model_payload(self) -> dict[str, Any]:
+        return {"chunks": [asdict(c) for c in self.chunks]}
 
 
 def run(

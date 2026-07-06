@@ -4,7 +4,9 @@ import pytest
 
 from askrag.config import Settings
 from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
+from askrag.ingest.embed_chunks import EmbeddingError
 from askrag.retrieval.hybrid_search import Filters, HybridSearch, ScoredChunk, rrf_fuse
+from askrag.retrieval.vector_store import VectorStoreError
 
 
 @pytest.fixture(autouse=True)
@@ -72,26 +74,29 @@ def corpus_db(tmp_path):
 
 
 class FakeEmbedder:
-    def __init__(self, fail=False):
-        self.fail = fail
+    def __init__(self, fail_with: Exception | None = None):
+        self.fail_with = fail_with
         self.queries: list[str] = []
 
     def embed_query(self, text):
-        if self.fail:
-            raise RuntimeError("model exploded")
+        if self.fail_with is not None:
+            raise self.fail_with
         self.queries.append(text)
         return [1.0, 0.0]
 
 
 class FakeStore:
-    def __init__(self, ids):
+    def __init__(self, ids, fail_with: Exception | None = None):
         self.ids = ids
+        self.fail_with = fail_with
         self.calls: list[dict] = []
 
     def query(self, embedding, k, *, category=None, year_min=None, year_max=None):
         self.calls.append(
             {"k": k, "category": category, "year_min": year_min, "year_max": year_max}
         )
+        if self.fail_with is not None:
+            raise self.fail_with
         return self.ids[:k]
 
 
@@ -134,12 +139,34 @@ def test_filters_push_down_to_both_legs(corpus_db):
 
 
 def test_vector_leg_down_degrades_to_bm25_only(corpus_db):
-    # D8's deliberate fail-soft: NO exception, BM25-only results, all legs
-    # annotated bm25. (corpus.db failing stays fatal — that's the floor.)
-    s = searcher(corpus_db, embedder=FakeEmbedder(fail=True))
+    # D8's deliberate fail-soft, scoped to a genuine OUTAGE: NO exception,
+    # BM25-only results, all legs annotated bm25. (corpus.db failing stays
+    # fatal — that's the floor.)
+    s = searcher(corpus_db, embedder=FakeEmbedder(fail_with=EmbeddingError("voyage API down")))
     results = s.search("attention", k=4)
     assert results  # BM25 still found chunks
     assert all(r.leg == "bm25" for r in results)
+
+
+def test_vector_store_error_also_degrades_to_bm25_only(corpus_db):
+    s = searcher(corpus_db, store=FakeStore([], fail_with=VectorStoreError("collection missing")))
+    results = s.search("attention", k=4)
+    assert results
+    assert all(r.leg == "bm25" for r in results)
+
+
+@pytest.mark.parametrize(
+    "fail_with",
+    [KeyError("chunk_id"), AttributeError("no such attr"), ValueError("dim mismatch")],
+)
+def test_vector_leg_code_bug_fails_loud_not_degrades(corpus_db, fail_with):
+    # 2026-07-06 checkpoint finding 3: a bare `except Exception` used to
+    # swallow logic bugs (KeyError/AttributeError/dim mismatch) into a
+    # permanent silent BM25-only mode. Narrowed to the operational error
+    # set, these now propagate instead.
+    s = searcher(corpus_db, embedder=FakeEmbedder(fail_with=fail_with))
+    with pytest.raises(type(fail_with)):
+        s.search("attention", k=4)
 
 
 def test_missing_version_surfaces_as_none_not_v_something(corpus_db):

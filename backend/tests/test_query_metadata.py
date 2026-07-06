@@ -79,6 +79,15 @@ def test_plain_select_returns_columns_and_rows(corpus_db):
     assert result.truncated is False
 
 
+def test_to_model_payload_is_a_plain_dict_of_lists(corpus_db):
+    result = query("SELECT arxiv_id, published FROM papers ORDER BY arxiv_id", corpus_db)
+    assert result.to_model_payload() == {
+        "columns": ["arxiv_id", "published"],
+        "rows": [["2401.00001", "2024-01-01"], ["2401.00002", "2023-01-01"]],
+        "truncated": False,
+    }
+
+
 def test_aggregate_and_join_work(corpus_db):
     result = query(
         "SELECT p.arxiv_id, COUNT(c.chunk_id) FROM papers p "

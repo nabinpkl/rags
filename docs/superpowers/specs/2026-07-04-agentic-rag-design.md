@@ -1060,6 +1060,16 @@ text). Risk management, not legal advice; each rule tagged by its basis.
 | Per-paper `license` field carried from the Kaggle seed into `corpus.db` at ingest; CC0/CC-BY papers *may* show fuller text with attribution (v2 option, not v1 scope); the "vast majority" default-license papers get the caps above | Conservative choice; the metadata provides the field for exactly this |
 | Takedown path: a contact link, and removal of a paper's summaries/excerpts from the index on author objection | Conservative choice mirroring Semantic Scholar et al. |
 
+**Clarification (2026-07-06, decisions.md; issue #58):** row 1 and row 4 are
+two different enforcement points, not one. `read_paper` (row 1) is the
+MODEL's read tool — it returns page-bounded extracted text up to
+`config.read_paper_max_tokens`, a real budget for a real deep read, and must
+never re-apply row 4's ≤50-word/≤3-quote cap. Row 4 governs verbatim quotes
+surfacing in an ANSWER shown to a user; it is enforced at answer-assembly
+(#23/#30) and the frontend (#26), server-side, per answer — never at the
+model-read tool boundary. §6b (no PDF bytes served/cached/proxied) applies
+identically to both and is unaffected by this split.
+
 Design consequence, applied throughout this spec: the viewer's text pane is
 `cited-excerpts-pane.tsx` — cited excerpts, not a full-text mirror. It renders the chunks
 the agent actually cited (display-capped), section headings as navigation,

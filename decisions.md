@@ -14,6 +14,39 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-06 — §6c enforcement relocated: read_paper is the model-read path, not the verbatim-cap enforcer (owner directive, issue #58)
+
+**Context:** the 2026-07-06 retrieval+tools coherence checkpoint (finding 1)
+found `read_paper` applying the ANSWER/display cap (`quote_max_words=50`,
+`max_quotes_per_paper=3`, §6c row 4) at the MODEL-facing tool boundary, so one
+call returned ≤~150 words — contradicting §6c row 1 ("the model may read full
+text via `read_paper`") and D1 ("read a specific paper deeper"), and
+inconsistent with `search_corpus`, which already hands the model full
+~1000-token chunks uncapped.
+**Decision:** `read_paper` returns a page-ordered prefix of a paper's chunks
+bounded by a new `read_paper_max_tokens` setting (default 16,000 — ≈20% of
+`message_token_budget`, sized to cover a full short arXiv CS paper's chunks or
+a substantial page range of a longer one while leaving room for further tool
+calls in the same message). The ≤50-word/≤3-quote cap is removed from
+`read_paper` entirely; it is NOT this tool's job. That cap governs verbatim
+quotes surfacing in an ANSWER (§6c row 4) and moves downstream to
+answer-assembly (#23/#30) and the frontend (#26), where it is now the hard
+gate — §6b is unchanged throughout (extracted text from corpus.db only, never
+PDF bytes).
+**Alternatives rejected:** raising the tool's word cap instead of removing it
+(still couples a display posture to a read tool, and any fixed word number is
+arbitrary where a token budget maps directly to the model's real read cost);
+leaving the cap at both the tool and answer-assembly (redundant enforcement
+invites the two points drifting apart, and the tool-level cap was already
+measured to cripple deep-read, defeating D1).
+**Consequence:** `tests/test_read_paper.py`'s "no combination can reconstruct
+the paper" invariant is replaced with: page-range bounding is honored, the
+token budget is enforced, at least one span always returns even if it alone
+exceeds the budget. #23/#30 must implement the per-answer ≤3-quotes-per-paper
+gate (checkpoint Note A) — it no longer exists anywhere once this PR lands.
+Spec updated: §6c (clarifying note: `read_paper`/row 1 is the model-read path,
+not the row-4 enforcement point).
+
 ## 2026-07-06 — Per-worker git worktrees + Opus slice-boundary coherence auditor (owner directive)
 
 **Context:** two problems surfaced landing #22. (1) Coordinator and workers

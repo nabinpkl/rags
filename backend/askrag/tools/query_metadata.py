@@ -29,6 +29,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -57,6 +58,13 @@ class QueryMetadataResult:
     columns: tuple[str, ...]
     rows: tuple[tuple[object, ...], ...]
     truncated: bool  # more rows matched than query_metadata_max_rows allows
+
+    def to_model_payload(self) -> dict[str, Any]:
+        return {
+            "columns": list(self.columns),
+            "rows": [list(row) for row in self.rows],
+            "truncated": self.truncated,
+        }
 
 
 _Authorizer = Callable[[int, str | None, str | None, str | None, str | None], int]
