@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     embedding_model_revision: str = "e9b6763023c676ca8431644204f50c2b100d9aab"
     embedding_cache_dir: Path = _REPO_ROOT / "corpus" / "models"
     # Asymmetric retrieval prompts — MANDATORY for nomic (model card).
-    # Ingest prepends doc_prefix; the query side (#15) MUST prepend
+    # Ingest prepends doc_prefix; the query side (#16) MUST prepend
     # query_prefix or recall silently degrades.
     embedding_doc_prefix: str = "search_document: "
     embedding_query_prefix: str = "search_query: "

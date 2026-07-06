@@ -5,26 +5,26 @@ Two backends behind config's `embedding_backend` flag (D5 second amendment,
 — $0, MPS-fast on the ingest Mac, and the same model later serves query-time
 embedding inside FastAPI (#16); "voyage" is the parked-but-working API path
 (raw httpx, no SDK; unpaid-tier pacing documented in config.py). Document vs
-query prompt prefixes must agree between ingest and the query side (#15) —
+query prompt prefixes must agree between ingest and the query side (#16) —
 both read the same config knobs.
 
 Every artifact is keyed by model slug (short name + dims) so two models'
 vectors can never mush together: the parquet PATH carries the slug and the
 parquet FILE METADATA carries full provenance (model, revision, dims,
 backend, created_at); `read_vectors` refuses a slug mismatch. Downstream:
-#14 keys Chroma collections by the same slug; #19 tags eval runs with it.
+#14 keys Chroma collections by the same slug; #18 tags eval runs with it.
 Parquet schema — a FROZEN interface consumed by build_indexes (#14):
 
     chunk_id  string                      (chunk_papers' "{paper_id}#{seq}")
     vector    fixed_size_list<float32>[embedding_dims]
 
 Resume design: each embedded batch is written as its own shard parquet under
-corpus/vectors_shards/, atomically (tmp + rename — the mechanism SIGKILL-
-proven in #11), and merged into vectors.parquet only when nothing is left to
-embed; shards are deleted only after the merge lands. The done-set on start
-is the union of chunk_ids in vectors.parquet and every shard, deduplicated at
-merge, so a killed run resumes without duplicating or dropping a chunk and a
-completed run is a no-op.
+corpus/vectors/<model_slug>_shards/, atomically (tmp + rename — the mechanism
+SIGKILL-proven in #11), and merged into the per-model parquet only when
+nothing is left to embed; shards are deleted only after the merge lands. The
+done-set on start is the union of chunk_ids in the parquet and every shard,
+deduplicated at merge, so a killed run resumes without duplicating or
+dropping a chunk and a completed run is a no-op.
 
 The API key is read once through Settings and passed to the client
 constructor; it is never logged and never appears in span attributes.
@@ -127,7 +127,7 @@ class BatchEmbedding:
 class EmbeddingProvenance:
     """WHICH model produced a vectors artifact — carried in parquet metadata.
 
-    Downstream consumers (#14 Chroma collections, #19 eval tags) key by
+    Downstream consumers (#14 Chroma collections, #18 eval tags) key by
     `slug`; a mismatch is an error, never a silent mix (D5 amendment).
     """
 
@@ -176,7 +176,7 @@ class EmbeddingProvenance:
 
 
 def read_vectors(path: Path, expected_slug: str) -> pa.Table:
-    """The read-side contract for #14/#19: refuse another model's vectors."""
+    """The read-side contract for #14/#18: refuse another model's vectors."""
     table = pq.read_table(path)
     provenance = EmbeddingProvenance.from_metadata(table.schema.metadata)
     if provenance.slug != expected_slug:

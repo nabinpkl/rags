@@ -54,7 +54,7 @@ truncated) Matryoshka checkpoint table — 768d: 62.28 MTEB, 512d: 61.96,
 text-v1.5, checked 2026-07-05) — 512 dims costs 0.32 points versus native
 768, negligible. D5's 512-dim pin holds unchanged.
 Nomic's asymmetric retrieval convention is mandatory, not optional: ingest
-prepends `search_document: `, the query side (#15) MUST prepend
+prepends `search_document: `, the query side (#16) MUST prepend
 `search_query: ` or recall silently degrades — both prefixes are config
 knobs (`embedding_doc_prefix`/`embedding_query_prefix`) read by both sides.
 **Dependency gate — sentence-transformers==5.6.0** (measured 2026-07-05):
@@ -87,7 +87,7 @@ backend, created_at) via `EmbeddingProvenance`; `read_vectors()` refuses a
 slug mismatch rather than silently reading another model's vectors. The
 pre-existing Voyage partial shards moved under `voyage-4-lite_512_shards/`
 under the same convention. Downstream: #14 keys Chroma collections by the
-same slug; #19 tags eval runs by it — both issues carry matching coordinator
+same slug; #18 tags eval runs by it — both issues carry matching coordinator
 notes.
 **Consequence:** the corpus embed run is now $0 (previously ~$0 net of the
 Voyage free quota, but throttled); the tradeoff is CPU cost at query time
@@ -96,7 +96,7 @@ is measured on real request latency. Voyage stays fully wired behind
 `embedding_backend=voyage` for a future paid-tier or eval-driven swap; its
 tests, pacing config, and decisions.md history are unchanged.
 **Revisit when:** a paid embeddings tier enters the budget (Tier-1 billing
-addresses the throughput problem outright), or #19 evals show a paid/larger
+addresses the throughput problem outright), or #18 evals show a paid/larger
 model retrieves meaningfully better than nomic-v1.5 on this corpus, or #16's
 measured query-time CPU latency on the target VPS spec is unacceptable (in
 which case a smaller model, not a cloud API, is the first thing to try given

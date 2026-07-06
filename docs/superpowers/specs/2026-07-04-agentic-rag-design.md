@@ -265,8 +265,8 @@ every vectors parquet lives at `corpus/vectors/<model_slug>.parquet` (slug =
 short model name + dims) with full provenance in the parquet file metadata
 (model, revision, dims, backend, created_at); readers refuse a slug mismatch
 instead of silently mixing two models' vectors. Downstream: #14 keys Chroma
-collections by the same slug, #19 tags eval runs by it. Extra revisit
-trigger: a paid embeddings tier enters the budget, #19 evals show a paid or
+collections by the same slug, #18 tags eval runs by it. Extra revisit
+trigger: a paid embeddings tier enters the budget, #18 evals show a paid or
 larger model retrieves meaningfully better on this corpus, or #16's measured
 query-time CPU latency on the target VPS is unacceptable.
 
