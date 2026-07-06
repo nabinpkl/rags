@@ -67,9 +67,10 @@ work is broken into GitHub issues.
   arxiv.org, always **version-pinned** (`…/pdf/<id>v<N>`).
 - **No UI/API path returns full paper text** for default-license papers
   (§6c): quotes ≤50 words, ≤3 per paper per answer, server-enforced.
-- Agent tools are **read-only by construction**; `query_metadata` is
-  single-statement SELECT-only; sandbox runs `--network none` with ro
-  mounts; `drive_ui` accepts enums, never URLs or HTML.
+- Agent tools are **read-only by construction**; `query_metadata` accepts
+  only enum'd metadata ops (no model-authored SQL); sandbox runs
+  `--network none` with ro mounts; `drive_ui` accepts enums, never URLs or
+  HTML.
 - Retrieved paper text is untrusted (injection surface) — always fenced.
 - The verbatim arXiv attribution + takedown link stay in the site footer.
 

@@ -168,37 +168,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # --- query_metadata limits (§5; defaults until measured) ---------------
-    query_metadata_max_rows: int = 500
-    query_metadata_timeout_seconds: float = 2.0
-    # Function-NAME allow-list for the authorizer's SQLITE_FUNCTION action
-    # (review finding, PR #57): a blanket SQLITE_FUNCTION allow lets a single
-    # memory-allocating scalar call (e.g. `length(randomblob(950000000))`)
-    # skip both the row cap and the progress-handler timeout in ONE VM
-    # opcode — the handler is polled between opcodes, not during one. Only
-    # these names pass; everything else (randomblob, zeroblob, printf, hex,
-    # ...) is denied regardless of how it's composed.
-    query_metadata_allowed_functions: tuple[str, ...] = (
-        "count",
-        "sum",
-        "avg",
-        "min",
-        "max",
-        "length",
-        "round",
-        "lower",
-        "upper",
-        "abs",
-        "coalesce",
-        "ifnull",
-        "nullif",
-        "date",
-        "time",
-        "datetime",
-        "julianday",
-        "strftime",
-        "total",
-        "group_concat",
-    )
+    # Top-N cap on a count_papers histogram's distinct groups (renamed from
+    # the old raw-SQL row cap, decisions.md 2026-07-06 — the enum'd `op`
+    # union has no free-form row-returning path left to cap).
+    query_metadata_histogram_max_groups: int = 500
 
     # --- sandbox rlimits (D10) ---------------------------------------------
     # Only the resource numbers are tunable. `--network none`, ro-mounts,

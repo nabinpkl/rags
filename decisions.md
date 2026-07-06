@@ -14,6 +14,59 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-06 — query_metadata prefactor: enum'd shapes replace raw model SQL, done before #23 (issue #60)
+
+**Context:** #23's agent loop is about to become `query_metadata`'s first
+model-facing consumer. Four reasons converged to reshape the tool before that
+wiring happens rather than after: **security** — raw model SQL had already
+produced a `randomblob` DoS (#57 review finding) and a blob-literal JSON crash
+(#59 review finding); **portability** — the safety model was welded to sqlite
+primitives (`set_authorizer`/`set_progress_handler`) with no Postgres analog,
+blocking the D4 pgvector migration seam; **reliability** — an LLM authoring
+SQL is error-prone where a typed op it picks from a closed menu is used
+correctly; **clarity** — mirroring `drive_ui`'s existing discriminated-union
+pattern is simpler than the authorizer/progress-handler machinery it replaces.
+**Decision:** `query_metadata` is now a `drive_ui`-style `RootModel` over a
+`Field(discriminator="op")` union of exactly three ops — `count_papers`
+(filters: `category`/`year_min`/`year_max`/`has_license`; optional
+`group_by: Literal["category","year","license","venue"]` resolving through a
+server-side `{Literal -> column}` map, never string-interpolated; `None` →
+scalar count, else → a top-N-bounded histogram), `paper_facets` (point lookup
+by `paper_id` → title/primary_category/year/version/license/venue/n_chunks/
+n_pages, raises on unknown id), `corpus_stats` (no params → n_papers/n_chunks/
+year_min/year_max/n_categories). Every op runs one fixed parameterized SQL
+template; there is no model-authored SQL path anywhere. Per-op frozen
+dataclass results (`CountPapersResult | PaperFacetsResult | CorpusStatsResult`),
+each with `to_model_payload()` (the #58 pattern). DELETED entirely, no
+back-compat: `_make_authorizer`/`set_authorizer`/the `SQLITE_FUNCTION`
+allow-list, `set_progress_handler` + its deadline, single-statement reliance,
+`QueryMetadataArgs(sql=...)`, `_json_safe_cell`. Dead config removed:
+`query_metadata_allowed_functions`, `query_metadata_timeout_seconds`;
+`query_metadata_max_rows` repurposed and renamed
+`query_metadata_histogram_max_groups` (the histogram top-N ceiling — the only
+row-returning shape left to cap). The `mode=ro` corpus connection stays
+(cheap defense-in-depth); with no model-authored SQL the injection/DoS surface
+is gone by construction, not by a guard against it.
+**Alternatives rejected:** keeping the authorizer/timeout machinery alongside
+the new enum'd ops "just in case" (redundant — there is no SQL path left for
+it to guard, and an unused security mechanism is itself a maintenance
+liability); a fourth `list_papers` shape (speculative — not in the certain
+core the issue named; further shapes are evidence-driven from #23's real
+usage per the issue's "evidence-driven growth" note, never guessed).
+**Consequence:** `tests/test_query_metadata.py` is fully rewritten — the old
+SQL-injection/DoS-refusal tests are deleted (moot, no SQL surface); new tests
+cover per-op correctness (scalar + histogram + facets + stats), filter
+binding, off-enum `group_by` rejected by pydantic before execution, unknown
+`paper_id` raising, and the union rejecting a free-form/`sql` field. `#23`
+carries the evidence-channel note: its eval system prompt should invite the
+model to state any metadata query it wished it had: recurring wishes get
+promoted to new typed union variants later, never back to raw SQL.
+Spec updated: §5 (`query_metadata` row rewritten: enum'd ops, no model SQL),
+§6 (the "SQL injection (ish)" threat vector retired — replaced with "N/A",
+enum'd parameterized shapes only).
+
+---
+
 ## 2026-07-06 — §6c enforcement relocated: read_paper is the model-read path, not the verbatim-cap enforcer (owner directive, issue #58)
 
 **Context:** the 2026-07-06 retrieval+tools coherence checkpoint (finding 1)

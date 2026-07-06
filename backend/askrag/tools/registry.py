@@ -67,10 +67,12 @@ TOOLS: dict[str, ToolSpec] = {
     "query_metadata": ToolSpec(
         name="query_metadata",
         description=(
-            "Run a single read-only SELECT statement over corpus.db's "
-            "`papers` and `chunks` tables (e.g. counting papers per category, "
-            "listing papers by year). No writes, PRAGMAs, or multi-statement "
-            "SQL are accepted."
+            "Query corpus-wide facts: count_papers (scalar count or a "
+            "group-by histogram over category/year/license/venue, with "
+            "category/year_min/year_max/has_license filters), paper_facets "
+            "(one paper's title/category/year/version/license/venue/"
+            "chunk-and-page counts by id), or corpus_stats (paper/chunk "
+            "totals, year range, category count)."
         ),
         args_model=query_metadata.QueryMetadataArgs,
         handler=query_metadata.run,
