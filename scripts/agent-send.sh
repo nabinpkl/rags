@@ -12,7 +12,7 @@
 # Usage: scripts/agent-send.sh <role> <message...>
 set -euo pipefail
 
-REPO="${REPO:-/Users/nabin/projects/rags}"
+REPO="${ASKRAG_REPO:-/Users/nabin/projects/rags}"
 role="${1:?usage: agent-send.sh <role> <message...>}"; shift
 msg="$*"
 [ -n "$msg" ] || { echo "empty message" >&2; exit 1; }

@@ -12,5 +12,8 @@ __pycache__/
 .DS_Store
 .ruff_cache/
 
-# Orchestration runtime state: per-role worker session ids + long-run task logs
+# Orchestration runtime state: per-role worker session ids, task specs, logs
 .claude/run/
+.claude/tasks/
+# Per-worker git worktrees (each worker's isolated checkout)
+.worktrees/

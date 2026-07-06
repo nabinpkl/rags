@@ -14,6 +14,36 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-06 — Per-worker git worktrees + Opus slice-boundary coherence auditor (owner directive)
+
+**Context:** two problems surfaced landing #22. (1) Coordinator and workers
+shared one git checkout, so the implementor's `git checkout -b` moved the branch
+under the coordinator, and a coordinator harness commit landed on the PR branch
+locally (caught before it reached the PR). (2) Per-PR review — even a strong
+model — only sees the diff, so cross-issue drift, cross-layer contract rot, and
+emergent boundary gaps (e.g. two `read_paper` calls breaching §6c per-answer
+while each call is legal) have no owner.
+**Decision:** (1) **Per-worker git worktrees.** Each worker runs in its own
+detached worktree `.worktrees/<role>` (gitignored); the coordinator stays on
+`main` in the primary repo and never git-collides with workers. Coordination
+state (run-files, task logs) and the session jsonl are addressed absolutely /
+by uuid, so a worker's worktree cwd doesn't hide them. `agent-spawn.sh` gained
+`AGENT_BASE` (worktree ref) and `AGENT_MODEL`. (2) **Opus `auditor` role** runs
+at each slice/epic boundary and before load-bearing issues, reads the whole
+slice + spec + decisions + prior checkpoint, and writes
+`docs/checkpoints/<date>-<slice>.md` (`COHERENT` / `NEEDS-WORK`, the latter
+gating the next slice). Per-PR review stays Sonnet; load-bearing PRs (agent
+loop, public API/SSE) get an added Opus review pass. Model tier is by blast
+radius, not blanket — Sonnet demonstrably caught #57's single-opcode DoS, so
+diff nuance is not the gap; whole-system coherence is.
+**Alternatives rejected:** Opus on every PR review (burns limit for a
+capability Sonnet shows); coordinator-commits-to-main-via-API only (divergence
+bit us before); shared tree + discipline (just failed).
+**Consequence:** `docs/sdlc.md` Worker harness section rewritten; auditor brief
+added; `.worktrees/` gitignored; first checkpoint runs over the retrieval+tools
+slice (#14/#16/#22) before #23.
+Spec updated: no (process-only; the SDLC loop lives in `docs/sdlc.md`).
+
 ## 2026-07-06 — SDLC workers run as tmux-hosted claude CLIs for live observability (owner directive)
 
 **Context:** the Agent/SendMessage subagent mechanism gave the coordinator no
