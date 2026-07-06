@@ -135,6 +135,17 @@ def atom_transport(requests, body=ATOM_OK):
     return httpx.MockTransport(handler)
 
 
+def chroma_client(path):
+    # Chroma caches ONE client per path per process and refuses different
+    # settings — verification must open with the same settings as the build.
+    import chromadb
+    import chromadb.config
+
+    return chromadb.PersistentClient(
+        path=str(path), settings=chromadb.config.Settings(anonymized_telemetry=False)
+    )
+
+
 def run(paths, transport=None, **kwargs):
     requests: list[httpx.Request] = []
     kwargs.setdefault("add_batch_size", 2)  # exercises batching with 3 chunks
@@ -176,10 +187,9 @@ def test_fts5_sample_query_returns_the_right_chunk(paths):
 
 
 def test_vector_sample_query_returns_nearest_chunk(paths):
-    import chromadb
 
     run(paths)
-    collection = chromadb.PersistentClient(path=str(paths["chroma"])).get_collection(SLUG)
+    collection = chroma_client(paths["chroma"]).get_collection(SLUG)
     result = collection.query(query_embeddings=[vector_for("2401.00001#1")], n_results=1)
     assert result["ids"] == [["2401.00001#1"]]
     # `where` filter metadata is queryable (D4: paper_id/category/year).
@@ -250,12 +260,78 @@ def test_parquet_chunk_missing_from_chunks_fails_loudly(paths):
     write_parquet(paths["parquet"], [c[0] for c in CHUNKS] + ["9999.00000#0"])
     with pytest.raises(IndexBuildError, match="missing from chunks.jsonl"):
         run(paths)
+    assert not paths["corpus_db"].exists()  # validation precedes any write
 
 
 def test_stale_parquet_subset_fails_the_count_invariant(paths):
     write_parquet(paths["parquet"], [CHUNKS[0][0]])  # 1 vector vs 3 chunks
-    with pytest.raises(IndexBuildError, match="chunks table has 3"):
+    with pytest.raises(IndexBuildError, match="holds 1 vectors"):
         run(paths)
+    assert not paths["corpus_db"].exists()
+
+
+def test_orphan_chunk_paper_id_fails_before_any_write(paths):
+    # Review finding #55-1 (reproduced): a chunk whose paper_id is missing
+    # from arxiv.db must fail validation BEFORE corpus.db is replaced —
+    # a failed build leaves the previous artifact generation untouched.
+
+    first, _ = run(paths)  # a good previous generation exists on disk
+    old_bytes = paths["corpus_db"].read_bytes()
+
+    orphan = {
+        "chunk_id": "2401.99999#0",
+        "paper_id": "2401.99999",  # not in arxiv.db
+        "section": "Intro",
+        "page_start": 1,
+        "page_end": 1,
+        "text": "orphan text",
+        "n_tokens": 2,
+    }
+    with paths["chunks"].open("a") as fh:
+        fh.write(json.dumps(orphan) + "\n")
+    write_parquet(paths["parquet"], [c[0] for c in CHUNKS] + ["2401.99999#0"])
+
+    with pytest.raises(IndexBuildError, match="missing from arxiv.db"):
+        run(paths)
+
+    # Both stores still hold the PREVIOUS generation — no drift.
+    assert paths["corpus_db"].read_bytes() == old_bytes
+    collection = chroma_client(paths["chroma"]).get_collection(SLUG)
+    assert collection.count() == first.chroma_count
+
+
+def test_corpus_db_foreign_keys_are_enforced_not_decorative(paths, tmp_path):
+    # Belt to _validate_inputs' suspenders: the schema's REFERENCES clause
+    # actually rejects an orphan row (PRAGMA foreign_keys=ON at build time).
+    from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
+
+    paper = PaperRow(
+        arxiv_id="2401.00001",
+        title="t",
+        authors="a",
+        abstract="x",
+        categories="cs.CL",
+        published="2024-01-02",
+        version="v1",
+        license=None,
+        venue=None,
+        authority=None,
+        niche_idf=None,
+        author_novelty=None,
+        revisions=None,
+        venue_rigor=None,
+    )
+    orphan_chunk = ChunkRow(
+        chunk_id="9999.00000#0",
+        paper_id="9999.00000",
+        section="s",
+        page_start=1,
+        page_end=1,
+        text="t",
+        n_tokens=1,
+    )
+    with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
+        _write_corpus_db(tmp_path / "corpus.db", [paper], [orphan_chunk])
 
 
 def test_other_models_parquet_is_refused(paths):

@@ -27,11 +27,14 @@ import sqlite3
 import sys
 import xml.etree.ElementTree as ET
 import zipfile
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 import chromadb
+import chromadb.config
 import chromadb.errors
 import httpx
 
@@ -222,6 +225,10 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
     tmp.unlink(missing_ok=True)
     conn = sqlite3.connect(tmp)
     try:
+        # SQLite FKs are OFF by default, which would make the schema's
+        # REFERENCES clause decorative; _validate_inputs already guarantees
+        # referential integrity, this makes the schema enforce it too.
+        conn.execute("PRAGMA foreign_keys=ON")
         conn.executescript(
             """
             CREATE TABLE papers (
@@ -305,26 +312,53 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
     tmp.replace(db_path)
 
 
-def _load_chroma(
-    chroma_dir: Path,
-    collection_name: str,
-    vectors_parquet: Path,
+def _validate_inputs(
+    chunk_ids_embedded: list[str],
     chunks: list[ChunkRow],
     papers_by_id: dict[str, PaperRow],
-    add_batch_size: int,
-) -> int:
-    """Per-model parquet -> a per-model Chroma collection; returns its count."""
-    table = read_vectors(vectors_parquet, expected_slug=collection_name)
-    ids = table["chunk_id"].to_pylist()
-    vectors = table["vector"].to_pylist()
-    chunks_by_id = {c.chunk_id: c for c in chunks}
-    missing = [i for i in ids if i not in chunks_by_id]
+) -> None:
+    """Every input invariant, checked BEFORE any artifact is written.
+
+    A failed build must leave the previous corpus.db + chroma generation
+    untouched (review finding #55-1): validate-then-write, never the reverse.
+    `read_vectors`' slug/provenance refusal runs earlier still, at read time.
+    """
+    orphans = sorted({c.paper_id for c in chunks} - papers_by_id.keys())
+    if orphans:
+        raise IndexBuildError(
+            f"{len(orphans)} chunk paper_id(s) missing from arxiv.db "
+            f"(first: {orphans[0]}) — collector db rebuilt or pruned after extraction?"
+        )
+    chunk_ids = {c.chunk_id for c in chunks}
+    missing = [i for i in chunk_ids_embedded if i not in chunk_ids]
     if missing:
         raise IndexBuildError(
             f"{len(missing)} embedded chunk_ids missing from chunks.jsonl "
             f"(first: {missing[0]}) — stale parquet or stale chunks?"
         )
-    client = chromadb.PersistentClient(path=str(chroma_dir))
+    if len(chunk_ids_embedded) != len(chunks):
+        raise IndexBuildError(
+            f"vectors parquet holds {len(chunk_ids_embedded)} vectors but chunks.jsonl "
+            f"holds {len(chunks)} chunks — re-run embed_chunks before indexing"
+        )
+
+
+def _load_chroma(
+    chroma_dir: Path,
+    collection_name: str,
+    ids: list[str],
+    vectors: list[list[float]],
+    chunks_by_id: dict[str, ChunkRow],
+    papers_by_id: dict[str, PaperRow],
+    add_batch_size: int,
+) -> int:
+    """Pre-validated vectors -> the per-model Chroma collection; returns its count."""
+    client = chromadb.PersistentClient(
+        path=str(chroma_dir),
+        # The pinned 1.5.9 ships a no-op telemetry client (verified in review),
+        # but no-egress must be deliberate, not an accident of the pin.
+        settings=chromadb.config.Settings(anonymized_telemetry=False),
+    )
     try:
         client.delete_collection(collection_name)  # drop-and-rebuild
     except chromadb.errors.NotFoundError:  # first build — nothing to drop
@@ -339,7 +373,9 @@ def _load_chroma(
         batch_ids = ids[start : start + add_batch_size]
         collection.add(
             ids=batch_ids,
-            embeddings=vectors[start : start + add_batch_size],
+            # cast only widens list[list[float]] to what chroma declares;
+            # list invariance blocks the direct assignment.
+            embeddings=cast("list[Sequence[float]]", vectors[start : start + add_batch_size]),
             metadatas=[
                 {
                     "paper_id": chunks_by_id[i].paper_id,
@@ -373,6 +409,13 @@ def run(
         chunks = _read_chunks(chunks_path)
         stats.papers, stats.chunks = len(papers), len(chunks)
 
+        # ALL validation precedes any write or network/seed stage: a failed
+        # build leaves the previous artifact generation untouched, and bad
+        # inputs fail before the 5.4 GB seed pass (review finding #55-1).
+        table = read_vectors(vectors_parquet, expected_slug=collection_name)
+        embedded_ids = table["chunk_id"].to_pylist()
+        _validate_inputs(embedded_ids, chunks, {p.arxiv_id: p for p in papers})
+
         licenses = read_seed_licenses(seed_zip, {p.arxiv_id for p in papers})
         stats.licenses_found = len(licenses)
 
@@ -400,7 +443,13 @@ def run(
 
         _write_corpus_db(corpus_db, papers, chunks)
         stats.chroma_count = _load_chroma(
-            chroma_dir, collection_name, vectors_parquet, chunks, papers_by_id, add_batch_size
+            chroma_dir,
+            collection_name,
+            embedded_ids,
+            table["vector"].to_pylist(),
+            {c.chunk_id: c for c in chunks},
+            papers_by_id,
+            add_batch_size,
         )
 
         # THE acceptance invariant (issue #14): the two stores hold the same

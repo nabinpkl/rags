@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import chromadb
+import chromadb.config
+import chromadb.errors
 import pyarrow.parquet as pq
 
 from askrag.config import Settings, get_settings
@@ -85,10 +87,15 @@ def collect(settings: Settings) -> IngestStats:
             conn.close()
 
     if settings.chroma_dir.exists():
-        client = chromadb.PersistentClient(path=str(settings.chroma_dir))
+        client = chromadb.PersistentClient(
+            path=str(settings.chroma_dir),
+            # Deliberate no-egress, not an accident of the 1.5.9 pin (whose
+            # telemetry client happens to be a no-op stub — review #55).
+            settings=chromadb.config.Settings(anonymized_telemetry=False),
+        )
         try:
             stats.chroma_count = client.get_collection(settings.embedding_model_slug).count()
-        except Exception:  # collection not built yet — report absence, not a crash
+        except chromadb.errors.NotFoundError:  # not built yet — absent, not a crash
             stats.chroma_count = None
 
     return stats
