@@ -38,7 +38,15 @@ fi
 
 brief="$REPO/.claude/briefs/$role.md"
 [ -f "$brief" ] || { echo "no brief at $brief" >&2; exit 1; }
-[ -n "$task" ] && { [ -f "$task" ] || { echo "no task file at $task" >&2; exit 1; }; }
+if [ -n "$task" ]; then
+  [ -f "$task" ] || { echo "no task file at $task" >&2; exit 1; }
+  # Absolutize: .claude/tasks/ is gitignored, so the task file lives ONLY in
+  # the coordinator's primary checkout, not in the worker's worktree. A
+  # relative path in the boot prompt would resolve against the worktree cwd
+  # and miss it — the worker must read it by absolute path (same reason the
+  # brief above is absolute).
+  task="$(cd "$(dirname "$task")" && pwd)/$(basename "$task")"
+fi
 
 uuid="$(uuidgen | tr 'A-Z' 'a-z')"
 RUN="$REPO/.claude/run"
