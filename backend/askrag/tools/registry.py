@@ -13,11 +13,21 @@ enforced where those connections are created, not by convention here.
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from pydantic import BaseModel
 
 from askrag.tools import drive_ui, query_metadata, read_paper, search_corpus
+
+
+class ToolResult(Protocol):
+    """The uniform shape every handler's return value satisfies: one method
+    turning it into a plain, JSON-shaped dict. This is the fence seam #23
+    consumes — wrap `to_model_payload()`'s output in the fenced, "untrusted
+    corpus content" block (§5/§6) once, instead of a per-type switch over
+    the four heterogeneous result classes (2026-07-06 checkpoint finding 2)."""
+
+    def to_model_payload(self) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
@@ -27,10 +37,12 @@ class ToolSpec:
     name: str
     description: str
     args_model: type[BaseModel]
-    # `Callable[[Any], Any]`, not `Callable[[BaseModel], Any]`: each handler
-    # below takes its OWN args subclass (SearchCorpusArgs, not bare
-    # BaseModel), which a contravariant parameter type would reject here.
-    handler: Callable[[Any], Any]
+    # `Callable[[Any], ToolResult]`, not `Callable[[BaseModel], ToolResult]`:
+    # each handler below takes its OWN args subclass (SearchCorpusArgs, not
+    # bare BaseModel), which a contravariant parameter type would reject
+    # here. The return side is `ToolResult`, not `Any` — dispatch() below no
+    # longer hands its caller an unfenceable heterogeneous value.
+    handler: Callable[[Any], ToolResult]
 
     @property
     def json_schema(self) -> dict[str, Any]:
@@ -66,9 +78,10 @@ TOOLS: dict[str, ToolSpec] = {
     "read_paper": ToolSpec(
         name="read_paper",
         description=(
-            "Read extracted text spans from one paper, optionally restricted "
-            "to a page range. Returns a small, word-capped set of spans, "
-            "never the paper's full text."
+            "Read extracted text from one paper for deep analysis, optionally "
+            "restricted to a page range. Returns page-ordered spans up to a "
+            "token budget — use this to read a paper more deeply than the "
+            "chunks search_corpus returns."
         ),
         args_model=read_paper.ReadPaperArgs,
         handler=read_paper.run,
@@ -86,7 +99,7 @@ TOOLS: dict[str, ToolSpec] = {
 }
 
 
-def dispatch(name: str, raw_args: dict[str, Any]) -> Any:
+def dispatch(name: str, raw_args: dict[str, Any]) -> ToolResult:
     """Validate `raw_args` against the named tool's schema, then call its
     handler. Raises `UnknownToolError` for anything not in `TOOLS` — this
     file never falls back to open dispatch by name."""

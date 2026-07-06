@@ -55,6 +55,14 @@ def test_open_paper_accepts_an_existing_id(corpus_db):
     assert result == OpenPaperArgs(paper_id="2401.00001")
 
 
+def test_to_model_payload_is_a_plain_dict(corpus_db):
+    result = run(
+        DriveUiArgs.model_validate({"action": "open_paper", "paper_id": "2401.00001"}),
+        corpus_db_path=corpus_db,
+    )
+    assert result.to_model_payload() == {"action": "open_paper", "paper_id": "2401.00001"}
+
+
 def test_open_paper_refuses_a_nonexistent_id(corpus_db):
     with pytest.raises(DriveUiError, match="9999.99999"):
         run(
