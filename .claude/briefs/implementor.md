@@ -24,9 +24,14 @@ Read, in order:
 1. Branch: `issue-<n>-<short-slug>` off latest `main`. **Open a draft PR
    after the first meaningful commit and push at every green milestone**
    (tests pass, lint clean, feature lands) — the owner watches progress on
-   GitHub, not in your terminal. One-line PR comments at milestones; long
-   runs go through a named log file, path posted before the run starts.
+   GitHub, not in your terminal. One-line PR comments at milestones.
    Mark ready-for-review only after self-review (step 4).
+   - **Working surface**: you run inside a watched tmux window. Run a
+     **long** command (ingest, embed, eval, a full test suite, a benchmark)
+     via `scripts/agent-pane.sh <label> <cmd...>` — it opens a visible split
+     pane and tees to `.claude/run/task-<label>.log`, so progress is
+     watchable and survives your context. **Short** commands run in your own
+     Bash. Post the log path in a PR comment before a long run starts.
 2. Implement the issue's **Build** section exactly; its file list comes from
    the spec's §4c tree. Grep for a concept before creating any file or
    function; extend what exists. Tests mirror source file names 1:1.

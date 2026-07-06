@@ -11,3 +11,6 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 .ruff_cache/
+
+# Orchestration runtime state: per-role worker session ids + long-run task logs
+.claude/run/

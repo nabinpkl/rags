@@ -25,6 +25,34 @@ context is the point. If the coordinator session restarts, re-spawn roles
 with their briefs; durable context lives in artifacts (PRs, issue comments,
 decisions.md, the spec), not in any agent's memory.
 
+## Worker harness (tmux)
+
+Implementor and reviewer run as interactive `claude` CLIs in windows of the
+human's **pre-existing** `rags` tmux session, so both the coordinator and the
+human can watch them work (decisions.md 2026-07-06). Scripts in `scripts/`:
+
+- `agent-spawn.sh <role> [task-file]` — one window per role, pinned to a known
+  `--session-id` so the coordinator knows which jsonl to read. **Fails loud if
+  the session is absent; never creates it** (the human owns its lifecycle).
+- `agent-send.sh <role> <msg>` — deliver a short control message (type, settle,
+  submit). Big context (task specs, findings) goes in a file or PR comment;
+  send a one-line "read <path> and act", not kilobytes through tmux.
+- `agent-feed.sh <role>` — the human's peek: one line per tool call, mutating
+  tools flagged, read from the live-appended session jsonl (not TUI-scraped).
+- `agent-pane.sh <label> <cmd>` — a worker opens a **visible** split pane for a
+  **long** run (ingest, embed, eval, full suite, benchmark), teeing to
+  `.claude/run/task-<label>.log`. Short commands stay in the worker's Bash.
+
+Two channels, kept separate: the on-disk jsonl is the coordinator's machine
+signal (tool calls + terminal result event); the tmux window + feed is the
+human's live view and manual override (attach, Ctrl-C to halt, type to steer).
+At a coherent task boundary the coordinator kills and re-spawns the worker
+(compaction-by-respawn). Workers run same-account, so this makes limit deaths
+visible and cheap-to-resume, not impossible; `ANTHROPIC_API_KEY` on the workers
+is the unwired escape hatch for true isolation. Human vigilance is sampling,
+not a gate: actions that must never happen are stopped by permission mode and
+hooks, not by someone watching.
+
 ## The loop (per issue)
 
 1. Coordinator picks the top item from the board's **Ready** column, moves it

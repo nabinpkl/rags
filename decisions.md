@@ -14,6 +14,39 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-06 — SDLC workers run as tmux-hosted claude CLIs for live observability (owner directive)
+
+**Context:** the Agent/SendMessage subagent mechanism gave the coordinator no
+live view into a running worker (edge-triggered "it finished" notifications
+only) and gave the human no way to peek and catch a wrong action mid-flight;
+subagents also lost re-messageability across a coordinator compaction (their
+transcripts persist on disk, but the runtime handle does not cross the session
+boundary). Observed twice while landing #16.
+**Decision:** implementor/reviewer run as interactive `claude` CLIs in windows
+of the human's **pre-existing** `rags` tmux session (real name may be
+group-suffixed, e.g. `rags-0`). Four scripts under `scripts/`:
+`agent-spawn.sh` (one window per role, session-id pinned so the coordinator
+knows the jsonl path; fails loud if the session is absent — never creates it),
+`agent-send.sh` (type + settle + Enter; short control messages only, big
+context goes via files/PR), `agent-feed.sh` (human peek: one line per tool
+call, MUTATE-flagged, read from the live-appended session jsonl — not scraped
+from the TUI), `agent-pane.sh` (a worker opens a visible split pane for a
+**long** run, teeing to `.claude/run/task-<label>.log`; short commands stay in
+the worker's Bash). Machine channel = the on-disk jsonl; human channel = the
+tmux window + feed. Compaction-by-respawn at task boundaries; durable context
+stays in briefs + PRs + task files. Runs same-account (session limits are not
+escaped, only made visible and cheap-to-resume); `ANTHROPIC_API_KEY` on the
+workers is the escape hatch for true limit isolation, left unwired.
+**Alternatives rejected:** headless `-p --output-format stream-json | tee`
+(clean log but not human-watchable/steerable); scraping `tmux capture-pane`
+(TUI grid is not a clean data channel); a second Claude subscription seat or
+API-key billing now (cost, unjustified at this scale).
+**Consequence:** briefs gained a working-surface rule (long→`agent-pane.sh`,
+short→Bash); `docs/sdlc.md` gained a Worker harness section; `.claude/run/` is
+gitignored runtime state.
+Spec updated: no (process-only; the SDLC loop lives in `docs/sdlc.md`, not the
+design spec).
+
 ## 2026-07-05 — Embeddings pivot to local-first: nomic-embed-text-v1.5 replaces Voyage as default (D5 second amendment, owner directive) (#13)
 
 **Context:** the Voyage free tier turned out throttled to 3 RPM / 10K TPM for
