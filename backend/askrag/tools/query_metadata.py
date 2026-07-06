@@ -1,105 +1,221 @@
-"""tool: query_metadata — model-supplied read-only SQL over corpus.db (§5).
+"""tool: query_metadata — enum'd metadata queries over corpus.db (§5).
 
-The one tool whose whole point is to run text the model wrote (§6: "designed
-to accept model SQL"). Safety is by construction, never by string-matching:
+Replaces model-authored SQL (decisions.md 2026-07-06, pre-#23) with a
+`drive_ui`-style discriminated union of exactly three ops: `count_papers`
+(scalar count or a group-by histogram), `paper_facets` (point lookup by
+paper id), `corpus_stats` (corpus-wide totals). Every op runs a FIXED
+parameterized SQL template — filters bind as `?`, and a `group_by` value
+resolves through a server-side `{Literal -> column}` map, never a
+string-interpolated column name. There is no model-authored SQL path
+anywhere, so the SQL-injection/DoS surface the old authorizer/timeout
+machinery guarded against no longer exists (§6, superseded).
 
-- `db.connect_corpus` opens SQLite with `mode=ro` (§4c) — a write statement
-  fails at the file level even if every guard below were bypassed.
-- `sqlite3.Cursor.execute()` refuses more than one statement per call
-  (raises `ProgrammingError`) — single-statement by construction, no `;`
-  splitting or regex needed.
-- `Connection.set_authorizer` runs at PREPARE time, before any row is read,
-  and denies every action code except SELECT/read and a NAMED allow-list of
-  scalar/aggregate functions (`query_metadata_allowed_functions`, checked
-  against the authorizer's own `arg2`). This is parse-time enforcement:
-  ATTACH, PRAGMA, INSERT/UPDATE/DELETE/DDL, and multi-db access are all
-  authorizer denials, not a keyword blocklist. A blanket `SQLITE_FUNCTION`
-  allow would let a single memory-allocating call (`randomblob`/`zeroblob`,
-  however composed) skip the timeout below in one VM opcode — the function
-  allow-list is what closes that (review finding, PR #57).
-- `Connection.set_progress_handler` aborts a query once it runs past
-  `query_metadata_timeout_seconds` (SQLite polls the deadline periodically
-  during execution, including during `fetchmany`).
-- Rows are capped by fetching `max_rows + 1` and truncating — never by
-  rewriting the model's SQL with an injected LIMIT.
+`QueryMetadataArgs` is a `RootModel` over a `Field(discriminator="op")`
+union, mirroring `drive_ui.DriveUiArgs`: pydantic picks the matching
+per-op model from `op` alone, so each op's JSON schema states exactly its
+own fields (a `corpus_stats` call can't also carry `paper_id`).
 """
 
 import sqlite3
-import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from askrag import db
 from askrag.config import Settings, get_settings
 
-# How often (in SQLite VM instructions) the progress handler polls the
-# deadline — a protocol tuning knob for set_progress_handler, not a caller
-# tunable (SQLite docs recommend the low hundreds-to-thousands range).
-_PROGRESS_HANDLER_POLL_INSTRUCTIONS = 1000
+# group_by Literal -> the real column it resolves to. The model only ever
+# supplies the Literal; this map is the only place a column name reaches SQL.
+_GROUP_BY_COLUMNS = {
+    "category": "primary_category",
+    "year": "year",
+    "license": "license",
+    "venue": "venue",
+}
 
 
 class QueryMetadataError(Exception):
-    """The model's SQL was rejected or exceeded a limit — safe to surface to
-    the model as a tool-result error (never a 500, never a crash, §5)."""
+    """The requested paper id does not exist in corpus.db (§5)."""
 
 
-class QueryMetadataArgs(BaseModel):
+class CountPapersArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    sql: str = Field(min_length=1, description="a single read-only SELECT statement")
+    op: Literal["count_papers"] = "count_papers"
+    category: str | None = None
+    year_min: int | None = None
+    year_max: int | None = None
+    has_license: bool | None = None
+    group_by: Literal["category", "year", "license", "venue"] | None = None
 
 
-def _json_safe_cell(value: object) -> object:
-    """A BLOB literal (e.g. `SELECT X'48656c6c6f'`) is legal, authorizer-blind
-    SQL syntax, not a function call, so it slips the SQLITE_FUNCTION
-    allow-list and comes back as `bytes` — not JSON-shaped (PR #59 review
-    finding 1). Hex-encode: readable in a debug/trace payload and stable
-    under repeated encode/decode, unlike base64's padding/charset quirks."""
-    return value.hex() if isinstance(value, bytes) else value
+class PaperFacetsArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    op: Literal["paper_facets"] = "paper_facets"
+    paper_id: str = Field(min_length=1)
+
+
+class CorpusStatsArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    op: Literal["corpus_stats"] = "corpus_stats"
+
+
+_QueryUnion = Annotated[
+    CountPapersArgs | PaperFacetsArgs | CorpusStatsArgs, Field(discriminator="op")
+]
+
+
+class QueryMetadataArgs(RootModel[_QueryUnion]):
+    """Model-facing input: validates + dispatches on `op` alone."""
 
 
 @dataclass(frozen=True)
-class QueryMetadataResult:
-    columns: tuple[str, ...]
-    rows: tuple[tuple[object, ...], ...]
-    truncated: bool  # more rows matched than query_metadata_max_rows allows
+class HistogramBucket:
+    value: str | int | None
+    count: int
+
+
+@dataclass(frozen=True)
+class CountPapersResult:
+    count: int | None  # scalar form (group_by=None)
+    histogram: tuple[HistogramBucket, ...] | None  # group_by set; top-N bounded
+    truncated: bool  # more distinct groups exist than the top-N cap returned
 
     def to_model_payload(self) -> dict[str, Any]:
         return {
-            "columns": list(self.columns),
-            "rows": [[_json_safe_cell(v) for v in row] for row in self.rows],
+            "count": self.count,
+            "histogram": (
+                [{"value": b.value, "count": b.count} for b in self.histogram]
+                if self.histogram is not None
+                else None
+            ),
             "truncated": self.truncated,
         }
 
 
-_Authorizer = Callable[[int, str | None, str | None, str | None, str | None], int]
+@dataclass(frozen=True)
+class PaperFacetsResult:
+    paper_id: str
+    title: str
+    primary_category: str
+    year: int
+    version: str | None
+    license: str | None
+    venue: str | None
+    n_chunks: int
+    n_pages: int
+
+    def to_model_payload(self) -> dict[str, Any]:
+        return {
+            "paper_id": self.paper_id,
+            "title": self.title,
+            "primary_category": self.primary_category,
+            "year": self.year,
+            "version": self.version,
+            "license": self.license,
+            "venue": self.venue,
+            "n_chunks": self.n_chunks,
+            "n_pages": self.n_pages,
+        }
 
 
-def _make_authorizer(allowed_functions: frozenset[str]) -> _Authorizer:
-    """Build the per-run authorizer: SELECT/read unconditionally, function
-    calls only by NAME (`arg2`), against the config allow-list. Everything
-    else — writes, DDL, PRAGMA, ATTACH, and any function not on the list —
-    is denied."""
+@dataclass(frozen=True)
+class CorpusStatsResult:
+    n_papers: int
+    n_chunks: int
+    year_min: int | None
+    year_max: int | None
+    n_categories: int
 
-    def _authorize(
-        action: int,
-        _arg1: str | None,
-        arg2: str | None,
-        _db_name: str | None,
-        _trigger: str | None,
-    ) -> int:
-        if action in (sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ):
-            return sqlite3.SQLITE_OK
-        if action == sqlite3.SQLITE_FUNCTION:
-            name = (arg2 or "").lower()
-            return sqlite3.SQLITE_OK if name in allowed_functions else sqlite3.SQLITE_DENY
-        return sqlite3.SQLITE_DENY
+    def to_model_payload(self) -> dict[str, Any]:
+        return {
+            "n_papers": self.n_papers,
+            "n_chunks": self.n_chunks,
+            "year_min": self.year_min,
+            "year_max": self.year_max,
+            "n_categories": self.n_categories,
+        }
 
-    return _authorize
+
+def _count_filters(args: CountPapersArgs) -> tuple[str, list[object]]:
+    clauses: list[str] = []
+    params: list[object] = []
+    if args.category is not None:
+        clauses.append("primary_category = ?")
+        params.append(args.category)
+    if args.year_min is not None:
+        clauses.append("year >= ?")
+        params.append(args.year_min)
+    if args.year_max is not None:
+        clauses.append("year <= ?")
+        params.append(args.year_max)
+    if args.has_license is not None:
+        clauses.append("license IS NOT NULL" if args.has_license else "license IS NULL")
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    return where, params
+
+
+def _run_count_papers(
+    conn: sqlite3.Connection, args: CountPapersArgs, histogram_max_groups: int
+) -> CountPapersResult:
+    where, params = _count_filters(args)
+    if args.group_by is None:
+        row = conn.execute(f"SELECT COUNT(*) FROM papers{where}", params).fetchone()
+        return CountPapersResult(count=row[0], histogram=None, truncated=False)
+
+    column = _GROUP_BY_COLUMNS[args.group_by]
+    rows = conn.execute(
+        f"SELECT {column}, COUNT(*) FROM papers{where} "
+        f"GROUP BY {column} ORDER BY COUNT(*) DESC LIMIT ?",
+        [*params, histogram_max_groups + 1],
+    ).fetchall()
+    truncated = len(rows) > histogram_max_groups
+    buckets = tuple(HistogramBucket(value=r[0], count=r[1]) for r in rows[:histogram_max_groups])
+    return CountPapersResult(count=None, histogram=buckets, truncated=truncated)
+
+
+def _run_paper_facets(conn: sqlite3.Connection, args: PaperFacetsArgs) -> PaperFacetsResult:
+    row = conn.execute(
+        "SELECT title, primary_category, year, version, license, venue "
+        "FROM papers WHERE arxiv_id = ?",
+        (args.paper_id,),
+    ).fetchone()
+    if row is None:
+        raise QueryMetadataError(f"no paper with id {args.paper_id!r} in corpus.db")
+
+    n_chunks, n_pages = conn.execute(
+        "SELECT COUNT(*), COALESCE(MAX(page_end), 0) FROM chunks WHERE paper_id = ?",
+        (args.paper_id,),
+    ).fetchone()
+    return PaperFacetsResult(
+        paper_id=args.paper_id,
+        title=row["title"],
+        primary_category=row["primary_category"],
+        year=row["year"],
+        version=row["version"],
+        license=row["license"],
+        venue=row["venue"],
+        n_chunks=n_chunks,
+        n_pages=n_pages,
+    )
+
+
+def _run_corpus_stats(conn: sqlite3.Connection) -> CorpusStatsResult:
+    n_papers, year_min, year_max, n_categories = conn.execute(
+        "SELECT COUNT(*), MIN(year), MAX(year), COUNT(DISTINCT primary_category) FROM papers"
+    ).fetchone()
+    (n_chunks,) = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()
+    return CorpusStatsResult(
+        n_papers=n_papers,
+        n_chunks=n_chunks,
+        year_min=year_min,
+        year_max=year_max,
+        n_categories=n_categories,
+    )
 
 
 def run(
@@ -107,25 +223,15 @@ def run(
     *,
     settings: Settings | None = None,
     corpus_db_path: Path | None = None,
-) -> QueryMetadataResult:
+) -> CountPapersResult | PaperFacetsResult | CorpusStatsResult:
     settings = settings if settings is not None else get_settings()
+    op = args.root
     conn = db.connect_corpus(corpus_db_path)
     try:
-        conn.set_authorizer(_make_authorizer(frozenset(settings.query_metadata_allowed_functions)))
-        deadline = time.monotonic() + settings.query_metadata_timeout_seconds
-        conn.set_progress_handler(
-            lambda: 1 if time.monotonic() > deadline else 0,
-            _PROGRESS_HANDLER_POLL_INSTRUCTIONS,
-        )
-        try:
-            cursor = conn.execute(args.sql)
-            columns = tuple(d[0] for d in cursor.description or ())
-            fetched = cursor.fetchmany(settings.query_metadata_max_rows + 1)
-        except sqlite3.Error as exc:
-            raise QueryMetadataError(str(exc)) from exc
-
-        truncated = len(fetched) > settings.query_metadata_max_rows
-        rows = tuple(tuple(row) for row in fetched[: settings.query_metadata_max_rows])
-        return QueryMetadataResult(columns=columns, rows=rows, truncated=truncated)
+        if isinstance(op, CountPapersArgs):
+            return _run_count_papers(conn, op, settings.query_metadata_histogram_max_groups)
+        if isinstance(op, PaperFacetsArgs):
+            return _run_paper_facets(conn, op)
+        return _run_corpus_stats(conn)
     finally:
         conn.close()

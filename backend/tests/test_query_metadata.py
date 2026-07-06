@@ -1,37 +1,38 @@
-"""Tests for askrag.tools.query_metadata — SELECT-only enforcement (§5/§6).
+"""Tests for askrag.tools.query_metadata — enum'd metadata query ops (§5/§6).
 
-Security-relevant behavior, written test-first (§4d/§6 table): every one of
-these must be refused before a single row is read, by construction
-(sqlite3 authorizer + single-statement execute), never by string-matching
-the model's SQL text.
+No model-authored SQL exists anywhere in this tool (decisions.md
+2026-07-06): the old SQL-injection/DoS-refusal tests are gone — moot, there
+is no SQL surface left to inject into. Security-relevant behavior here is
+"the union accepts only these three shapes"; that is asserted directly by
+`extra="forbid"` and the discriminator, tested below.
 """
 
-import json
-import time
-
 import pytest
+from pydantic import ValidationError
 
 from askrag.config import Settings
 from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
 from askrag.tools.query_metadata import (
+    CorpusStatsResult,
+    CountPapersResult,
+    PaperFacetsResult,
     QueryMetadataArgs,
     QueryMetadataError,
-    QueryMetadataResult,
     run,
 )
 
 
-def paper(arxiv_id, year=2024):
+def paper(arxiv_id, year=2024, category="cs.CL", license=None, venue=None):
     return PaperRow(
         arxiv_id=arxiv_id,
-        title="t",
+        title=f"title-{arxiv_id}",
         authors="a",
         abstract="x",
-        categories="cs.CL",
+        categories=category,
         published=f"{year}-01-01",
         version="v1",
-        license=None,
-        venue=None,
+        license=license,
+        venue=venue,
         authority=None,
         niche_idf=None,
         author_novelty=None,
@@ -42,221 +43,204 @@ def paper(arxiv_id, year=2024):
 
 @pytest.fixture
 def corpus_db(tmp_path):
-    papers = [paper("2401.00001", 2024), paper("2401.00002", 2023)]
+    papers = [
+        paper("2401.00001", year=2024, category="cs.CL", license="CC-BY-4.0", venue="ACL"),
+        paper("2401.00002", year=2023, category="cs.CL", license=None, venue=None),
+        paper("2401.00003", year=2023, category="cs.LG", license="CC-BY-4.0", venue="NeurIPS"),
+    ]
     chunks = [
-        ChunkRow("2401.00001#0", "2401.00001", "Intro", 1, 1, "hello world", 2),
-        ChunkRow("2401.00002#0", "2401.00002", "Intro", 1, 1, "goodbye world", 2),
+        ChunkRow("2401.00001#0", "2401.00001", "Intro", 1, 1, "hello", 2),
+        ChunkRow("2401.00001#1", "2401.00001", "Body", 2, 3, "world", 2),
+        ChunkRow("2401.00002#0", "2401.00002", "Intro", 1, 1, "goodbye", 2),
     ]
     path = tmp_path / "corpus.db"
     _write_corpus_db(path, papers, chunks)
     return path
 
 
-@pytest.fixture
-def many_papers_db(tmp_path):
-    # Big enough that a self cross-join blows a near-zero deadline (measured
-    # locally: a 4-way join over 50 rows takes low milliseconds).
-    papers = [paper(f"{i:04d}.00001", 2024) for i in range(50)]
-    path = tmp_path / "corpus.db"
-    _write_corpus_db(path, papers, [])
-    return path
-
-
-def query(sql, corpus_db, **settings_overrides) -> QueryMetadataResult:
+def query(op_payload: dict, corpus_db, **settings_overrides):
     return run(
-        QueryMetadataArgs(sql=sql),
+        QueryMetadataArgs.model_validate(op_payload),
         settings=Settings(**settings_overrides),
         corpus_db_path=corpus_db,
     )
 
 
-# --- the tool works for its intended purpose ---------------------------------
+# --- count_papers -------------------------------------------------------------
 
 
-def test_plain_select_returns_columns_and_rows(corpus_db):
-    result = query("SELECT arxiv_id, published FROM papers ORDER BY arxiv_id", corpus_db)
-    assert result.columns == ("arxiv_id", "published")
-    assert result.rows == (("2401.00001", "2024-01-01"), ("2401.00002", "2023-01-01"))
+def test_count_papers_scalar_with_no_filters(corpus_db):
+    result = query({"op": "count_papers"}, corpus_db)
+    assert isinstance(result, CountPapersResult)
+    assert result.count == 3
+    assert result.histogram is None
     assert result.truncated is False
 
 
-def test_to_model_payload_is_a_plain_dict_of_lists(corpus_db):
-    result = query("SELECT arxiv_id, published FROM papers ORDER BY arxiv_id", corpus_db)
-    assert result.to_model_payload() == {
-        "columns": ["arxiv_id", "published"],
-        "rows": [["2401.00001", "2024-01-01"], ["2401.00002", "2023-01-01"]],
-        "truncated": False,
-    }
-
-
-def test_blob_literal_values_are_hex_encoded_and_json_safe(corpus_db):
-    # A BLOB literal (`X'...'`) is legal SELECT syntax, not a function call —
-    # it never touches the SQLITE_FUNCTION allow-list and comes back as raw
-    # `bytes`. The dataclass field keeps the real bytes; the payload must be
-    # JSON-safe regardless (PR #59 review finding 1).
-    result = query("SELECT X'48656c6c6f' AS b", corpus_db)
-    assert result.rows == ((b"Hello",),)
-    payload = result.to_model_payload()
-    assert payload["rows"] == [["48656c6c6f"]]
-    json.dumps(payload)  # must not raise
-
-
-def test_aggregate_and_join_work(corpus_db):
-    result = query(
-        "SELECT p.arxiv_id, COUNT(c.chunk_id) FROM papers p "
-        "JOIN chunks c ON c.paper_id = p.arxiv_id GROUP BY p.arxiv_id",
-        corpus_db,
+def test_count_papers_filters_bind_category_year_and_license(corpus_db):
+    assert query({"op": "count_papers", "category": "cs.LG"}, corpus_db).count == 1
+    assert query({"op": "count_papers", "year_min": 2024}, corpus_db).count == 1
+    assert query({"op": "count_papers", "year_max": 2023}, corpus_db).count == 2
+    assert query({"op": "count_papers", "has_license": True}, corpus_db).count == 2
+    assert query({"op": "count_papers", "has_license": False}, corpus_db).count == 1
+    assert (
+        query({"op": "count_papers", "category": "cs.CL", "year_min": 2024}, corpus_db).count == 1
     )
-    assert set(result.rows) == {("2401.00001", 1), ("2401.00002", 1)}
 
 
-@pytest.mark.parametrize(
-    "sql",
-    [
-        "SELECT COUNT(*) FROM papers",
-        "SELECT LENGTH(arxiv_id), LOWER(arxiv_id), UPPER(arxiv_id) FROM papers",
-        "SELECT ROUND(1.5), ABS(-1), COALESCE(NULL, 'x') FROM papers LIMIT 1",
-        "SELECT MIN(published), MAX(published), SUM(1), AVG(1) FROM papers",
-        "SELECT date('now'), strftime('%Y', published) FROM papers LIMIT 1",
-    ],
-)
-def test_allow_listed_functions_still_work(corpus_db, sql):
-    query(sql, corpus_db)  # not raising IS the assertion
+def test_count_papers_histogram_by_category(corpus_db):
+    result = query({"op": "count_papers", "group_by": "category"}, corpus_db)
+    assert result.count is None
+    buckets = {b.value: b.count for b in result.histogram}
+    assert buckets == {"cs.CL": 2, "cs.LG": 1}
+    assert result.truncated is False
 
 
-# --- review finding (PR #57): a blanket SQLITE_FUNCTION allow bypasses the ---
-# --- row cap and timeout in a single VM opcode -------------------------------
+def test_count_papers_histogram_by_license_groups_nulls_together(corpus_db):
+    result = query({"op": "count_papers", "group_by": "license"}, corpus_db)
+    buckets = {b.value: b.count for b in result.histogram}
+    assert buckets == {"CC-BY-4.0": 2, None: 1}
 
 
-@pytest.mark.parametrize(
-    "hostile_sql",
-    [
-        "SELECT randomblob(10)",
-        "SELECT zeroblob(10)",
-        # composed: the allocator is nested inside an otherwise-harmless call
-        "SELECT length(randomblob(950000000))",
-        "SELECT hex(randomblob(10))",
-        "SELECT printf('%s', randomblob(10))",
-    ],
-)
-def test_unlisted_functions_are_refused_even_when_composed(corpus_db, hostile_sql):
-    with pytest.raises(QueryMetadataError):
-        query(hostile_sql, corpus_db)
+def test_count_papers_histogram_by_year_and_venue(corpus_db):
+    year_result = query({"op": "count_papers", "group_by": "year"}, corpus_db)
+    by_year = {b.value: b.count for b in year_result.histogram}
+    assert by_year == {2024: 1, 2023: 2}
+    venue_result = query({"op": "count_papers", "group_by": "venue"}, corpus_db)
+    by_venue = {b.value: b.count for b in venue_result.histogram}
+    assert by_venue == {"ACL": 1, None: 1, "NeurIPS": 1}
 
 
-def test_a_single_call_cannot_bypass_the_timeout_via_a_memory_allocator(corpus_db):
-    # The exact failure scenario from the review finding: one allocator call
-    # is one VM opcode, so a between-opcode progress-handler poll can't
-    # preempt it mid-allocation — the function-name allow-list is what
-    # refuses it instead, before any allocation happens.
-    start = time.monotonic()
-    with pytest.raises(QueryMetadataError):
-        query(
-            "SELECT length(randomblob(950000000))",
-            corpus_db,
-            query_metadata_timeout_seconds=0.001,
-        )
-    assert time.monotonic() - start < 1  # refused up front, no ~1s allocation
-
-
-def test_load_extension_is_unreachable_regardless_of_the_authorizer(corpus_db):
-    # Python's sqlite3 disables extension loading by default; confirm the
-    # tool never turns it on, independent of the function allow-list.
-    with pytest.raises(QueryMetadataError):
-        query("SELECT load_extension('anything')", corpus_db)
-
-
-# --- refused at parse time, not by keyword matching --------------------------
-
-
-@pytest.mark.parametrize(
-    "hostile_sql",
-    [
-        "INSERT INTO papers (arxiv_id) VALUES ('x')",
-        "UPDATE papers SET title = 'pwned'",
-        "DELETE FROM papers",
-        "DROP TABLE papers",
-        "PRAGMA table_info(papers)",
-        "PRAGMA writable_schema=1",
-        "ATTACH DATABASE ':memory:' AS aux",
-        "CREATE TABLE evil (x)",
-        # multi-statement: a trailing statement smuggled in after a valid SELECT
-        "SELECT 1; DROP TABLE papers",
-        "SELECT 1; SELECT 2",
-    ],
-)
-def test_hostile_sql_is_refused(corpus_db, hostile_sql):
-    with pytest.raises(QueryMetadataError):
-        query(hostile_sql, corpus_db)
-
-
-def test_trailing_comment_after_a_semicolon_is_not_a_second_statement(corpus_db):
-    # SQLite treats a comment as no statement at all, not as smuggled second
-    # SQL — this is the multi-statement guard's boundary, not a bypass: there
-    # is genuinely only one statement here for `execute()` to run.
-    result = query("SELECT 1; -- DROP TABLE papers", corpus_db)
-    assert result.rows == ((1,),)
-
-
-def test_a_single_trailing_semicolon_is_fine(corpus_db):
-    # Multi-statement rejection must not misfire on the common single-query
-    # trailing-semicolon style.
-    result = query("SELECT arxiv_id FROM papers WHERE arxiv_id = '2401.00001';", corpus_db)
-    assert result.rows == (("2401.00001",),)
-
-
-def test_read_only_connection_refuses_writes_even_past_the_authorizer(corpus_db):
-    # Defense in depth: db.connect_corpus() opens mode=ro (§4c) independent of
-    # the authorizer, so even a hypothetical authorizer bypass hits a
-    # read-only file at the SQLite level.
-    with pytest.raises(QueryMetadataError):
-        query("INSERT INTO papers (arxiv_id) VALUES ('should-never-land')", corpus_db)
-    # No mutation happened: a fresh plain connection still sees 2 rows.
-    result = query("SELECT COUNT(*) FROM papers", corpus_db)
-    assert result.rows == ((2,),)
-
-
-# --- limits: rows and time ----------------------------------------------------
-
-
-def test_row_limit_truncates_and_reports_it(corpus_db):
-    result = query("SELECT arxiv_id FROM papers", corpus_db, query_metadata_max_rows=1)
-    assert len(result.rows) == 1
+def test_count_papers_histogram_top_n_truncates_and_reports_it(corpus_db):
+    result = query(
+        {"op": "count_papers", "group_by": "category"},
+        corpus_db,
+        query_metadata_histogram_max_groups=1,
+    )
+    assert len(result.histogram) == 1
     assert result.truncated is True
 
 
-def test_row_limit_not_hit_reports_false(corpus_db):
-    result = query("SELECT arxiv_id FROM papers", corpus_db, query_metadata_max_rows=500)
+def test_count_papers_histogram_within_cap_reports_not_truncated(corpus_db):
+    result = query(
+        {"op": "count_papers", "group_by": "category"},
+        corpus_db,
+        query_metadata_histogram_max_groups=500,
+    )
     assert result.truncated is False
 
 
-def test_slow_query_times_out(many_papers_db):
-    # A 4-way self cross-join over 50 papers (~6M row-combinations) forces
-    # enough VM steps to blow a near-zero deadline, independent of real
-    # corpus size.
-    start = time.monotonic()
+def test_count_papers_off_enum_group_by_rejected_by_pydantic():
+    with pytest.raises(ValidationError):
+        QueryMetadataArgs.model_validate({"op": "count_papers", "group_by": "not_a_real_column"})
+
+
+# --- paper_facets ---------------------------------------------------------------
+
+
+def test_paper_facets_returns_all_fields_incl_chunk_and_page_counts(corpus_db):
+    result = query({"op": "paper_facets", "paper_id": "2401.00001"}, corpus_db)
+    assert isinstance(result, PaperFacetsResult)
+    assert result.paper_id == "2401.00001"
+    assert result.title == "title-2401.00001"
+    assert result.primary_category == "cs.CL"
+    assert result.year == 2024
+    assert result.version == "v1"
+    assert result.license == "CC-BY-4.0"
+    assert result.venue == "ACL"
+    assert result.n_chunks == 2
+    assert result.n_pages == 3  # max(page_end)
+
+
+def test_paper_facets_zero_chunks_when_paper_has_none(corpus_db):
+    result = query({"op": "paper_facets", "paper_id": "2401.00003"}, corpus_db)
+    assert result.n_chunks == 0
+    assert result.n_pages == 0
+
+
+def test_paper_facets_unknown_id_raises(corpus_db):
     with pytest.raises(QueryMetadataError):
-        query(
-            "SELECT COUNT(*) FROM papers p1, papers p2, papers p3, papers p4",
-            many_papers_db,
-            query_metadata_timeout_seconds=0.001,
-        )
-    assert time.monotonic() - start < 5  # aborted promptly, not left to run
+        query({"op": "paper_facets", "paper_id": "9999.99999"}, corpus_db)
 
 
-def test_generous_timeout_does_not_trip_a_normal_query(corpus_db):
-    result = query("SELECT arxiv_id FROM papers", corpus_db, query_metadata_timeout_seconds=5.0)
-    assert len(result.rows) == 2
+# --- corpus_stats -----------------------------------------------------------------
 
 
-# --- args schema ---------------------------------------------------------------
+def test_corpus_stats_totals(corpus_db):
+    result = query({"op": "corpus_stats"}, corpus_db)
+    assert isinstance(result, CorpusStatsResult)
+    assert result.n_papers == 3
+    assert result.n_chunks == 3
+    assert result.year_min == 2023
+    assert result.year_max == 2024
+    assert result.n_categories == 2
 
 
-def test_args_reject_extra_fields():
-    with pytest.raises(Exception):  # noqa: B017 — pydantic ValidationError
-        QueryMetadataArgs.model_validate({"sql": "SELECT 1", "extra_field": "nope"})
+# --- to_model_payload is a plain JSON-shaped dict --------------------------------
 
 
-def test_args_reject_blank_sql():
-    with pytest.raises(Exception):  # noqa: B017 — pydantic ValidationError
-        QueryMetadataArgs(sql="")
+def test_count_papers_scalar_payload_shape(corpus_db):
+    result = query({"op": "count_papers"}, corpus_db)
+    assert result.to_model_payload() == {"count": 3, "histogram": None, "truncated": False}
+
+
+def test_count_papers_histogram_payload_shape(corpus_db):
+    result = query({"op": "count_papers", "group_by": "category"}, corpus_db)
+    payload = result.to_model_payload()
+    assert payload["count"] is None
+    assert payload["truncated"] is False
+    assert {"value": "cs.CL", "count": 2} in payload["histogram"]
+
+
+def test_paper_facets_payload_shape(corpus_db):
+    result = query({"op": "paper_facets", "paper_id": "2401.00001"}, corpus_db)
+    assert result.to_model_payload() == {
+        "paper_id": "2401.00001",
+        "title": "title-2401.00001",
+        "primary_category": "cs.CL",
+        "year": 2024,
+        "version": "v1",
+        "license": "CC-BY-4.0",
+        "venue": "ACL",
+        "n_chunks": 2,
+        "n_pages": 3,
+    }
+
+
+def test_corpus_stats_payload_shape(corpus_db):
+    result = query({"op": "corpus_stats"}, corpus_db)
+    assert result.to_model_payload() == {
+        "n_papers": 3,
+        "n_chunks": 3,
+        "year_min": 2023,
+        "year_max": 2024,
+        "n_categories": 2,
+    }
+
+
+# --- args schema: no raw-SQL path exists anywhere --------------------------------
+
+
+def test_args_reject_a_free_form_sql_field():
+    with pytest.raises(ValidationError):
+        QueryMetadataArgs.model_validate({"op": "corpus_stats", "sql": "SELECT 1"})
+
+
+def test_args_reject_unknown_op():
+    with pytest.raises(ValidationError):
+        QueryMetadataArgs.model_validate({"op": "run_raw_sql", "sql": "SELECT 1"})
+
+
+def test_count_papers_rejects_extra_fields():
+    with pytest.raises(ValidationError):
+        QueryMetadataArgs.model_validate({"op": "count_papers", "unexpected": "nope"})
+
+
+def test_paper_facets_requires_paper_id():
+    with pytest.raises(ValidationError):
+        QueryMetadataArgs.model_validate({"op": "paper_facets"})
+
+
+def test_corpus_stats_rejects_any_params():
+    with pytest.raises(ValidationError):
+        QueryMetadataArgs.model_validate({"op": "corpus_stats", "paper_id": "2401.00001"})
