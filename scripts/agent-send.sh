@@ -38,23 +38,28 @@ _input_pending() {
 
 # Phase 1: get the text INTO the input box. A slow-booting TUI can drop the
 # first keystrokes entirely (nothing lands), so re-type until the box is
-# non-empty. Clear first (C-u) so a re-type can't double the message.
+# non-empty. Only re-type when the box reads empty, clearing first (C-u) so a
+# re-type can't double the message. ~15s window: a cold Claude TUI (Opus) can
+# take that long to start accepting input.
+tmux send-keys -t "$pane" -l "$msg"
 landed=0
-for _ in $(seq 1 8); do
+for _ in $(seq 1 10); do
+  sleep 1.5
+  if _input_pending; then landed=1; break; fi
   tmux send-keys -t "$pane" C-u
   tmux send-keys -t "$pane" -l "$msg"
-  sleep 1.0
-  if _input_pending; then landed=1; break; fi
 done
 [ "$landed" = 1 ] || { echo "FATAL: text never landed in '$role' input (TUI not accepting input)" >&2; exit 1; }
 
-# Phase 2: submit and confirm the box cleared. Re-press Enter if the first was
-# swallowed mid-boot; fail loud if it never takes.
+# Phase 2: submit and confirm the box cleared. The TUI debounces input after a
+# paste and swallows an Enter pressed too soon, so re-press until the box clears
+# — a WIDE ~30s window (20 x 1.5s): the observed failure was a real submit that
+# landed just after a too-short window, firing a false "stuck". Fail loud only
+# after the box has genuinely refused to clear for the whole window.
 submitted=0
-for _ in $(seq 1 6); do
+for _ in $(seq 1 20); do
   tmux send-keys -t "$pane" Enter
-  sleep 1.0
+  sleep 1.5
   if ! _input_pending; then submitted=1; break; fi
-  sleep 0.5
 done
 [ "$submitted" = 1 ] || { echo "FATAL: '$role' message typed but never submitted (TUI stuck)" >&2; exit 1; }
