@@ -102,6 +102,25 @@ def test_replay_orders_multiple_tool_calls_before_the_text_event():
     ]
 
 
+def test_replay_emits_a_recorded_drive_ui_call_as_ui_action():
+    call = ToolCallRecord(
+        name="drive_ui", args={"action": "open_paper", "paper_id": "2401.00001"}, ok=True
+    )
+    run = make_run(tool_calls=(call,))
+    events = list(replay.replay_events(run))
+    assert events[0] == {
+        "type": "ui_action",
+        "action": "open_paper",
+        "args": {"action": "open_paper", "paper_id": "2401.00001"},
+    }
+    assert events[1] == {
+        "type": "tool_result_summary",
+        "name": "drive_ui",
+        "ok": True,
+        "error": None,
+    }
+
+
 def test_replay_events_are_already_serialized_plain_dicts():
     run = make_run()
     for event in replay.replay_events(run):

@@ -160,8 +160,18 @@ async def _stream_live_turn(
         finally:
             # Reached on normal completion (harmless: run_and_close is
             # already done by then) AND on client disconnect / early
-            # generator close (cancels the in-flight run_turn thread task
-            # instead of letting it keep spending budget).
+            # generator close. This does NOT abort the worker thread:
+            # `run_sync` above has no `abandon_on_cancel=True` (anyio's
+            # default is False), so cancelling the scope only stops event
+            # delivery (send.send raises BrokenResourceError, swallowed in
+            # on_event) while run_turn's synchronous while-loop keeps
+            # running to max_tool_steps_per_message and still persists its
+            # trace. A disconnected turn spends its full step-cap budget,
+            # not a truncated one — the accepted-and-bounded overshoot from
+            # the 2026-07-05 budget decision. True mid-turn abort isn't
+            # reachable while run_turn is a sync loop with no cancellation
+            # check; abandon_on_cancel=True wouldn't help either, since the
+            # detached thread would still run to completion.
             tg.cancel_scope.cancel()
 
     if outcome.error is not None:

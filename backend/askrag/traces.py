@@ -27,6 +27,12 @@ from typing import Any
 from askrag import db
 from askrag.config import Settings, get_settings
 
+# CREATE TABLE IF NOT EXISTS does not migrate an existing traces.db: adding a
+# column here (as #30 did with question/answer_text) is a no-op against a
+# table that already exists, and the next INSERT fails with "table runs has
+# no column named ...". Any column change to this schema needs the dev
+# traces.db deleted so it regenerates. (decisions.md 2026-07-05 covers this;
+# this is the durable home a future schema-editor actually reads.)
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     run_id      TEXT PRIMARY KEY,

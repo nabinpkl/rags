@@ -26,7 +26,16 @@ def replay_events(run: Run) -> Iterator[dict[str, Any]]:
     persists one), so the replayed `done` event always reports `END_TURN`.
     """
     for call in run.tool_calls:
-        yield sse_events.serialize(sse_events.ToolCallEvent(name=call.name, args=call.args))
+        if call.name == "drive_ui":
+            # Mirror translate()'s special case (sse_events.py): a live
+            # drive_ui call streams as ui_action, not tool_call — replaying
+            # it as tool_call would contradict "the exact event sequence
+            # routes_chat.py would have streamed live".
+            yield sse_events.serialize(
+                sse_events.UiActionEvent(action=call.args.get("action", ""), args=call.args)
+            )
+        else:
+            yield sse_events.serialize(sse_events.ToolCallEvent(name=call.name, args=call.args))
         yield sse_events.serialize(
             sse_events.ToolResultSummaryEvent(name=call.name, ok=call.ok, error=call.error)
         )
