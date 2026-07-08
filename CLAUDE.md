@@ -80,8 +80,9 @@ work is broken into GitHub issues.
   `collector/justfile`, uv-managed; root `justfile` delegates). Corpus
   artifacts live under `corpus/` (gitignored).
 - Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`,
-  `just eval`. Retrieval spine (#16): `just ask q="..."`. Frontend (after
-  #26): `pnpm build`, `pnpm gen:api`.
+  `just eval`. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
+  `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
+  `POST /api/chat`). Frontend (after #26): `pnpm build`, `pnpm gen:api`.
   <!-- Update this section as recipes land; wrong commands are worse than none. -->
 
 ## Evolving this file (coordinator mandate)

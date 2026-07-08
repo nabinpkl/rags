@@ -38,6 +38,8 @@ def spend(settings, *, cost, session=SESSION, ip=IP):
     traces.record_run(
         session_id=session,
         ip=ip,
+        question="q",
+        answer_text="a",
         tokens_in=1,
         tokens_out=1,
         cost_usd=cost,

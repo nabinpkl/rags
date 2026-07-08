@@ -46,7 +46,7 @@ class EventKind(Enum):
 class AgentEvent:
     """Minimal, transport-agnostic progress event. NOT the SSE vocabulary —
     `askrag.api.sse_events.translate()` (#24) maps these onto it; only the
-    HTTP/SSE transport wiring to the frontend is #40's job."""
+    HTTP/SSE transport wiring to the frontend is #30's job."""
 
     kind: EventKind
     data: dict[str, Any]
@@ -58,7 +58,7 @@ def _noop_event(event: AgentEvent) -> None:
 
 @dataclass(frozen=True)
 class TurnResult:
-    """One user-message turn's outcome — what a caller (#40's chat route, or
+    """One user-message turn's outcome — what a caller (#30's chat route, or
     this module's own smoke CLI) needs to reply and persist the session."""
 
     text: str
@@ -308,6 +308,8 @@ def run_turn(
     run_id = traces.record_run(
         session_id=session_id,
         ip=ip,
+        question=user_message,
+        answer_text=final_text,
         tokens_in=tokens_in,
         tokens_out=out,
         cost_usd=cost_usd,
