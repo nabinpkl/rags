@@ -62,6 +62,22 @@ fi
 rm -rf "$WT" 2>/dev/null || true
 git -C "$REPO" worktree add --detach "$WT" "$base" -q
 
+# Provision the worktree with the gitignored runtime deps it can't check out
+# (corpus/, backend/.env, backend/.venv), so it is RUNNABLE in place —
+# `just backend-check`, `just serve`, the smoke all work without leaving the
+# worktree. Without this a worker must cd to the PRIMARY checkout to run
+# anything, and its edits/commits drift onto main from there (issue #30
+# post-mortem: a whole task landed on main this way). Symlinks share the
+# primary's copies; workers only run/read them (a worker that `uv sync`-mutates
+# the shared .venv is the one accepted risk — deps are pre-installed, and a
+# branch that adds a dep is rare and caught in review).
+for link in corpus backend/.env backend/.venv; do
+  target="$REPO/$link"
+  [ -e "$target" ] || continue   # skip what the primary doesn't have (e.g. no .env)
+  mkdir -p "$(dirname "$WT/$link")"
+  ln -sfn "$target" "$WT/$link"
+done
+
 # The worker reads its brief/task from the PRIMARY repo (absolute) so the labels
 # are identical regardless of the worktree's ref.
 boot="You are the $role in the askRAG SDLC loop. First read $brief. "
