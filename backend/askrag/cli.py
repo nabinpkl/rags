@@ -59,7 +59,7 @@ def _verify_citations(text: str, *, settings: Settings) -> None:
 def _print_timeline_event(event: AgentEvent) -> None:
     """The visible tool-call timeline (acceptance: "visible tool timeline"),
     rendered through `sse_events.translate()` so the terminal and the future
-    SSE stream describe the same shapes (#24 defines them; #40 wires HTTP)."""
+    SSE stream describe the same shapes (#24 defines them; #30 wires HTTP)."""
     sse = sse_events.translate(event)
     if isinstance(sse, sse_events.ToolCallEvent):
         print(f"  -> {sse.name}({sse.args})", file=sys.stderr)

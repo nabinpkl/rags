@@ -14,7 +14,7 @@ Naming convention — the contract later issues attach to:
                                    .extract.pdf the per-paper span)
                 askrag.db.*       (connection factories, queries)
                 askrag.tool.*     (#23 agent tools, one span per invocation)
-                askrag.api.*      (#23 routes; FastAPI auto-instrumentation)
+                askrag.api.*      (#30 routes; FastAPI auto-instrumentation)
                 askrag.sandbox.*  (#33 container runs)
     attributes  askrag.<snake_case> (e.g. askrag.arxiv_id, askrag.duration_ms,
                 askrag.tokens_in); OTel semconv keys keep their own names.
@@ -26,9 +26,11 @@ Process model: only the parent process emits telemetry. Pool workers
 the parent emits per-item spans with those timestamps — no per-worker
 tracer init, no interleaved stdout from concurrent processes.
 
-FastAPI/httpx auto-instrumentation deliberately does not live here yet:
-the packages land with #23 (the first FastAPI app / runtime httpx use),
-whose lifespan calls their instrumentors immediately after ``init()``.
+FastAPI/httpx auto-instrumentation deliberately does not live here yet: it
+needs `opentelemetry-instrumentation-fastapi`/`-httpx`, new dependencies
+that #30's app.py did not add (dependency gate, docs/sdlc.md) — app.py's
+lifespan calls ``init()``/``shutdown()`` only, no auto-instrumentors. Land
+them, gated, the day something actually needs the trace.
 """
 
 import json

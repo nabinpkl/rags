@@ -52,6 +52,12 @@ target-version = "py312"
 # E/F pycodestyle+pyflakes, I import order, UP modernize, B bugbear traps.
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's own idiom: `Depends(...)` in an argument default is how the
+# framework wires dependency injection, not the mutable-default-arg bug B008
+# exists to catch (#30, first FastAPI route in this repo).
+extend-immutable-calls = ["fastapi.Depends"]
+
 [tool.ty.environment]
 # Checked at the lowest supported version so 3.13-only APIs can't sneak in.
 python-version = "3.12"

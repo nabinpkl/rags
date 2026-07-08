@@ -56,6 +56,11 @@ frontend-check:
 # Full-repo gate — CI runs exactly this, so local green == CI green
 check: backend-check frontend-check
 
+# Dev server (#30): uvicorn serving the FastAPI chat API with autoreload.
+# Extra args pass through to uvicorn, e.g. `just serve --port 8001`.
+serve *ARGS:
+    cd backend && uv run uvicorn askrag.api.app:app --reload --host 127.0.0.1 --port 8000 {{ARGS}}
+
 # Spine checkpoint (#16): hybrid retrieval over the real corpus.
 # Both call forms work: `just ask q="chain of thought"` / `just ask "chain of thought"`
 ask *ARGS:

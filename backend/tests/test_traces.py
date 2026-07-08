@@ -30,6 +30,8 @@ def sample_run(**overrides):
     base = dict(
         session_id="sess-1",
         ip="203.0.113.7",
+        question="what is chain of thought?",
+        answer_text="Chain of thought is a prompting technique.",
         tokens_in=1000,
         tokens_out=200,
         cost_usd=0.012,
@@ -127,6 +129,8 @@ def test_recorded_run_roundtrips_fields(settings):
     run = traces.get_run(rid, settings=settings)
     assert run is not None
     assert run.run_id == rid
+    assert run.question == "what is chain of thought?"
+    assert run.answer_text == "Chain of thought is a prompting technique."
     assert run.tokens_in == 1000
     assert run.tokens_out == 200
     assert run.cost_usd == pytest.approx(0.012)
@@ -160,6 +164,8 @@ def _writer(db_path: str, session_id: str, n: int) -> tuple[int, int]:
             traces.record_run(
                 session_id=session_id,
                 ip=f"10.0.0.{i % 5}",
+                question="q",
+                answer_text="a",
                 tokens_in=1,
                 tokens_out=1,
                 cost_usd=0.001,
