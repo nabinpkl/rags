@@ -2,7 +2,7 @@
 `thinking|tool_call|tool_result_summary|ui_action|text|cost|done` are
 defined. `frontend/lib/sse.ts` (#26+) and `replay.py` (later) both mirror
 this module; it stays transport-agnostic on purpose (no `sse-starlette`, no
-FastAPI import) — #40 adds the HTTP/SSE framing on top of what's here.
+FastAPI import) — #30 adds the HTTP/SSE framing on top of what's here.
 
 Each event is a frozen dataclass with a fixed `type` literal;
 `serialize()` is the single function turning one into the stable
@@ -142,7 +142,7 @@ def translate(event: AgentEvent) -> SseEvent | None:
 
 def cost_event(result: TurnResult) -> CostEvent:
     """The turn's final cost (no intra-turn per-step cost streaming — that's
-    deferred to #40/frontend, per the turn-only `TurnResult.cost_usd` the
+    deferred to #30/frontend, per the turn-only `TurnResult.cost_usd` the
     loop already computes)."""
     return CostEvent(
         cost_usd=result.cost_usd, tokens_in=result.tokens_in, tokens_out=result.tokens_out

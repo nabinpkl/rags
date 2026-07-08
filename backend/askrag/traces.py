@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS runs (
     day         TEXT NOT NULL,   -- UTC date (YYYY-MM-DD); the spend_today key
     session_id  TEXT NOT NULL,
     ip_hash     TEXT NOT NULL,   -- salted SHA-256; raw IP is never stored (§6)
+    question    TEXT NOT NULL,   -- the user message this run answered
+    answer_text TEXT NOT NULL,   -- the turn's final answer, our own AI-generated
+                                  -- summary (§6c) — lets a showcase replay (D11)
+                                  -- reproduce the answer, not just the timeline
     tokens_in   INTEGER NOT NULL,
     tokens_out  INTEGER NOT NULL,
     cost_usd    REAL NOT NULL,
@@ -71,6 +75,8 @@ class Run:
     day: str
     session_id: str
     ip_hash: str
+    question: str
+    answer_text: str
     tokens_in: int
     tokens_out: int
     cost_usd: float
@@ -103,6 +109,8 @@ def record_run(
     *,
     session_id: str,
     ip: str,
+    question: str,
+    answer_text: str,
     tokens_in: int,
     tokens_out: int,
     cost_usd: float,
@@ -124,14 +132,17 @@ def record_run(
         with conn:  # transaction: commit on success, rollback on error
             conn.execute(
                 "INSERT INTO runs (run_id, created_at, day, session_id, ip_hash, "
-                "tokens_in, tokens_out, cost_usd, latency_ms, tool_calls, showcase) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "question, answer_text, tokens_in, tokens_out, cost_usd, latency_ms, "
+                "tool_calls, showcase) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     run_id,
                     when,
                     day,
                     session_id,
                     hash_ip(ip, settings=settings),
+                    question,
+                    answer_text,
                     tokens_in,
                     tokens_out,
                     cost_usd,
@@ -203,6 +214,8 @@ def _row_to_run(row) -> Run:
         day=row["day"],
         session_id=row["session_id"],
         ip_hash=row["ip_hash"],
+        question=row["question"],
+        answer_text=row["answer_text"],
         tokens_in=row["tokens_in"],
         tokens_out=row["tokens_out"],
         cost_usd=row["cost_usd"],

@@ -14,6 +14,43 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-08 — traces.db gains `question`/`answer_text` so showcase replays reproduce the answer, not just the timeline (issue #30)
+
+**Context:** #30 builds the chat route's REPLAY branch (D11: the site
+degrades to a cached showcase session once the global daily cap is spent).
+`traces.Run` carried tool-call records + tokens/cost but no answer text, so
+a replay could reconstruct the tool-call timeline but not the final answer
+— not "a still-good demo" (D11's own framing), just a timeline with no
+punchline.
+**Decision:** `runs` gains two `NOT NULL` columns, `question` (the user
+message the run answered) and `answer_text` (the turn's final answer —
+our own AI-generated text, §6c-compliant, never raw retrieved chunk text).
+`traces.Run`, `record_run(...)`, and `_row_to_run` all extend to carry them;
+`loop.py`'s `run_turn` (which already calls `record_run` internally) passes
+`user_message` and the final `TurnResult.text` through, no other loop
+change. `askrag/api/replay.py` reads `answer_text` back out as the
+replayed turn's one `text` SSE event.
+**Alternatives rejected:** a separate `showcase_answers` table keyed by
+`run_id` (D13/§4c: "replays live in traces.db... no separate format, no
+second store" — splitting the answer into a second table violates that
+decision for no benefit, since every showcase row needs an answer 1:1);
+storing the answer only for `showcase=1` rows (adds a conditional-NULL
+column and a "how did this showcase get flagged after the fact with no
+answer" failure mode — simpler to always capture it, it costs a few KB
+per run in a `traces.db` that's already dev/prod ephemeral).
+**Consequence:** `traces.db` is dev-only and regenerable (D13/§4c: no
+migration path exists or is warranted) — `CREATE TABLE IF NOT EXISTS`
+does not retrofit existing local databases, so a pre-#30 `traces.db` must
+be deleted/moved aside once, not migrated; a fresh one picks up the new
+schema on its first write. `tests/test_traces.py`'s `sample_run` fixture
+and every other test file constructing `record_run(...)` calls updated to
+pass the two new required fields.
+Spec updated: no (§4c's "replays live in traces.db" decision already
+covers this; `Run`'s exact column set was never spec-pinned, just the
+one-store constraint, which this entry keeps intact).
+
+---
+
 ## 2026-07-07 — `ui_action` is advisory/pre-validation, documented explicitly for #26's stream consumer (issue #24 review round 2)
 
 **Context:** review round 1 on PR #64 flagged (non-blocking nit) that

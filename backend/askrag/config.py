@@ -204,6 +204,17 @@ class Settings(BaseSettings):
     quote_max_words: int = 50
     max_quotes_per_paper: int = 3
 
+    # --- chat API (#30; D11/D13) --------------------------------------------
+    # Ephemeral, server-side, in-memory session lifetime — a session's LIVE
+    # message history is lost after this much inactivity (§6 posture: no
+    # durable cross-session state beyond traces.db). One process, so a plain
+    # TTL suffices; no Redis (D13 single-VPS, single FastAPI process).
+    session_ttl_seconds: int = 3600
+    # The frontend dev origin(s) allowed to call the API cross-origin. Empty
+    # by default (same-origin prod behind Caddy, D13); #26 sets this via env
+    # for local `pnpm dev` against `just serve`.
+    cors_allowed_origins: list[str] = Field(default_factory=list)
+
     # --- derived paths (spec §4c corpus/ tree; one root, one rule) ---------
     @property
     def corpus_db_path(self) -> Path:
