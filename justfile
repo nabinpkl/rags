@@ -66,7 +66,18 @@ ask *ARGS:
     query="${query#q=}"
     cd backend && uv run python -m askrag.retrieval.hybrid_search "$query"
 
-# Agent loop smoke (#23): cheap-first validation via OpenRouter before
+# Terminal REPL (#24), milestone 3's exit artifact: interactive multi-turn
+# agent loop with a live tool timeline and running session cost. `q="..."`
+# runs a single one-shot turn instead of the interactive prompt (same call
+# forms as `ask`); bare `just repl` starts the interactive REPL.
+repl *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    question={{quote(ARGS)}}
+    question="${question#q=}"
+    cd backend && if [ -z "$question" ]; then uv run python -m askrag.cli; else uv run python -m askrag.cli "$question"; fi
+
+# Agent loop smoke (#23/#24): cheap-first validation via OpenRouter before
 # spending on Haiku. Needs ASKRAG_AGENT_API_BASE_URL=https://openrouter.ai/api
 # (no trailing /v1 — the anthropic SDK appends /v1/messages itself) and
 # OPENROUTER_API_KEY in backend/.env. Both call forms work, same as `ask`.
@@ -75,7 +86,7 @@ smoke-agent *ARGS:
     set -euo pipefail
     question={{quote(ARGS)}}
     question="${question#q=}"
-    cd backend && uv run python -m askrag.agent.loop "$question"
+    cd backend && uv run python -m askrag.cli "$question"
 
 # Backend tests only (pytest via uv; extra args pass through)
 be-test *ARGS:

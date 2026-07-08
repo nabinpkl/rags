@@ -10,8 +10,6 @@ is the real implementation, built by `anthropic_client_from_settings` from
 config alone. The loop never constructs its own client.
 """
 
-import argparse
-import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -20,7 +18,7 @@ from typing import Any, Protocol
 
 import anthropic
 
-from askrag import telemetry, traces
+from askrag import traces
 from askrag.agent.context_window import evict_oldest
 from askrag.agent.prompts import SYSTEM_PROMPT, fence
 from askrag.config import Settings, get_settings
@@ -47,8 +45,8 @@ class EventKind(Enum):
 @dataclass(frozen=True)
 class AgentEvent:
     """Minimal, transport-agnostic progress event. NOT the SSE vocabulary —
-    `sse_events.py` and wiring an event stream to the frontend are #40's job;
-    this is only the seam #40 will translate from."""
+    `askrag.api.sse_events.translate()` (#24) maps these onto it; only the
+    HTTP/SSE transport wiring to the frontend is #40's job."""
 
     kind: EventKind
     data: dict[str, Any]
@@ -330,52 +328,3 @@ def run_turn(
         run_id=run_id,
         messages=messages,
     )
-
-
-def _print_event(event: AgentEvent) -> None:
-    if event.kind is EventKind.TOOL_CALL:
-        print(f"  -> {event.data['name']}({event.data['args']})", file=sys.stderr)
-    elif event.kind is EventKind.TOOL_RESULT:
-        status = "ok" if event.data["ok"] else f"error: {event.data.get('error')}"
-        print(f"     {status}", file=sys.stderr)
-
-
-def main(argv: list[str] | None = None) -> int:
-    """Cheap-first live smoke (owner directive 2026-07-06): set
-    `ASKRAG_AGENT_API_BASE_URL` + `OPENROUTER_API_KEY` to validate the loop
-    end-to-end against `smoke_model` before spending on Haiku; with neither
-    set, this hits real Anthropic/Haiku instead. Cost is reported at Haiku's
-    configured price regardless of which model actually served the call — the
-    smoke validates plumbing, not billing (config.py `agent_usd_per_mtok_*`).
-    Usage: uv run python -m askrag.agent.loop "question"
-    """
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    parser.add_argument("question", help="a question to ask the agent")
-    args = parser.parse_args(argv)
-
-    settings = get_settings()
-    telemetry.init(settings)
-    try:
-        result = run_turn(
-            [],
-            args.question,
-            session_id="smoke",
-            ip="127.0.0.1",
-            client=anthropic_client_from_settings(settings),
-            settings=settings,
-            on_event=_print_event,
-        )
-        print(result.text)
-        print(
-            f"\n[{result.stop_reason.value}, {len(result.tool_calls)} tool call(s), "
-            f"{result.tokens_in}+{result.tokens_out} tokens, ~${result.cost_usd:.4f} "
-            "(Haiku pricing, approximate on the smoke model)]",
-            file=sys.stderr,
-        )
-        return 0
-    finally:
-        telemetry.shutdown()
-
-
-if __name__ == "__main__":
-    sys.exit(main())
