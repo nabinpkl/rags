@@ -14,6 +14,30 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-07 — `ui_action` is advisory/pre-validation, documented explicitly for #26's stream consumer (issue #24 review round 2)
+
+**Context:** review round 1 on PR #64 flagged (non-blocking nit) that
+`sse_events.translate()`'s `drive_ui` → `ui_action` mapping fires at
+`TOOL_CALL` time on the model's raw args, before `drive_ui.run()` validates
+the target against corpus.db — correct behavior per #24's own brief, but the
+"treat `ui_action` as provisional, reconcile against the paired
+`tool_result_summary`" contract only lived in the PR body, not anywhere a
+future consumer would see it.
+**Decision:** keep the behavior unchanged; document the contract on
+`UiActionEvent` itself (`askrag/api/sse_events.py`) so #26's
+`use-agent-stream.ts` inherits it by reading the type it consumes, not by
+re-discovering it from a closed PR thread.
+**Alternatives rejected:** deferring `ui_action` emission until after
+`drive_ui` dispatch validates (would need `TOOL_RESULT`'s `AgentEvent` to
+also carry the action's args, a `loop.py` change out of scope for #24 and
+unmotivated — the paired `tool_result_summary(ok=False)` already surfaces a
+rejected target one event later).
+**Consequence:** no code behavior change; `sse_events.py`'s docstring is now
+the durable source #26 reads from.
+Spec updated: no (process-only; documents an existing, reviewed behavior).
+
+---
+
 ## 2026-07-07 — `askrag/cli.py` is the single terminal entrypoint; `loop.main`/`_print_event` retired (issue #24)
 
 **Context:** #23 shipped `loop.py`'s own `main()` + `_print_event()` as a

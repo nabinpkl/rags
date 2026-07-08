@@ -63,7 +63,17 @@ class UiActionEvent:
     them. `drive_ui`'s own enum-discriminated schema
     (`askrag/tools/drive_ui.py`) is what makes these args safe to carry
     through untouched here — corpus.db existence-checking still happens at
-    tool dispatch, unaffected by this event firing first."""
+    tool dispatch, unaffected by this event firing first.
+
+    ADVISORY, NOT VALIDATED (decisions.md 2026-07-07): `translate()` builds
+    this from the `TOOL_CALL` `AgentEvent`, i.e. the model's raw args
+    *before* `drive_ui.run()` checks the target against corpus.db. A
+    hallucinated or malformed target can still produce a `ui_action` here; a
+    `tool_result_summary(ok=False)` for the same call follows immediately
+    after if `drive_ui` rejects it. Any stream consumer (#26's
+    `use-agent-stream.ts`) must treat `ui_action` as provisional and
+    reconcile it against the paired `tool_result_summary`, not act on it as
+    already-validated."""
 
     action: str
     args: dict[str, Any]
