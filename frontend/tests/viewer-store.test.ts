@@ -167,3 +167,76 @@ describe("useViewerStore actions", () => {
     expect(useViewerStore.getState()).toMatchObject(DEFAULT_STATE);
   });
 });
+
+describe("applyDriveAction — CONFIRMED drive_ui actions only (D-1/D-3, issue #32)", () => {
+  it("open_paper sets paper and clears page", () => {
+    useViewerStore.getState().setPage(9);
+    useViewerStore
+      .getState()
+      .applyDriveAction("open_paper", { action: "open_paper", paper_id: "1409.7842" });
+
+    const state = useViewerStore.getState();
+    expect(state.paper).toBe("1409.7842");
+    expect(state.page).toBeNull();
+  });
+
+  it("goto_page sets paper+page in ONE update (D-3.1)", () => {
+    useViewerStore
+      .getState()
+      .applyDriveAction("goto_page", { action: "goto_page", paper_id: "1409.7842", page: 3 });
+
+    const state = useViewerStore.getState();
+    expect(state.paper).toBe("1409.7842");
+    expect(state.page).toBe(3);
+  });
+
+  it("set_filters maps year_min/year_max onto yearFrom/yearTo and swaps back to the explorer", () => {
+    useViewerStore.getState().setPaper("1409.7842", 2);
+    useViewerStore.getState().applyDriveAction("set_filters", {
+      action: "set_filters",
+      category: "cs.CL",
+      year_min: 2018,
+      year_max: 2020,
+    });
+
+    const state = useViewerStore.getState();
+    expect(state.category).toBe("cs.CL");
+    expect(state.yearFrom).toBe(2018);
+    expect(state.yearTo).toBe(2020);
+    // AppRegion keys the explorer<->viewer swap on `paper` (app/page.tsx).
+    expect(state.paper).toBeNull();
+    expect(state.page).toBeNull();
+  });
+
+  it("set_filters only touches the keys the model actually sent — an omitted key is 'no change'", () => {
+    useViewerStore.getState().setFilters({ category: "cs.LG", yearFrom: 2015, yearTo: 2019 });
+    useViewerStore
+      .getState()
+      .applyDriveAction("set_filters", { action: "set_filters", category: "cs.CL" });
+
+    const state = useViewerStore.getState();
+    expect(state.category).toBe("cs.CL");
+    expect(state.yearFrom).toBe(2015); // untouched — the model never sent year_min
+    expect(state.yearTo).toBe(2019); // untouched — the model never sent year_max
+  });
+
+  it("set_filters with an explicit null category clears it (distinct from an omitted key)", () => {
+    useViewerStore.getState().setFilters({ category: "cs.LG" });
+    useViewerStore
+      .getState()
+      .applyDriveAction("set_filters", { action: "set_filters", category: null });
+
+    expect(useViewerStore.getState().category).toBeNull();
+  });
+
+  it("goto_page with a missing/malformed target no-ops rather than crashing (forward-compat)", () => {
+    useViewerStore.getState().applyDriveAction("goto_page", { action: "goto_page" });
+    expect(useViewerStore.getState().paper).toBeNull();
+  });
+
+  it("an unrecognized action name no-ops rather than crashing (forward-compat)", () => {
+    useViewerStore.getState().setFilters({ category: "cs.CL" });
+    useViewerStore.getState().applyDriveAction("some_future_action", {});
+    expect(useViewerStore.getState().category).toBe("cs.CL");
+  });
+});
