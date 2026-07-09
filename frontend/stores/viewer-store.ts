@@ -94,7 +94,27 @@ export interface ViewerStoreState extends ViewerUrlState {
   // use-viewer-url-sync.ts when the browser URL changes (nav, back/forward,
   // a pasted link), never by a component reacting to user input.
   hydrateFromUrl: (params: URLSearchParams) => void;
+  // Applies one CONFIRMED drive_ui action (D-1/D-3, issue #32) — called only
+  // by hooks/use-drive-ui.ts, never directly by a component. `args` is the
+  // action's raw args as carried by its ui_action SSE event; by the time
+  // this fires the paired tool_result_summary was already ok=true, so
+  // drive_ui.py's own corpus.db check already validated the target — this
+  // function only needs to shape those args onto viewer-store fields.
+  // goto_page sets paper+page in ONE call so this is a single store update
+  // (one tick), not two — the sequencing requirement use-viewer-url-sync.ts
+  // depends on to push exactly one URL for the pair.
+  applyDriveAction: (action: string, args: Record<string, unknown>) => void;
   reset: () => void;
+}
+
+function stringArg(args: Record<string, unknown>, key: string): string | null {
+  const value = args[key];
+  return typeof value === "string" ? value : null;
+}
+
+function numberArg(args: Record<string, unknown>, key: string): number | null {
+  const value = args[key];
+  return typeof value === "number" ? value : null;
 }
 
 export const useViewerStore = create<ViewerStoreState>()((set) => ({
@@ -107,6 +127,39 @@ export const useViewerStore = create<ViewerStoreState>()((set) => ({
   setPage: (page) => set({ page }),
 
   hydrateFromUrl: (params) => set(viewerStateFromSearchParams(params)),
+
+  applyDriveAction: (action, args) =>
+    set(() => {
+      switch (action) {
+        case "open_paper": {
+          const paperId = stringArg(args, "paper_id");
+          return paperId ? { paper: paperId, page: null } : {};
+        }
+        case "goto_page": {
+          const paperId = stringArg(args, "paper_id");
+          const page = numberArg(args, "page");
+          return paperId && page !== null ? { paper: paperId, page } : {};
+        }
+        case "set_filters": {
+          // Routes back to the explorer (D-1, issue #32): AppRegion
+          // (app/page.tsx) keys the explorer<->viewer swap on `paper`, so
+          // clearing it here is what leaves the viewer. Only keys the model
+          // actually sent are touched — an omitted key means "no change",
+          // not "clear this filter" (a raw model tool-call arg dict, not a
+          // pydantic-defaulted one).
+          const partial: Partial<ViewerUrlState> = { paper: null, page: null };
+          if ("category" in args) partial.category = stringArg(args, "category");
+          if ("year_min" in args) partial.yearFrom = numberArg(args, "year_min");
+          if ("year_max" in args) partial.yearTo = numberArg(args, "year_max");
+          return partial;
+        }
+        default:
+          // Forward-compat: an action name this store doesn't (yet) know —
+          // don't crash, mirrors agent-session-store.ts's own applyEvent
+          // default case.
+          return {};
+      }
+    }),
 
   reset: () => set(DEFAULT_STATE),
 }));

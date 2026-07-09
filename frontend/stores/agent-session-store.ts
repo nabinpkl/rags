@@ -57,6 +57,13 @@ interface PendingCall {
   // `action` field.
   resultName: string;
   paperIds: string[];
+  // The full ui_action to hand to hooks/use-drive-ui.ts once this call's
+  // paired result confirms ok=true — null for a plain tool_call, which only
+  // ever feeds verifiedPaperIds above. Captured regardless of whether the
+  // action carries a paper_id (D-1, issue #32): a paper-less action like
+  // set_filters was previously dropped from reconciliation entirely because
+  // this whole record was only built `if paperId`.
+  uiAction: UiActionEvent | null;
 }
 
 export interface AgentSessionState {
@@ -87,12 +94,23 @@ export interface AgentSessionState {
   // Internal only: the most recent tool_call/ui_action awaiting its paired
   // tool_result_summary. Not for component consumption.
   pendingCall: PendingCall | null;
+  // CONFIRMED ui_actions queue (D-1, issue #32): a ui_action lands here only
+  // once its paired tool_result_summary is ok=true — never the raw/
+  // provisional ui_action event itself, so a hallucinated or malformed
+  // target (drive_ui's own corpus.db check failed) never reaches this queue.
+  // hooks/use-drive-ui.ts drains it into viewer-store; this store stays
+  // decoupled from viewer-store (D-2) — it only ever produces this queue,
+  // never consumes anything from the viewer side.
+  confirmedUiActions: readonly UiActionEvent[];
 
   setSessionId: (id: string) => void;
   startTurn: (question: string) => void;
   applyEvent: (event: SseEvent) => void;
   setCapped: (reason: string) => void;
   setReplay: (reason: string) => void;
+  // Atomically empties and returns confirmedUiActions — the bridge hook's
+  // one-shot drain (D-2: apply each newly-confirmed action exactly once).
+  drainConfirmedUiActions: () => readonly UiActionEvent[];
   reset: () => void;
 }
 
@@ -127,7 +145,7 @@ function mergeCitations(
   return next;
 }
 
-export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
+export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
   status: { kind: "idle" },
   mode: { kind: "live" },
   sessionId: null,
@@ -135,6 +153,7 @@ export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
   verifiedPaperIds: new Set(),
   citationsByPaper: new Map(),
   pendingCall: null,
+  confirmedUiActions: [],
 
   setSessionId: (id) => set({ sessionId: id }),
 
@@ -167,12 +186,17 @@ export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
         case "ui_action": {
           const entry: TimelineEntry = { id: nextEntryId++, call: event, result: null };
           const paperId = paperIdFromArgs(event.args);
-          const pendingCall: PendingCall | null = paperId
-            ? {
-                resultName: event.type === "ui_action" ? "drive_ui" : event.name,
-                paperIds: [paperId],
-              }
-            : null;
+          // A ui_action is captured regardless of whether it carries a
+          // paper_id (D-1, issue #32) — set_filters has none, and dropping
+          // it here means it never reaches confirmedUiActions below. A plain
+          // tool_call still only needs tracking when it has a paper_id to
+          // verify.
+          const pendingCall: PendingCall | null =
+            event.type === "ui_action"
+              ? { resultName: "drive_ui", paperIds: paperId ? [paperId] : [], uiAction: event }
+              : paperId
+                ? { resultName: event.name, paperIds: [paperId], uiAction: null }
+                : null;
           return {
             status: {
               kind: "tool_running" as const,
@@ -191,16 +215,28 @@ export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
               : turn.timeline.map((e, i) => (i === idx ? { ...e, result: event } : e));
 
           const { pendingCall } = state;
-          const verifiedPaperIds =
-            pendingCall && pendingCall.resultName === event.name && event.ok
-              ? new Set([...state.verifiedPaperIds, ...pendingCall.paperIds])
-              : state.verifiedPaperIds;
+          let verifiedPaperIds = state.verifiedPaperIds;
+          let confirmedUiActions = state.confirmedUiActions;
+          // Apply on CONFIRMED, never provisional (D-1): only an ok=true
+          // result for the SAME pending call's resultName reconciles it —
+          // drive_ui.run() has already checked the target against corpus.db
+          // by the time this fires, so a hallucinated target (ok=false)
+          // never verifies a paper id or reaches the ui_action queue.
+          if (pendingCall && pendingCall.resultName === event.name && event.ok) {
+            if (pendingCall.paperIds.length > 0) {
+              verifiedPaperIds = new Set([...state.verifiedPaperIds, ...pendingCall.paperIds]);
+            }
+            if (pendingCall.uiAction) {
+              confirmedUiActions = [...state.confirmedUiActions, pendingCall.uiAction];
+            }
+          }
 
           return {
             status: { kind: "streaming" as const },
             turns: replaceLastTurn(state.turns, { ...turn, timeline }),
             pendingCall: null,
             verifiedPaperIds,
+            confirmedUiActions,
           };
         }
 
@@ -231,6 +267,12 @@ export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
   // survives the replayed stream's own events for the whole turn.
   setReplay: (reason) => set({ mode: { kind: "replay", reason } }),
 
+  drainConfirmedUiActions: () => {
+    const { confirmedUiActions } = get();
+    if (confirmedUiActions.length > 0) set({ confirmedUiActions: [] });
+    return confirmedUiActions;
+  },
+
   reset: () =>
     set({
       status: { kind: "idle" },
@@ -240,5 +282,6 @@ export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
       verifiedPaperIds: new Set(),
       citationsByPaper: new Map(),
       pendingCall: null,
+      confirmedUiActions: [],
     }),
 }));
