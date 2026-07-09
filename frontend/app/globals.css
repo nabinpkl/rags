@@ -8,6 +8,19 @@
   --font-sans: var(--font-instrument-sans);
   --font-serif: var(--font-stix-two-text);
   --font-mono: var(--font-spline-sans-mono);
+
+  /* Agent panel "machine-room" palette (docs/mockup.html) — the rest of the
+     design-token palette lands with the explorer/viewer design pass. */
+  --color-machine: #10161b;
+  --color-machine-2: #161e25;
+  --color-machine-line: #26313a;
+  --color-machine-text: #c8d2d8;
+  --color-machine-muted: #6d7d88;
+  --color-teal: #12a38f;
+  --color-teal-deep: #0e5f56;
+  --color-amber: #c9821a;
+  --color-amber-soft: #f4e8d3;
+  --color-rust: #a8412e;
 }
 
 body {
