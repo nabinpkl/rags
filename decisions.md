@@ -14,6 +14,194 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — Explorer UI (#28 PR review round 1): URL-sync classifier keyed on the store, not the lagging URL
+
+**Context:** review round 1 on PR #68 found a [major] in
+`hooks/use-viewer-url-sync.ts`: the effect classified a mismatch between the
+live URL and the store as "external" whenever `urlString !== lastSynced`,
+where `lastSynced` was set to the PUSH TARGET at push time. `router.push` is
+async — `searchParams` doesn't reflect the pushed URL until Next commits the
+navigation, often several ticks later. A second store-driven change landing
+inside that window recomputed `storeString` (now reflecting both changes)
+but compared it against a `urlString` that still lagged the FIRST push, not
+the current store — `urlString !== lastSynced` was true for the wrong
+reason, misclassifying the second change as an external URL change and
+calling `hydrateFromUrl` against the stale URL, which reverted the store and
+dropped the second change. Reviewer's repro: click category (pushes,
+`lastSynced="category=cs.CL"`, `searchParams` still lags at "") then
+immediately `setPaper` before the navigation commits — the second effect run
+sees `urlString=""`, `storeString="category=cs.CL&paper=…"`,
+`lastSynced="category=cs.CL"`, wrongly hydrates from `""`, losing both the
+open-paper and (transiently) the category. Latent for human clicks today
+(sub-frame window, every high-frequency input already debounced) but
+directly reachable once #29 drives this hook programmatically via
+`drive_ui` across ticks.
+**Decision:** classify by comparing the current store-derived string against
+`prevStoreString` — what the STORE said the last time this effect ran —
+instead of comparing the live URL against the hook's own last push target.
+A mismatch there can only mean the store changed since the last run (this
+hook is the sole reader/writer of `prevStoreString`), so it's unambiguously
+store-driven regardless of whether `searchParams` has caught up to any
+earlier push. `prevStoreString` is seeded from the CURRENT store on mount
+(not `""`/`null`), which is what keeps the original initial-mount case
+correct: a URL with params against a still-default store reads as "the
+store hasn't changed" -> external -> hydrate, not a spurious push that would
+overwrite the URL's params with the (still-default) store.
+**Verification:** reproduced the reviewer's exact scenario live (rapid
+category-click + row-click fired in the same tick, no round-trip between
+them) against the real corpus.db-backed API — both changes now land
+correctly (`?category=cs.CL&paper=<id>`, confirmed settled and via a
+subsequent back-button step), where the pre-fix classifier would have
+dropped one.
+**Alternatives rejected:** debouncing/coalescing rapid `router.push` calls
+into one — doesn't fix the underlying misclassification (a single push can
+still race a still-lagging `searchParams` against an EARLIER push if two
+land within one Next commit cycle), and adds latency to every filter/search
+interaction for a problem that isn't about push frequency.
+**Nits judged, not fixed:** (1) a hand-edited URL with non-canonical param
+order round-trips to canonical order on first hydrate, costing one extra
+history entry that self-normalizes — reviewer's own analysis already scoped
+this to near-zero blast radius (app-generated URLs are always canonical);
+fixing it would need semantic (parsed) equality instead of string equality
+in the classifier, complexity not justified by the risk. (2) store-defaults-
+then-hydrate costs one wasted initial browse fetch before a shared search
+link's filters apply — inherent to a module-level zustand store (created at
+import time, before any component's `searchParams` exists to seed from);
+fixing needs a bigger initialization redesign, out of scope for a review nit.
+(3) `tests/viewer-store.test.ts` gained a direct `setPage` assertion (cheap,
+fixed).
+**Consequence:** `hooks/use-viewer-url-sync.ts` rewritten; `pnpm test`
+(56/56), `typecheck`, `lint`, `format:check` all clean.
+Spec updated: no (implementation contract for #28, same category as the
+entry below it).
+
+---
+
+## 2026-07-09 — Explorer UI (#28): infinite-scroll virtualized table, URL-as-source-of-truth filters, data-gated rigor column, plus two fill-ins
+
+**Context:** #28's task brief handed down three coordinator decisions to
+build against (not open questions): D-1 infinite scroll, D-2 URL-is-source-
+of-truth, D-3 no-empty-column. Building D-2 surfaced two implementation
+details the brief left open.
+
+**D-1 — Infinite scroll via `useInfiniteQuery` + TanStack Virtual.**
+`hooks/use-papers-query.ts`'s `usePapersQuery` wraps `GET /api/papers` in
+`useInfiniteQuery` (`getNextPageParam: (page) => page.next_cursor`);
+`components/explorer/paper-table.tsx` flattens accumulated pages, renders
+only the windowed rows TanStack Virtual computes, and calls `fetchNextPage()`
+once the last rendered row is within `FETCH_NEXT_THRESHOLD` (8) rows of the
+loaded end — never all 6,460 at once, matching #27's own bounded-search-k
+posture on the backend side.
+A live-testing-only bug (only visible against real corpus data, not the
+store test): the first version used a real `<table>` with a fixed-height
+absolutely-positioned `<tr>` per virtual row. Two independent failures
+followed: (1) fixed `estimateSize` assumed every row was the same height,
+but paper titles range from one word to a full wrapped paragraph — a row
+taller than the estimate overlapped its neighbor, since absolute positioning
+doesn't push siblings down. (2) each absolutely-positioned `<tr>` was given
+`display: table` so its own cells would size themselves, but that makes
+every row an independent table layout context sized by ITS OWN content,
+never matching the `<thead>`'s column widths — headers and body columns
+drifted out of alignment. Fixed by dropping the `<table>` element entirely
+in favor of `role="table"`/`role="row"`/`role="cell"` flex divs with an
+explicit `COLUMN_WIDTH_PX` map shared verbatim between the header and every
+body row (TanStack Virtual's own documented pattern for a virtualized
+table), and dynamic row measurement (`ref={virtualizer.measureElement}`)
+instead of a fixed height, so `estimateSize` only seeds the initial layout
+before the real per-row height is measured.
+
+**D-2 — URL is the source of truth; the store derives from it.**
+`stores/viewer-store.ts` holds plain state (`q`/`category`/`yearFrom`/
+`yearTo`/`sort`/`paper`/`page`) plus two PURE functions,
+`viewerStateFromSearchParams`/`searchParamsFromViewerState` — no
+`next/navigation` import in this file, so both directions are directly unit
+tested (`tests/viewer-store.test.ts`, the acceptance gate) without mounting a
+router. Default/empty values are never written to the URL (`q=`,
+`category=null`), which is what makes the round trip exact rather than
+merely lossless.
+**Fill-in 1 — the router glue is a separate hook, `hooks/use-viewer-url-sync.ts`,
+not in the store, is ONE effect, not two, and pushes (not replaces) history.**
+`useRouter`/`usePathname`/`useSearchParams` are component-bound hooks; a
+zustand store file can't call them. A first version split URL->store and
+store->URL into two effects; on initial mount with URL params already
+present, the store->URL effect ran with a STALE pre-hydration closure in the
+same passive-effect flush right after the URL->store effect's
+`hydrateFromUrl` call (the zustand state update schedules a re-render, it
+isn't synchronous, so the second effect's captured filter fields were still
+the old defaults) — it would push the just-hydrated params away, then
+self-correct one render later on the following flush. Collapsed into one
+effect that computes both the raw URL string and the store-derived URL
+string every run and makes an ATOMIC decision: equal -> no-op; URL differs
+from the last string this hook itself produced -> treat as an external URL
+change and hydrate; otherwise -> treat as a store-driven change and write the
+URL. The `lastSynced` ref stays local to the hook, not the store, since the
+store's own tests need no router.
+A second, live-testing-only finding on the SAME hook: it originally called
+`router.replace`, reasoned (wrongly) as "filtering shouldn't spam history."
+Manually driving the running app (Playwright/browser tooling) showed this
+broke the browser back button outright — every filter click OVERWRITES the
+current history entry, so back from any filtered view exits the app
+entirely, contradicting §4c decision 2's explicit "shareable/back-button
+friendly" requirement in the very sentence that motivates URL-as-state at
+all. Switched to `router.push`. History-spam is instead prevented at the
+INPUT layer: `corpus-search-bar.tsx`'s `q` was already debounced (300ms);
+`facet-filters.tsx`'s year `from`/`to` inputs gained the identical debounce
+pattern (`useDebouncedYearInput`, 400ms) so typing a year doesn't push one
+history entry per keystroke. Category-button and row clicks were already
+one push per deliberate click, needing no debounce.
+**Fill-in 2 — a composition component, `components/explorer/explorer-panel.tsx`,**
+mirrors `chat-panel.tsx`'s role for the agent panel: mounts
+`facet-filters.tsx` + `corpus-search-bar.tsx` + `paper-table.tsx` and owns
+the single `useViewerUrlSync()` call, so `app/page.tsx` stays the two-region
+shell (`§4c`: "the app: explorer + viewer + agent panel composition") without
+itself becoming a client component full of hook wiring. Wrapped in
+`<Suspense>` in `page.tsx` because `useSearchParams` requires a boundary
+under `output: 'export'`.
+
+**D-3 — no column backed by empty data.** `paper-table.tsx` computes
+`hasRigorData = papers.some(p => p.facets?.venue_rigor != null)` over the
+currently loaded rows and only pushes the Rigor column onto the TanStack
+Table `columns` array when true — read from real response data, not a
+guessed dev/prod flag, so the column appears automatically once #13's embed
+run populates `venue_rigor` in a given environment. `venue_rigor` is a
+continuous 0..1 score (spec §1), not the mockup's placeholder 0-3 integer;
+`rigorDots()` maps it onto the mockup's 3-dot display
+(`Math.round(score * 3)`), a display heuristic only, not a spec-defined
+discretization.
+
+**Alternatives rejected:** an `?sort=` UI control as its own component —
+the issue's Build list names no such file, mockup.html has none either, and
+the store/URL/backend contract for `sort` is already exercised by
+`viewer-store.test.ts`; instead the Year/Paper column headers in
+`paper-table.tsx` toggle `year_desc`/`year_asc`/`title_asc` on click, giving
+`sort` a real UI surface without inventing an unscoped component. A
+draggable/clickable year-band histogram (mockup's decorative bars, made
+interactive) — the mockup's own version is `aria-hidden` decoration, not a
+control; `facet-filters.tsx` keeps the bars decorative and adds two plain
+number inputs (`year_from`/`year_to`) for the actual filter, which round-
+trips through the URL identically at a fraction of the complexity.
+Putting the store<->URL sync ref state inside `viewer-store.ts` itself
+(rejected in Fill-in 1) — would make the store's own tests router-dependent
+for no benefit, since the pure functions are what the acceptance gate needs.
+
+**Consequence:** `tests/viewer-store.test.ts` (new, 55 total frontend tests
+passing) proves the store⇄URL symmetry gate both directions plus every
+store action; `pnpm lint`/`pnpm typecheck` clean. `pnpm build` (Turbopack)
+fails in the implementor's git worktree ONLY with a `node_modules` symlink-
+out-of-filesystem-root Turbopack panic — a worktree artifact (this repo's
+own `.worktrees/` isolation scheme symlinks `node_modules` in), not a code
+issue; the coordinator confirms a real Turbopack build outside the worktree
+before merge. No column ever shows `score` (fused retrieval score) since it
+is `null` on every browse-mode row — the same D-3 "no empty column"
+reasoning applied one column further than the rigor case the issue named
+explicitly.
+Spec updated: no (§4c already names `paper-table.tsx`/`facet-filters.tsx`/
+`corpus-search-bar.tsx`/`use-papers-query.ts`/`viewer-store.ts`/
+`viewer-store.test.ts`; this entry is #28's implementation contract, same
+category as the #27 entry below it).
+
+---
+
 ## 2026-07-09 — Explorer API (#27): citation contract (D-1) + shared facet SQL (D-2), plus three implementation-contract fill-ins
 
 **Context:** #27's task brief handed down two coordinator decisions to build
