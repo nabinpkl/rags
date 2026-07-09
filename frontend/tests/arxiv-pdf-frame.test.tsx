@@ -25,6 +25,15 @@ function fakePdfDoc(numPages = 3) {
   };
 }
 
+// What `getDocument()` itself returns (a `PDFDocumentLoadingTask`) — the
+// resolved doc (`fakePdfDoc`, above) has no `destroy()` of its own; the
+// loading task does, and that's what arxiv-pdf-frame.tsx's unmount cleanup
+// calls (destroy() aborts network requests + the worker, per pdf.js's own
+// docs — the resolved PDFDocumentProxy has no equivalent method).
+function fakeLoadingTask(numPages = 3) {
+  return { promise: fakePdfDoc(numPages), destroy: vi.fn().mockResolvedValue(undefined) };
+}
+
 beforeEach(() => {
   getDocumentMock.mockReset();
   Element.prototype.scrollIntoView = vi.fn();
@@ -46,7 +55,7 @@ describe("arxivPdfUrl — §6b version pinning", () => {
 
 describe("ArxivPdfFrame — rung 2 (PDF.js) is the default and fetches arxiv.org directly", () => {
   it("requests the version-pinned URL, never a same-origin/proxy path", async () => {
-    getDocumentMock.mockReturnValue({ promise: new Promise(() => {}) }); // never resolves — asserts the request itself
+    getDocumentMock.mockReturnValue({ promise: new Promise(() => {}), destroy: vi.fn() }); // never resolves — asserts the request itself
     render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={null} />);
 
     await waitFor(() => {
@@ -58,7 +67,10 @@ describe("ArxivPdfFrame — rung 2 (PDF.js) is the default and fetches arxiv.org
 
 describe("ArxivPdfFrame — automatic fallback to rung 3", () => {
   it("drops to the excerpts-only + open-on-arXiv rung when PDF.js's own fetch fails", async () => {
-    getDocumentMock.mockReturnValue({ promise: Promise.reject(new Error("network error")) });
+    getDocumentMock.mockReturnValue({
+      promise: Promise.reject(new Error("network error")),
+      destroy: vi.fn(),
+    });
     render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={null} />);
 
     const link = await screen.findByRole("link", { name: /open on arXiv/i });
@@ -68,7 +80,7 @@ describe("ArxivPdfFrame — automatic fallback to rung 3", () => {
 
 describe("ArxivPdfFrame — manual rung toggle (rung 1, iframe)", () => {
   it("uses the SAME version-pinned arxiv.org URL as the iframe src — never our server", async () => {
-    getDocumentMock.mockReturnValue({ promise: fakePdfDoc() });
+    getDocumentMock.mockReturnValue(fakeLoadingTask());
     render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={null} />);
 
     await waitFor(() => expect(getDocumentMock).toHaveBeenCalled());
@@ -79,7 +91,7 @@ describe("ArxivPdfFrame — manual rung toggle (rung 1, iframe)", () => {
   });
 
   it("appends a #page= fragment when a page target is set", async () => {
-    getDocumentMock.mockReturnValue({ promise: fakePdfDoc() });
+    getDocumentMock.mockReturnValue(fakeLoadingTask());
     render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={5} />);
 
     await waitFor(() => expect(getDocumentMock).toHaveBeenCalled());
@@ -87,5 +99,31 @@ describe("ArxivPdfFrame — manual rung toggle (rung 1, iframe)", () => {
 
     const iframe = await screen.findByTitle("Paper PDF, served by arxiv.org");
     expect(iframe.getAttribute("src")).toBe("https://arxiv.org/pdf/1409.7842v3#page=5");
+  });
+});
+
+describe("ArxivPdfFrame — unmount teardown", () => {
+  it("disconnects the IntersectionObserver and destroys the pdf.js loading task on unmount, not on an in-mount page-only rerun", async () => {
+    const loadingTask = fakeLoadingTask();
+    getDocumentMock.mockReturnValue(loadingTask);
+    const disconnectSpy = vi.spyOn(IntersectionObserver.prototype, "disconnect");
+
+    const { rerender, unmount } = render(
+      <ArxivPdfFrame arxivId="1409.7842" version="v3" page={1} />,
+    );
+    await waitFor(() => expect(getDocumentMock).toHaveBeenCalledTimes(1));
+
+    // A same-paper page change re-runs the load effect but must reuse the
+    // already-fetched doc — not re-fetch, and not tear it down.
+    rerender(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={2} />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Previous page").nextSibling).toHaveTextContent("p.2 / 3"),
+    );
+    expect(getDocumentMock).toHaveBeenCalledTimes(1);
+    expect(loadingTask.destroy).not.toHaveBeenCalled();
+
+    unmount();
+    expect(disconnectSpy).toHaveBeenCalled();
+    expect(loadingTask.destroy).toHaveBeenCalledTimes(1);
   });
 });

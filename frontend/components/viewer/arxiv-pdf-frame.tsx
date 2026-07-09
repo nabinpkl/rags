@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PDFDocumentProxy } from "pdfjs-dist";
+import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import { cn } from "@/lib/utils";
 
 // D9's fallback ladder, isolated to this one file — the named seam spec §4d
@@ -75,6 +75,11 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const pagesRef = useRef<HTMLDivElement | null>(null);
   const docRef = useRef<PDFDocumentProxy | null>(null);
+  // The loading task (not the resolved doc) is what actually owns the
+  // in-flight network requests + the pdf.js worker — `PDFDocumentProxy` has
+  // no `destroy()` of its own; `PDFDocumentLoadingTask.destroy()` is the
+  // real teardown ("abort all network requests and destroy the worker").
+  const loadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null);
   const loadedIdvRef = useRef<string | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const numPagesRef = useRef(1);
@@ -135,7 +140,9 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
       if (loadedIdvRef.current === idv && docRef.current) return docRef.current;
       setLoading(true);
       const pdfjsLib = await loadPdfjs();
-      const doc = await pdfjsLib.getDocument({ url }).promise;
+      const loadingTask = pdfjsLib.getDocument({ url });
+      loadingTaskRef.current = loadingTask;
+      const doc = await loadingTask.promise;
       docRef.current = doc;
       loadedIdvRef.current = idv;
       numPagesRef.current = doc.numPages;
@@ -205,6 +212,23 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
       cancelled = true;
     };
   }, [rung, idv, url, targetPage, gotoPage]);
+
+  // Real teardown, once per mount — deliberately NOT in the effect above.
+  // That effect's cleanup runs on every dependency change (rung/targetPage),
+  // not just unmount, but `idv` is constant for the lifetime of one mounted
+  // instance (paper-split-view.tsx only ever changes it via `key={paper}`,
+  // i.e. a full remount) — ensureDoc/buildPagePlaceholders already
+  // short-circuit reuse of the SAME doc/observer across those in-mount
+  // re-runs, so destroying them there would break that reuse. Reading refs
+  // at cleanup time (not closing over a value) means this always tears down
+  // whatever the effect above most recently built, however many times it
+  // re-ran, exactly once when this component actually goes away.
+  useEffect(() => {
+    return () => {
+      observerRef.current?.disconnect();
+      void loadingTaskRef.current?.destroy();
+    };
+  }, []);
 
   // Keeps the page label honest while the user scrolls freely (rung 2 only).
   useEffect(() => {
