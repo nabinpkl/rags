@@ -136,6 +136,13 @@ describe("useViewerStore actions", () => {
     expect(useViewerStore.getState().page).toBe(5);
   });
 
+  it("setPage sets the page directly, independent of setPaper", () => {
+    useViewerStore.getState().setPaper("2401.00001");
+    useViewerStore.getState().setPage(9);
+    expect(useViewerStore.getState().page).toBe(9);
+    expect(useViewerStore.getState().paper).toBe("2401.00001");
+  });
+
   it("hydrateFromUrl replaces the whole state from a URL, including clearing stale fields", () => {
     const { setFilters, setPaper, hydrateFromUrl } = useViewerStore.getState();
     setFilters({ q: "old query", category: "cs.LG" });

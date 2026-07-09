@@ -14,6 +14,69 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — Explorer UI (#28 PR review round 1): URL-sync classifier keyed on the store, not the lagging URL
+
+**Context:** review round 1 on PR #68 found a [major] in
+`hooks/use-viewer-url-sync.ts`: the effect classified a mismatch between the
+live URL and the store as "external" whenever `urlString !== lastSynced`,
+where `lastSynced` was set to the PUSH TARGET at push time. `router.push` is
+async — `searchParams` doesn't reflect the pushed URL until Next commits the
+navigation, often several ticks later. A second store-driven change landing
+inside that window recomputed `storeString` (now reflecting both changes)
+but compared it against a `urlString` that still lagged the FIRST push, not
+the current store — `urlString !== lastSynced` was true for the wrong
+reason, misclassifying the second change as an external URL change and
+calling `hydrateFromUrl` against the stale URL, which reverted the store and
+dropped the second change. Reviewer's repro: click category (pushes,
+`lastSynced="category=cs.CL"`, `searchParams` still lags at "") then
+immediately `setPaper` before the navigation commits — the second effect run
+sees `urlString=""`, `storeString="category=cs.CL&paper=…"`,
+`lastSynced="category=cs.CL"`, wrongly hydrates from `""`, losing both the
+open-paper and (transiently) the category. Latent for human clicks today
+(sub-frame window, every high-frequency input already debounced) but
+directly reachable once #29 drives this hook programmatically via
+`drive_ui` across ticks.
+**Decision:** classify by comparing the current store-derived string against
+`prevStoreString` — what the STORE said the last time this effect ran —
+instead of comparing the live URL against the hook's own last push target.
+A mismatch there can only mean the store changed since the last run (this
+hook is the sole reader/writer of `prevStoreString`), so it's unambiguously
+store-driven regardless of whether `searchParams` has caught up to any
+earlier push. `prevStoreString` is seeded from the CURRENT store on mount
+(not `""`/`null`), which is what keeps the original initial-mount case
+correct: a URL with params against a still-default store reads as "the
+store hasn't changed" -> external -> hydrate, not a spurious push that would
+overwrite the URL's params with the (still-default) store.
+**Verification:** reproduced the reviewer's exact scenario live (rapid
+category-click + row-click fired in the same tick, no round-trip between
+them) against the real corpus.db-backed API — both changes now land
+correctly (`?category=cs.CL&paper=<id>`, confirmed settled and via a
+subsequent back-button step), where the pre-fix classifier would have
+dropped one.
+**Alternatives rejected:** debouncing/coalescing rapid `router.push` calls
+into one — doesn't fix the underlying misclassification (a single push can
+still race a still-lagging `searchParams` against an EARLIER push if two
+land within one Next commit cycle), and adds latency to every filter/search
+interaction for a problem that isn't about push frequency.
+**Nits judged, not fixed:** (1) a hand-edited URL with non-canonical param
+order round-trips to canonical order on first hydrate, costing one extra
+history entry that self-normalizes — reviewer's own analysis already scoped
+this to near-zero blast radius (app-generated URLs are always canonical);
+fixing it would need semantic (parsed) equality instead of string equality
+in the classifier, complexity not justified by the risk. (2) store-defaults-
+then-hydrate costs one wasted initial browse fetch before a shared search
+link's filters apply — inherent to a module-level zustand store (created at
+import time, before any component's `searchParams` exists to seed from);
+fixing needs a bigger initialization redesign, out of scope for a review nit.
+(3) `tests/viewer-store.test.ts` gained a direct `setPage` assertion (cheap,
+fixed).
+**Consequence:** `hooks/use-viewer-url-sync.ts` rewritten; `pnpm test`
+(56/56), `typecheck`, `lint`, `format:check` all clean.
+Spec updated: no (implementation contract for #28, same category as the
+entry below it).
+
+---
+
 ## 2026-07-09 — Explorer UI (#28): infinite-scroll virtualized table, URL-as-source-of-truth filters, data-gated rigor column, plus two fill-ins
 
 **Context:** #28's task brief handed down three coordinator decisions to
