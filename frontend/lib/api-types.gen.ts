@@ -3,10 +3,209 @@
  * Do not make direct changes to the file.
  */
 
-export type paths = Record<string, never>;
+export interface paths {
+    "/api/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Chat */
+        post: operations["post_chat_api_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/papers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Papers */
+        get: operations["list_papers_api_papers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/papers/{paper_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Paper */
+        get: operations["get_paper_api_papers__paper_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Facets */
+        get: operations["get_facets_api_facets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+}
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
+    schemas: {
+        /** ChatRequest */
+        ChatRequest: {
+            /** Question */
+            question: string;
+            /** Session Id */
+            session_id?: string | null;
+        };
+        /** CitedExcerpt */
+        CitedExcerpt: {
+            /** Chunk Id */
+            chunk_id: string;
+            /** Section */
+            section: string;
+            /** Page Start */
+            page_start: number;
+            /** Page End */
+            page_end: number;
+            /** Text */
+            text: string;
+        };
+        /** FacetBucketOut */
+        FacetBucketOut: {
+            /** Value */
+            value: string | number | null;
+            /** Count */
+            count: number;
+        };
+        /** FacetsResponse */
+        FacetsResponse: {
+            /** Total */
+            total: number;
+            /** Category */
+            category: components["schemas"]["FacetBucketOut"][];
+            /** Year */
+            year: components["schemas"]["FacetBucketOut"][];
+            /** License */
+            license: components["schemas"]["FacetBucketOut"][];
+            /** Venue */
+            venue: components["schemas"]["FacetBucketOut"][];
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
+        /** PaperDetailResponse */
+        PaperDetailResponse: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string;
+            /** Authors */
+            authors: string;
+            /** Abstract */
+            abstract: string;
+            /** Categories */
+            categories: string;
+            /** Primary Category */
+            primary_category: string;
+            /** Year */
+            year: number;
+            /** Published */
+            published: string;
+            /** Venue */
+            venue: string | null;
+            /** License */
+            license: string | null;
+            /** Version */
+            version: string | null;
+            /** Facets */
+            facets: {
+                [key: string]: number | null;
+            };
+            /** N Chunks */
+            n_chunks: number;
+            /** Excerpts */
+            excerpts: components["schemas"]["CitedExcerpt"][];
+            /** Excerpts Truncated */
+            excerpts_truncated: boolean;
+        };
+        /** PaperListItem */
+        PaperListItem: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string;
+            /** Authors */
+            authors: string;
+            /** Abstract */
+            abstract: string;
+            /** Primary Category */
+            primary_category: string;
+            /** Year */
+            year: number;
+            /** Venue */
+            venue: string | null;
+            /** License */
+            license: string | null;
+            /** Version */
+            version: string | null;
+            /** Score */
+            score: number | null;
+            /** Facets */
+            facets?: {
+                [key: string]: number | null;
+            } | null;
+        };
+        /** PapersResponse */
+        PapersResponse: {
+            /** Items */
+            items: components["schemas"]["PaperListItem"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number | null;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
+    };
     responses: never;
     parameters: never;
     requestBodies: never;
@@ -14,4 +213,142 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    post_chat_api_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_papers_api_papers_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                category?: string | null;
+                year_from?: number | null;
+                year_to?: number | null;
+                facets?: string | null;
+                sort?: ("relevance" | "year_desc" | "year_asc" | "title_asc") | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PapersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_paper_api_papers__paper_id__get: {
+        parameters: {
+            query?: {
+                /** @description comma-separated chunk_ids for the capped cited-excerpt lookup */
+                chunks?: string | null;
+            };
+            header?: never;
+            path: {
+                paper_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_facets_api_facets_get: {
+        parameters: {
+            query?: {
+                category?: string | null;
+                year_from?: number | null;
+                year_to?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+}

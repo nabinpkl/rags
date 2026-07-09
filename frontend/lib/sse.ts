@@ -50,10 +50,20 @@ export interface CostEvent {
   tokens_out: number;
 }
 
+// One paper's cited chunk ids, ids only — no chunk text ever rides the
+// stream (§6c row 4/D-1, issue #27 decisions.md: "ids on the wire, text
+// only from the capped GET /api/papers/{id}?chunks= endpoint"). A nested
+// payload on DoneEvent, not its own SSE vocabulary member.
+export interface Citation {
+  paper_id: string;
+  chunk_ids: string[];
+}
+
 export interface DoneEvent {
   type: "done";
   stop_reason: string;
   run_id: string;
+  citations: Citation[];
 }
 
 export type SseEvent =
