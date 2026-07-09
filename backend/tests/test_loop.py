@@ -118,6 +118,63 @@ def test_tool_dispatch_round_trips_through_registry(tmp_path, monkeypatch):
     )
 
 
+@dataclass
+class FakeScoredChunk:
+    paper_id: str
+    chunk_id: str
+
+
+class StubSearchCorpusResult:
+    """Mimics SearchCorpusResult's real shape (`.chunks` of paper_id/chunk_id
+    objects) — `_citations_of` reads exactly that, duck-typed (issue #27)."""
+
+    def __init__(self, chunks):
+        self.chunks = chunks
+
+    def to_model_payload(self):
+        return {"chunks": [{"paper_id": c.paper_id, "chunk_id": c.chunk_id} for c in self.chunks]}
+
+
+def test_search_corpus_result_ids_land_in_the_tool_call_record_as_citations(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        registry,
+        "dispatch",
+        lambda name, args: StubSearchCorpusResult(
+            [
+                FakeScoredChunk(paper_id="2401.00001", chunk_id="2401.00001#0"),
+                FakeScoredChunk(paper_id="2401.00001", chunk_id="2401.00001#1"),
+                FakeScoredChunk(paper_id="2401.00002", chunk_id="2401.00002#0"),
+            ]
+        ),
+    )
+    client = ScriptedModelClient(
+        [tool_use_response("t1", name="search_corpus", args={"query": "cot"}), text_response("ok")]
+    )
+    settings = make_settings(tmp_path)
+
+    result = loop.run_turn(
+        [], "what is cot?", session_id="s1", ip="127.0.0.1", client=client, settings=settings
+    )
+
+    assert result.tool_calls[0].citations == (
+        traces.Citation(paper_id="2401.00001", chunk_id="2401.00001#0"),
+        traces.Citation(paper_id="2401.00001", chunk_id="2401.00001#1"),
+        traces.Citation(paper_id="2401.00002", chunk_id="2401.00002#0"),
+    )
+
+
+def test_non_search_corpus_tool_calls_carry_no_citations(tmp_path, monkeypatch):
+    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({"n_papers": 6460}))
+    client = ScriptedModelClient([tool_use_response("t1"), text_response("ok")])
+    settings = make_settings(tmp_path)
+
+    result = loop.run_turn(
+        [], "how many papers?", session_id="s1", ip="127.0.0.1", client=client, settings=settings
+    )
+
+    assert result.tool_calls[0].citations == ()
+
+
 def test_fence_present_and_labeled_on_every_tool_result(tmp_path, monkeypatch):
     monkeypatch.setattr(
         registry, "dispatch", lambda name, args: StubResult({"paper_id": args["paper_id"]})

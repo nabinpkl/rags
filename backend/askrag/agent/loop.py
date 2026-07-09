@@ -23,7 +23,7 @@ from askrag.agent.context_window import evict_oldest
 from askrag.agent.prompts import SYSTEM_PROMPT, fence
 from askrag.config import Settings, get_settings
 from askrag.tools import registry
-from askrag.traces import ToolCallRecord
+from askrag.traces import Citation, ToolCallRecord
 
 
 class StopReason(Enum):
@@ -146,6 +146,22 @@ def _tool_params() -> list[dict[str, Any]]:
     ]
 
 
+def _citations_of(name: str, result: Any) -> tuple[Citation, ...]:
+    """(paper_id, chunk_id) pairs a successful tool result retrieved — IDS
+    ONLY, never the chunk text alongside them (§6c row 4/D-1, issue #27).
+
+    Only `search_corpus`'s `ScoredChunk`s carry a `chunk_id`; `read_paper`'s
+    page-range spans and `query_metadata`'s facts don't, so they contribute
+    no citations here (known gap, issue #27 decisions.md: a `read_paper`
+    deep-read can't yet drive the cited-excerpts pane, only search hits can).
+    Named by tool, mirroring `sse_events.translate()`'s existing
+    `name == "drive_ui"` special-case — the same "know one tool's shape at
+    the translation boundary" pattern, not a new general interface."""
+    if name == "search_corpus":
+        return tuple(Citation(paper_id=c.paper_id, chunk_id=c.chunk_id) for c in result.chunks)
+    return ()
+
+
 def _dispatch_tool_calls(
     tool_use_blocks: list[Any], on_event: Callable[[AgentEvent], None]
 ) -> tuple[list[dict[str, Any]], list[ToolCallRecord]]:
@@ -186,7 +202,9 @@ def _dispatch_tool_calls(
                 "content": fence(result.to_model_payload()),
             }
         )
-        records.append(ToolCallRecord(name=name, args=args, ok=True))
+        records.append(
+            ToolCallRecord(name=name, args=args, ok=True, citations=_citations_of(name, result))
+        )
         on_event(AgentEvent(EventKind.TOOL_RESULT, {"name": name, "ok": True}))
     return result_blocks, records
 

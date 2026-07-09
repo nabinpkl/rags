@@ -192,6 +192,21 @@ class Settings(BaseSettings):
     # union has no free-form row-returning path left to cap).
     query_metadata_histogram_max_groups: int = 500
 
+    # --- explorer API (§4c; issue #27) --------------------------------------
+    # One page of GET /api/papers, either pagination mode (keyset browse or
+    # bounded search-result slicing).
+    explorer_page_size: int = 20
+    # q non-empty: HybridSearch.search()'s k. Search naturally returns a
+    # bounded top-k, not an arbitrarily-deep ranked table (D8) — pagination
+    # over a q result stops once this many papers are exhausted, it never
+    # re-queries with a larger k per page (decisions.md, issue #27).
+    explorer_search_k: int = 100
+    # GET /api/facets and a papers-list facets= request: distinct-group cap
+    # per dimension. A parameter, not a fork of query_metadata's histogram
+    # query (D-2, issue #27) — generous because the explorer wants the FULL
+    # category/year/license/venue list, not a model-facing top-N summary.
+    explorer_facets_max_groups: int = 1000
+
     # --- sandbox rlimits (D10) ---------------------------------------------
     # Only the resource numbers are tunable. `--network none`, ro-mounts,
     # non-root, fresh-container-per-call are invariants of runner.py (§6),

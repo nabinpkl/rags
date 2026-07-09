@@ -4,7 +4,7 @@ showcase trace (#30). Pure/synchronous: no model call, no live loop, so a
 
 from askrag.agent.loop import StopReason
 from askrag.api import replay
-from askrag.traces import Run, ToolCallRecord
+from askrag.traces import Citation, Run, ToolCallRecord
 
 
 def make_run(
@@ -50,8 +50,30 @@ def test_replay_with_no_tool_calls_yields_text_cost_done():
     assert events == [
         {"type": "text", "text": run.answer_text},
         {"type": "cost", "cost_usd": 0.012, "tokens_in": 1000, "tokens_out": 200},
-        {"type": "done", "stop_reason": StopReason.END_TURN.value, "run_id": "r1"},
+        {
+            "type": "done",
+            "stop_reason": StopReason.END_TURN.value,
+            "run_id": "r1",
+            "citations": (),
+        },
     ]
+
+
+def test_replay_emits_citations_aggregated_from_recorded_tool_calls():
+    call = ToolCallRecord(
+        name="search_corpus",
+        args={"query": "cot"},
+        ok=True,
+        citations=(
+            Citation(paper_id="2401.00001", chunk_id="2401.00001#0"),
+            Citation(paper_id="2401.00001", chunk_id="2401.00001#1"),
+        ),
+    )
+    run = make_run(tool_calls=(call,))
+    events = list(replay.replay_events(run))
+    assert events[-1]["citations"] == (
+        {"paper_id": "2401.00001", "chunk_ids": ("2401.00001#0", "2401.00001#1")},
+    )
 
 
 def test_replay_emits_a_tool_call_and_result_pair_per_recorded_call():

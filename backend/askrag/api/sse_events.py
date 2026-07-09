@@ -12,14 +12,18 @@ Each event is a frozen dataclass with a fixed `type` literal;
 progress signal — onto this vocabulary; `cost_event`/`done_event` build the
 two members with no loop-emitted `AgentEvent` counterpart (`DONE` already
 carries `stop_reason`/`run_id`, so `done_event` mirrors `translate()`'s
-`DONE` mapping for callers that only have a `TurnResult`; `cost` has no
-`EventKind` at all — the loop never emits interim cost).
+`DONE` mapping for callers that only have a `TurnResult`, plus `citations`
+(D-1, issue #27) — `translate()` can't compute that field itself, since the
+loop's own `AgentEvent(DONE, ...)` carries no `tool_calls` to aggregate;
+`cost` has no `EventKind` at all — the loop never emits interim cost).
 """
 
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 from askrag.agent.loop import AgentEvent, EventKind, TurnResult
+from askrag.traces import ToolCallRecord
 
 
 @dataclass(frozen=True)
@@ -95,9 +99,23 @@ class CostEvent:
 
 
 @dataclass(frozen=True)
+class Citation:
+    """One paper's cited chunk ids, ids only — no chunk text ever rides the
+    stream (§6c row 4/D-1, issue #27 decisions.md: "ids on the wire, text
+    only from the capped `GET /api/papers/{id}?chunks=` endpoint"). Groups
+    `traces.Citation` pairs (one per retrieved chunk) by paper_id. A nested
+    payload on `DoneEvent`, not its own SSE vocabulary member — no `type`
+    field of its own."""
+
+    paper_id: str
+    chunk_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class DoneEvent:
     stop_reason: str
     run_id: str
+    citations: tuple[Citation, ...] = ()
     type: Literal["done"] = "done"
 
 
@@ -140,6 +158,29 @@ def translate(event: AgentEvent) -> SseEvent | None:
     return None
 
 
+def citations_from_tool_calls(tool_calls: Sequence[ToolCallRecord]) -> tuple[Citation, ...]:
+    """Flatten every call's `traces.Citation` pairs, grouped by paper_id,
+    first-seen order (both across calls and within one paper's chunk_ids) —
+    the shape D-1/issue #27 puts on the wire. Live turns call this from a
+    `TurnResult`'s `tool_calls` (`done_event` below); `replay.py` calls it
+    directly from a persisted `Run.tool_calls` — same aggregation, one
+    function, so a replayed turn's citations can never drift from a live
+    one's."""
+    order: list[str] = []
+    chunk_ids_by_paper: dict[str, list[str]] = {}
+    for call in tool_calls:
+        for citation in call.citations:
+            bucket = chunk_ids_by_paper.setdefault(citation.paper_id, [])
+            if citation.paper_id not in order:
+                order.append(citation.paper_id)
+            if citation.chunk_id not in bucket:
+                bucket.append(citation.chunk_id)
+    return tuple(
+        Citation(paper_id=paper_id, chunk_ids=tuple(chunk_ids_by_paper[paper_id]))
+        for paper_id in order
+    )
+
+
 def cost_event(result: TurnResult) -> CostEvent:
     """The turn's final cost (no intra-turn per-step cost streaming — that's
     deferred to #30/frontend, per the turn-only `TurnResult.cost_usd` the
@@ -150,4 +191,8 @@ def cost_event(result: TurnResult) -> CostEvent:
 
 
 def done_event(result: TurnResult) -> DoneEvent:
-    return DoneEvent(stop_reason=result.stop_reason.value, run_id=result.run_id)
+    return DoneEvent(
+        stop_reason=result.stop_reason.value,
+        run_id=result.run_id,
+        citations=citations_from_tool_calls(result.tool_calls),
+    )

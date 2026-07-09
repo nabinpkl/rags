@@ -92,11 +92,33 @@ describe("parseSseEvent — golden shapes", () => {
   });
 
   it("parses a done event", () => {
-    const raw = JSON.stringify({ type: "done", stop_reason: "end_turn", run_id: "abc123" });
+    const raw = JSON.stringify({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "abc123",
+      citations: [],
+    });
     expect(parseSseEvent(raw)).toEqual({
       type: "done",
       stop_reason: "end_turn",
       run_id: "abc123",
+      citations: [],
+    });
+  });
+
+  it("parses a done event's citations — ids only, D-1/issue #27", () => {
+    const raw = JSON.stringify({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "abc123",
+      citations: [{ paper_id: "2401.00001", chunk_ids: ["2401.00001#0", "2401.00001#1"] }],
+    });
+    const event = parseSseEvent(raw);
+    expect(event).toEqual({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "abc123",
+      citations: [{ paper_id: "2401.00001", chunk_ids: ["2401.00001#0", "2401.00001#1"] }],
     });
   });
 });

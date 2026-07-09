@@ -53,10 +53,11 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.flake8-bugbear]
-# FastAPI's own idiom: `Depends(...)` in an argument default is how the
-# framework wires dependency injection, not the mutable-default-arg bug B008
-# exists to catch (#30, first FastAPI route in this repo).
-extend-immutable-calls = ["fastapi.Depends"]
+# FastAPI's own idiom: `Depends(...)`/`Query(...)` in an argument default is
+# how the framework wires dependency injection and query-param parsing, not
+# the mutable-default-arg bug B008 exists to catch (#30 added Depends; #27
+# adds Query, this repo's first querystring-parsing route).
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 
 [tool.ty.environment]
 # Checked at the lowest supported version so 3.13-only APIs can't sneak in.
