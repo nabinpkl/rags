@@ -143,12 +143,20 @@ class FacetBucketOut(BaseModel):
     count: int
 
 
+class FacetDimension(BaseModel):
+    buckets: list[FacetBucketOut]
+    # More distinct values exist than explorer_facets_max_groups returned —
+    # mirrors query_metadata's CountPapersResult.truncated for the same
+    # underlying count_grouped() call (facets.py, D-2): no silent caps.
+    truncated: bool
+
+
 class FacetsResponse(BaseModel):
     total: int
-    category: list[FacetBucketOut]
-    year: list[FacetBucketOut]
-    license: list[FacetBucketOut]
-    venue: list[FacetBucketOut]
+    category: FacetDimension
+    year: FacetDimension
+    license: FacetDimension
+    venue: FacetDimension
 
 
 # --- cursor: opaque base64(JSON) of the keyset/position state --------------
@@ -502,12 +510,15 @@ def get_facets(
     conn = db.connect_corpus(settings.corpus_db_path)
     try:
         total = facets.count_scalar(conn, filters)
-        dims: dict[str, list[FacetBucketOut]] = {}
+        dims: dict[str, FacetDimension] = {}
         for dim in facets.GROUP_BY_COLUMNS:
-            buckets, _truncated = facets.count_grouped(
+            buckets, truncated = facets.count_grouped(
                 conn, dim, filters, settings.explorer_facets_max_groups
             )
-            dims[dim] = [FacetBucketOut(value=b.value, count=b.count) for b in buckets]
+            dims[dim] = FacetDimension(
+                buckets=[FacetBucketOut(value=b.value, count=b.count) for b in buckets],
+                truncated=truncated,
+            )
         return FacetsResponse(
             total=total,
             category=dims["category"],

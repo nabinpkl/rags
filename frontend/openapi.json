@@ -406,6 +406,27 @@
         ],
         "title": "FacetBucketOut"
       },
+      "FacetDimension": {
+        "properties": {
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/FacetBucketOut"
+            },
+            "type": "array",
+            "title": "Buckets"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "buckets",
+          "truncated"
+        ],
+        "title": "FacetDimension"
+      },
       "FacetsResponse": {
         "properties": {
           "total": {
@@ -413,32 +434,16 @@
             "title": "Total"
           },
           "category": {
-            "items": {
-              "$ref": "#/components/schemas/FacetBucketOut"
-            },
-            "type": "array",
-            "title": "Category"
+            "$ref": "#/components/schemas/FacetDimension"
           },
           "year": {
-            "items": {
-              "$ref": "#/components/schemas/FacetBucketOut"
-            },
-            "type": "array",
-            "title": "Year"
+            "$ref": "#/components/schemas/FacetDimension"
           },
           "license": {
-            "items": {
-              "$ref": "#/components/schemas/FacetBucketOut"
-            },
-            "type": "array",
-            "title": "License"
+            "$ref": "#/components/schemas/FacetDimension"
           },
           "venue": {
-            "items": {
-              "$ref": "#/components/schemas/FacetBucketOut"
-            },
-            "type": "array",
-            "title": "Venue"
+            "$ref": "#/components/schemas/FacetDimension"
           }
         },
         "type": "object",
