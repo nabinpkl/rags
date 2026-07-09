@@ -4,6 +4,7 @@
 // read slices and never touch `applyEvent`/`pendingCall` directly.
 import { create } from "zustand";
 import type {
+  Citation,
   CostEvent,
   SseEvent,
   ToolCallEvent,
@@ -75,6 +76,14 @@ export interface AgentSessionState {
   // under this session_id. Narrowing to per-turn would need re-deriving the
   // set from scratch each turn for no anti-hallucination benefit.
   verifiedPaperIds: ReadonlySet<string>;
+  // paper_id -> cited chunk_ids (#29 seam): the cited-excerpts pane's source
+  // for its `?chunks=` fetch (hooks/use-paper-detail.ts). Populated from
+  // `done.citations` (ids only — no chunk text ever rides the stream, §6c
+  // row 4/D-1). SESSION-scoped and additive like `verifiedPaperIds` above:
+  // a paper cited in an earlier turn keeps its excerpts available if the
+  // viewer reopens it later, merged (deduped, first-seen order) rather than
+  // replaced if a later turn cites the same paper again.
+  citationsByPaper: ReadonlyMap<string, readonly string[]>;
   // Internal only: the most recent tool_call/ui_action awaiting its paired
   // tool_result_summary. Not for component consumption.
   pendingCall: PendingCall | null;
@@ -98,12 +107,33 @@ function paperIdFromArgs(args: Record<string, unknown>): string | null {
   return typeof paperId === "string" && paperId.length > 0 ? paperId : null;
 }
 
+/** Dedup + merge, first-seen order — mirrors `sse_events.citations_from_tool_calls`'s
+ * own aggregation posture (issue #27 decisions.md) one layer up: a paper's
+ * chunk_ids only ever grow across the session, never drop a previously-cited
+ * chunk just because a later turn's citation for the same paper is a subset. */
+function mergeCitations(
+  existing: ReadonlyMap<string, readonly string[]>,
+  citations: readonly Citation[],
+): ReadonlyMap<string, readonly string[]> {
+  if (citations.length === 0) return existing;
+  const next = new Map(existing);
+  for (const { paper_id: paperId, chunk_ids: chunkIds } of citations) {
+    const merged = [...(next.get(paperId) ?? [])];
+    for (const chunkId of chunkIds) {
+      if (!merged.includes(chunkId)) merged.push(chunkId);
+    }
+    next.set(paperId, merged);
+  }
+  return next;
+}
+
 export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
   status: { kind: "idle" },
   mode: { kind: "live" },
   sessionId: null,
   turns: [],
   verifiedPaperIds: new Set(),
+  citationsByPaper: new Map(),
   pendingCall: null,
 
   setSessionId: (id) => set({ sessionId: id }),
@@ -186,6 +216,7 @@ export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
           return {
             status: { kind: "idle" as const },
             turns: replaceLastTurn(state.turns, { ...turn, stopReason: event.stop_reason }),
+            citationsByPaper: mergeCitations(state.citationsByPaper, event.citations),
           };
 
         default:
@@ -207,6 +238,7 @@ export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
       sessionId: null,
       turns: [],
       verifiedPaperIds: new Set(),
+      citationsByPaper: new Map(),
       pendingCall: null,
     }),
 }));

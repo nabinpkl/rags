@@ -12,6 +12,9 @@ type PapersQuery = NonNullable<paths["/api/papers"]["get"]["parameters"]["query"
 type PapersResponse = paths["/api/papers"]["get"]["responses"][200]["content"]["application/json"];
 type FacetsQuery = NonNullable<paths["/api/facets"]["get"]["parameters"]["query"]>;
 type FacetsResponse = paths["/api/facets"]["get"]["responses"][200]["content"]["application/json"];
+type PaperDetailQuery = NonNullable<paths["/api/papers/{paper_id}"]["get"]["parameters"]["query"]>;
+type PaperDetailResponse =
+  paths["/api/papers/{paper_id}"]["get"]["responses"][200]["content"]["application/json"];
 
 function buildQueryString(query: Record<string, string | number | null | undefined>): string {
   const params = new URLSearchParams();
@@ -42,4 +45,15 @@ export function fetchPapers(query: PapersQuery): Promise<PapersResponse> {
  * (routes_explorer.py's module docstring, decisions.md Fill-in 2). */
 export function fetchFacets(query: FacetsQuery): Promise<FacetsResponse> {
   return getJson("/api/facets", query);
+}
+
+/** GET /api/papers/{paper_id} — paper detail; `chunks` (comma-separated
+ * chunk_ids) requests the §6c-CAPPED `CitedExcerpt[]` (routes_explorer.py's
+ * `_cited_excerpts` — the sole route through which `chunks.text` reaches the
+ * wire). Omitting `chunks` returns `excerpts: []`. */
+export function fetchPaperDetail(
+  paperId: string,
+  query: PaperDetailQuery = {},
+): Promise<PaperDetailResponse> {
+  return getJson(`/api/papers/${encodeURIComponent(paperId)}`, query);
 }
