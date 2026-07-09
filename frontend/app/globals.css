@@ -35,3 +35,37 @@
 body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* PDF page divs (components/viewer/arxiv-pdf-frame.tsx) are built
+   imperatively via the DOM, not JSX — pdf.js's per-page canvas rendering is
+   inherently imperative (docs/mockup.html's reference implementation),
+   ported as-is rather than fought into React state. */
+.pdf-page {
+  position: relative;
+  margin: 0 auto 14px;
+  background: #fff;
+  box-shadow: 0 3px 18px rgba(0, 0, 0, 0.4);
+}
+.pdf-page canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.pdf-page.jumpflash {
+  animation: pgflash 1.6s ease;
+}
+@keyframes pgflash {
+  0%,
+  50% {
+    outline: 3px solid var(--color-teal);
+    outline-offset: 2px;
+  }
+  100% {
+    outline: 3px solid transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdf-page.jumpflash {
+    animation: none;
+  }
+}
