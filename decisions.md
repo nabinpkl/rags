@@ -14,6 +14,168 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — Viewer (#29): pdfjs-dist bundled dep (D-1), inverted D9 rung ladder (D-2), §6b/§6c grep-verifiable posture (D-3), plus three implementation fill-ins
+
+**Context:** #29's task brief handed down three coordinator decisions to
+build against (D-1/D-2/D-3, not open questions) plus a wiring gap
+(`agent-session-store.ts` citation capture). Building it surfaced three
+further implementation details, all recorded together since they land in
+the same PR.
+
+**D-1 — `pdfjs-dist` bundled as a real dependency (not the mockup's CDN
+`<script>`).** Dependency gate (all numbers measured 2026-07-09):
+*Popular:* 85,074,644 npm downloads in the last 30 days
+(api.npmjs.org/downloads/point/last-month/pdfjs-dist); 53,551 GitHub stars
+(mozilla/pdf.js). *Maintained:* latest release 6.1.200 uploaded 2026-06-27
+(npm), repo last pushed 2026-07-07 (GitHub API, one day before this PR) —
+Mozilla org, human-reviewed merges (maintainers list: ydelendik, cdenizet,
+brendandahl + Mozilla release automation). *Security:* `pnpm audit` after
+install shows one pre-existing, unrelated advisory (`postcss` <8.5.10 via
+`next>postcss`, GHSA-qx2v-qp2m-jg93) already on `main` before this PR —
+`pdfjs-dist` itself introduces no new advisory and no new peer-dependency
+warning (`pnpm peers check`, confirmed before/after). *Pinned:* `^6.1.200`
+(matches this codebase's existing convention — every other `frontend/`
+dependency uses a caret range, not an exact pin; the lockfile pins the
+resolved version regardless). **PASS.**
+The worker script (`pdf.worker.min.mjs`) is bundled via
+`new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`, resolved
+by Turbopack into a hashed static asset under `_next/static/media/` — no
+CDN request at runtime, verified live (network tab shows the worker served
+from `localhost`, the PDF bytes themselves from `arxiv.org` directly).
+**A load-bearing correction to how it's imported, found by `pnpm build`
+(not caught by `pnpm dev`/tests):** a static top-level `import ... from
+"pdfjs-dist"` evaluates the module — including its browser-only globals
+(`DOMMatrix` et al.) — at IMPORT TIME, not call time. Next's static export
+(D13) prerenders every client component's module once, server-side, to
+produce the initial HTML; that prerender pass has no `DOMMatrix`, so the
+build failed (`ReferenceError: DOMMatrix is not defined`) even though
+`arxiv-pdf-frame.tsx` is a `"use client"` component and the code path that
+actually USES pdf.js only runs inside a `useEffect` (client-only by
+definition). Fixed by deferring the import itself: `arxiv-pdf-frame.tsx`
+keeps only a type-only `import type { PDFDocumentProxy } from "pdfjs-dist"`
+at the top (erased at build, no runtime evaluation) and dynamically
+`import("pdfjs-dist")`s (cached in a module-level promise) from inside the
+rung-2 effect, so the browser-only module never evaluates during SSR
+prerender. `pnpm build` (Turbopack) now succeeds and was verified against
+real corpus data (see Consequence).
+
+**D-2 — Rung ladder inverted and isolated to `arxiv-pdf-frame.tsx`: default
+rung 2 (PDF.js direct fetch), rung 1 (iframe) is a manual fallback, rung 3
+(excerpts-only + "open on arXiv") is automatic.** Matches D9's own
+"Observed 2026-07-04" note (embedded webviews without a native PDF plugin
+turn an iframe PDF load into a download) and the task brief's explicit
+default. `rung` is component-local `useState` (not `viewer-store` — the
+brief's own instruction: "it's a render fallback, not shareable/URL
+state"), reset per-paper via `key={paper}` at the `paper-split-view.tsx`
+call site (a fresh mount resets all local state cleanly) rather than an
+effect calling `setRung` synchronously on `idv` change — the latter is an
+anti-pattern the linter (`react-hooks/set-state-in-effect`) flags directly
+("calling setState synchronously within an effect can trigger cascading
+renders"); `key`-driven remount is the idiomatic fix, not a suppression.
+Rung 2→3 is automatic (PDF.js's own `getDocument(...).promise` rejects →
+`setRung(3)`; nothing else to try client-side). Rung 1↔2 is a manual toggle
+button (mirrors `docs/mockup.html`'s `rungBtn`); rung 1's own failure has no
+reliable programmatic detection (`<iframe onError>` doesn't fire for
+HTTP-level failures cross-origin — a known browser limitation, not a gap in
+this code) — an accepted limitation matching D9's own "Risks accepted"
+section, not a new one.
+
+**D-3 — §6b/§6c grep-verifiable: never proxied, always version-pinned,
+always link-back.** `arxivPdfUrl(arxivId, version)` is the single URL
+builder (`arxiv.org/pdf/<id><version>`, version NULL → unpinned fallback)
+used by BOTH rung 2's `getDocument({url})` call and rung 1's iframe `src` —
+one function, not two constructed URLs that could drift. Verified live
+against the real corpus (`0704.0217`, version `v2`): the browser's own
+network tab shows `GET https://arxiv.org/pdf/0704.0217v2` (200) for rung 2
+and the rung-1 iframe's `src` inspected via devtools is the identical
+pinned URL — no request to our own server ever carries PDF bytes.
+`paper-split-view.tsx`'s header renders the abs-page link and "open on
+arXiv" button from `paper` (the arxiv id) alone, independent of whether the
+paper-detail fetch has resolved, errored, or is still pending — test-first
+(`tests/paper-split-view.test.tsx`) covers all three states.
+`cited-excerpts-pane.tsx` takes only `excerpts`/`excerptsTruncated` as
+props (both server-capped, §6c row 4/D-1 from #27) and fetches nothing
+itself — there is no prop, import, or fetch call in that file that could
+carry more than what `GET /api/papers/{id}?chunks=` already capped,
+test-first (`tests/cited-excerpts-pane.test.tsx`).
+
+**Fill-in 1 — the URL-sync subscription (D-2 from #28) moves to
+`app/page.tsx`, spanning the explorer<->viewer swap.** `explorer-panel.tsx`
+previously owned the sole `useViewerUrlSync()` call. Once `paper-split-view.tsx`
+exists and `app/page.tsx` swaps between the two regions on `viewer-store`'s
+`paper`, `explorer-panel.tsx` itself starts mounting/unmounting as `paper`
+toggles — and the sync owner cannot live on a component that unmounts as a
+DIRECT CONSEQUENCE of the very store change it exists to react to. Concretely:
+a row click's `setPaper` sets `paper` in the store, which (a) is what the
+sync effect needs to see to push the new `?paper=` URL, and (b) is also what
+`app/page.tsx` uses to decide to unmount `ExplorerPanel` in favor of
+`PaperSplitView`. If (b) happens in the same commit as the render that would
+have run (a)'s effect, the effect's cleanup fires before its body ever runs
+for that update, and the URL push never happens — the open-paper action
+silently fails to update the URL. This is the same class of bug as #28's
+own cross-tick carry-over note (decisions.md, "apply open-paper + goto-page
+in ONE store update") one level up: not two coalesced writes racing, but the
+SYNC OWNER ITSELF getting unmounted mid-reaction. Fixed by hoisting the one
+`useViewerUrlSync()` call to a small `AppRegion` component defined directly
+in `app/page.tsx` (the file the task brief named for "explorer<->viewer
+swap") — it never unmounts once the shell renders, so it's the only place
+in the tree safe to own the subscription. `explorer-panel.tsx`'s docstring
+updated to state why it no longer owns this.
+
+**Fill-in 2 — grid/flex height chain needed explicit `h-full`/`min-h-0` at
+every level, not just the outermost container.** Live-testing-only bug (not
+caught by any unit test, since jsdom has no real layout engine): the first
+version bounded only the OUTERMOST split-view container
+(`flex-1 min-h-0` on the grid wrapping the PDF pane + excerpts pane). A CSS
+grid's implicit row track defaults to `auto` sizing — it grows to fit its
+TALLEST item's content rather than being capped to the grid container's own
+height, so `arxiv-pdf-frame.tsx`'s many stacked page placeholders (a
+17-page paper renders ~17 divs, each hundreds of px tall) grew the grid
+row, which grew the whole document, and the BROWSER WINDOW scrolled instead
+of the PDF pane's own `overflow-auto` region — the citation-driven
+`scrollIntoView` calls it correctly, but on a container with no actual
+internal overflow (nothing to scroll internally when the "scrollable"
+element itself has grown to fit all its content). Fixed by adding explicit
+`h-full` (not just `flex-1`) at the grid container AND `h-full min-h-0` on
+both grid children (`arxiv-pdf-frame.tsx`'s root, `cited-excerpts-pane.tsx`'s
+`<aside>`) and on the grid's loading/error placeholder variants — every
+level of the chain now has a definite height to stretch into, so only the
+innermost `overflow-auto` divs actually scroll. Verified live against real
+corpus data (`0704.0217`, 17 pages): a `?page=17` deep link lands the PDF
+pane's own scroll position near the end of the document (confirmed via the
+page-number badge/nav settling on `p.16-17 / 17` with real rendered page
+content — references + author bios, not the title page) while the outer
+page/window never scrolls.
+
+**Alternatives rejected:** keeping `viewer-store` `page` writes for
+free-scroll/prev-next navigation inside `arxiv-pdf-frame.tsx` (the task
+brief's own instruction: this is render-fallback state, not shareable — a
+URL that changed on every scroll tick would spam history and contradicts
+#28's own debounce posture); detecting rung-1 iframe failure by polling
+`iframe.contentDocument` (blocked by cross-origin restrictions — arxiv.org
+does not grant same-origin access — so there is no reliable signal beyond
+the accepted `onError`-only best effort).
+
+**Consequence:** `pnpm test` (79/79), `pnpm lint`, `pnpm typecheck`,
+`pnpm format:check` (this PR's files only — `openapi.json`'s pre-existing
+formatting drift predates this PR and is untouched), `pnpm gen:api:check`
+(no drift) all clean. `pnpm build` (real Turbopack production build, not
+blocked by the worktree's node_modules-symlink artifact after replacing it
+with a local install for this worktree only — see PR body) succeeds and was
+smoke-tested against the real `corpus.db` + a locally run `just serve`
+(CORS opened for the dev origin via `ASKRAG_CORS_ALLOWED_ORIGINS`, a
+pre-existing #26 dev-setup knob, not a new one). Safari/WebKit and iOS are
+UNVERIFIED (spec §10, carried forward — only Chrome was available to test
+against here). The site-footer arXiv attribution + takedown link (CLAUDE.md
+hard constraint, §6b item 2) does not exist anywhere in the app yet — a
+pre-existing gap from an earlier issue, out of this issue's Build list;
+flagged to the coordinator rather than built here to avoid scope creep.
+Spec updated: no (D9 already covers the rung ladder and version-pinning
+decision; this entry is #29's implementation contract, same category as the
+#27/#28 entries below it).
+
+---
+
 ## 2026-07-09 — Explorer UI (#28 PR review round 1): URL-sync classifier keyed on the store, not the lagging URL
 
 **Context:** review round 1 on PR #68 found a [major] in
