@@ -14,6 +14,53 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — Agent panel (#31, round 2): session mode split from turn lifecycle in `agent-session-store.ts`
+
+**Context:** round-1 review (Opus) found a [major]: `AgentStatus` originally
+had five members — `idle | streaming | tool_running | capped | replay` — per
+`.claude/rules/frontend.md`'s state-machine line. `use-agent-stream.ts` set
+`status: "replay"` in `onopen` from the `X-AskRAG-Mode` header, but the
+replayed stream's own events then flow through `applyEvent`, which
+unconditionally reassigns `status` for every `tool_call`/`tool_result_summary`
+/`text`/`done` it sees — including the replayed stream's own. The replayed
+run's first event (a `tool_call`, confirmed against `replay.py`) clobbered
+`status: "replay"` back to `tool_running`, so `ReplayBanner` and the header's
+amber dot vanished for the entire replayed answer: a visitor watches a
+recorded session with no indication it's recorded, contradicting D11's
+honesty intent and `ReplayBanner`'s own docstring. No test caught it because
+`agent-session-store.test.ts` exercised `setReplay` in isolation, never
+followed by an `applyEvent` call.
+
+**Decision:** split the conflated union into two orthogonal fields:
+- `mode: "live" | "replay"` — set once per turn, from the `X-AskRAG-Mode`
+  header in `onopen`; reset to `"live"` at the start of every new turn
+  (`startTurn`, since `budgets.check()` decides fresh per request); `applyEvent`
+  never touches it.
+- `status: "idle" | "streaming" | "tool_running" | "capped"` — turn lifecycle,
+  owned by `applyEvent` exactly as before. `capped` stays here (unaffected by
+  the bug: its 429 path throws before any event is ever applied).
+
+`ReplayBanner` and the panel header's mode dot now read `mode`; the timeline
+still reads `status`. Added a store test asserting `mode` survives a full
+run of `applyEvent` calls after `setReplay`, and one confirming `startTurn`
+resets it to live.
+
+**Alternatives rejected:** having `applyEvent` special-case "don't overwrite
+`status` if it's currently `replay`" — keeps the two concerns tangled in one
+field and one function, the actual root cause; a future lifecycle addition
+would need to remember the same special-case again.
+
+**Consequence:** `.claude/rules/frontend.md`'s state-machine line ("idle /
+streaming / tool-running / capped / replay" as one union) is now inaccurate
+for this store and is amended in the same PR — the round-1 finding *was* that
+conflation, so the fix is a deliberate, documented deviation, not an
+oversight. Revisit if a future status kind (e.g. an explicit error state)
+turns out to need the same live/replay orthogonality some other lifecycle
+value already has.
+Spec updated: no (frontend rule amended instead; §4c/D11 unchanged).
+
+---
+
 ## 2026-07-08 — traces.db gains `question`/`answer_text` so showcase replays reproduce the answer, not just the timeline (issue #30)
 
 **Context:** #30 builds the chat route's REPLAY branch (D11: the site
