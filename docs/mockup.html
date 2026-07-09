@@ -139,10 +139,8 @@
   .tev .tname{color:var(--teal);font-weight:600}
   .tev .targ{color:var(--machine-text);white-space:pre-wrap;word-break:break-word}
   .tev .tres{color:var(--machine-muted);margin-top:2px}
-  .tev.think{border-left-color:transparent;font-style:italic}
   .tev.ui{border-left-color:var(--amber)}
   .tev.ui .tname{color:var(--amber)}
-  .tev .chart{margin-top:6px;background:var(--machine2);border:1px solid var(--machine-line);border-radius:4px;padding:8px}
   .replaybanner{display:none;background:var(--amber-soft);color:#6b4a10;font-size:12px;line-height:1.45;padding:10px 14px;border-top:1px solid var(--amber)}
   .replaybanner b{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
   .agent.capped .replaybanner{display:block}
@@ -154,7 +152,6 @@
   .inputrow input{flex:1;background:var(--machine2);border:1px solid var(--machine-line);border-radius:4px;color:var(--machine-text);padding:8px 11px;font-family:var(--sans);font-size:13px}
   .inputrow button{background:var(--teal-deep);border:0;color:#eafaf6;border-radius:4px;padding:0 14px;font-weight:600}
   .agent.capped .inputrow input,.agent.capped .inputrow button{opacity:.35;pointer-events:none}
-  .stepmeter{font-family:var(--mono);font-size:10px;color:var(--machine-muted);text-align:right}
 
   /* ── footer ──────────────────────────────── */
   .foot{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--panel);border-top:1px solid var(--line);font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
@@ -180,7 +177,7 @@
     <div class="searchwrap"><input id="q" type="search" placeholder="Search 6,460 papers — semantic + keyword" aria-label="Search corpus"></div>
     <div class="spacer"></div>
     <span class="chip">corpus 2026-07 · frozen</span>
-    <button class="toggle" id="capToggle" aria-pressed="false" title="Simulate the global daily budget cap tripping">simulate cap</button>
+    <button class="toggle" id="capToggle" aria-pressed="false" title="Preview replay mode — shown when the daily demo budget is reached">preview replay</button>
     <button class="toggle" id="specToggle" aria-pressed="false" title="Overlay the spec decisions this UI encodes">spec overlay</button>
   </div>
 
@@ -196,11 +193,6 @@
     <h3>Years · 2007–2026</h3>
     <div class="yearband" id="yearband" aria-hidden="true"></div>
     <div class="yearlab"><span>'07</span><span>'26</span></div>
-    <h3>Facets</h3>
-    <button class="facet" data-fac="rigor" aria-pressed="false"><span>venue rigor ≥ 2</span><span class="n">1,204</span></button>
-    <button class="facet" data-fac="authority" aria-pressed="false"><span>high authority</span><span class="n">918</span></button>
-    <button class="facet" data-fac="niche" aria-pressed="false"><span>long-tail niche</span><span class="n">1,533</span></button>
-    <button class="facet" data-fac="emerging" aria-pressed="false"><span>emerging authors</span><span class="n">742</span></button>
   </aside>
 
   <!-- center stage -->
@@ -261,19 +253,18 @@
       <span class="costbadge">this chat <b id="cost">$0.000</b> · <span id="toks">0</span> tok</span>
     </div>
     <div class="stream" id="stream">
-      <div class="msg-agent">Ask about the corpus — I search, read, and compute; every step shows here with its cost.<div class="ailabel">answers are AI-generated</div></div>
+      <div class="msg-agent">Ask about the corpus — I search papers, read them, and pull the numbers, showing each step as I work.<div class="ailabel">answers are AI-generated</div></div>
     </div>
-    <div class="replaybanner"><b>daily budget spent</b> — you're watching a recorded session. Live agent returns at 00:00 UTC. <button class="pagejump" id="replayBtn" style="margin-left:6px">▶ watch replay</button></div>
+    <div class="replaybanner"><b>daily demo budget reached</b> — you're viewing a saved session so the demo stays free to run. The live agent resumes tomorrow. <button class="pagejump" id="replayBtn" style="margin-left:6px">▶ replay a saved answer</button></div>
     <div class="composer">
       <div class="suggest" id="suggest">
-        <button data-demo="1">How did venue rigor in cs.CL shift 2010→2026?</button>
-        <button data-demo="1">Compare RLHF coverage: 2019 vs 2024</button>
+        <button data-demo="1">How has cs.CL research grown, and what's a landmark result?</button>
+        <button data-demo="1">What's in the corpus?</button>
       </div>
       <div class="inputrow">
         <input id="chatInput" type="text" placeholder="Ask the corpus…" aria-label="Message the agent">
         <button id="sendBtn">Ask</button>
       </div>
-      <div class="stepmeter" id="stepmeter">step budget 0 / 8 · session 1 / 15 msgs</div>
     </div>
   </aside>
 
@@ -288,7 +279,7 @@
 <!-- spec overlay tags -->
 <div class="spectag" style="top:64px;left:236px"><b>PRIMARY SURFACE</b>Explorer first, chatbot second. TanStack Table + Virtual over /api/papers.</div>
 <div class="spectag" style="top:64px;right:404px"><b>D11 · BUDGETS</b>Cost badge is the budget system's public face. Caps: msg → session → IP → global $0.50/day.</div>
-<div class="spectag" style="top:120px;left:14px"><b>CC0 METADATA</b>Categories, years, and the 5 diverse-sample facets — free to display (§6b).</div>
+<div class="spectag" style="top:120px;left:14px"><b>CC0 METADATA</b>Categories and years — free to display (§6b).</div>
 <div class="spectag" style="top:180px;right:404px"><b>D1/D2 · THE LOOP</b>Tool timeline renders SSE events 1:1 — the architecture is the demo.</div>
 <div class="spectag" style="bottom:120px;right:404px"><b>D11 · DEGRADE</b>Cap trips → replay of a showcase=1 trace through the same timeline UI. Never an error page.</div>
 <div class="spectag" style="top:46%;left:34%"><b>D9 · VERSION-PINNED</b>iframe of arxiv.org/pdf/&lt;id&gt;vN #page=N — validated; bytes match our extraction.</div>
@@ -338,9 +329,6 @@ rowsEl.addEventListener('click',e=>{const tr=e.target.closest('tr');if(tr)openPa
 document.querySelectorAll('.facet[data-cat]').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('.facet[data-cat]').forEach(x=>x.setAttribute('aria-pressed','false'));
   b.setAttribute('aria-pressed','true');catFilter=b.dataset.cat;renderRows();
-}));
-document.querySelectorAll('.facet[data-fac]').forEach(b=>b.addEventListener('click',()=>{
-  b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true');
 }));
 
 /* year band deco */
@@ -479,25 +467,31 @@ document.getElementById('viewPaper').addEventListener('click',e=>{
 
 /* ── agent demo turn ──────────────────────── */
 const stream=document.getElementById('stream');
-let tokens=0,cost=0,steps=0;
-function bump(tk){tokens+=tk;cost=tokens*0.0000014;
+let tokens=0,cost=0;
+function bump(tk){tokens+=tk;cost+=tk*0.0000012;
   document.getElementById('toks').textContent=tokens.toLocaleString();
   document.getElementById('cost').textContent='$'+cost.toFixed(3);}
-function meter(){document.getElementById('stepmeter').textContent=`step budget ${steps} / 8 · session 1 / 15 msgs`}
 function el(html){const d=document.createElement('div');d.innerHTML=html;const n=d.firstElementChild;stream.appendChild(n);stream.scrollTop=stream.scrollHeight;return n}
-const CHART=`<svg viewBox="0 0 260 90" width="100%" role="img" aria-label="Mean venue rigor of cs.CL papers, 2010 to 2026, declining from 1.9 to 0.7"><g font-family="Spline Sans Mono" font-size="7" fill="#6d7d88"><text x="2" y="10">mean venue_rigor · cs.CL</text><text x="2" y="86">2010</text><text x="238" y="86">2026</text></g><polyline points="10,28 40,30 70,34 100,38 130,45 160,52 190,60 220,66 250,70" fill="none" stroke="#12a38f" stroke-width="1.6"/><circle cx="250" cy="70" r="2.5" fill="#12a38f"/><line x1="10" y1="76" x2="250" y2="76" stroke="#26313a"/></svg>`;
+// One timeline step: the tool's friendly label + target, resolving to a done
+// tick. Result details (counts, scores, rows) stay server-side — the live
+// stream's tool_result carries only ok/error (§6c), so the mock shows the
+// same and no more.
+function step(label,target,ui){
+  const row=el(`<div class="tev${ui?' ui':''}"><span class="tname">${label}</span> <span class="targ">${target}</span></div>`);
+  setTimeout(()=>{const r=document.createElement('div');r.className='tres';r.textContent='✓ done';row.appendChild(r);stream.scrollTop=stream.scrollHeight},450);
+}
 const SCRIPT=[
- {d:400, f:()=>el(`<div class="tev think">planning: needs metadata trend + evidence from a canonical paper…</div>`)},
- {d:900, f:()=>{steps++;meter();bump(4200);el(`<div class="tev"><span class="tname">search_corpus</span> <span class="targ">q="venue rigor trend speech recognition benchmarks" filters={cat:cs.CL}</span><div class="tres">→ 5 chunks · top: 1409.7842 §4 (score .81)</div></div>`)}},
- {d:1500,f:()=>{steps++;meter();bump(3100);el(`<div class="tev"><span class="tname">query_metadata</span> <span class="targ">SELECT substr(published,1,4) y, avg(venue_rigor) FROM papers WHERE categories LIKE 'cs.CL%' GROUP BY y</span><div class="tres">→ 17 rows · read-only, SELECT-only enforced</div></div>`)}},
- {d:1600,f:()=>{steps++;meter();bump(5200);el(`<div class="tev"><span class="tname">run_python</span> <span class="targ">plot rigor trend (matplotlib)</span><div class="tres">→ sandbox: net=none · ro-mounts · 1.9s · 1 png</div><div class="chart">${CHART}</div></div>`)}},
- {d:1400,f:()=>{steps++;meter();bump(600);el(`<div class="tev ui"><span class="tname">drive_ui</span> <span class="targ">open_paper 1409.7842 · goto_page 3</span><div class="tres">→ enum-validated · viewer follows</div></div>`);openPaper('1409.7842',3);
+ {d:500, f:()=>{bump(3800);step('Searching papers','“end-to-end speech recognition” · cs.CL')}},
+ {d:1400,f:()=>{bump(2600);step('Checking corpus stats','cs.CL papers by year')}},
+ {d:1500,f:()=>{bump(4100);step('Reading paper','1409.7842')}},
+ {d:1500,f:()=>{bump(500);step('Opening in the viewer','1409.7842',true);openPaper('1409.7842',3);
    setTimeout(()=>{const x=document.getElementById('exc0');if(x)x.classList.add('hot')},600)}},
- {d:1700,f:()=>{bump(2400);el(`<div class="msg-agent">Detected venue rigor for cs.CL declined from ~1.9 (2010) to ~0.7 (2026) — mostly because venue metadata itself grew sparser, not because venues got worse <span class="cite" data-id="1409.7842" data-v="v3" data-p="3">1409.7842 §4 p.3</span>. The KALDI recipe paper is a canonical rigor-2 example: “the phoneme-based system achieves 17.4% WER…” <span class="cite" data-id="1409.7842" data-v="v3" data-p="3">p.3</span> Caveat: rigor is positive-only — absence means <i>undetected</i>, never <i>unpublished</i>.<div class="ailabel">AI-generated · 4 tool calls · $0.022</div></div>`)}},
+ {d:1300,f:()=>{bump(400);step('Jumping to page','3',true)}},
+ {d:1700,f:()=>{bump(2400);el(`<div class="msg-agent">cs.CL is the largest slice of the corpus, and its yearly paper count climbs steadily — the steepest rise comes as end-to-end methods take hold. A landmark example is Deep Speech <span class="cite" data-id="1409.7842" data-v="v3" data-p="3">1409.7842 · p.3</span>, an early end-to-end system: “the phoneme-based system achieves 17.4% WER…” <span class="cite" data-id="1409.7842" data-v="v3" data-p="3">p.3</span> Counts reflect this frozen 2026-07 snapshot of 6,460 papers, not all of arXiv.<div class="ailabel">AI-generated · 5 steps · $0.021</div></div>`)}},
 ];
 function runDemo(replay){
   if(running)return;running=true;
-  el(`<div class="msg-user">${replay?'▶ replay · ':''}How did venue rigor in cs.CL shift 2010→2026?</div>`);
+  el(`<div class="msg-user">${replay?'▶ saved · ':''}How has cs.CL research grown, and what's a landmark result?</div>`);
   let t=0;SCRIPT.forEach(s=>{t+=s.d;setTimeout(s.f,t)});
   setTimeout(()=>{running=false},t+200);
 }
