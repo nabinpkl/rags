@@ -469,12 +469,13 @@ def test_facets_endpoint_counts_all_four_dimensions(tmp_path, corpus_db):
         resp = tc.get("/api/facets")
     body = resp.json()
     assert body["total"] == 5
-    assert {(b["value"], b["count"]) for b in body["category"]} == {
+    assert {(b["value"], b["count"]) for b in body["category"]["buckets"]} == {
         ("cs.CL", 3),
         ("cs.LG", 1),
         ("cs.CV", 1),
     }
-    assert {(b["value"], b["count"]) for b in body["year"]} == {
+    assert body["category"]["truncated"] is False
+    assert {(b["value"], b["count"]) for b in body["year"]["buckets"]} == {
         (2024, 2),
         (2023, 2),
         (2022, 1),
@@ -488,4 +489,14 @@ def test_facets_endpoint_scoped_by_category_and_year(tmp_path, corpus_db):
         resp = tc.get("/api/facets", params={"category": "cs.CL"})
     body = resp.json()
     assert body["total"] == 3
-    assert {(b["value"], b["count"]) for b in body["category"]} == {("cs.CL", 3)}
+    assert {(b["value"], b["count"]) for b in body["category"]["buckets"]} == {("cs.CL", 3)}
+
+
+def test_facets_endpoint_flags_truncation_per_dimension(tmp_path, corpus_db):
+    settings = make_settings(tmp_path, corpus_db, explorer_facets_max_groups=1)
+    app = make_app(settings=settings)
+    with TestClient(app) as tc:
+        resp = tc.get("/api/facets")
+    body = resp.json()
+    assert len(body["category"]["buckets"]) == 1
+    assert body["category"]["truncated"] is True

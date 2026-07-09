@@ -103,18 +103,21 @@ export interface components {
             /** Count */
             count: number;
         };
+        /** FacetDimension */
+        FacetDimension: {
+            /** Buckets */
+            buckets: components["schemas"]["FacetBucketOut"][];
+            /** Truncated */
+            truncated: boolean;
+        };
         /** FacetsResponse */
         FacetsResponse: {
             /** Total */
             total: number;
-            /** Category */
-            category: components["schemas"]["FacetBucketOut"][];
-            /** Year */
-            year: components["schemas"]["FacetBucketOut"][];
-            /** License */
-            license: components["schemas"]["FacetBucketOut"][];
-            /** Venue */
-            venue: components["schemas"]["FacetBucketOut"][];
+            category: components["schemas"]["FacetDimension"];
+            year: components["schemas"]["FacetDimension"];
+            license: components["schemas"]["FacetDimension"];
+            venue: components["schemas"]["FacetDimension"];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
