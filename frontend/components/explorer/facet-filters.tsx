@@ -1,8 +1,40 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useFacetsQuery } from "@/hooks/use-papers-query";
 import { useViewerStore } from "@/stores/viewer-store";
 import { cn } from "@/lib/utils";
+
+const DEBOUNCE_MS = 400;
+
+/** Local text buffer for a debounced year input — mirrors
+ * corpus-search-bar.tsx's pattern (render-time resync for external changes,
+ * a debounced commit effect for local edits) so typing a year doesn't push
+ * a browser-history entry per keystroke. use-viewer-url-sync.ts uses
+ * `router.push`, not `replace`, so every filter change is back-button
+ * navigable (§4c decision 2) — debouncing here is what keeps that from
+ * spamming history while typing. */
+function useDebouncedYearInput(
+  committed: number | null,
+  commit: (value: number | null) => void,
+): [string, (raw: string) => void] {
+  const [value, setValue] = useState(committed === null ? "" : String(committed));
+  const [synced, setSynced] = useState(committed);
+
+  if (committed !== synced) {
+    setSynced(committed);
+    setValue(committed === null ? "" : String(committed));
+  }
+
+  useEffect(() => {
+    const parsed = value === "" ? null : Number(value);
+    if (parsed === committed || Number.isNaN(parsed)) return;
+    const timer = setTimeout(() => commit(parsed), DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [value, committed, commit]);
+
+  return [value, setValue];
+}
 
 /** Category buttons + a year range, reading `GET /api/facets` for counts
  * (the CATEGORICAL facet sense, decisions.md #27 Fill-in 2 — distinct from
@@ -28,16 +60,24 @@ export function FacetFilters() {
       ? `${sortedYears[0].value}–${sortedYears[sortedYears.length - 1].value}`
       : null;
 
+  // Stable callback identities (deps: `setFilters` alone, a stable zustand
+  // action ref) so useDebouncedYearInput's commit effect only resets its
+  // timer when `value`/`committed` actually change — not on every unrelated
+  // re-render (e.g. a facets refetch), which an inline arrow here would
+  // otherwise cause by changing `commit`'s identity every render.
+  const commitYearFrom = useCallback(
+    (value: number | null) => setFilters({ yearFrom: value }),
+    [setFilters],
+  );
+  const commitYearTo = useCallback(
+    (value: number | null) => setFilters({ yearTo: value }),
+    [setFilters],
+  );
+  const [yearFromInput, setYearFromInput] = useDebouncedYearInput(yearFrom, commitYearFrom);
+  const [yearToInput, setYearToInput] = useDebouncedYearInput(yearTo, commitYearTo);
+
   function toggleCategory(value: string) {
     setFilters({ category: category === value ? null : value });
-  }
-
-  function onYearFromChange(raw: string) {
-    setFilters({ yearFrom: raw === "" ? null : Number(raw) });
-  }
-
-  function onYearToChange(raw: string) {
-    setFilters({ yearTo: raw === "" ? null : Number(raw) });
   }
 
   return (
@@ -104,16 +144,16 @@ export function FacetFilters() {
       <div className="flex gap-1.5">
         <input
           type="number"
-          value={yearFrom ?? ""}
-          onChange={(event) => onYearFromChange(event.target.value)}
+          value={yearFromInput}
+          onChange={(event) => setYearFromInput(event.target.value)}
           placeholder="from"
           aria-label="From year"
           className="border-line bg-paper text-ink w-full rounded border px-2 py-1 font-mono text-[11.5px] outline-none"
         />
         <input
           type="number"
-          value={yearTo ?? ""}
-          onChange={(event) => onYearToChange(event.target.value)}
+          value={yearToInput}
+          onChange={(event) => setYearToInput(event.target.value)}
           placeholder="to"
           aria-label="To year"
           className="border-line bg-paper text-ink w-full rounded border px-2 py-1 font-mono text-[11.5px] outline-none"

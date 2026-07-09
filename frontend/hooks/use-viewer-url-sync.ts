@@ -59,12 +59,17 @@ export function useViewerUrlSync(): void {
       return;
     }
 
-    // The store changed from a UI intent. `router.replace` (not `push`) so
-    // filtering doesn't spam history — matches D-2's "shareable/back-button
-    // friendly" intent (§4c decision 2) without a history entry per
-    // keystroke.
+    // The store changed from a UI intent. `router.push` (not `replace`) so
+    // each filter/search/paper change is back-button-navigable, per §4c
+    // decision 2's explicit "shareable/back-button friendly" requirement —
+    // `replace` would overwrite the previous URL, making the back button a
+    // no-op the moment any filter changes. History isn't spammed by this:
+    // every UI surface that writes here already debounces or fires once per
+    // deliberate action (corpus-search-bar.tsx's `q`, facet-filters.tsx's
+    // year inputs; category clicks and row clicks are already one push per
+    // click, not per keystroke).
     lastSynced.current = storeString;
-    router.replace(storeString ? `${pathname}?${storeString}` : pathname, { scroll: false });
+    router.push(storeString ? `${pathname}?${storeString}` : pathname, { scroll: false });
   }, [
     searchParams,
     q,

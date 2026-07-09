@@ -29,6 +29,23 @@ only the windowed rows TanStack Virtual computes, and calls `fetchNextPage()`
 once the last rendered row is within `FETCH_NEXT_THRESHOLD` (8) rows of the
 loaded end — never all 6,460 at once, matching #27's own bounded-search-k
 posture on the backend side.
+A live-testing-only bug (only visible against real corpus data, not the
+store test): the first version used a real `<table>` with a fixed-height
+absolutely-positioned `<tr>` per virtual row. Two independent failures
+followed: (1) fixed `estimateSize` assumed every row was the same height,
+but paper titles range from one word to a full wrapped paragraph — a row
+taller than the estimate overlapped its neighbor, since absolute positioning
+doesn't push siblings down. (2) each absolutely-positioned `<tr>` was given
+`display: table` so its own cells would size themselves, but that makes
+every row an independent table layout context sized by ITS OWN content,
+never matching the `<thead>`'s column widths — headers and body columns
+drifted out of alignment. Fixed by dropping the `<table>` element entirely
+in favor of `role="table"`/`role="row"`/`role="cell"` flex divs with an
+explicit `COLUMN_WIDTH_PX` map shared verbatim between the header and every
+body row (TanStack Virtual's own documented pattern for a virtualized
+table), and dynamic row measurement (`ref={virtualizer.measureElement}`)
+instead of a fixed height, so `estimateSize` only seeds the initial layout
+before the real per-row height is measured.
 
 **D-2 — URL is the source of truth; the store derives from it.**
 `stores/viewer-store.ts` holds plain state (`q`/`category`/`yearFrom`/
@@ -40,22 +57,35 @@ router. Default/empty values are never written to the URL (`q=`,
 `category=null`), which is what makes the round trip exact rather than
 merely lossless.
 **Fill-in 1 — the router glue is a separate hook, `hooks/use-viewer-url-sync.ts`,
-not in the store, and is ONE effect, not two.** `useRouter`/`usePathname`/
-`useSearchParams` are component-bound hooks; a zustand store file can't call
-them. A first version split URL->store and store->URL into two effects; on
-initial mount with URL params already present, the store->URL effect ran
-with a STALE pre-hydration closure in the same passive-effect flush right
-after the URL->store effect's `hydrateFromUrl` call (the zustand state update
-schedules a re-render, it isn't synchronous, so the second effect's captured
-filter fields were still the old defaults) — it would `router.replace` the
-just-hydrated params away, then self-correct one render later on the
-following flush. Collapsed into one effect that computes both the raw URL
-string and the store-derived URL string every run and makes an ATOMIC
-decision: equal -> no-op; URL differs from the last string this hook itself
-produced -> treat as an external URL change and hydrate; otherwise -> treat
-as a store-driven change and `router.replace` (not `push`, so filtering
-doesn't spam browser history). The `lastSynced` ref stays local to the hook,
-not the store, since the store's own tests need no router.
+not in the store, is ONE effect, not two, and pushes (not replaces) history.**
+`useRouter`/`usePathname`/`useSearchParams` are component-bound hooks; a
+zustand store file can't call them. A first version split URL->store and
+store->URL into two effects; on initial mount with URL params already
+present, the store->URL effect ran with a STALE pre-hydration closure in the
+same passive-effect flush right after the URL->store effect's
+`hydrateFromUrl` call (the zustand state update schedules a re-render, it
+isn't synchronous, so the second effect's captured filter fields were still
+the old defaults) — it would push the just-hydrated params away, then
+self-correct one render later on the following flush. Collapsed into one
+effect that computes both the raw URL string and the store-derived URL
+string every run and makes an ATOMIC decision: equal -> no-op; URL differs
+from the last string this hook itself produced -> treat as an external URL
+change and hydrate; otherwise -> treat as a store-driven change and write the
+URL. The `lastSynced` ref stays local to the hook, not the store, since the
+store's own tests need no router.
+A second, live-testing-only finding on the SAME hook: it originally called
+`router.replace`, reasoned (wrongly) as "filtering shouldn't spam history."
+Manually driving the running app (Playwright/browser tooling) showed this
+broke the browser back button outright — every filter click OVERWRITES the
+current history entry, so back from any filtered view exits the app
+entirely, contradicting §4c decision 2's explicit "shareable/back-button
+friendly" requirement in the very sentence that motivates URL-as-state at
+all. Switched to `router.push`. History-spam is instead prevented at the
+INPUT layer: `corpus-search-bar.tsx`'s `q` was already debounced (300ms);
+`facet-filters.tsx`'s year `from`/`to` inputs gained the identical debounce
+pattern (`useDebouncedYearInput`, 400ms) so typing a year doesn't push one
+history entry per keystroke. Category-button and row clicks were already
+one push per deliberate click, needing no debounce.
 **Fill-in 2 — a composition component, `components/explorer/explorer-panel.tsx`,**
 mirrors `chat-panel.tsx`'s role for the agent panel: mounts
 `facet-filters.tsx` + `corpus-search-bar.tsx` + `paper-table.tsx` and owns
