@@ -15,12 +15,23 @@ import type {
 // not accumulating booleans. "tool_running" carries the running tool/action
 // name so the panel can say what it's doing, not just that it's doing
 // something.
+//
+// `replay` was originally a member of THIS union — that conflated turn
+// lifecycle with session mode and was a real bug (decisions.md 2026-07-09
+// round 2): `applyEvent` reassigns `status` on every event including the
+// replayed stream's own tool_call/tool_result_summary/text events, so
+// `status: "replay"` set in onopen got clobbered by the replayed stream's
+// FIRST event, hiding ReplayBanner for the whole replayed answer. `mode`
+// below is orthogonal on purpose: `applyEvent` never touches it.
 export type AgentStatus =
   | { kind: "idle" }
   | { kind: "streaming" }
   | { kind: "tool_running"; name: string }
-  | { kind: "capped"; reason: string }
-  | { kind: "replay"; reason: string };
+  | { kind: "capped"; reason: string };
+
+// Session mode: set once per turn from the X-AskRAG-Mode response header
+// (use-agent-stream.ts's onopen), independent of turn lifecycle above.
+export type AgentMode = { kind: "live" } | { kind: "replay"; reason: string };
 
 export interface TimelineEntry {
   id: number;
@@ -49,12 +60,20 @@ interface PendingCall {
 
 export interface AgentSessionState {
   status: AgentStatus;
+  mode: AgentMode;
   sessionId: string | null;
   turns: Turn[];
   // The citation-verification set (decisions.md 2026-07-08): a paper id
   // lands here only once a tool_call/ui_action that referenced it is
   // confirmed by an ok=true tool_result_summary. message-markdown.tsx reads
   // this to decide chip vs plain text.
+  //
+  // Deliberately SESSION-scoped, not turn-scoped (round 2 review nit): a chip
+  // renders for any paper the agent genuinely accessed (ok=true) at any point
+  // this session, even in a later turn's answer that didn't itself touch it —
+  // still not a hallucination, since the id really was retrieved/navigated to
+  // under this session_id. Narrowing to per-turn would need re-deriving the
+  // set from scratch each turn for no anti-hallucination benefit.
   verifiedPaperIds: ReadonlySet<string>;
   // Internal only: the most recent tool_call/ui_action awaiting its paired
   // tool_result_summary. Not for component consumption.
@@ -81,6 +100,7 @@ function paperIdFromArgs(args: Record<string, unknown>): string | null {
 
 export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
   status: { kind: "idle" },
+  mode: { kind: "live" },
   sessionId: null,
   turns: [],
   verifiedPaperIds: new Set(),
@@ -91,6 +111,11 @@ export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
   startTurn: (question) =>
     set((state) => ({
       status: { kind: "streaming" },
+      // Optimistic default for the new turn — budgets.check() decides fresh
+      // per request, so a turn that follows a replay isn't stuck "replay"
+      // forever. onopen's setReplay() overrides this if the new response's
+      // X-AskRAG-Mode header says otherwise.
+      mode: { kind: "live" },
       turns: [
         ...state.turns,
         { id: nextEntryId++, question, timeline: [], answer: "", cost: null, stopReason: null },
@@ -171,11 +196,14 @@ export const useAgentSessionStore = create<AgentSessionState>()((set) => ({
     }),
 
   setCapped: (reason) => set({ status: { kind: "capped", reason } }),
-  setReplay: (reason) => set({ status: { kind: "replay", reason } }),
+  // Sets MODE, not status — applyEvent (above) never touches `mode`, so this
+  // survives the replayed stream's own events for the whole turn.
+  setReplay: (reason) => set({ mode: { kind: "replay", reason } }),
 
   reset: () =>
     set({
       status: { kind: "idle" },
+      mode: { kind: "live" },
       sessionId: null,
       turns: [],
       verifiedPaperIds: new Set(),

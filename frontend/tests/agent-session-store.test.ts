@@ -86,18 +86,67 @@ describe("agent-session-store — status is one discriminated union", () => {
     expect(useAgentSessionStore.getState().turns[0].answer).toBe("the answer");
   });
 
-  it("setCapped / setReplay drive the capped/replay states directly", () => {
+  it("setCapped drives status directly", () => {
     useAgentSessionStore.getState().setCapped("budget exceeded");
     expect(useAgentSessionStore.getState().status).toEqual({
       kind: "capped",
       reason: "budget exceeded",
     });
+  });
 
+  it("setReplay drives mode, not status", () => {
     useAgentSessionStore.getState().setReplay("showcase session");
-    expect(useAgentSessionStore.getState().status).toEqual({
+    expect(useAgentSessionStore.getState().mode).toEqual({
       kind: "replay",
       reason: "showcase session",
     });
+  });
+});
+
+describe("agent-session-store — mode is orthogonal to status (round 2 regression)", () => {
+  // The bug: applyEvent reassigned `status` on every event, so a `status:
+  // "replay"` set in onopen was clobbered by the replayed stream's own
+  // first event, hiding ReplayBanner for the whole replayed answer. `mode`
+  // must survive a full run of lifecycle events untouched.
+  it("mode stays replay across a full turn of applyEvent calls", () => {
+    const { startTurn, applyEvent, setReplay } = useAgentSessionStore.getState();
+    startTurn("q");
+    setReplay("showcase session");
+    expect(useAgentSessionStore.getState().mode).toEqual({
+      kind: "replay",
+      reason: "showcase session",
+    });
+
+    applyEvent({ type: "tool_call", name: "search_corpus", args: { query: "x" } });
+    expect(useAgentSessionStore.getState().mode).toEqual({
+      kind: "replay",
+      reason: "showcase session",
+    });
+
+    applyEvent({ type: "tool_result_summary", name: "search_corpus", ok: true, error: null });
+    applyEvent({ type: "text", text: "a replayed answer" });
+    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1" });
+
+    // The lifecycle status still moved normally throughout...
+    expect(useAgentSessionStore.getState().status).toEqual({ kind: "idle" });
+    // ...while mode, untouched by any of it, still says replay at the end.
+    expect(useAgentSessionStore.getState().mode).toEqual({
+      kind: "replay",
+      reason: "showcase session",
+    });
+  });
+
+  it("startTurn resets mode to live, so a later live turn isn't stuck replay", () => {
+    const { startTurn, setReplay } = useAgentSessionStore.getState();
+    startTurn("first question");
+    setReplay("showcase session");
+    expect(useAgentSessionStore.getState().mode).toEqual({
+      kind: "replay",
+      reason: "showcase session",
+    });
+
+    startTurn("second question");
+    expect(useAgentSessionStore.getState().mode).toEqual({ kind: "live" });
   });
 });
 

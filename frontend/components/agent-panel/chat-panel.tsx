@@ -16,6 +16,7 @@ import { ReplayBanner } from "@/components/agent-panel/replay-banner";
 export function ChatPanel() {
   const [question, setQuestion] = useState("");
   const status = useAgentSessionStore((state) => state.status);
+  const mode = useAgentSessionStore((state) => state.mode);
   const turns = useAgentSessionStore((state) => state.turns);
   const verifiedPaperIds = useAgentSessionStore((state) => state.verifiedPaperIds);
   const { ask } = useAgentStream();
@@ -35,7 +36,7 @@ export function ChatPanel() {
     <div className="bg-machine border-machine-line text-machine-text flex h-full flex-col border-l">
       <header className="border-machine-line flex items-center gap-2 border-b px-3.5 py-2.5">
         <span
-          className={cn("h-2 w-2 rounded-full", status.kind === "replay" ? "bg-amber" : "bg-teal")}
+          className={cn("h-2 w-2 rounded-full", mode.kind === "replay" ? "bg-amber" : "bg-teal")}
         />
         <h2 className="font-mono text-[11px] tracking-wide uppercase">agent</h2>
         <div className="ml-auto">
@@ -65,7 +66,7 @@ export function ChatPanel() {
         ))}
       </div>
 
-      <ReplayBanner status={status} />
+      <ReplayBanner mode={mode} status={status} />
 
       <form onSubmit={handleSubmit} className="border-machine-line flex gap-2 border-t p-3">
         <input
