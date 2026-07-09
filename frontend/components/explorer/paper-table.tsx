@@ -10,12 +10,26 @@ import type { components } from "@/lib/api-types.gen";
 
 type PaperListItem = components["schemas"]["PaperListItem"];
 
-const ROW_HEIGHT_PX = 58;
+const ROW_HEIGHT_ESTIMATE_PX = 58;
 const OVERSCAN = 12;
 // How close (in rows) the last rendered row can be to the end of the loaded
 // set before the next page is requested (D-1: infinite scroll, never all
 // 6,460 at once).
 const FETCH_NEXT_THRESHOLD = 8;
+
+// Fixed pixel widths for every column except "title" (which flexes) — shared
+// between the header row and every virtualized body row so the two stay
+// column-aligned. Rows are absolutely positioned divs (not a real <table>):
+// an HTML table's column-width negotiation only works when every row shares
+// one layout pass, which virtualization — rendering a handful of rows at
+// arbitrary DOM positions — breaks by construction. This is TanStack
+// Virtual's own documented pattern for a virtualized table.
+const COLUMN_WIDTH_PX: Record<string, number> = {
+  year: 46,
+  category: 62,
+  rigor: 50,
+  arxiv_id: 108,
+};
 
 function toggleYearSort(current: SortOption | null): SortOption {
   return current === "year_desc" ? "year_asc" : "year_desc";
@@ -49,7 +63,13 @@ function rigorDots(score: number) {
 /** TanStack Table + Virtual over `/api/papers` (D-1): only visible rows
  * render, so 6,460 rows scroll at 60fps. Row click sets `viewer-store`'s
  * `paper` (+ URL, via use-viewer-url-sync.ts) — the #29 seam; this
- * component never renders a viewer itself. */
+ * component never renders a viewer itself.
+ *
+ * Rows are dynamically measured (`virtualizer.measureElement`), not a fixed
+ * height: paper titles vary from one word to several wrapped lines, and a
+ * fixed-height absolutely-positioned row overlaps its neighbor the moment
+ * real content exceeds the estimate. `estimateSize` only seeds the initial
+ * layout before the first measurement pass. */
 export function PaperTable() {
   const q = useViewerStore((state) => state.q);
   const category = useViewerStore((state) => state.category);
@@ -152,12 +172,13 @@ export function PaperTable() {
     getRowId: (row) => row.arxiv_id,
   });
   const rows = table.getRowModel().rows;
+  const headerCells = table.getFlatHeaders();
 
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT_PX,
+    estimateSize: () => ROW_HEIGHT_ESTIMATE_PX,
     overscan: OVERSCAN,
   });
   const virtualRows = virtualizer.getVirtualItems();
@@ -183,55 +204,81 @@ export function PaperTable() {
             ? `showing ${papers.length} of ${total.toLocaleString()} (virtualized)`
             : `showing ${papers.length} search results (virtualized)`}
       </div>
-      <div ref={parentRef} className="flex-1 overflow-y-auto px-5 pb-5">
-        <table className="w-full border-collapse" style={{ fontVariantNumeric: "tabular-nums" }}>
-          <thead>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    className="bg-paper text-muted border-ink sticky top-0 border-b-[1.5px] px-2.5 py-2 text-left font-mono text-[10.5px] font-semibold tracking-[0.1em]"
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
+      <div
+        role="table"
+        aria-label="Corpus papers"
+        className="border-line mx-5 mb-5 flex min-h-0 flex-1 flex-col border-t"
+        style={{ fontVariantNumeric: "tabular-nums" }}
+      >
+        <div role="rowgroup" className="border-ink flex border-b-[1.5px]">
+          <div role="row" className="flex w-full">
+            {headerCells.map((header) => (
+              <div
+                key={header.id}
+                role="columnheader"
+                className="bg-paper text-muted overflow-hidden px-1.5 py-2 text-left font-mono text-[10.5px] font-semibold tracking-[0.1em] whitespace-nowrap"
+                style={
+                  header.column.id === "title"
+                    ? { flex: "1 1 0%", minWidth: 0 }
+                    : { flex: `0 0 ${COLUMN_WIDTH_PX[header.column.id]}px` }
+                }
+              >
+                {flexRender(header.column.columnDef.header, header.getContext())}
+              </div>
             ))}
-          </thead>
-          <tbody
-            style={{ height: virtualizer.getTotalSize(), position: "relative", display: "block" }}
-          >
+          </div>
+        </div>
+        <div ref={parentRef} role="rowgroup" className="flex-1 overflow-y-auto">
+          <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
             {virtualRows.map((virtualRow) => {
               const row = rows[virtualRow.index];
               return (
-                <tr
+                <div
                   key={row.id}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  role="row"
+                  tabIndex={0}
                   onClick={() => setPaper(row.original.arxiv_id)}
-                  className="border-line hover:bg-panel cursor-pointer border-b"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setPaper(row.original.arxiv_id);
+                    }
+                  }}
+                  className="border-line hover:bg-panel flex w-full cursor-pointer border-b"
                   style={{
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    right: 0,
-                    display: "table",
-                    tableLayout: "fixed",
                     width: "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-2.5 py-2.5 align-baseline">
+                    <div
+                      key={cell.id}
+                      role="cell"
+                      className={cn(
+                        "px-1.5 py-2.5",
+                        cell.column.id === "title" ? "min-w-0" : "overflow-hidden",
+                      )}
+                      style={
+                        cell.column.id === "title"
+                          ? { flex: "1 1 0%", minWidth: 0 }
+                          : { flex: `0 0 ${COLUMN_WIDTH_PX[cell.column.id]}px` }
+                      }
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
+                    </div>
                   ))}
-                </tr>
+                </div>
               );
             })}
-          </tbody>
-        </table>
+          </div>
+        </div>
         {!isPending && papers.length === 0 && (
-          <p className="text-muted mt-6 text-sm">No papers match the current filters.</p>
+          <p className="text-muted mt-6 px-2.5 text-sm">No papers match the current filters.</p>
         )}
       </div>
     </div>
