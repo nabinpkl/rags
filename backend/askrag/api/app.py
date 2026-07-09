@@ -1,8 +1,7 @@
-"""FastAPI assembly (#30; spec §4c): lifespan, CORS, router mounting.
+"""FastAPI assembly (#30/#27; spec §4c): lifespan, CORS, router mounting.
 
-Only `routes_chat.py` mounts here today. `routes_explorer.py` (browse/filter)
-and `routes_admin.py` (spend dashboard) are later issues (spec §4c tree) —
-this app intentionally serves one endpoint until they land.
+`routes_chat.py` and `routes_explorer.py` mount here. `routes_admin.py`
+(spend dashboard) is a later issue (spec §4c tree).
 """
 
 from collections.abc import AsyncIterator
@@ -13,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from askrag import telemetry
 from askrag.api.routes_chat import router as chat_router
+from askrag.api.routes_explorer import router as explorer_router
 from askrag.api.session_store import SessionStore
 from askrag.config import get_settings
 
@@ -40,8 +40,9 @@ app = FastAPI(title="askRAG API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_allowed_origins,
-    allow_methods=["POST"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 app.include_router(chat_router)
+app.include_router(explorer_router)

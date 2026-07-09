@@ -6,6 +6,8 @@ included."""
 
 from askrag.agent.loop import AgentEvent, EventKind, StopReason, TurnResult
 from askrag.api import sse_events
+from askrag.traces import Citation as TraceCitation
+from askrag.traces import ToolCallRecord
 
 # --- golden shapes -----------------------------------------------------
 
@@ -69,6 +71,21 @@ def test_done_event_shape():
         "type": "done",
         "stop_reason": "end_turn",
         "run_id": "abc123",
+        "citations": (),
+    }
+
+
+def test_done_event_shape_with_citations():
+    event = sse_events.DoneEvent(
+        stop_reason="end_turn",
+        run_id="abc123",
+        citations=(sse_events.Citation(paper_id="2401.00001", chunk_ids=("2401.00001#0",)),),
+    )
+    assert sse_events.serialize(event) == {
+        "type": "done",
+        "stop_reason": "end_turn",
+        "run_id": "abc123",
+        "citations": ({"paper_id": "2401.00001", "chunk_ids": ("2401.00001#0",)},),
     }
 
 
@@ -158,3 +175,64 @@ def test_done_event_from_turn_result():
     assert sse_events.done_event(result) == sse_events.DoneEvent(
         stop_reason="step_cap", run_id="r3"
     )
+
+
+def test_done_event_from_turn_result_aggregates_citations_across_tool_calls():
+    tool_calls = (
+        ToolCallRecord(
+            name="search_corpus",
+            args={"query": "a"},
+            ok=True,
+            citations=(
+                TraceCitation(paper_id="2401.00001", chunk_id="2401.00001#0"),
+                TraceCitation(paper_id="2401.00001", chunk_id="2401.00001#1"),
+            ),
+        ),
+        ToolCallRecord(
+            name="search_corpus",
+            args={"query": "b"},
+            ok=True,
+            citations=(TraceCitation(paper_id="2401.00002", chunk_id="2401.00002#0"),),
+        ),
+        ToolCallRecord(name="query_metadata", args={"op": "corpus_stats"}, ok=True),
+    )
+    result = TurnResult(
+        text="answer",
+        stop_reason=StopReason.END_TURN,
+        tool_calls=tool_calls,
+        tokens_in=1000,
+        tokens_out=50,
+        cost_usd=0.0042,
+        run_id="r4",
+        messages=[],
+    )
+    event = sse_events.done_event(result)
+    assert event.citations == (
+        sse_events.Citation(paper_id="2401.00001", chunk_ids=("2401.00001#0", "2401.00001#1")),
+        sse_events.Citation(paper_id="2401.00002", chunk_ids=("2401.00002#0",)),
+    )
+
+
+# --- citations_from_tool_calls: dedup + first-seen order ------------------
+
+
+def test_citations_from_tool_calls_dedupes_repeated_chunk_ids_within_one_paper():
+    tool_calls = (
+        ToolCallRecord(
+            name="search_corpus",
+            args={"query": "a"},
+            ok=True,
+            citations=(
+                TraceCitation(paper_id="2401.00001", chunk_id="2401.00001#0"),
+                TraceCitation(paper_id="2401.00001", chunk_id="2401.00001#0"),
+            ),
+        ),
+    )
+    assert sse_events.citations_from_tool_calls(tool_calls) == (
+        sse_events.Citation(paper_id="2401.00001", chunk_ids=("2401.00001#0",)),
+    )
+
+
+def test_citations_from_tool_calls_empty_when_no_calls_carry_citations():
+    tool_calls = (ToolCallRecord(name="query_metadata", args={"op": "corpus_stats"}, ok=True),)
+    assert sse_events.citations_from_tool_calls(tool_calls) == ()
