@@ -30,8 +30,16 @@ pane="$(cat "$REPO/.claude/run/$role.pane" 2>/dev/null || true)"
 # submitted message moves up into the transcript), so "snippet still on the ❯
 # line" == still pending in the box.
 snippet="$(printf '%s' "$msg" | tr -s '[:space:]' ' ' | cut -c1-24)"
-_composer_has_snippet() {
-  tmux capture-pane -p -t "$pane" 2>/dev/null | grep '❯' | tail -1 | grep -qF "$snippet"
+# Our message is PENDING in the composer if its `❯` line still shows our
+# snippet, OR the TUI folded a long message into a "[Pasted text #N]"
+# placeholder (long boot prompts cross that threshold — the text is there,
+# just collapsed, so a literal snippet match misses it and used to false-FATAL
+# with "text never landed"). Either form means not-yet-submitted.
+_composer_pending() {
+  local line
+  line="$(tmux capture-pane -p -t "$pane" 2>/dev/null | grep '❯' | tail -1)"
+  printf '%s' "$line" | grep -qF "$snippet" \
+    || printf '%s' "$line" | grep -qE '\[Pasted text #[0-9]+\]'
 }
 # A turn is actively running iff the pane shows the interrupt hint. (The token
 # counter shows even at idle, so it is NOT a working signal.)
@@ -43,7 +51,7 @@ tmux send-keys -t "$pane" -l "$msg"
 landed=0
 for _ in $(seq 1 10); do
   sleep 1.5
-  if _composer_has_snippet; then landed=1; break; fi
+  if _composer_pending; then landed=1; break; fi
   tmux send-keys -t "$pane" C-u
   tmux send-keys -t "$pane" -l "$msg"
 done
@@ -56,7 +64,7 @@ tmux send-keys -t "$pane" Enter
 submitted=0
 for _ in $(seq 1 20); do
   sleep 1.5
-  if ! _composer_has_snippet; then submitted=1; break; fi
+  if ! _composer_pending; then submitted=1; break; fi
   _working || tmux send-keys -t "$pane" Enter
 done
 [ "$submitted" = 1 ] && exit 0
