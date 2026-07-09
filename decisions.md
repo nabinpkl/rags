@@ -14,6 +14,130 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — Explorer API (#27): citation contract (D-1) + shared facet SQL (D-2), plus three implementation-contract fill-ins
+
+**Context:** #27's task brief handed down two coordinator decisions to build
+against (not open questions) and left several querystring/design details for
+the implementor to resolve. All five are recorded together since they land
+in the same PR and several interact.
+
+**D-1 — Citation contract (ids on the wire, text only from the capped
+endpoint).** The SSE `done` event now carries `citations:
+[{paper_id, chunk_ids: [...]}]`. Mechanism: `traces.ToolCallRecord` gains a
+`citations: tuple[Citation, ...]` field (`Citation(paper_id, chunk_id)`,
+ids only — same posture the record already held for its own result: no
+payload, ever). `askrag/agent/loop.py`'s `_dispatch_tool_calls` populates it
+via a new `_citations_of(name, result)`, special-cased for `search_corpus`
+only (mirrors `sse_events.translate()`'s pre-existing `name == "drive_ui"`
+special-case — "know one tool's shape at the translation boundary," not a
+new general interface). `sse_events.py` gains `Citation(paper_id,
+chunk_ids)` (the wire shape) and `citations_from_tool_calls()`, a single
+aggregator (dedupe + group by paper_id, first-seen order) that both
+`done_event()` (live turns) and `replay.py` (showcase replays) call, so a
+replayed turn's citations can never drift from a live one's.
+**Known gap, accepted:** `read_paper` produces no citations — its
+`TextSpan` result has no `chunk_id` (page-range reads, not chunk-keyed), so
+a deep-read via `read_paper` alone can't drive the cited-excerpts pane, only
+`search_corpus` hits can. Fixing this needs a `read_paper.py` schema change
+(adding `chunk_id` to `TextSpan` + its SQL) that's out of #27's Build list;
+revisit if evals or usage show `read_paper`-only answers citing papers the
+frontend can't resolve to excerpts.
+**Alternatives rejected:** computing citations from the model's raw answer
+text via a regex/id-extraction pass (cli.py's `_verify_citations` pattern)
+— would conflate "the model wrote this id in prose" with "the model actually
+retrieved this chunk," the exact ambiguity #31's `ui_action` reconciliation
+already exists to avoid one layer up; extending `read_paper` to also carry
+citations now — speculative before a real gap is measured, and the fix
+touches a different tool's schema than this issue's Build list names.
+
+**D-2 — Facet SQL lives once.** Extracted into `askrag/facets.py` (new,
+top-level module — mirrors `traces.py`'s existing pattern of a single
+well-named top-level file for a cross-layer concern, rather than nesting
+under `retrieval/` (implies ranked search, wrong fit) or `tools/`
+(query_metadata is one of two consumers, not the owner)). Holds
+`GROUP_BY_COLUMNS`, `where_clause()`, `count_scalar()`, `count_grouped()` —
+one `{name -> column}` map, one WHERE-builder, one GROUP BY query template.
+`query_metadata.py`'s `_run_count_papers` now calls these instead of owning
+its own copy; `GET /api/facets` and the papers list's `facets=` scoping (see
+below) call the same functions with their own `max_groups` — a parameter,
+never a forked query, per the task brief's own instruction.
+
+**Fill-in 1 — `/api/papers`'s `q` always goes through hybrid retrieval, no
+separate keyword-only mode.** The issue's querystring sketch listed
+"semantic q via retrieval, keyword via FTS" as two capabilities to wrap;
+read literally as two simultaneous request modes there'd be no second `q`
+parameter to pick between them. `HybridSearch.search()` (D8) already fuses
+vector+BM25 and degrades gracefully to BM25-only if the vector leg is down
+— it already IS "keyword via FTS" as a fallback, not a separate mode a
+client selects. `/api/papers?q=` calls it once; `retrieval/fts.py` needs no
+new route-level exposure.
+**Alternatives rejected:** a `mode=semantic|keyword` toggle — invents a
+knob nobody asked for and duplicates a decision `HybridSearch` already
+makes (D8's fail-soft degrade), the kind of speculative option the
+engineering principles caution against.
+
+**Fill-in 2 — `facets=` on `/api/papers` means the FIVE DIVERSITY-SCORE
+columns (§1: authority/niche_idf/author_novelty/revisions/venue_rigor), a
+DIFFERENT sense of "facet" than `/api/facets`'s categorical counts.** The
+spec names both senses "facet" (§1's corpus description vs. the mockup's
+category-filter rail / `query_metadata`'s group-by). `GET /api/facets` (D-2)
+is tied to the categorical sense by the coordinator's own note referencing
+`count_papers group_by`. `facets=` requests a comma-separated subset of the
+five score columns to include per row (`PaperListItem.facets`/
+`PaperDetailResponse.facets`); unknown names are a 400. The overlap in
+naming is real, not a typo — documented in `routes_explorer.py`'s module
+docstring and here rather than renamed away, since both senses are already
+load-bearing (categorical facets drive `/api/facets` and `query_metadata`;
+diversity facets are named in spec §1 and stored in `papers` since #14).
+
+**Fill-in 3 — cursor design: real SQL keyset for browse, bounded-list
+position cursor for search.** The issue's own acceptance line ("cursor
+pagination correct; p95 < 100 ms on metadata-only queries") only measures
+the `q`-empty path, so that's where a true SQL keyset (`WHERE (col OP ? OR
+(col = ? AND arxiv_id > ?))`, `arxiv_id` as stable tiebreak) earns its
+complexity. The `q`-set path calls `HybridSearch.search()` once for a
+BOUNDED `explorer_search_k` (config, default 100) result, collapses
+chunks→papers (dedup by paper_id, first-seen = best fused score since
+`HybridSearch.search()` already returns rank-descending), then paginates
+that one already-fetched, deterministically-ordered list by cursor
+POSITION (find the last-seen id, slice after it) rather than re-running
+search with a larger `k` per page. Retrieval fundamentally returns a
+bounded top-k, not an arbitrarily-deep ranked table (D8) — there is no
+"page 50 of a semantic search" to keyset into. The cursor is one opaque
+base64(JSON) shape either way (`q`/filters/`sort`/`last_key`/`last_id`);
+a cursor whose encoded q/filters/sort don't match the current request is
+rejected (400) rather than silently reinterpreted.
+**Alternatives rejected:** re-running `HybridSearch.search()` with an
+increasing `k` per page (defeats "bounded," and re-embeds the query on
+every page for no correctness gain); OFFSET pagination on the search path
+(the exact anti-pattern "keyset, not OFFSET" — though the underlying bound
+is already small here, position-slicing an already-fetched list is free
+where OFFSET against a growing scan would not be).
+
+**Consequence:** `tests/test_facets.py` (new), `tests/test_routes_explorer.py`
+(new, §6c rows test-first per the issue's instruction), and
+`tests/test_query_metadata.py` (unchanged — behavior preserved by
+construction) all pass; `test_sse_events.py`/`test_replay.py`/`test_loop.py`/
+`test_traces.py` updated for the new `citations` field;
+`frontend/lib/sse.ts`/`tests/sse.test.ts` mirror `DoneEvent.citations` in
+lockstep. `GET /api/facets` applies its `category`/`year_from`/`year_to`
+filters uniformly across all four output dimensions (no "still-available-
+options" exclude-own-dimension faceting, e.g. a `category=cs.CL` request's
+own `category` breakdown just shows `{cs.CL: total}`) — a v1 simplification
+worth revisiting once the frontend's facet rail (#33+) needs it.
+`get_hybrid_search_factory` (routes_explorer.py) constructs a fresh
+`HybridSearch` per search request rather than sharing one cached instance —
+mirrors `tools/search_corpus.py`'s pre-existing pattern (no shared instance
+exists anywhere in the codebase yet), not a new gap this PR introduces;
+worth a shared instance on `app.state` (like `SessionStore`) as a follow-up
+if query-time cold-load latency on the search path is ever measured and
+matters — out of scope here since the issue's own p95 bar is metadata-only.
+Spec updated: no (§4c already names `routes_explorer.py`'s three routes and
+the §6c/§6b posture they implement; this entry is #27's implementation
+contract, same category as the #31 entry above it).
+
+---
+
 ## 2026-07-09 — Agent panel (#31, round 2): session mode split from turn lifecycle in `agent-session-store.ts`
 
 **Context:** round-1 review (Opus) found a [major]: `AgentStatus` originally
