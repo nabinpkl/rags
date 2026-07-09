@@ -32,9 +32,15 @@ without a logged decision is a review finding.
 ## State machines
 
 - Multi-phase UI status (agent panel: idle / streaming / tool-running /
-  capped / replay) is one discriminated union driving rendering — not
-  accumulating booleans. Transitions are functions; impossible combinations
-  don't typecheck.
+  capped) is one discriminated union driving rendering — not accumulating
+  booleans. Transitions are functions; impossible combinations don't
+  typecheck.
+- Session mode (live / replay) is a SEPARATE field from turn-lifecycle
+  status, not a member of the same union (decisions.md 2026-07-09, agent
+  panel round 2): a status field that churns on every stream event will
+  clobber a mode value folded into it the moment the next event arrives.
+  Anything that's "set once, read elsewhere, and must survive an unrelated
+  field's churn" gets its own field.
 
 ## Next.js (D13 constraints)
 
