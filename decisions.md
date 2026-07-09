@@ -14,6 +14,101 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — Explorer UI (#28): infinite-scroll virtualized table, URL-as-source-of-truth filters, data-gated rigor column, plus two fill-ins
+
+**Context:** #28's task brief handed down three coordinator decisions to
+build against (not open questions): D-1 infinite scroll, D-2 URL-is-source-
+of-truth, D-3 no-empty-column. Building D-2 surfaced two implementation
+details the brief left open.
+
+**D-1 — Infinite scroll via `useInfiniteQuery` + TanStack Virtual.**
+`hooks/use-papers-query.ts`'s `usePapersQuery` wraps `GET /api/papers` in
+`useInfiniteQuery` (`getNextPageParam: (page) => page.next_cursor`);
+`components/explorer/paper-table.tsx` flattens accumulated pages, renders
+only the windowed rows TanStack Virtual computes, and calls `fetchNextPage()`
+once the last rendered row is within `FETCH_NEXT_THRESHOLD` (8) rows of the
+loaded end — never all 6,460 at once, matching #27's own bounded-search-k
+posture on the backend side.
+
+**D-2 — URL is the source of truth; the store derives from it.**
+`stores/viewer-store.ts` holds plain state (`q`/`category`/`yearFrom`/
+`yearTo`/`sort`/`paper`/`page`) plus two PURE functions,
+`viewerStateFromSearchParams`/`searchParamsFromViewerState` — no
+`next/navigation` import in this file, so both directions are directly unit
+tested (`tests/viewer-store.test.ts`, the acceptance gate) without mounting a
+router. Default/empty values are never written to the URL (`q=`,
+`category=null`), which is what makes the round trip exact rather than
+merely lossless.
+**Fill-in 1 — the router glue is a separate hook, `hooks/use-viewer-url-sync.ts`,
+not in the store, and is ONE effect, not two.** `useRouter`/`usePathname`/
+`useSearchParams` are component-bound hooks; a zustand store file can't call
+them. A first version split URL->store and store->URL into two effects; on
+initial mount with URL params already present, the store->URL effect ran
+with a STALE pre-hydration closure in the same passive-effect flush right
+after the URL->store effect's `hydrateFromUrl` call (the zustand state update
+schedules a re-render, it isn't synchronous, so the second effect's captured
+filter fields were still the old defaults) — it would `router.replace` the
+just-hydrated params away, then self-correct one render later on the
+following flush. Collapsed into one effect that computes both the raw URL
+string and the store-derived URL string every run and makes an ATOMIC
+decision: equal -> no-op; URL differs from the last string this hook itself
+produced -> treat as an external URL change and hydrate; otherwise -> treat
+as a store-driven change and `router.replace` (not `push`, so filtering
+doesn't spam browser history). The `lastSynced` ref stays local to the hook,
+not the store, since the store's own tests need no router.
+**Fill-in 2 — a composition component, `components/explorer/explorer-panel.tsx`,**
+mirrors `chat-panel.tsx`'s role for the agent panel: mounts
+`facet-filters.tsx` + `corpus-search-bar.tsx` + `paper-table.tsx` and owns
+the single `useViewerUrlSync()` call, so `app/page.tsx` stays the two-region
+shell (`§4c`: "the app: explorer + viewer + agent panel composition") without
+itself becoming a client component full of hook wiring. Wrapped in
+`<Suspense>` in `page.tsx` because `useSearchParams` requires a boundary
+under `output: 'export'`.
+
+**D-3 — no column backed by empty data.** `paper-table.tsx` computes
+`hasRigorData = papers.some(p => p.facets?.venue_rigor != null)` over the
+currently loaded rows and only pushes the Rigor column onto the TanStack
+Table `columns` array when true — read from real response data, not a
+guessed dev/prod flag, so the column appears automatically once #13's embed
+run populates `venue_rigor` in a given environment. `venue_rigor` is a
+continuous 0..1 score (spec §1), not the mockup's placeholder 0-3 integer;
+`rigorDots()` maps it onto the mockup's 3-dot display
+(`Math.round(score * 3)`), a display heuristic only, not a spec-defined
+discretization.
+
+**Alternatives rejected:** an `?sort=` UI control as its own component —
+the issue's Build list names no such file, mockup.html has none either, and
+the store/URL/backend contract for `sort` is already exercised by
+`viewer-store.test.ts`; instead the Year/Paper column headers in
+`paper-table.tsx` toggle `year_desc`/`year_asc`/`title_asc` on click, giving
+`sort` a real UI surface without inventing an unscoped component. A
+draggable/clickable year-band histogram (mockup's decorative bars, made
+interactive) — the mockup's own version is `aria-hidden` decoration, not a
+control; `facet-filters.tsx` keeps the bars decorative and adds two plain
+number inputs (`year_from`/`year_to`) for the actual filter, which round-
+trips through the URL identically at a fraction of the complexity.
+Putting the store<->URL sync ref state inside `viewer-store.ts` itself
+(rejected in Fill-in 1) — would make the store's own tests router-dependent
+for no benefit, since the pure functions are what the acceptance gate needs.
+
+**Consequence:** `tests/viewer-store.test.ts` (new, 55 total frontend tests
+passing) proves the store⇄URL symmetry gate both directions plus every
+store action; `pnpm lint`/`pnpm typecheck` clean. `pnpm build` (Turbopack)
+fails in the implementor's git worktree ONLY with a `node_modules` symlink-
+out-of-filesystem-root Turbopack panic — a worktree artifact (this repo's
+own `.worktrees/` isolation scheme symlinks `node_modules` in), not a code
+issue; the coordinator confirms a real Turbopack build outside the worktree
+before merge. No column ever shows `score` (fused retrieval score) since it
+is `null` on every browse-mode row — the same D-3 "no empty column"
+reasoning applied one column further than the rigor case the issue named
+explicitly.
+Spec updated: no (§4c already names `paper-table.tsx`/`facet-filters.tsx`/
+`corpus-search-bar.tsx`/`use-papers-query.ts`/`viewer-store.ts`/
+`viewer-store.test.ts`; this entry is #28's implementation contract, same
+category as the #27 entry below it).
+
+---
+
 ## 2026-07-09 — Explorer API (#27): citation contract (D-1) + shared facet SQL (D-2), plus three implementation-contract fill-ins
 
 **Context:** #27's task brief handed down two coordinator decisions to build
