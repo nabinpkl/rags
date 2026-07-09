@@ -46,5 +46,14 @@ def replay_events(run: Run) -> Iterator[dict[str, Any]]:
         )
     )
     yield sse_events.serialize(
-        sse_events.DoneEvent(stop_reason=StopReason.END_TURN.value, run_id=run.run_id)
+        sse_events.DoneEvent(
+            stop_reason=StopReason.END_TURN.value,
+            run_id=run.run_id,
+            # Same aggregator a live turn's done_event() uses (D-1, issue
+            # #27) — a replayed citations list can never drift from a live
+            # one's shape. Pre-#27 showcase traces have no per-call
+            # citations recorded (traces.py's .get() fallback), so this is
+            # empty for them, same as any other field #30's schema added.
+            citations=sse_events.citations_from_tool_calls(run.tool_calls),
+        )
     )
