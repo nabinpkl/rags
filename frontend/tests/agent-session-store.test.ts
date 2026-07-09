@@ -150,6 +150,85 @@ describe("agent-session-store — mode is orthogonal to status (round 2 regressi
   });
 });
 
+describe("agent-session-store — citation capture (#29 seam)", () => {
+  it("captures paper_id -> chunk_ids from done.citations", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("what does this paper say?");
+
+    applyEvent({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "r1",
+      citations: [{ paper_id: "1409.7842", chunk_ids: ["c1", "c2"] }],
+    });
+
+    expect(useAgentSessionStore.getState().citationsByPaper.get("1409.7842")).toEqual(["c1", "c2"]);
+  });
+
+  it("merges a later turn's citation for the same paper, deduped, first-seen order", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("first question");
+    applyEvent({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "r1",
+      citations: [{ paper_id: "1409.7842", chunk_ids: ["c1", "c2"] }],
+    });
+
+    startTurn("second question");
+    applyEvent({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "r2",
+      citations: [{ paper_id: "1409.7842", chunk_ids: ["c2", "c3"] }],
+    });
+
+    expect(useAgentSessionStore.getState().citationsByPaper.get("1409.7842")).toEqual([
+      "c1",
+      "c2",
+      "c3",
+    ]);
+  });
+
+  it("never captures chunk text — citations carry ids only (§6c row 4/D-1)", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("q");
+    applyEvent({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "r1",
+      citations: [{ paper_id: "1409.7842", chunk_ids: ["c1"] }],
+    });
+
+    const chunkIds = useAgentSessionStore.getState().citationsByPaper.get("1409.7842");
+    expect(chunkIds).toEqual(["c1"]);
+    chunkIds?.forEach((id) => expect(typeof id).toBe("string"));
+  });
+
+  it("leaves citationsByPaper untouched when done carries no citations", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("q");
+    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1", citations: [] });
+
+    expect(useAgentSessionStore.getState().citationsByPaper.size).toBe(0);
+  });
+
+  it("reset clears citationsByPaper", () => {
+    const { startTurn, applyEvent, reset } = useAgentSessionStore.getState();
+    startTurn("q");
+    applyEvent({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "r1",
+      citations: [{ paper_id: "1409.7842", chunk_ids: ["c1"] }],
+    });
+
+    reset();
+
+    expect(useAgentSessionStore.getState().citationsByPaper.size).toBe(0);
+  });
+});
+
 describe("agent-session-store — forward-compat", () => {
   it("applyEvent does not throw on an event type unknown to this switch", () => {
     const { startTurn, applyEvent } = useAgentSessionStore.getState();
