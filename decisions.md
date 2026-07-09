@@ -14,6 +14,53 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — Agent panel (#31, round 2): session mode split from turn lifecycle in `agent-session-store.ts`
+
+**Context:** round-1 review (Opus) found a [major]: `AgentStatus` originally
+had five members — `idle | streaming | tool_running | capped | replay` — per
+`.claude/rules/frontend.md`'s state-machine line. `use-agent-stream.ts` set
+`status: "replay"` in `onopen` from the `X-AskRAG-Mode` header, but the
+replayed stream's own events then flow through `applyEvent`, which
+unconditionally reassigns `status` for every `tool_call`/`tool_result_summary`
+/`text`/`done` it sees — including the replayed stream's own. The replayed
+run's first event (a `tool_call`, confirmed against `replay.py`) clobbered
+`status: "replay"` back to `tool_running`, so `ReplayBanner` and the header's
+amber dot vanished for the entire replayed answer: a visitor watches a
+recorded session with no indication it's recorded, contradicting D11's
+honesty intent and `ReplayBanner`'s own docstring. No test caught it because
+`agent-session-store.test.ts` exercised `setReplay` in isolation, never
+followed by an `applyEvent` call.
+
+**Decision:** split the conflated union into two orthogonal fields:
+- `mode: "live" | "replay"` — set once per turn, from the `X-AskRAG-Mode`
+  header in `onopen`; reset to `"live"` at the start of every new turn
+  (`startTurn`, since `budgets.check()` decides fresh per request); `applyEvent`
+  never touches it.
+- `status: "idle" | "streaming" | "tool_running" | "capped"` — turn lifecycle,
+  owned by `applyEvent` exactly as before. `capped` stays here (unaffected by
+  the bug: its 429 path throws before any event is ever applied).
+
+`ReplayBanner` and the panel header's mode dot now read `mode`; the timeline
+still reads `status`. Added a store test asserting `mode` survives a full
+run of `applyEvent` calls after `setReplay`, and one confirming `startTurn`
+resets it to live.
+
+**Alternatives rejected:** having `applyEvent` special-case "don't overwrite
+`status` if it's currently `replay`" — keeps the two concerns tangled in one
+field and one function, the actual root cause; a future lifecycle addition
+would need to remember the same special-case again.
+
+**Consequence:** `.claude/rules/frontend.md`'s state-machine line ("idle /
+streaming / tool-running / capped / replay" as one union) is now inaccurate
+for this store and is amended in the same PR — the round-1 finding *was* that
+conflation, so the fix is a deliberate, documented deviation, not an
+oversight. Revisit if a future status kind (e.g. an explicit error state)
+turns out to need the same live/replay orthogonality some other lifecycle
+value already has.
+Spec updated: no (frontend rule amended instead; §4c/D11 unchanged).
+
+---
+
 ## 2026-07-08 — traces.db gains `question`/`answer_text` so showcase replays reproduce the answer, not just the timeline (issue #30)
 
 **Context:** #30 builds the chat route's REPLAY branch (D11: the site
@@ -723,3 +770,42 @@ this project size).
 context continuity. GitHub cannot record formal self-approvals, so the
 reviewer's `VERDICT: GREEN` comment is the approval of record.
 Spec updated: no (process-only).
+
+
+## 2026-07-08 — Agent panel (#31): mockup reconciled to the shipped stream; citation-verification contract
+
+**Context:** #31 builds the agent panel against the live `POST /api/chat`
+SSE stream (#30). The `docs/mockup.html` agent demo predated every backend
+contract and depicted flows the stream cannot produce: a `run_python` tool
+(never built — the registry is 4 tools), raw model-authored SQL (removed in
+#60), a `venue_rigor` corpus field (does not exist), and tool results
+carrying chunk counts / similarity scores / row counts / sandbox internals
+(the wire's `tool_result_summary` is name + ok/error only, §6c).
+
+**Decision:**
+1. The timeline renders exactly what the stream carries — tool name + args
+   (from `tool_call`/`ui_action`) resolving to ok/error (from
+   `tool_result_summary`). No result payloads, ever. `docs/mockup.html` was
+   rewritten to match (friendly label → "done" tick, nothing more) and its
+   fabricated tool / field / rail-facet flows removed.
+2. Citation verification: a cited paper id becomes a clickable chip ONLY if
+   it appeared in a `tool_call`/`ui_action` whose paired
+   `tool_result_summary` was `ok=true` (the agent actually retrieved or
+   navigated to it, reconciling the provisional call against its confirmed
+   result per the `UiActionEvent` docstring). Otherwise the id renders as
+   plain text. This is the anti-hallucination guard the #31 acceptance
+   checklist requires and needs no change to the #30 stream.
+3. SSE transport is `@microsoft/fetch-event-source` (already in §4b): native
+   `EventSource` cannot POST a JSON body or read the `X-AskRAG-*` response
+   headers the replay/session contract depends on.
+
+**Alternatives rejected:** carrying retrieved ids/scores in the stream (§6c
+surface widening for cosmetic timeline richness); verifying citations only
+against `read_paper` (drops legitimate `drive_ui`-navigated ids); trusting
+any model-written id (defeats the guard).
+
+**Consequence:** the real timeline is leaner than the old mockup implied, by
+design. If a future issue adds a stream event carrying retrieved ids (e.g.
+for richer citations), revisit (2).
+
+**Spec updated:** no — implementation contract for #31; §6c/§5 unchanged.
