@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Refuse commits on `main` unless the coordinator explicitly authorizes it.
+#
+# Only the coordinator commits to `main` (the `orchestration:` commits); worker
+# agents commit on `issue-<n>` branches inside `.worktrees/`. A worker that
+# drifts into the primary checkout and commits to `main` is the failure this
+# stops — issue #31 post-mortem: the frontend task landed on `main` twice (once
+# recovered by cherry-pick, once caught here). Workers never set the marker, so
+# a stray `main` commit is rejected at the source; the coordinator prefixes its
+# intentional ones with `ASKRAG_ALLOW_MAIN_COMMIT=1`.
+#
+# Wired via `git config core.hooksPath scripts/git-hooks` (shared across all
+# worktrees). No loops, no network — a single branch check.
+set -euo pipefail
+branch="$(git symbolic-ref --short -q HEAD || echo DETACHED)"
+if [ "$branch" = "main" ] && [ "${ASKRAG_ALLOW_MAIN_COMMIT:-}" != "1" ]; then
+  echo "pre-commit: refusing a commit on 'main'." >&2
+  echo "  Workers commit on issue-<n> branches in .worktrees/, never on main." >&2
+  echo "  Coordinator: prefix with ASKRAG_ALLOW_MAIN_COMMIT=1 if this is intentional." >&2
+  exit 1
+fi

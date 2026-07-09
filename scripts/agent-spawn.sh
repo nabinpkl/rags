@@ -113,6 +113,10 @@ tmux select-layout -t "$SESSION:$WINDOW" tiled >/dev/null 2>&1 || true
 printf '%s\n' "$pane" > "$RUN/$role.pane"
 
 sleep 2
-"$(dirname "$0")/agent-send.sh" "$role" "$boot"
+# A non-zero boot-send does NOT mean the spawn failed: the pane and run-files are
+# already recorded above, so always surface the uuid and let the coordinator
+# verify the pane rather than aborting here (set -e would otherwise swallow it).
+"$(dirname "$0")/agent-send.sh" "$role" "$boot" \
+  || echo "WARN: boot-send confirmation inconclusive for '$role' — verify the pane shows tokens climbing." >&2
 
 echo "$uuid"

@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Send a SHORT control message to a tmux-hosted worker's pane and CONFIRM it
-# submitted. Naively typing text + sleeping + pressing Enter races the Claude
-# TUI: during a slow boot (Opus especially) the Enter is swallowed and the
-# message sits typed-but-unsubmitted, or the text is lost before the input is
-# ready — either way the worker silently never starts. This script closes both
-# by observing the pane's input box and retrying, then FAILS LOUD if the message
-# never lands+submits (a silent no-send is the bug this exists to prevent).
+# landed, without false alarms. Two real failure modes exist and this closes
+# both without confusing them:
+#   - genuine no-send: the message sits in the composer, agent idle (a modal or
+#     a swallowed keystroke) — must FAIL LOUD.
+#   - queued-behind-work: the agent is mid-turn; the message is accepted and
+#     QUEUED, the composer clears when the turn ends — must SUCCEED, not FATAL.
+# The old heuristic ("the ❯ box has any text") conflated these and false-FATAL'd
+# whenever the agent went straight to work. This version keys on OUR text on the
+# composer line and on whether a turn is actually running ("esc to interrupt").
 #
 # Keep messages short. Big context (task specs, review findings) goes in a file
-# or a PR comment; send a one-line "read <path> and act" instead of typing
-# kilobytes through tmux.
+# or a PR comment; send a one-line "read <path> and act" instead.
 #
 # Usage: scripts/agent-send.sh <role> <message...>
 set -euo pipefail
@@ -19,47 +21,52 @@ role="${1:?usage: agent-send.sh <role> <message...>}"; shift
 msg="$*"
 [ -n "$msg" ] || { echo "empty message" >&2; exit 1; }
 
-# Target the worker's specific pane (recorded by agent-spawn.sh), since many
-# workers share one window and send-keys to a window hits only its active pane.
 pane="$(cat "$REPO/.claude/run/$role.pane" 2>/dev/null || true)"
 [ -n "$pane" ] && tmux list-panes -a -F '#{pane_id}' 2>/dev/null | grep -qx "$pane" \
   || { echo "FATAL: no live pane for role '$role' (spawn it first)" >&2; exit 1; }
 
-# True while the TUI input box (the `❯` prompt line) holds unsubmitted text:
-# grab the last `❯` line, strip the prompt, report whether anything remains.
-# Empty input => the message submitted (or was never typed); non-empty => it's
-# still pending in the box.
-_input_pending() {
-  tmux capture-pane -p -t "$pane" 2>/dev/null \
-    | grep '❯' | tail -1 \
-    | sed -E 's/^[[:space:]]*❯[[:space:]]?//' \
-    | grep -qE '[^[:space:]]'
+# A distinctive snippet of the message to locate it on the composer line. The
+# composer is the `❯` prompt line; after submit/queue our text leaves it (the
+# submitted message moves up into the transcript), so "snippet still on the ❯
+# line" == still pending in the box.
+snippet="$(printf '%s' "$msg" | tr -s '[:space:]' ' ' | cut -c1-24)"
+_composer_has_snippet() {
+  tmux capture-pane -p -t "$pane" 2>/dev/null | grep '❯' | tail -1 | grep -qF "$snippet"
 }
+# A turn is actively running iff the pane shows the interrupt hint. (The token
+# counter shows even at idle, so it is NOT a working signal.)
+_working() { tmux capture-pane -p -t "$pane" 2>/dev/null | grep -qi 'esc to interrupt'; }
 
-# Phase 1: get the text INTO the input box. A slow-booting TUI can drop the
-# first keystrokes entirely (nothing lands), so re-type until the box is
-# non-empty. Only re-type when the box reads empty, clearing first (C-u) so a
-# re-type can't double the message. ~15s window: a cold Claude TUI (Opus) can
-# take that long to start accepting input.
+# Phase 1: get the text INTO the composer. A cold TUI can drop the first
+# keystrokes; re-type (clearing first) until our snippet appears. ~15s window.
 tmux send-keys -t "$pane" -l "$msg"
 landed=0
 for _ in $(seq 1 10); do
   sleep 1.5
-  if _input_pending; then landed=1; break; fi
+  if _composer_has_snippet; then landed=1; break; fi
   tmux send-keys -t "$pane" C-u
   tmux send-keys -t "$pane" -l "$msg"
 done
-[ "$landed" = 1 ] || { echo "FATAL: text never landed in '$role' input (TUI not accepting input)" >&2; exit 1; }
+[ "$landed" = 1 ] || { echo "FATAL: text never landed in '$role' composer (TUI not accepting input)" >&2; exit 1; }
 
-# Phase 2: submit and confirm the box cleared. The TUI debounces input after a
-# paste and swallows an Enter pressed too soon, so re-press until the box clears
-# — a WIDE ~30s window (20 x 1.5s): the observed failure was a real submit that
-# landed just after a too-short window, firing a false "stuck". Fail loud only
-# after the box has genuinely refused to clear for the whole window.
+# Phase 2: submit and confirm the composer cleared OUR text. Press Enter once,
+# then re-press only when the agent looks idle (re-pressing into a busy agent
+# risks inserting newlines instead of submitting). ~30s window.
+tmux send-keys -t "$pane" Enter
 submitted=0
 for _ in $(seq 1 20); do
-  tmux send-keys -t "$pane" Enter
   sleep 1.5
-  if ! _input_pending; then submitted=1; break; fi
+  if ! _composer_has_snippet; then submitted=1; break; fi
+  _working || tmux send-keys -t "$pane" Enter
 done
-[ "$submitted" = 1 ] || { echo "FATAL: '$role' message typed but never submitted (TUI stuck)" >&2; exit 1; }
+[ "$submitted" = 1 ] && exit 0
+
+# Composer still holds our text. If a turn is running, it is queued behind that
+# work and will send when the turn ends — success, not failure. Only a stuck
+# composer with an IDLE agent is the real bug.
+if _working; then
+  echo "NOTE: '$role' message queued behind an active turn; it will send when that turn ends." >&2
+  exit 0
+fi
+echo "FATAL: '$role' message typed but never submitted and the agent is idle (TUI stuck)" >&2
+exit 1
