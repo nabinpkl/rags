@@ -723,3 +723,42 @@ this project size).
 context continuity. GitHub cannot record formal self-approvals, so the
 reviewer's `VERDICT: GREEN` comment is the approval of record.
 Spec updated: no (process-only).
+
+
+## 2026-07-08 — Agent panel (#31): mockup reconciled to the shipped stream; citation-verification contract
+
+**Context:** #31 builds the agent panel against the live `POST /api/chat`
+SSE stream (#30). The `docs/mockup.html` agent demo predated every backend
+contract and depicted flows the stream cannot produce: a `run_python` tool
+(never built — the registry is 4 tools), raw model-authored SQL (removed in
+#60), a `venue_rigor` corpus field (does not exist), and tool results
+carrying chunk counts / similarity scores / row counts / sandbox internals
+(the wire's `tool_result_summary` is name + ok/error only, §6c).
+
+**Decision:**
+1. The timeline renders exactly what the stream carries — tool name + args
+   (from `tool_call`/`ui_action`) resolving to ok/error (from
+   `tool_result_summary`). No result payloads, ever. `docs/mockup.html` was
+   rewritten to match (friendly label → "done" tick, nothing more) and its
+   fabricated tool / field / rail-facet flows removed.
+2. Citation verification: a cited paper id becomes a clickable chip ONLY if
+   it appeared in a `tool_call`/`ui_action` whose paired
+   `tool_result_summary` was `ok=true` (the agent actually retrieved or
+   navigated to it, reconciling the provisional call against its confirmed
+   result per the `UiActionEvent` docstring). Otherwise the id renders as
+   plain text. This is the anti-hallucination guard the #31 acceptance
+   checklist requires and needs no change to the #30 stream.
+3. SSE transport is `@microsoft/fetch-event-source` (already in §4b): native
+   `EventSource` cannot POST a JSON body or read the `X-AskRAG-*` response
+   headers the replay/session contract depends on.
+
+**Alternatives rejected:** carrying retrieved ids/scores in the stream (§6c
+surface widening for cosmetic timeline richness); verifying citations only
+against `read_paper` (drops legitimate `drive_ui`-navigated ids); trusting
+any model-written id (defeats the guard).
+
+**Consequence:** the real timeline is leaner than the old mockup implied, by
+design. If a future issue adds a stream event carrying retrieved ids (e.g.
+for richer citations), revisit (2).
+
+**Spec updated:** no — implementation contract for #31; §6c/§5 unchanged.
