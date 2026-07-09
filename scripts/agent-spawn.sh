@@ -87,7 +87,7 @@ if [ -n "$task" ]; then
 else
   boot+="Then wait for the coordinator to send you a task. "
 fi
-boot+="You are in your own git worktree ($WT); branch/commit here freely. Work in the open: this pane is watched."
+boot+="CRITICAL — your working repo is your git worktree at $WT: cd into it and do ALL code reads, edits, git, and commands there. The brief/task paths above live only in the coordinator's PRIMARY checkout at $REPO; read them from there, but NEVER write files, edit code, or run git under $REPO itself — that checkout is the coordinator's and writing there is the drift bug that has bitten three issues. Branch and commit freely inside $WT. Work in the open: this pane is watched."
 
 claude_cmd="claude --session-id $uuid"
 [ -n "$model" ] && claude_cmd+=" --model $model"
