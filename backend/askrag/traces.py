@@ -59,17 +59,36 @@ CREATE INDEX IF NOT EXISTS idx_runs_showcase ON runs (showcase);
 
 
 @dataclass(frozen=True)
+class Citation:
+    """One retrieved (paper_id, chunk_id) pair from a tool call's result —
+    IDS ONLY, never chunk text (§6c row 4/D-1, issue #27 decisions.md) — the
+    same posture `ToolCallRecord` already holds for its own result: no
+    payload, ever, past this boundary."""
+
+    paper_id: str
+    chunk_id: str
+
+
+@dataclass(frozen=True)
 class ToolCallRecord:
     """One tool call within an agent run — name, the args it was invoked
     with, and its outcome. Loop-owned shape (askrag/agent/loop.py constructs
     these on every dispatch); traces.py just persists/reads them back (D13).
     Replaces the bare `dict[str, Any]` this field used before #23 defined the
-    real per-call shape (carry-forward review note, #20/#23)."""
+    real per-call shape (carry-forward review note, #20/#23).
+
+    `citations` (issue #27, D-1): ids-only (paper_id, chunk_id) pairs this
+    call's result retrieved, empty for calls that don't retrieve chunks
+    (query_metadata, drive_ui, read_paper — see loop.py's `_citations_of`)
+    and for failed calls. Feeds the SSE `done` event's `citations` field
+    (`sse_events.citations_from_tool_calls`) and, downstream, the capped
+    `GET /api/papers/{id}?chunks=` excerpt lookup."""
 
     name: str
     args: dict[str, Any]
     ok: bool
     error: str | None = None
+    citations: tuple[Citation, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -227,7 +246,19 @@ def _row_to_run(row) -> Run:
         cost_usd=row["cost_usd"],
         latency_ms=row["latency_ms"],
         tool_calls=tuple(
-            ToolCallRecord(name=t["name"], args=t["args"], ok=t["ok"], error=t.get("error"))
+            ToolCallRecord(
+                name=t["name"],
+                args=t["args"],
+                ok=t["ok"],
+                error=t.get("error"),
+                # .get(): a pre-#27 tool_calls JSON blob has no citations key
+                # at all — unlike a SQL column, this needs no traces.db wipe
+                # to read back cleanly (issue #27 decisions.md).
+                citations=tuple(
+                    Citation(paper_id=c["paper_id"], chunk_id=c["chunk_id"])
+                    for c in t.get("citations", [])
+                ),
+            )
             for t in json.loads(row["tool_calls"])
         ),
         showcase=bool(row["showcase"]),

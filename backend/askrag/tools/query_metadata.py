@@ -10,6 +10,11 @@ string-interpolated column name. There is no model-authored SQL path
 anywhere, so the SQL-injection/DoS surface the old authorizer/timeout
 machinery guarded against no longer exists (§6, superseded).
 
+`count_papers`' group-by counting SQL lives in `askrag.facets` (D-2, issue
+#27 decisions.md): `GET /api/facets` and the papers list's `facets=`
+scoping share the exact same column map and query template via that module,
+each supplying only its own `max_groups` cap — no second copy anywhere.
+
 `QueryMetadataArgs` is a `RootModel` over a `Field(discriminator="op")`
 union, mirroring `drive_ui.DriveUiArgs`: pydantic picks the matching
 per-op model from `op` alone, so each op's JSON schema states exactly its
@@ -25,15 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from askrag import db
 from askrag.config import Settings, get_settings
-
-# group_by Literal -> the real column it resolves to. The model only ever
-# supplies the Literal; this map is the only place a column name reaches SQL.
-_GROUP_BY_COLUMNS = {
-    "category": "primary_category",
-    "year": "year",
-    "license": "license",
-    "venue": "venue",
-}
+from askrag.facets import CountFilters, count_grouped, count_scalar
 
 
 class QueryMetadataError(Exception):
@@ -141,41 +138,21 @@ class CorpusStatsResult:
         }
 
 
-def _count_filters(args: CountPapersArgs) -> tuple[str, list[object]]:
-    clauses: list[str] = []
-    params: list[object] = []
-    if args.category is not None:
-        clauses.append("primary_category = ?")
-        params.append(args.category)
-    if args.year_min is not None:
-        clauses.append("year >= ?")
-        params.append(args.year_min)
-    if args.year_max is not None:
-        clauses.append("year <= ?")
-        params.append(args.year_max)
-    if args.has_license is not None:
-        clauses.append("license IS NOT NULL" if args.has_license else "license IS NULL")
-    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-    return where, params
-
-
 def _run_count_papers(
     conn: sqlite3.Connection, args: CountPapersArgs, histogram_max_groups: int
 ) -> CountPapersResult:
-    where, params = _count_filters(args)
+    filters = CountFilters(
+        category=args.category,
+        year_min=args.year_min,
+        year_max=args.year_max,
+        has_license=args.has_license,
+    )
     if args.group_by is None:
-        row = conn.execute(f"SELECT COUNT(*) FROM papers{where}", params).fetchone()
-        return CountPapersResult(count=row[0], histogram=None, truncated=False)
+        return CountPapersResult(count=count_scalar(conn, filters), histogram=None, truncated=False)
 
-    column = _GROUP_BY_COLUMNS[args.group_by]
-    rows = conn.execute(
-        f"SELECT {column}, COUNT(*) FROM papers{where} "
-        f"GROUP BY {column} ORDER BY COUNT(*) DESC LIMIT ?",
-        [*params, histogram_max_groups + 1],
-    ).fetchall()
-    truncated = len(rows) > histogram_max_groups
-    buckets = tuple(HistogramBucket(value=r[0], count=r[1]) for r in rows[:histogram_max_groups])
-    return CountPapersResult(count=None, histogram=buckets, truncated=truncated)
+    buckets, truncated = count_grouped(conn, args.group_by, filters, histogram_max_groups)
+    histogram = tuple(HistogramBucket(value=b.value, count=b.count) for b in buckets)
+    return CountPapersResult(count=None, histogram=histogram, truncated=truncated)
 
 
 def _run_paper_facets(conn: sqlite3.Connection, args: PaperFacetsArgs) -> PaperFacetsResult:

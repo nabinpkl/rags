@@ -148,6 +148,58 @@ def test_recorded_run_roundtrips_tool_call_error(settings):
     assert run.tool_calls == (call,)
 
 
+def test_recorded_run_roundtrips_tool_call_citations(settings):
+    call = traces.ToolCallRecord(
+        name="search_corpus",
+        args={"query": "cot"},
+        ok=True,
+        citations=(
+            traces.Citation(paper_id="2401.00001", chunk_id="2401.00001#0"),
+            traces.Citation(paper_id="2401.00001", chunk_id="2401.00001#1"),
+        ),
+    )
+    rid = traces.record_run(**sample_run(tool_calls=[call]), settings=settings)
+    run = traces.get_run(rid, settings=settings)
+    assert run is not None
+    assert run.tool_calls == (call,)
+
+
+def test_tool_call_citations_default_to_empty_when_absent_from_stored_json(settings, tmp_path):
+    # Simulates a pre-#27 traces.db row: tool_calls JSON has no "citations"
+    # key at all. Reading it back must not KeyError (decisions.md, issue #27).
+    conn = sqlite3.connect(tmp_path / "traces.db")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS runs (run_id TEXT PRIMARY KEY, created_at TEXT, day TEXT,"
+        " session_id TEXT, ip_hash TEXT, question TEXT, answer_text TEXT, tokens_in INTEGER,"
+        " tokens_out INTEGER, cost_usd REAL, latency_ms REAL, tool_calls TEXT, showcase INTEGER)"
+    )
+    conn.execute(
+        "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            "old1",
+            "2026-07-01T00:00:00+00:00",
+            "2026-07-01",
+            "s",
+            "h",
+            "q",
+            "a",
+            1,
+            1,
+            0.0,
+            1.0,
+            '[{"name": "search_corpus", "args": {}, "ok": true, "error": null}]',
+            0,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    run = traces.get_run("old1", settings=settings)
+    assert run is not None
+    assert run.tool_calls == (
+        traces.ToolCallRecord(name="search_corpus", args={}, ok=True, error=None),
+    )
+
+
 # --- concurrency: WAL actually allows concurrent writers --------------------
 
 

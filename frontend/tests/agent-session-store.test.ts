@@ -81,7 +81,7 @@ describe("agent-session-store — status is one discriminated union", () => {
     expect(useAgentSessionStore.getState().status).toEqual({ kind: "streaming" });
 
     applyEvent({ type: "text", text: "the answer" });
-    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1" });
+    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1", citations: [] });
     expect(useAgentSessionStore.getState().status).toEqual({ kind: "idle" });
     expect(useAgentSessionStore.getState().turns[0].answer).toBe("the answer");
   });
@@ -125,7 +125,7 @@ describe("agent-session-store — mode is orthogonal to status (round 2 regressi
 
     applyEvent({ type: "tool_result_summary", name: "search_corpus", ok: true, error: null });
     applyEvent({ type: "text", text: "a replayed answer" });
-    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1" });
+    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1", citations: [] });
 
     // The lifecycle status still moved normally throughout...
     expect(useAgentSessionStore.getState().status).toEqual({ kind: "idle" });
