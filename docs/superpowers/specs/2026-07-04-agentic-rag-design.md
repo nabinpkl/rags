@@ -648,7 +648,11 @@ free — one predicate, no per-consumer copy. `query_metadata`'s
 `query_metadata` surface is uniformly scoped, not just `count_papers`.
 `GET /api/papers/{id}` 404s a chunk-less paper. The frontend never sees a
 non-indexed paper: no `is_indexed` field on the wire, no two-tier UI, no
-badges.
+badges. The agent's own `SYSTEM_PROMPT` (`askrag/agent/prompts.py`) names
+no paper count either — it tells the model to call `corpus_stats` for the
+real number instead of assuming or remembering one, so the model can't
+contradict its own scoped tools by quoting a stale figure from its
+instructions.
 
 **Why.** `corpus.db` was seeded from a diverse ~200-paper sample; the full
 6,460-paper ingest (#15) is still pending and human-gated. Before this
@@ -664,7 +668,10 @@ risk D-2/#27 closed by centralizing count queries in `askrag.facets`);
 leaving `corpus_stats` unscoped as a fast-follow (an interim call, revised
 during PR #74 review — see decisions.md: it kept the M4-demo bug reachable
 through agent answers, e.g. "how big is your corpus?" → "6,460 papers"
-while `count_papers`' own buckets summed to ~200 in the same turn).
+while `count_papers`' own buckets summed to ~200 in the same turn);
+deferring the `SYSTEM_PROMPT` fix to a fast-follow too (also rejected —
+three lines, and deferring would have shipped a still-live copy of the
+same bug, unconditionally, needing no tool call to surface).
 
 **Risks accepted.** `query_metadata`'s `count_papers` and `corpus_stats`
 ops change behavior for the agent too (they share `count_scalar`/
