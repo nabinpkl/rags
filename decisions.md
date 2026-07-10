@@ -51,25 +51,41 @@ tool, not just the explorer UI — also becomes indexed-scoped, since it
 shares `count_scalar`/`count_grouped` with `GET /api/facets` (D-2/#27, no
 second copy of the query). This is intentional: the agent can only actually
 retrieve indexed papers via `search_corpus`/`read_paper`, so a full-corpus
-count would mislead it the same way the frontend was misled. `paper_facets`
-(point lookup) and `corpus_stats` (`_run_corpus_stats`) run their own
-unscoped raw queries and are **not** touched by this change — `n_papers` in
-`corpus_stats` still reports the full `papers` table. This is a known,
-deliberate inconsistency left for a fast-follow (not in #73's acceptance
-checklist); flagged to the coordinator rather than silently fixed, since it
-widens this PR's blast radius beyond what #73 asked for.
+count would mislead it the same way the frontend was misled.
+
+**Revised during review (2026-07-09, reviewer round 1 + coordinator
+arbitration on PR #74):** the first version of this decision left
+`corpus_stats` (`_run_corpus_stats`) unscoped as a "fast-follow," reasoning
+it was outside #73's literal acceptance checklist. The reviewer flagged
+that as underselling the defect: `corpus_stats.n_papers` reporting the full
+~6,460 `papers` table is a live re-manifestation of the exact bug #73
+exists to kill, just moved from the frontend header into the agent's
+mouth — a user asking "how big is your corpus?" gets "6,460 papers" from
+`corpus_stats` while `count_papers`' category buckets sum to ~200, an
+in-conversation contradiction reachable in a single turn. The coordinator
+arbitrated for the reviewer's Option B over deferring: `_run_corpus_stats`
+now applies `INDEXED_PREDICATE` directly to its own `n_papers`/`year_min`/
+`year_max`/`n_categories` query (rejecting Option C, which would have
+un-shared `count_papers` from the predicate to "fix" the mismatch by
+regressing the other direction instead). `query_metadata`'s `paper_facets`
+needs no change: it reports a specific, caller-known paper id's real
+`n_chunks` (0 for an unindexed one), which is honest by construction, not a
+total that can diverge. D16's "risks accepted" section below reflects this
+final, uniformly-scoped state, not the original interim version.
 
 **Alternatives rejected:** an `is_indexed` flag with a two-tier UI (the
 issue explicitly rules this out — the frontend should never reason about a
 paper it can't retrieve); filtering only at the FastAPI route layer instead
 of the shared SQL predicate (would require three separate WHERE edits
-instead of one, reopening exactly the copy-paste risk D-2/#27 closed).
+instead of one, reopening exactly the copy-paste risk D-2/#27 closed);
+leaving `corpus_stats` unscoped as a fast-follow (superseded above — it
+kept the M4-demo bug reachable through agent answers, not just the
+frontend, until the fast-follow landed).
 
 **Revisit trigger:** #15's full ingest running, at which point the
-predicate matches ~all 6,460 papers and `total` reads accordingly — no code
-change needed, this was designed to self-resolve. Secondary trigger: if
-`corpus_stats`'s full-corpus `n_papers` is judged confusing enough to also
-scope (tracked as a fast-follow, not blocking).
+predicate matches ~all 6,460 papers and every total (`total`,
+`count_papers`, `corpus_stats.n_papers`) reads accordingly — no code change
+needed, this was designed to self-resolve.
 
 **Spec updated:** yes — new D16 (see spec's decision-record list).
 
