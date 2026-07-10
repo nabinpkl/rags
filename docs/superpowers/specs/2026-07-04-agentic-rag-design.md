@@ -635,6 +635,42 @@ debugging demands a live collector — set `otlp_endpoint` and attach one.
 
 ---
 
+### D16. The API scopes to the indexed corpus; there is no `is_indexed` flag
+
+**Decision.** The corpus the app serves = the papers with `chunks` rows
+("indexed"), not the full `papers` table. `askrag.facets.INDEXED_PREDICATE`
+(`EXISTS (SELECT 1 FROM chunks c WHERE c.paper_id = papers.arxiv_id)`) is
+unconditionally part of `facets.where_clause`'s WHERE, so browse, `GET
+/api/facets`, and `query_metadata`'s `count_papers` all scope to it for
+free — one predicate, no per-consumer copy. `GET /api/papers/{id}` 404s a
+chunk-less paper. The frontend never sees a non-indexed paper: no
+`is_indexed` field on the wire, no two-tier UI, no badges.
+
+**Why.** `corpus.db` was seeded from a diverse ~200-paper sample; the full
+6,460-paper ingest (#15) is still pending and human-gated. Before this
+decision, browse returned all 6,460 `papers` rows while search/read/
+excerpts only ever covered the ~200 with chunks — two universes diverging
+silently, surfaced in the M4 live demo (2026-07-09, issue #73).
+
+**Alternatives rejected.** An `is_indexed` flag with a two-tier UI (the
+frontend would still reason about papers it can never retrieve — the bug
+this decision closes, not a variant of it); filtering only at the FastAPI
+route layer instead of the shared SQL predicate (reopens the copy-paste
+risk D-2/#27 closed by centralizing count queries in `askrag.facets`).
+
+**Risks accepted.** `query_metadata`'s `count_papers` op changes behavior
+for the agent too (shares `count_scalar`/`count_grouped` with `GET
+/api/facets`) — intentional, since the agent can only retrieve indexed
+papers. `corpus_stats`'s `n_papers` is a separate raw query, deliberately
+left unscoped (out of #73's acceptance checklist); a known inconsistency,
+tracked as a fast-follow.
+
+**Revisit when.** #15's full ingest runs: the predicate then matches ~all
+6,460 papers and every total self-corrects with no code change — this was
+designed to converge, not to be swapped out.
+
+---
+
 ## 4. Architecture
 
 ```
