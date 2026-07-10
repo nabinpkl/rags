@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { ChatPanel } from "@/components/agent-panel/chat-panel";
 import { ExplorerPanel } from "@/components/explorer/explorer-panel";
 import { PaperSplitView } from "@/components/viewer/paper-split-view";
+import { SiteFooter } from "@/components/site-footer";
 import { useDriveUi } from "@/hooks/use-drive-ui";
 import { useViewerUrlSync } from "@/hooks/use-viewer-url-sync";
 import { useViewerStore } from "@/stores/viewer-store";
@@ -35,17 +36,25 @@ function AppRegion() {
 // is required around AppRegion because it (via use-viewer-url-sync.ts) calls
 // `useSearchParams`, which Next's static export build requires to be
 // wrapped in a boundary.
+//
+// `SiteFooter` (§6b/§6c) sits outside `<main>`, as a sibling in a column
+// flex, not appended below a 100vh block — that would land it below the
+// fold. `<main>` takes `flex-1 min-h-0` so the footer's own height is
+// accounted for in the layout instead of overflowing the viewport.
 export default function Home() {
   return (
-    <main className="flex h-screen flex-col md:flex-row">
-      <div className="min-w-0 flex-1">
-        <Suspense fallback={null}>
-          <AppRegion />
-        </Suspense>
-      </div>
-      <div className="h-full w-full md:w-[420px]">
-        <ChatPanel />
-      </div>
-    </main>
+    <div className="flex h-screen flex-col">
+      <main className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <div className="min-w-0 flex-1">
+          <Suspense fallback={null}>
+            <AppRegion />
+          </Suspense>
+        </div>
+        <div className="h-full w-full md:w-[420px]">
+          <ChatPanel />
+        </div>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
