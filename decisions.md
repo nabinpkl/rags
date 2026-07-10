@@ -14,6 +14,95 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — drive_ui wiring (#32): confirmed-only ui_action queue (D-1), a store-decoupled bridge hook (D-2), one-tick goto_page + verified sequencing (D-3)
+
+**Context:** #32's task brief handed down three coordinator decisions to
+build against (not open questions): D-1 apply on confirmed only, D-2 a
+bridge-hook seam between `agent-session-store.ts` and `viewer-store.ts`, D-3
+the multi-tick sequencing (goto_page one-tick + `use-viewer-url-sync.ts`
+survives rapid agent-driven pushes). The brief also named a concrete gap to
+close: `pendingCall` was built only `if paperId`, so `set_filters` (which
+carries no `paper_id`) was silently dropped from reconciliation.
+
+**D-1 — Apply on CONFIRMED, never provisional.** `agent-session-store.ts`'s
+`PendingCall` now carries the full `UiActionEvent` (not just extracted
+`paperIds`), captured for EVERY `ui_action` regardless of whether it has a
+`paper_id` — closing the `set_filters` gap. A new `confirmedUiActions` queue
+fills only when the paired `tool_result_summary` is `ok=true` for the same
+pending call's `resultName` — the exact same reconciliation branch that
+already fed `verifiedPaperIds` (decisions.md 2026-07-08), extended to also
+push the full action. An `ok=false` result (drive_ui.py's own corpus.db
+check rejected the target) reaches neither `verifiedPaperIds` nor
+`confirmedUiActions` — a hallucinated target never navigates.
+
+**D-2 — Bridge is a hook; stores stay decoupled.** New
+`hooks/use-drive-ui.ts` mirrors `use-viewer-url-sync.ts`'s role: it
+subscribes to `agent-session-store`'s `confirmedUiActions` (by array
+reference, so the effect only fires on a genuine new confirmation) and calls
+a new `viewer-store.applyDriveAction(action, args)` for each queued action,
+then drains the queue via a new `drainConfirmedUiActions()` store action
+(atomically empties and returns it). `agent-session-store.ts` itself imports
+nothing from `viewer-store.ts` — it only ever produces the queue. Mounted
+once in `AppRegion` (`app/page.tsx`), alongside `useViewerUrlSync()`, for the
+same never-unmounts reason #29's entry already gives for that hook.
+
+**D-3 — One-tick goto_page + sequencing survives.** `viewer-store.ts`'s
+`applyDriveAction` sets `paper`+`page` in a single `set()` call for
+`goto_page` (one store update, one tick), maps `year_min`/`year_max` onto
+`yearFrom`/`yearTo` for `set_filters`, and clears `paper`/`page` on
+`set_filters` — the routing rule the brief named explicitly
+(`open_paper`/`goto_page` → viewer, `set_filters` → back to the explorer,
+since `AppRegion` keys the swap on `paper`). Tracing through
+`use-viewer-url-sync.ts`'s existing classifier (the round-1 fix, decisions.md
+2026-07-09 below) showed it already satisfies the "rapid sequential pushes"
+requirement as written: it classifies by comparing the current store-derived
+string against `prevStoreString` (what the store said last time the effect
+ran), never against whether the live URL has caught up to an earlier push —
+so a second store-driven change lands correctly even while the first push
+is still uncommitted. No code change was needed in that file; this PR adds
+`tests/use-viewer-url-sync.test.ts` (new — closing a pre-existing gap, since
+neither #28 nor #29 added a direct unit test for this hook) proving it
+against a mocked router that deliberately defers committing a push, plus the
+back/forward + shared-URL round trip (acceptance item 2).
+
+**Alternatives rejected:** having `use-drive-ui.ts` apply directly off the
+raw/provisional `ui_action` event and roll back on a later `ok=false`
+result — the frontend rules' "verify before act" posture (decisions.md
+2026-07-08) already rejected this shape for `verifiedPaperIds`, and applying-
+then-reverting a navigation is a worse user experience than not navigating
+until confirmed; keeping `pendingCall` as a single slot rather than a stack —
+the loop dispatches one tool call, awaits its result, then continues (traced
+through `agent-session-store.ts`'s existing `idx = findIndex(e => e.result
+=== null)` invariant: at most one timeline entry lacks a result at a time),
+so a single slot is sufficient and a stack would be unused complexity.
+
+**Consequence:** `pnpm test` (106/106, up from 79), `pnpm lint`, `pnpm
+typecheck`, `pnpm format:check` (this PR's files only — `openapi.json`'s
+pre-existing formatting drift predates this PR, untouched) all clean.
+`pnpm build` (real Turbopack production build, worktree node_modules
+symlink replaced with a local install for this worktree only, per #29's
+precedent) succeeds. Live-verified against the real corpus (`0704.0217`)
+and a locally run `just serve`-equivalent (backend on a free port, CORS
+opened for it): a scripted sequence dispatched directly into
+`agent-session-store` (no live LLM call available in this environment —
+verification note below) drove `open_paper` → `goto_page` → `set_filters`
+correctly through the real DOM and URL bar, and the real browser back/
+forward buttons round-tripped the exact view at each step, confirmed via
+screenshots attached to the PR.
+**Verification gap, accepted:** no `ANTHROPIC_API_KEY`/`OPENROUTER_API_KEY`
+was available in this environment, so no real agent turn (and therefore no
+real SSE-delivered `ui_action` sequence) was driven end-to-end; the live
+verification above dispatched the same event shapes the SSE stream would
+carry directly into the store (identical to what `tests/use-drive-ui.test.ts`
+does in jsdom, just against the real browser/router instead). The coordinator
+confirms a real `just serve` scripted/replay-turn smoke before merge per the
+task brief.
+Spec updated: no (§4c decision 2 already names the `ui_action` → viewer-store
+→ URL contract this PR builds; this entry is #32's implementation contract,
+same category as the #29 entry below it).
+
+---
+
 ## 2026-07-09 — Viewer (#29): pdfjs-dist bundled dep (D-1), inverted D9 rung ladder (D-2), §6b/§6c grep-verifiable posture (D-3), plus three implementation fill-ins
 
 **Context:** #29's task brief handed down three coordinator decisions to
