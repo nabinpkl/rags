@@ -642,9 +642,13 @@ debugging demands a live collector — set `otlp_endpoint` and attach one.
 (`EXISTS (SELECT 1 FROM chunks c WHERE c.paper_id = papers.arxiv_id)`) is
 unconditionally part of `facets.where_clause`'s WHERE, so browse, `GET
 /api/facets`, and `query_metadata`'s `count_papers` all scope to it for
-free — one predicate, no per-consumer copy. `GET /api/papers/{id}` 404s a
-chunk-less paper. The frontend never sees a non-indexed paper: no
-`is_indexed` field on the wire, no two-tier UI, no badges.
+free — one predicate, no per-consumer copy. `query_metadata`'s
+`corpus_stats` applies the same `INDEXED_PREDICATE` directly to its own
+`n_papers`/`year_min`/`year_max`/`n_categories` query, so the whole
+`query_metadata` surface is uniformly scoped, not just `count_papers`.
+`GET /api/papers/{id}` 404s a chunk-less paper. The frontend never sees a
+non-indexed paper: no `is_indexed` field on the wire, no two-tier UI, no
+badges.
 
 **Why.** `corpus.db` was seeded from a diverse ~200-paper sample; the full
 6,460-paper ingest (#15) is still pending and human-gated. Before this
@@ -656,14 +660,19 @@ silently, surfaced in the M4 live demo (2026-07-09, issue #73).
 frontend would still reason about papers it can never retrieve — the bug
 this decision closes, not a variant of it); filtering only at the FastAPI
 route layer instead of the shared SQL predicate (reopens the copy-paste
-risk D-2/#27 closed by centralizing count queries in `askrag.facets`).
+risk D-2/#27 closed by centralizing count queries in `askrag.facets`);
+leaving `corpus_stats` unscoped as a fast-follow (an interim call, revised
+during PR #74 review — see decisions.md: it kept the M4-demo bug reachable
+through agent answers, e.g. "how big is your corpus?" → "6,460 papers"
+while `count_papers`' own buckets summed to ~200 in the same turn).
 
-**Risks accepted.** `query_metadata`'s `count_papers` op changes behavior
-for the agent too (shares `count_scalar`/`count_grouped` with `GET
-/api/facets`) — intentional, since the agent can only retrieve indexed
-papers. `corpus_stats`'s `n_papers` is a separate raw query, deliberately
-left unscoped (out of #73's acceptance checklist); a known inconsistency,
-tracked as a fast-follow.
+**Risks accepted.** `query_metadata`'s `count_papers` and `corpus_stats`
+ops change behavior for the agent too (they share `count_scalar`/
+`count_grouped`/`INDEXED_PREDICATE` with `GET /api/facets`) — intentional,
+since the agent can only retrieve indexed papers via `search_corpus`/
+`read_paper`. `paper_facets` needs no scope: it reports a specific,
+caller-known paper id's real `n_chunks` (0 for an unindexed one), already
+honest by construction.
 
 **Revisit when.** #15's full ingest runs: the predicate then matches ~all
 6,460 papers and every total self-corrects with no code change — this was

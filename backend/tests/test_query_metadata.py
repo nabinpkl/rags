@@ -10,8 +10,11 @@ is no SQL surface left to inject into. Security-relevant behavior here is
 `GET /api/facets` (see module docstring on `askrag.facets`), so it inherits
 the indexed-corpus scope those functions apply (D16, issue #73): the
 fixture's 2401.00003 has no chunks and is excluded from every `count_papers`
-result below. `paper_facets` and `corpus_stats` run their own unscoped
-queries (out of #73's scope — see decisions.md) and are unaffected.
+result below. `corpus_stats` applies the same `INDEXED_PREDICATE` directly
+to its own query, so its totals are excluded too — uniform scoping across
+the whole `query_metadata` surface. `paper_facets` is unaffected: it
+reports a specific, caller-known paper id's real `n_chunks` (0 for an
+unindexed one), which needs no scope to be honest.
 """
 
 import pytest
@@ -179,14 +182,17 @@ def test_paper_facets_unknown_id_raises(corpus_db):
 # --- corpus_stats -----------------------------------------------------------------
 
 
-def test_corpus_stats_totals(corpus_db):
+def test_corpus_stats_totals_scoped_to_indexed_papers(corpus_db):
+    # 2401.00003 (cs.LG, chunk-less) is excluded from n_papers and
+    # n_categories; year_min/year_max happen to be unchanged here since
+    # the excluded paper's year (2023) is also covered by an indexed one.
     result = query({"op": "corpus_stats"}, corpus_db)
     assert isinstance(result, CorpusStatsResult)
-    assert result.n_papers == 3
-    assert result.n_chunks == 3
+    assert result.n_papers == 2
+    assert result.n_chunks == 3  # chunk rows only ever exist for indexed papers
     assert result.year_min == 2023
     assert result.year_max == 2024
-    assert result.n_categories == 2
+    assert result.n_categories == 1
 
 
 # --- to_model_payload is a plain JSON-shaped dict --------------------------------
@@ -223,11 +229,11 @@ def test_paper_facets_payload_shape(corpus_db):
 def test_corpus_stats_payload_shape(corpus_db):
     result = query({"op": "corpus_stats"}, corpus_db)
     assert result.to_model_payload() == {
-        "n_papers": 3,
+        "n_papers": 2,
         "n_chunks": 3,
         "year_min": 2023,
         "year_max": 2024,
-        "n_categories": 2,
+        "n_categories": 1,
     }
 
 
