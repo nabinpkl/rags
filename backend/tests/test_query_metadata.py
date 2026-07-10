@@ -5,6 +5,16 @@ No model-authored SQL exists anywhere in this tool (decisions.md
 is no SQL surface left to inject into. Security-relevant behavior here is
 "the union accepts only these three shapes"; that is asserted directly by
 `extra="forbid"` and the discriminator, tested below.
+
+`count_papers` shares `askrag.facets.count_scalar`/`count_grouped` with
+`GET /api/facets` (see module docstring on `askrag.facets`), so it inherits
+the indexed-corpus scope those functions apply (D16, issue #73): the
+fixture's 2401.00003 has no chunks and is excluded from every `count_papers`
+result below. `corpus_stats` applies the same `INDEXED_PREDICATE` directly
+to its own query, so its totals are excluded too — uniform scoping across
+the whole `query_metadata` surface. `paper_facets` is unaffected: it
+reports a specific, caller-known paper id's real `n_chunks` (0 for an
+unindexed one), which needs no scope to be honest.
 """
 
 import pytest
@@ -70,50 +80,56 @@ def query(op_payload: dict, corpus_db, **settings_overrides):
 
 
 def test_count_papers_scalar_with_no_filters(corpus_db):
+    # 3 papers in `papers`, 2 indexed (2401.00003 has no chunks, D16 #73).
     result = query({"op": "count_papers"}, corpus_db)
     assert isinstance(result, CountPapersResult)
-    assert result.count == 3
+    assert result.count == 2
     assert result.histogram is None
     assert result.truncated is False
 
 
 def test_count_papers_filters_bind_category_year_and_license(corpus_db):
-    assert query({"op": "count_papers", "category": "cs.LG"}, corpus_db).count == 1
+    # 2401.00003 (cs.LG, chunk-less) matches this filter but isn't indexed.
+    assert query({"op": "count_papers", "category": "cs.LG"}, corpus_db).count == 0
     assert query({"op": "count_papers", "year_min": 2024}, corpus_db).count == 1
-    assert query({"op": "count_papers", "year_max": 2023}, corpus_db).count == 2
-    assert query({"op": "count_papers", "has_license": True}, corpus_db).count == 2
+    assert query({"op": "count_papers", "year_max": 2023}, corpus_db).count == 1
+    assert query({"op": "count_papers", "has_license": True}, corpus_db).count == 1
     assert query({"op": "count_papers", "has_license": False}, corpus_db).count == 1
     assert (
         query({"op": "count_papers", "category": "cs.CL", "year_min": 2024}, corpus_db).count == 1
     )
 
 
-def test_count_papers_histogram_by_category(corpus_db):
+def test_count_papers_histogram_by_category_excludes_a_chunkless_papers_bucket(corpus_db):
     result = query({"op": "count_papers", "group_by": "category"}, corpus_db)
     assert result.count is None
     buckets = {b.value: b.count for b in result.histogram}
-    assert buckets == {"cs.CL": 2, "cs.LG": 1}
+    # cs.LG (2401.00003, chunk-less) never appears as a bucket at all.
+    assert buckets == {"cs.CL": 2}
     assert result.truncated is False
 
 
 def test_count_papers_histogram_by_license_groups_nulls_together(corpus_db):
     result = query({"op": "count_papers", "group_by": "license"}, corpus_db)
     buckets = {b.value: b.count for b in result.histogram}
-    assert buckets == {"CC-BY-4.0": 2, None: 1}
+    assert buckets == {"CC-BY-4.0": 1, None: 1}
 
 
 def test_count_papers_histogram_by_year_and_venue(corpus_db):
     year_result = query({"op": "count_papers", "group_by": "year"}, corpus_db)
     by_year = {b.value: b.count for b in year_result.histogram}
-    assert by_year == {2024: 1, 2023: 2}
+    assert by_year == {2024: 1, 2023: 1}
     venue_result = query({"op": "count_papers", "group_by": "venue"}, corpus_db)
     by_venue = {b.value: b.count for b in venue_result.histogram}
-    assert by_venue == {"ACL": 1, None: 1, "NeurIPS": 1}
+    assert by_venue == {"ACL": 1, None: 1}
 
 
 def test_count_papers_histogram_top_n_truncates_and_reports_it(corpus_db):
+    # "category" only has 1 indexed bucket now (cs.LG's sole paper is
+    # chunk-less) — "year" still has 2 (2024, 2023), so it exercises
+    # truncation meaningfully.
     result = query(
-        {"op": "count_papers", "group_by": "category"},
+        {"op": "count_papers", "group_by": "year"},
         corpus_db,
         query_metadata_histogram_max_groups=1,
     )
@@ -166,14 +182,17 @@ def test_paper_facets_unknown_id_raises(corpus_db):
 # --- corpus_stats -----------------------------------------------------------------
 
 
-def test_corpus_stats_totals(corpus_db):
+def test_corpus_stats_totals_scoped_to_indexed_papers(corpus_db):
+    # 2401.00003 (cs.LG, chunk-less) is excluded from n_papers and
+    # n_categories; year_min/year_max happen to be unchanged here since
+    # the excluded paper's year (2023) is also covered by an indexed one.
     result = query({"op": "corpus_stats"}, corpus_db)
     assert isinstance(result, CorpusStatsResult)
-    assert result.n_papers == 3
-    assert result.n_chunks == 3
+    assert result.n_papers == 2
+    assert result.n_chunks == 3  # chunk rows only ever exist for indexed papers
     assert result.year_min == 2023
     assert result.year_max == 2024
-    assert result.n_categories == 2
+    assert result.n_categories == 1
 
 
 # --- to_model_payload is a plain JSON-shaped dict --------------------------------
@@ -181,7 +200,7 @@ def test_corpus_stats_totals(corpus_db):
 
 def test_count_papers_scalar_payload_shape(corpus_db):
     result = query({"op": "count_papers"}, corpus_db)
-    assert result.to_model_payload() == {"count": 3, "histogram": None, "truncated": False}
+    assert result.to_model_payload() == {"count": 2, "histogram": None, "truncated": False}
 
 
 def test_count_papers_histogram_payload_shape(corpus_db):
@@ -210,11 +229,11 @@ def test_paper_facets_payload_shape(corpus_db):
 def test_corpus_stats_payload_shape(corpus_db):
     result = query({"op": "corpus_stats"}, corpus_db)
     assert result.to_model_payload() == {
-        "n_papers": 3,
+        "n_papers": 2,
         "n_chunks": 3,
         "year_min": 2023,
         "year_max": 2024,
-        "n_categories": 2,
+        "n_categories": 1,
     }
 
 

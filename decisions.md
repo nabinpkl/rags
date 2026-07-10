@@ -14,6 +14,104 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — API scoped to the indexed corpus; no `is_indexed` flag (#73)
+
+**Context:** the explorer advertised "Search 6,460 papers" but `corpus.db`
+was built from a diverse ~200-paper SAMPLE (the full ingest is #15, still
+pending). Browse returned all 6,460 `papers` rows while search/read/
+excerpts only ever cover the ~200 with `chunks` rows — two universes
+diverging silently, surfaced in the M4 live demo (2026-07-09).
+
+**Decision:** the corpus the app serves = the INDEXED corpus. A single
+predicate, `askrag.facets.INDEXED_PREDICATE` (`EXISTS (SELECT 1 FROM
+chunks c WHERE c.paper_id = papers.arxiv_id)`), is now unconditionally part
+of `facets.where_clause`'s WHERE — not a `CountFilters` field, since it has
+no "off" state a caller can request. Every consumer of `where_clause`
+(browse's `total`/rows, `GET /api/facets`, `query_metadata`'s
+`count_papers`) inherits it automatically; `GET /api/papers/{id}` 404s a
+chunk-less paper via its own `n_chunks` check. The frontend never sees a
+non-indexed paper, so there is no `is_indexed` flag, no two-tier UI, no
+badges — "showing N of {total}" and the facet totals already read the API
+total and auto-scope, no frontend change beyond dropping the hardcoded
+"Search 6,460 papers" placeholder (now generic).
+
+**Deviation from the issue's suggested layout:** the issue named
+`api/explorer_queries.py` as the predicate's home. That file doesn't exist
+and isn't in the spec's §4c tree — the browse query already lives in
+`routes_explorer.py` and already builds its WHERE via
+`facets.where_clause`/`CountFilters` (shared with `GET /api/facets` and
+`query_metadata`, D-2/#27). Adding a new file for one constant would create
+a near-duplicate concept next to the module that already owns query
+predicates; the constant lives in `askrag/facets.py` instead, imported by
+`routes_explorer.py`. Revisit only if `facets.py` grows unrelated
+responsibilities and needs splitting.
+
+**Consequence (in scope):** `query_metadata`'s `count_papers` op — an agent
+tool, not just the explorer UI — also becomes indexed-scoped, since it
+shares `count_scalar`/`count_grouped` with `GET /api/facets` (D-2/#27, no
+second copy of the query). This is intentional: the agent can only actually
+retrieve indexed papers via `search_corpus`/`read_paper`, so a full-corpus
+count would mislead it the same way the frontend was misled.
+
+**Revised during review (2026-07-09, reviewer round 1 + coordinator
+arbitration on PR #74):** the first version of this decision left
+`corpus_stats` (`_run_corpus_stats`) unscoped as a "fast-follow," reasoning
+it was outside #73's literal acceptance checklist. The reviewer flagged
+that as underselling the defect: `corpus_stats.n_papers` reporting the full
+~6,460 `papers` table is a live re-manifestation of the exact bug #73
+exists to kill, just moved from the frontend header into the agent's
+mouth — a user asking "how big is your corpus?" gets "6,460 papers" from
+`corpus_stats` while `count_papers`' category buckets sum to ~200, an
+in-conversation contradiction reachable in a single turn. The coordinator
+arbitrated for the reviewer's Option B over deferring: `_run_corpus_stats`
+now applies `INDEXED_PREDICATE` directly to its own `n_papers`/`year_min`/
+`year_max`/`n_categories` query (rejecting Option C, which would have
+un-shared `count_papers` from the predicate to "fix" the mismatch by
+regressing the other direction instead). `query_metadata`'s `paper_facets`
+needs no change: it reports a specific, caller-known paper id's real
+`n_chunks` (0 for an unindexed one), which is honest by construction, not a
+total that can diverge. D16's "risks accepted" section below reflects this
+final, uniformly-scoped state, not the original interim version.
+
+**Round 2 (2026-07-09, same PR #74): the system prompt itself hardcoded the
+same number.** Flagged alongside the round-1 fix as a related-but-unfixed
+finding: `askrag/agent/prompts.py`'s `SYSTEM_PROMPT` told the model *"a
+corpus of 6,460 arXiv computer-science papers"* unconditionally, on every
+turn — the same bug class as the frontend placeholder and the pre-fix
+`corpus_stats`, but worse: it needs no tool call to surface, so fixing
+`corpus_stats` alone left the model able to quote "6,460" straight from its
+own instructions regardless of what the tool returned. The coordinator
+rejected opening a fast-follow for this one (unlike `corpus_stats` in
+round 1) and folded it into this PR instead: `SYSTEM_PROMPT` now says
+"a corpus of arXiv computer-science papers" (no number) plus an explicit
+instruction to call `corpus_stats` for the real count/year/category range
+rather than assume or remember one, since the corpus is still growing
+(#15). No test file existed for `prompts.py` (a static string, not logic)
+so none was added, matching how the frontend placeholder change was
+handled.
+
+**Alternatives rejected:** an `is_indexed` flag with a two-tier UI (the
+issue explicitly rules this out — the frontend should never reason about a
+paper it can't retrieve); filtering only at the FastAPI route layer instead
+of the shared SQL predicate (would require three separate WHERE edits
+instead of one, reopening exactly the copy-paste risk D-2/#27 closed);
+leaving `corpus_stats` unscoped as a fast-follow (superseded above — it
+kept the M4-demo bug reachable through agent answers, not just the
+frontend, until the fast-follow landed); opening a fast-follow for the
+system-prompt fix too (rejected in round 2 — the fix was three lines,
+deferring it would have shipped a still-live copy of the exact bug this
+whole decision exists to close).
+
+**Revisit trigger:** #15's full ingest running, at which point the
+predicate matches ~all 6,460 papers and every total (`total`,
+`count_papers`, `corpus_stats.n_papers`) reads accordingly — no code change
+needed, this was designed to self-resolve. The system prompt needs no
+revisit: it never names a number to begin with.
+
+**Spec updated:** yes — new D16 (see spec's decision-record list).
+
+---
+
 ## 2026-07-09 — drive_ui wiring (#32): confirmed-only ui_action queue (D-1), a store-decoupled bridge hook (D-2), one-tick goto_page + verified sequencing (D-3)
 
 **Context:** #32's task brief handed down three coordinator decisions to
