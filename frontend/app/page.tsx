@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { ChatPanel } from "@/components/agent-panel/chat-panel";
 import { ExplorerPanel } from "@/components/explorer/explorer-panel";
 import { PaperSplitView } from "@/components/viewer/paper-split-view";
+import { useDriveUi } from "@/hooks/use-drive-ui";
 import { useViewerUrlSync } from "@/hooks/use-viewer-url-sync";
 import { useViewerStore } from "@/stores/viewer-store";
 
@@ -15,9 +16,16 @@ import { useViewerStore } from "@/stores/viewer-store";
  * on either of THOSE would mean a row click's `setPaper` unmounts the sync
  * owner in the same commit that was supposed to push the new `?paper=` URL,
  * dropping the push entirely — the same class of race #28's cross-tick
- * carry-over note (decisions.md) warns about, one level up. */
+ * carry-over note (decisions.md) warns about, one level up.
+ *
+ * `useDriveUi()` (#32) is mounted here for the same reason: it's the agent-
+ * driven counterpart of a row click, so it needs the same never-unmounts
+ * home to route `open_paper`/`goto_page` into the viewer and `set_filters`
+ * back into the explorer (both via `viewer-store`'s `paper` field, which
+ * this component already swaps on). */
 function AppRegion() {
   useViewerUrlSync();
+  useDriveUi();
   const paper = useViewerStore((state) => state.paper);
   return paper ? <PaperSplitView /> : <ExplorerPanel />;
 }

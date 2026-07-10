@@ -229,6 +229,115 @@ describe("agent-session-store — citation capture (#29 seam)", () => {
   });
 });
 
+describe("agent-session-store — confirmed ui_actions queue (D-1, issue #32)", () => {
+  it("queues a paper-bearing ui_action (open_paper) only after ok=true", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("open that one");
+
+    applyEvent({
+      type: "ui_action",
+      action: "open_paper",
+      args: { action: "open_paper", paper_id: "1409.7842" },
+    });
+    expect(useAgentSessionStore.getState().confirmedUiActions).toEqual([]);
+
+    applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
+    expect(useAgentSessionStore.getState().confirmedUiActions).toEqual([
+      {
+        type: "ui_action",
+        action: "open_paper",
+        args: { action: "open_paper", paper_id: "1409.7842" },
+      },
+    ]);
+  });
+
+  it("queues a NON-paper-bearing ui_action (set_filters) — the gap the task brief calls out", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("show me cs.CL from 2018");
+
+    applyEvent({
+      type: "ui_action",
+      action: "set_filters",
+      args: { action: "set_filters", category: "cs.CL" },
+    });
+    applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
+
+    expect(useAgentSessionStore.getState().confirmedUiActions).toHaveLength(1);
+    expect(useAgentSessionStore.getState().confirmedUiActions[0].action).toBe("set_filters");
+  });
+
+  it("never queues a rejected (ok=false) ui_action — a hallucinated target never navigates", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("open a fake one");
+
+    applyEvent({
+      type: "ui_action",
+      action: "open_paper",
+      args: { action: "open_paper", paper_id: "9999.99999" },
+    });
+    applyEvent({
+      type: "tool_result_summary",
+      name: "drive_ui",
+      ok: false,
+      error: "no such paper",
+    });
+
+    expect(useAgentSessionStore.getState().confirmedUiActions).toEqual([]);
+  });
+
+  it("accumulates multiple confirmed ui_actions across a turn if not drained", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("open then jump");
+
+    applyEvent({
+      type: "ui_action",
+      action: "open_paper",
+      args: { action: "open_paper", paper_id: "1409.7842" },
+    });
+    applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
+
+    applyEvent({
+      type: "ui_action",
+      action: "goto_page",
+      args: { action: "goto_page", paper_id: "1409.7842", page: 3 },
+    });
+    applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
+
+    expect(useAgentSessionStore.getState().confirmedUiActions).toHaveLength(2);
+  });
+
+  it("drainConfirmedUiActions returns and atomically clears the queue", () => {
+    const { startTurn, applyEvent, drainConfirmedUiActions } = useAgentSessionStore.getState();
+    startTurn("open that one");
+    applyEvent({
+      type: "ui_action",
+      action: "open_paper",
+      args: { action: "open_paper", paper_id: "1409.7842" },
+    });
+    applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
+
+    const drained = drainConfirmedUiActions();
+    expect(drained).toHaveLength(1);
+    expect(useAgentSessionStore.getState().confirmedUiActions).toEqual([]);
+    expect(drainConfirmedUiActions()).toEqual([]); // draining an empty queue is a no-op, not an error
+  });
+
+  it("reset clears the confirmedUiActions queue", () => {
+    const { startTurn, applyEvent, reset } = useAgentSessionStore.getState();
+    startTurn("open that one");
+    applyEvent({
+      type: "ui_action",
+      action: "open_paper",
+      args: { action: "open_paper", paper_id: "1409.7842" },
+    });
+    applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
+
+    reset();
+
+    expect(useAgentSessionStore.getState().confirmedUiActions).toEqual([]);
+  });
+});
+
 describe("agent-session-store — forward-compat", () => {
   it("applyEvent does not throw on an event type unknown to this switch", () => {
     const { startTurn, applyEvent } = useAgentSessionStore.getState();
