@@ -14,6 +14,67 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — API scoped to the indexed corpus; no `is_indexed` flag (#73)
+
+**Context:** the explorer advertised "Search 6,460 papers" but `corpus.db`
+was built from a diverse ~200-paper SAMPLE (the full ingest is #15, still
+pending). Browse returned all 6,460 `papers` rows while search/read/
+excerpts only ever cover the ~200 with `chunks` rows — two universes
+diverging silently, surfaced in the M4 live demo (2026-07-09).
+
+**Decision:** the corpus the app serves = the INDEXED corpus. A single
+predicate, `askrag.facets.INDEXED_PREDICATE` (`EXISTS (SELECT 1 FROM
+chunks c WHERE c.paper_id = papers.arxiv_id)`), is now unconditionally part
+of `facets.where_clause`'s WHERE — not a `CountFilters` field, since it has
+no "off" state a caller can request. Every consumer of `where_clause`
+(browse's `total`/rows, `GET /api/facets`, `query_metadata`'s
+`count_papers`) inherits it automatically; `GET /api/papers/{id}` 404s a
+chunk-less paper via its own `n_chunks` check. The frontend never sees a
+non-indexed paper, so there is no `is_indexed` flag, no two-tier UI, no
+badges — "showing N of {total}" and the facet totals already read the API
+total and auto-scope, no frontend change beyond dropping the hardcoded
+"Search 6,460 papers" placeholder (now generic).
+
+**Deviation from the issue's suggested layout:** the issue named
+`api/explorer_queries.py` as the predicate's home. That file doesn't exist
+and isn't in the spec's §4c tree — the browse query already lives in
+`routes_explorer.py` and already builds its WHERE via
+`facets.where_clause`/`CountFilters` (shared with `GET /api/facets` and
+`query_metadata`, D-2/#27). Adding a new file for one constant would create
+a near-duplicate concept next to the module that already owns query
+predicates; the constant lives in `askrag/facets.py` instead, imported by
+`routes_explorer.py`. Revisit only if `facets.py` grows unrelated
+responsibilities and needs splitting.
+
+**Consequence (in scope):** `query_metadata`'s `count_papers` op — an agent
+tool, not just the explorer UI — also becomes indexed-scoped, since it
+shares `count_scalar`/`count_grouped` with `GET /api/facets` (D-2/#27, no
+second copy of the query). This is intentional: the agent can only actually
+retrieve indexed papers via `search_corpus`/`read_paper`, so a full-corpus
+count would mislead it the same way the frontend was misled. `paper_facets`
+(point lookup) and `corpus_stats` (`_run_corpus_stats`) run their own
+unscoped raw queries and are **not** touched by this change — `n_papers` in
+`corpus_stats` still reports the full `papers` table. This is a known,
+deliberate inconsistency left for a fast-follow (not in #73's acceptance
+checklist); flagged to the coordinator rather than silently fixed, since it
+widens this PR's blast radius beyond what #73 asked for.
+
+**Alternatives rejected:** an `is_indexed` flag with a two-tier UI (the
+issue explicitly rules this out — the frontend should never reason about a
+paper it can't retrieve); filtering only at the FastAPI route layer instead
+of the shared SQL predicate (would require three separate WHERE edits
+instead of one, reopening exactly the copy-paste risk D-2/#27 closed).
+
+**Revisit trigger:** #15's full ingest running, at which point the
+predicate matches ~all 6,460 papers and `total` reads accordingly — no code
+change needed, this was designed to self-resolve. Secondary trigger: if
+`corpus_stats`'s full-corpus `n_papers` is judged confusing enough to also
+scope (tracked as a fast-follow, not blocking).
+
+**Spec updated:** yes — new D16 (see spec's decision-record list).
+
+---
+
 ## 2026-07-09 — drive_ui wiring (#32): confirmed-only ui_action queue (D-1), a store-decoupled bridge hook (D-2), one-tick goto_page + verified sequencing (D-3)
 
 **Context:** #32's task brief handed down three coordinator decisions to
