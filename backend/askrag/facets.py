@@ -7,6 +7,13 @@ A model-facing histogram (`query_metadata`) and the explorer's facet rail
 differ only in how many distinct groups they're allowed to see (`max_groups`
 is a parameter, never a second copy of the query) — never in query shape or
 which column a group-by name resolves to.
+
+`where_clause` always applies `INDEXED_PREDICATE` (D16, issue #73): the app
+serves the INDEXED corpus, not the full `papers` table — a paper with no
+`chunks` rows is one the app can never actually retrieve or search, so no
+consumer of `count_scalar`/`count_grouped` (browse's total, `GET /api/facets`,
+`query_metadata`'s `count_papers`) should count it. This is an always-on
+scope, not a `CountFilters` field: it has no "off" state a caller can request.
 """
 
 import sqlite3
@@ -22,6 +29,12 @@ GROUP_BY_COLUMNS = {
     "license": "license",
     "venue": "venue",
 }
+
+# The single definition of "indexed" (D16, issue #73) — a paper the app can
+# actually search/read. Every caller of `where_clause` (browse, GET
+# /api/facets, query_metadata's count_papers) gets this for free; never
+# copy-paste this predicate elsewhere.
+INDEXED_PREDICATE = "EXISTS (SELECT 1 FROM chunks c WHERE c.paper_id = papers.arxiv_id)"
 
 
 @dataclass(frozen=True)
@@ -41,7 +54,7 @@ class FacetBucket:
 
 
 def where_clause(filters: CountFilters) -> tuple[str, list[object]]:
-    clauses: list[str] = []
+    clauses: list[str] = [INDEXED_PREDICATE]
     params: list[object] = []
     if filters.category is not None:
         clauses.append("primary_category = ?")
@@ -54,7 +67,7 @@ def where_clause(filters: CountFilters) -> tuple[str, list[object]]:
         params.append(filters.year_max)
     if filters.has_license is not None:
         clauses.append("license IS NOT NULL" if filters.has_license else "license IS NULL")
-    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    where = f" WHERE {' AND '.join(clauses)}"
     return where, params
 
 

@@ -71,7 +71,10 @@ PAPERS = [
 ]
 
 # 4 chunks on paper 1: one long enough to exercise the 50-word cap, plus
-# enough distinct chunks to exercise the 3-quote cap.
+# enough distinct chunks to exercise the 3-quote cap. Every PAPERS row gets
+# at least one chunk so this base fixture is entirely indexed (D16, issue
+# #73) — pagination/sort/facets tests below exercise mechanics unrelated to
+# indexed-scoping, which gets its own dedicated fixture further down.
 _LONG_TEXT = " ".join(f"word{i}" for i in range(1, 61))  # 60 words > quote_max_words=50
 CHUNKS = [
     ChunkRow("2401.00001#0", "2401.00001", "Intro", 1, 1, _LONG_TEXT, 60),
@@ -79,6 +82,9 @@ CHUNKS = [
     ChunkRow("2401.00001#2", "2401.00001", "Results", 3, 3, "short results text", 3),
     ChunkRow("2401.00001#3", "2401.00001", "Conclusion", 4, 4, "short conclusion text", 3),
     ChunkRow("2401.00002#0", "2401.00002", "__paper__", 1, 1, "graph algorithms text", 3),
+    ChunkRow("2401.00003#0", "2401.00003", "__paper__", 1, 1, "fading channels text", 3),
+    ChunkRow("2401.00004#0", "2401.00004", "__paper__", 1, 1, "zero shot text", 3),
+    ChunkRow("2401.00005#0", "2401.00005", "__paper__", 1, 1, "diffusion text", 3),
 ]
 
 
@@ -500,3 +506,94 @@ def test_facets_endpoint_flags_truncation_per_dimension(tmp_path, corpus_db):
     body = resp.json()
     assert len(body["category"]["buckets"]) == 1
     assert body["category"]["truncated"] is True
+
+
+# --- indexed-corpus scoping (D16, issue #73): the API exposes only papers --
+# --- with chunks; a chunk-less paper is invisible everywhere except the ----
+# --- underlying `papers` row (which the explorer routes never expose raw). -
+
+
+SCOPED_PAPERS = [
+    paper("2401.10001", title="Indexed A", year=2024, category="cs.CL"),
+    paper("2401.10002", title="Indexed B", year=2023, category="cs.CL"),
+    # No chunks below: exists in `papers`, never indexed.
+    paper("2401.10003", title="Not indexed", year=2023, category="cs.LG"),
+]
+SCOPED_CHUNKS = [
+    ChunkRow("2401.10001#0", "2401.10001", "__paper__", 1, 1, "indexed a text", 3),
+    ChunkRow("2401.10002#0", "2401.10002", "__paper__", 1, 1, "indexed b text", 3),
+]
+
+
+@pytest.fixture
+def scoped_corpus_db(tmp_path):
+    scoped_dir = tmp_path / "scoped"
+    scoped_dir.mkdir()
+    path = scoped_dir / "corpus.db"
+    _write_corpus_db(path, SCOPED_PAPERS, SCOPED_CHUNKS)
+    return path
+
+
+def test_browse_returns_only_indexed_papers(tmp_path, scoped_corpus_db):
+    settings = make_settings(tmp_path, scoped_corpus_db, explorer_page_size=10)
+    app = make_app(settings=settings)
+    with TestClient(app) as tc:
+        resp = tc.get("/api/papers")
+    body = resp.json()
+    ids = {i["arxiv_id"] for i in body["items"]}
+    assert ids == {"2401.10001", "2401.10002"}
+    assert body["total"] == 2  # not 3 — the chunk-less paper doesn't count
+
+
+def test_facets_endpoint_scopes_total_and_buckets_to_indexed(tmp_path, scoped_corpus_db):
+    settings = make_settings(tmp_path, scoped_corpus_db)
+    app = make_app(settings=settings)
+    with TestClient(app) as tc:
+        resp = tc.get("/api/facets")
+    body = resp.json()
+    assert body["total"] == 2
+    # cs.LG (2401.10003, chunk-less) never appears as a bucket.
+    assert {(b["value"], b["count"]) for b in body["category"]["buckets"]} == {("cs.CL", 2)}
+
+
+def test_get_paper_detail_404s_for_a_chunkless_paper(tmp_path, scoped_corpus_db):
+    settings = make_settings(tmp_path, scoped_corpus_db)
+    app = make_app(settings=settings)
+    with TestClient(app) as tc:
+        resp = tc.get("/api/papers/2401.10003")
+    assert resp.status_code == 404
+
+
+def test_get_paper_detail_200s_for_an_indexed_paper(tmp_path, scoped_corpus_db):
+    settings = make_settings(tmp_path, scoped_corpus_db)
+    app = make_app(settings=settings)
+    with TestClient(app) as tc:
+        resp = tc.get("/api/papers/2401.10001")
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "Indexed A"
+
+
+def test_semantic_search_is_unaffected_by_indexed_scoping(tmp_path, scoped_corpus_db):
+    # Search hydrates rows from ids HybridSearch returns, which only ever
+    # come from `chunks` — already indexed-only by construction. Confirmed
+    # here, not re-scoped: a fake searcher "finding" a chunk-less paper's id
+    # is a searcher bug, not something routes_explorer should guard against.
+    chunks = [
+        ScoredChunk(
+            chunk_id="2401.10001#0",
+            paper_id="2401.10001",
+            section="__paper__",
+            page_start=1,
+            page_end=1,
+            text="indexed a text",
+            score=0.9,
+            leg="both",
+            version="v1",
+        )
+    ]
+    settings = make_settings(tmp_path, scoped_corpus_db, explorer_page_size=10)
+    app = make_app(settings=settings, searcher=FakeSearcher(chunks))
+    with TestClient(app) as tc:
+        resp = tc.get("/api/papers", params={"q": "indexed"})
+    ids = {i["arxiv_id"] for i in resp.json()["items"]}
+    assert ids == {"2401.10001"}

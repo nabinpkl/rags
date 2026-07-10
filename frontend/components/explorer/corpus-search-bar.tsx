@@ -36,7 +36,7 @@ export function CorpusSearchBar() {
       type="search"
       value={value}
       onChange={(event) => setValue(event.target.value)}
-      placeholder="Search 6,460 papers — semantic + keyword"
+      placeholder="Search the corpus — semantic + keyword"
       aria-label="Search corpus"
       className="border-line bg-paper text-ink placeholder:text-muted w-full max-w-[420px] rounded px-3 py-1.5 text-[13.5px] outline-none"
     />

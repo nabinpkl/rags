@@ -15,6 +15,17 @@ machinery guarded against no longer exists (§6, superseded).
 scoping share the exact same column map and query template via that module,
 each supplying only its own `max_groups` cap — no second copy anywhere.
 
+`count_papers` (via `facets.where_clause`) and `corpus_stats` both scope to
+the INDEXED corpus (D16, issue #73): a paper the agent can't actually
+retrieve or search must never inflate a total the agent reports back to a
+user — `corpus_stats.n_papers` reporting the full `papers` count while
+`count_papers` reports the indexed-only count would be the same
+silently-diverging-universes bug #73 closed, just moved from the frontend
+header into the agent's mouth. `paper_facets` needs no change: it already
+reports a specific, caller-known paper id's real `n_chunks` (0 for an
+unindexed one), which is honest by construction, not a total that can
+diverge.
+
 `QueryMetadataArgs` is a `RootModel` over a `Field(discriminator="op")`
 union, mirroring `drive_ui.DriveUiArgs`: pydantic picks the matching
 per-op model from `op` alone, so each op's JSON schema states exactly its
@@ -30,7 +41,7 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from askrag import db
 from askrag.config import Settings, get_settings
-from askrag.facets import CountFilters, count_grouped, count_scalar
+from askrag.facets import INDEXED_PREDICATE, CountFilters, count_grouped, count_scalar
 
 
 class QueryMetadataError(Exception):
@@ -182,8 +193,12 @@ def _run_paper_facets(conn: sqlite3.Connection, args: PaperFacetsArgs) -> PaperF
 
 
 def _run_corpus_stats(conn: sqlite3.Connection) -> CorpusStatsResult:
+    # Scoped to the indexed corpus (D16, issue #73): year_min/year_max/
+    # n_categories follow n_papers so the agent never claims year or
+    # category coverage from papers it can't actually read.
     n_papers, year_min, year_max, n_categories = conn.execute(
-        "SELECT COUNT(*), MIN(year), MAX(year), COUNT(DISTINCT primary_category) FROM papers"
+        "SELECT COUNT(*), MIN(year), MAX(year), COUNT(DISTINCT primary_category) "
+        f"FROM papers WHERE {INDEXED_PREDICATE}"
     ).fetchone()
     (n_chunks,) = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()
     return CorpusStatsResult(

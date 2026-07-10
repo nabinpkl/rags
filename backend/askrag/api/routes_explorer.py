@@ -468,6 +468,12 @@ def get_paper(
         (n_chunks,) = conn.execute(
             "SELECT COUNT(*) FROM chunks WHERE paper_id = ?", (paper_id,)
         ).fetchone()
+        if n_chunks == 0:
+            # Not indexed (D16, issue #73): the app serves the indexed corpus
+            # only, so an existing-but-unindexed id is indistinguishable from
+            # unknown to every caller — no half-loaded viewer for a paper
+            # nothing else in the API (browse/search/facets) ever surfaces.
+            raise HTTPException(status_code=404, detail=f"no paper with id {paper_id!r}")
 
         excerpts: list[CitedExcerpt] = []
         excerpts_truncated = False
