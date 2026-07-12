@@ -25,7 +25,7 @@ const mono = Spline_Sans_Mono({
 
 export const metadata: Metadata = {
   title: "askRAG — agentic RAG over arXiv CS papers",
-  description: "An agent that searches, reads, and cites 6,460 arXiv CS papers.",
+  description: "An agent that searches, reads, and cites arXiv CS papers.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
