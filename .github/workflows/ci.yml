@@ -23,7 +23,9 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
-          cache-dependency-glob: backend/uv.lock
+          # One shared workspace lock at the repo root (issue #79) — no more
+          # per-package backend/uv.lock.
+          cache-dependency-glob: uv.lock
       - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
       # Frontend toolchain for `just check`'s frontend-check tier (#26). The
       # pnpm version comes from frontend/package.json's packageManager field;
