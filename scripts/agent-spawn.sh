@@ -63,7 +63,7 @@ rm -rf "$WT" 2>/dev/null || true
 git -C "$REPO" worktree add --detach "$WT" "$base" -q
 
 # Provision the worktree with the gitignored runtime deps it can't check out
-# (corpus/, backend/.env, backend/.venv, frontend/node_modules), so it is
+# (corpus/, backend/.env, .venv, frontend/node_modules), so it is
 # RUNNABLE in place — `just backend-check`, `just serve`, the backend smoke,
 # and `pnpm test`/`build`/`typecheck` all work without leaving the worktree.
 # Without this a worker must cd to the PRIMARY checkout to run anything, and
@@ -72,7 +72,10 @@ git -C "$REPO" worktree add --detach "$WT" "$base" -q
 # only run/read them (a worker that mutates the shared .venv/node_modules is
 # the one accepted risk — deps are pre-installed, and a branch that adds one is
 # rare and caught in review).
-for link in corpus backend/.env backend/.venv frontend/node_modules; do
+# `.venv` is the uv-WORKSPACE root venv (#79): post-workspace `cd backend &&
+# uv run` resolves the workspace root's .venv (at the worktree root), not a
+# per-package backend/.venv — so the symlink is `.venv`, not `backend/.venv`.
+for link in corpus backend/.env .venv frontend/node_modules; do
   target="$REPO/$link"
   [ -e "$target" ] || continue   # skip what the primary doesn't have (e.g. no .env)
   mkdir -p "$(dirname "$WT/$link")"
