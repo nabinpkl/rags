@@ -1,0 +1,24 @@
+# uv workspace member (spec D14 amendment 2026-07-09, issue #79): a research
+# harness OVER askrag, not part of it — imports askrag, never the reverse.
+# `tool.uv.package = false`: this is a place to run eval scripts + tests
+# against the shared workspace venv, not a publishable wheel.
+[project]
+name = "askrag-evals"
+version = "0.1.0"
+description = "askRAG eval harness: golden-set + trajectory evals over the deployed agent (D14)"
+requires-python = ">=3.12"
+dependencies = ["askrag"]
+
+[tool.uv.sources]
+askrag = { workspace = true }
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
