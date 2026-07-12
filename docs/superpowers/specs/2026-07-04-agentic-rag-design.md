@@ -605,14 +605,31 @@ matters → grow the set until it discriminates.
 July 2026) reshapes the harness into three layers plus dataset-as-code, and
 settles the online/offline question for our scale:
 
-- **Golden set is dataset-as-code, not a frozen file.** `askrag/evals/golden.jsonl`
-  — one record per line, line-diffable and append-friendly (supersedes the
-  `golden_set.yaml` framing) — carrying `{id, question, type, expected_paper_id,
-  expected_chunk_ids, expected_passage, difficulty, notes, verified}`. It lives
-  in VCS so edits are code-reviewed and a score drop attributes cleanly to model
-  vs rubric vs set change. It is NOT append-only/frozen: cases retire and labels
-  get corrected as failure modes surface (the "static launch set is a benchmark,
-  not a regression suite" anti-pattern).
+- **Golden set is dataset-as-code, not a frozen file.** `evals/golden.jsonl`
+  — the eval harness lives in a **root `evals/` uv-workspace package** (sibling
+  to `backend`/`collector`, importing `askrag`, never the reverse; workspace
+  prefactor #79) — one record per line, line-diffable and append-friendly
+  (supersedes the `askrag/evals/golden_set.yaml` framing) — carrying `{id,
+  question, type, expected_paper_id, expected_chunk_ids, expected_passage,
+  difficulty, notes, verified}`. It lives in VCS so edits are code-reviewed and a
+  score drop attributes cleanly to model vs rubric vs set change. It is NOT
+  append-only/frozen: cases retire and labels get corrected as failure modes
+  surface (the "static launch set is a benchmark, not a regression suite"
+  anti-pattern).
+- **What counts as a good pair (the dataset's quality bar).** Every record must
+  be: *grounded* (answered by a specific chunk of a specific indexed paper, not
+  general knowledge); *retrieval-requiring* (the base model can't answer it from
+  parametric memory — checked, not assumed); *unambiguous* (which chunk(s) answer
+  it is stable and knowable); *realistically phrased* (a researcher's question,
+  not a paraphrase of the chunk — paraphrases test lexical overlap, not
+  retrieval); *discriminating* (spans easy→hard so the set separates a good
+  config from a bad one — an all-easy/all-impossible set gates nothing); and
+  *representative* (stratified across categories/years). The four `type` buckets
+  exist to stress our known failure axes: single-hop (baseline), multi-hop
+  (composition), exact-match/acronym (the BM25 leg + keyword recall), known-hard
+  table/math (D6's honest floor, included on purpose). Drafting + verification
+  procedure is #17; the harness that consumes the set is #18 (retrieval) + the
+  LLM-judged/trajectory issue.
 - **Layer 3 — trajectory (new).** Retrieval is a tool the model calls (D1), so
   grade the *trajectory*, not just the answer: tool-call correctness (did it
   search before answering?), step efficiency vs `max_tool_steps_per_message`,

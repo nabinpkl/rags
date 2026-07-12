@@ -14,6 +14,44 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-07-09 — Evals live at repo root; a uv-workspace prefactor is the one prerequisite (#79, owner directive)
+
+**Context:** refining the #17 plan, the owner directed that the eval harness
+live in a **root `evals/` folder**, not nested in the backend package, and asked
+for a prefactor covering the prerequisites that make the eval work easier ("single
+workspace uv and other"). Audited what the harness actually needs: the read seams
+already exist and are clean — `db.connect_corpus()` (read-only), `HybridSearch(settings)`
+(builds its own embedder + vector store), the `traces.py` reader. The only
+structural gap is dependency isolation: a root `evals/` package importing `askrag`
+would otherwise need a second venv duplicating the heavy ML deps (torch 2.12.1,
+chromadb 1.5.9).
+
+**Decision:**
+1. **Placement:** the eval harness is a root `evals/` package (sibling to
+   `backend`/`collector`), importing `askrag` and never the reverse — evals are a
+   research harness *over* the app, not part of the deployed backend. Supersedes
+   the spec's `askrag/evals/…` layout hint (D14 amendment updated).
+2. **uv workspace (#79):** convert the repo to a uv workspace (`backend` + `evals`,
+   `collector` if its deps resolve) with one shared `uv.lock`, so `evals` depends
+   on `askrag` with no duplicated venv. This is a standalone **prefactor** — it
+   touches `backend/pyproject.toml` + build/CI and must keep `just backend-check`/
+   `just check` green on its own, separate from any eval logic. #17/#18/#78 are
+   blocked on it.
+3. **Config knobs** the eval issues need (`draft_model`, `judge_model`) land in the
+   prefactor so eval PRs don't each churn `config.py`.
+
+**Alternatives rejected:** *nesting evals under `backend/askrag/evals/`* (owner
+directive against it; also wrong import direction — the app would carry eval code);
+*a standalone `evals/` package with its own lock* (duplicates torch/chromadb into a
+second venv — the exact cost the workspace removes); *folding the workspace change
+into #17* (a structural build change riding a content PR; must land + stay green on
+its own first).
+
+**Consequence:** new prefactor issue #79 (Ready); #17/#18/#78 gain it as a blocker;
+the D14 amendment's golden-set path is now `evals/golden.jsonl`.
+
+**Spec updated:** D14 (Amendment 2026-07-09 — path + workspace note).
+
 ## 2026-07-09 — Eval harness reshaped for an agentic loop: three layers, dataset-as-code, no online eval (#17)
 
 **Context:** planning #17 (the golden set), the owner pushed on the issue's
@@ -31,9 +69,11 @@ slice; (e) online eval = live per-request scoring of production traffic.
 
 **Decision:** amend D14 (see spec) — keep everything it got right (in-repo,
 hand-verified, gates D7/D8/#18/#19, reuses `traces.db`) and add:
-1. **Dataset-as-code:** `askrag/evals/golden.jsonl` (JSONL supersedes the
-   `golden_set.yaml` framing — line-diffable, append-friendly), versioned and
-   code-reviewed; not frozen (cases retire, labels corrected).
+1. **Dataset-as-code:** `evals/golden.jsonl` in a root `evals/` uv-workspace
+   package (JSONL supersedes the `golden_set.yaml` framing — line-diffable,
+   append-friendly), versioned and code-reviewed; not frozen (cases retire,
+   labels corrected). Placement + workspace set by the 2026-07-09 refinement
+   below (#79).
 2. **Layer 3 — trajectory** from `traces.db`: tool-call correctness, step
    efficiency vs `max_tool_steps_per_message`, loop/waste, stop-reason, latency
    + cost. Data already captured; this is the differentiated agentic layer.
