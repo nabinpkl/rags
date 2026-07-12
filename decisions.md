@@ -14,7 +14,49 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
-## 2026-07-09 — API scoped to the indexed corpus; no `is_indexed` flag (#73)
+## 2026-07-09 — Eval harness reshaped for an agentic loop: three layers, dataset-as-code, no online eval (#17)
+
+**Context:** planning #17 (the golden set), the owner pushed on the issue's
+"the YAML is the deliverable" framing ("not blind things like yml... online
+offline we might not need online"). Surveyed July-2026 field practice for RAG +
+agent evaluation to shape #17 to our usecase rather than copy a generic config.
+Findings that changed the design: (a) agentic systems need a *trajectory* layer
+(grade the tool-call sequence, not just the final answer) on top of the
+retrieval + generation split; (b) golden sets are dataset-as-code (in VCS,
+diff-able, code-reviewed) — a frozen launch set is "a benchmark, not a
+regression suite"; (c) citation accuracy (precision/recall) is its own metric,
+distinct from faithfulness, and faithfulness ≠ correctness; (d) LLM-judge must
+be a different model family from the generator and calibrated against a human
+slice; (e) online eval = live per-request scoring of production traffic.
+
+**Decision:** amend D14 (see spec) — keep everything it got right (in-repo,
+hand-verified, gates D7/D8/#18/#19, reuses `traces.db`) and add:
+1. **Dataset-as-code:** `askrag/evals/golden.jsonl` (JSONL supersedes the
+   `golden_set.yaml` framing — line-diffable, append-friendly), versioned and
+   code-reviewed; not frozen (cases retire, labels corrected).
+2. **Layer 3 — trajectory** from `traces.db`: tool-call correctness, step
+   efficiency vs `max_tool_steps_per_message`, loop/waste, stop-reason, latency
+   + cost. Data already captured; this is the differentiated agentic layer.
+3. **Citation accuracy** (precision + recall) + **answer-correctness vs
+   `expected_*`** as explicit layer-2 metrics, alongside faithfulness (§6c).
+4. **No online eval:** a live scorer costs money against ≤$22/mo with no traffic
+   to score; instead the offline harness replays a *sample of real `traces.db`
+   turns* on demand — the production-shaped insight without a standing service.
+5. **Judge hygiene:** judge is a stronger/different family than the Haiku agent;
+   a one-time human-vs-judge agreement slice is reported so numbers are citeable.
+
+**Alternatives rejected:** *bare `golden_set.yaml` as the deliverable* (blind —
+no harness, no trajectory layer, YAML diffs poorly for eval records); *two
+layers only* (retrieval + answer — misses the agent loop, which is our thesis);
+*live online-eval service + drift crons + judge registry* (enterprise-scale
+machinery our traffic and budget don't warrant); *faithfulness as the sole
+generation metric* (a grounded answer can still be wrong).
+
+**Consequence:** #17's acceptance grows the trajectory + citation items; format
+moves YAML→JSONL. #17 stays blocked by #14 (needs the embedding run to have
+chunks to retrieve/sample) — design now, build after #14.
+
+**Spec updated:** D14 (Amendment 2026-07-09, #17).
 
 **Context:** the explorer advertised "Search 6,460 papers" but `corpus.db`
 was built from a diverse ~200-paper SAMPLE (the full ingest is #15, still

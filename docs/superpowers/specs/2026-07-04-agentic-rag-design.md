@@ -601,6 +601,52 @@ boring evening. Judge model cost is offline single-digit dollars.
 **Revisit when.** Two configurations are within noise on a decision that
 matters → grow the set until it discriminates.
 
+**Amendment (2026-07-09, #17).** Field practice for *agentic* RAG (surveyed
+July 2026) reshapes the harness into three layers plus dataset-as-code, and
+settles the online/offline question for our scale:
+
+- **Golden set is dataset-as-code, not a frozen file.** `askrag/evals/golden.jsonl`
+  — one record per line, line-diffable and append-friendly (supersedes the
+  `golden_set.yaml` framing) — carrying `{id, question, type, expected_paper_id,
+  expected_chunk_ids, expected_passage, difficulty, notes, verified}`. It lives
+  in VCS so edits are code-reviewed and a score drop attributes cleanly to model
+  vs rubric vs set change. It is NOT append-only/frozen: cases retire and labels
+  get corrected as failure modes surface (the "static launch set is a benchmark,
+  not a regression suite" anti-pattern).
+- **Layer 3 — trajectory (new).** Retrieval is a tool the model calls (D1), so
+  grade the *trajectory*, not just the answer: tool-call correctness (did it
+  search before answering?), step efficiency vs `max_tool_steps_per_message`,
+  wasted/looping calls, stop-reason sanity, latency + cost per answer. The data
+  already exists in `traces.db` (D13) — no new capture. This is the most
+  differentiated layer for a hand-built-agent-loop thesis, and per-step
+  reliability compounds (a high per-step success rate still fails end-to-end
+  across many steps), so measure it directly.
+- **Citation accuracy is an explicit metric** in layer 2, not folded into
+  "faithfulness": citation precision (does the cited paper/chunk actually
+  support the claim?) + citation recall (is the answer fully covered by its
+  citations?). Load-bearing for §6c cited answers. And faithfulness ≠
+  correctness — a fully-grounded answer can still be wrong — so answer-
+  correctness vs the golden `expected_*` is scored alongside faithfulness.
+- **Online eval: out of scope, by design.** A live per-request scorer costs
+  money against the ≤$22/mo cap with almost no traffic to score. The production-
+  shaped substitute: the same offline harness runs over a *sample of real
+  `traces.db` turns*, not only the golden set — on-demand replay, zero standing
+  cost. Deliberately NOT built: live online-scoring service, drift crons,
+  judge-prompt registry, continuous recalibration (all need traffic + budget we
+  don't have).
+- **Judge hygiene.** The judge model is a different (stronger) family than the
+  agent model (Haiku) — never generator-as-own-judge. Report a one-time human-
+  vs-judge agreement on a small labeled slice so the committed numbers are
+  citeable; position/verbosity bias controls noted in the harness.
+
+`just eval` still emits the committed README table; CI runs the free Layer-1
+retrieval subset per PR (§10 CI), while the LLM-judged Layers 2–3 run on demand
+/ at milestones for cost.
+
+**Revisit when (amendment).** Real traffic grows enough that a sampled live
+scorer would catch drift the on-demand traces-replay misses; or the judge-vs-
+human slice shows weak agreement (rework the rubric before trusting numbers).
+
 ---
 
 ### D15. Operational telemetry: OpenTelemetry, JSON-first, built in from the start
