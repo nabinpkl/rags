@@ -42,6 +42,11 @@ status *ARGS:
 backend-check:
     cd backend && uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest -q
 
+# Golden-set drafting (#17 fills this in): resolves in the uv workspace
+# (issue #79) against the shared venv; a stub until draft_golden_set.py lands.
+draft-evals:
+    cd evals && uv run python -c "print('draft-evals: not implemented (#17)')"
+
 # Frontend gate: lint + typecheck + tests + generated-types drift check.
 # CI installs deps first (see ci.yml); locally, run `pnpm install` in frontend/ once.
 frontend-check:

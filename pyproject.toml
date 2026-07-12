@@ -1,0 +1,8 @@
+# uv workspace root (spec D14 amendment 2026-07-09, issue #79). No [project]
+# table on purpose: this is a virtual root, never built or installed itself —
+# it exists only to declare members and hold the one shared uv.lock so a root
+# evals/ package can `import askrag` without a second torch/chromadb venv.
+# collector joined too (verified 2026-07-12): its deps (requests, defusedxml)
+# resolve cleanly against the shared lock, no version conflicts.
+[tool.uv.workspace]
+members = ["backend", "evals", "collector"]

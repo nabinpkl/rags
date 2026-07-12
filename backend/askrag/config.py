@@ -33,6 +33,17 @@ class Settings(BaseSettings):
     agent_usd_per_mtok_in: float = 1.00
     agent_usd_per_mtok_out: float = 5.00
     agent_usd_per_mtok_cache_read: float = 0.10
+    # --- eval harness model ids (D14 amendment; issue #79 prefactor) -------
+    # Golden-set drafting (#17): a strong model writes candidate question ->
+    # expected-passage pairs against sampled chunks, hand-verified before they
+    # count — stronger than the deployed agent_model on purpose, since a weak
+    # drafter would only ever propose questions the weak model can answer.
+    draft_model: str = "claude-sonnet-5"
+    # LLM-judge (#17/#18/answer-eval issue): faithfulness + citation-accuracy
+    # scoring on the full agent loop. A different model FAMILY than
+    # agent_model (Haiku) by design — judging a model with itself masks the
+    # failure modes it's blind to (D14 amendment, "judge hygiene").
+    judge_model: str = "claude-opus-4-8"
     # Backend + model are a PAIR: "local" expects a Hugging Face model id,
     # "voyage" expects a Voyage model name (voyage-4-lite is the parked-but-
     # working operating point — decisions.md 2026-07-05, D5 amendment).

@@ -43,6 +43,8 @@ def test_spec_constants_load_without_env(monkeypatch):
     assert settings.sandbox_timeout_seconds == 30  # D10
     assert settings.quote_max_words == 50  # §6c
     assert settings.max_quotes_per_paper == 3  # §6c
+    assert settings.draft_model == "claude-sonnet-5"  # D14 amendment, issue #79
+    assert settings.judge_model == "claude-opus-4-8"  # D14 amendment, issue #79
     assert settings.read_paper_max_tokens == 16_000  # §6c row 1, decisions.md 2026-07-06
 
 
