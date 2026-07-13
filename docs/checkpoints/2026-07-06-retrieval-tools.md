@@ -15,7 +15,7 @@ Issues #13/#14 (ingest: extract → chunk → embed → build_indexes), #16
 - `tools/registry.py`, `tools/search_corpus.py`, `tools/read_paper.py`,
   `tools/query_metadata.py`, `tools/drive_ui.py`.
 - `config.py`, `db.py`. Cross-checked against spec §5, §6/§6b/§6c, D1, D5, D8,
-  D10, D12 and `decisions.md`.
+  D10, D12 and `DECISIONS.md`.
 - Confirmed green: `uv run pytest` → 229 passed, 1 skipped. Tests mirror source
   names 1:1 (§4d).
 

@@ -1,4 +1,4 @@
-// The agent-session-store <-> viewer-store bridge (D-2, decisions.md, issue
+// The agent-session-store <-> viewer-store bridge (D-2, DECISIONS.md, issue
 // #32). Behavioral tests over a mocked confirmed-ui_action SSE sequence —
 // no router involved, that's use-viewer-url-sync.test.ts's job.
 import { beforeEach, describe, expect, it } from "vitest";

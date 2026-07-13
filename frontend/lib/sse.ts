@@ -28,7 +28,7 @@ export interface ToolResultSummaryEvent {
   error: string | null;
 }
 
-// ADVISORY, NOT VALIDATED (decisions.md 2026-07-07): built from the model's
+// ADVISORY, NOT VALIDATED (DECISIONS.md 2026-07-07): built from the model's
 // raw drive_ui args before corpus.db validation. Consumers must reconcile
 // this against the paired `tool_result_summary`, never act on it alone —
 // see agent-session-store.ts's verified-paper-id tracking.
@@ -51,7 +51,7 @@ export interface CostEvent {
 }
 
 // One paper's cited chunk ids, ids only — no chunk text ever rides the
-// stream (§6c row 4/D-1, issue #27 decisions.md: "ids on the wire, text
+// stream (§6c row 4/D-1, issue #27 DECISIONS.md: "ids on the wire, text
 // only from the capped GET /api/papers/{id}?chunks= endpoint"). A nested
 // payload on DoneEvent, not its own SSE vocabulary member.
 export interface Citation {

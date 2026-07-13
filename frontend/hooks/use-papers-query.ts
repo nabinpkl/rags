@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { fetchFacets, fetchPapers } from "@/lib/api-client";
 import type { SortOption } from "@/stores/viewer-store";
 
-// D-3 (decisions.md): requested so paper-table.tsx can decide, from real
+// D-3 (DECISIONS.md): requested so paper-table.tsx can decide, from real
 // response data rather than a guessed dev/prod flag, whether the rigor
 // column has anything to show — the five diversity scores depend on the
 // #13 embed run and may be null. The other four diversity facets
@@ -20,7 +20,7 @@ export interface PapersQueryFilters {
   sort: SortOption | null;
 }
 
-/** D-1 (decisions.md): `useInfiniteQuery` + TanStack Virtual windowing, not
+/** D-1 (DECISIONS.md): `useInfiniteQuery` + TanStack Virtual windowing, not
  * fetching all 6,460 rows. `queryKey` includes every filter so changing one
  * starts a fresh accumulation instead of mixing pages across filter sets. */
 export function usePapersQuery(filters: PapersQueryFilters) {
@@ -48,7 +48,7 @@ export interface FacetsQueryFilters {
 }
 
 /** Categorical counts for the facet rail — applies the current
- * category/year filters uniformly (decisions.md #27 entry: no
+ * category/year filters uniformly (DECISIONS.md #27 entry: no
  * exclude-own-dimension faceting yet). */
 export function useFacetsQuery(filters: FacetsQueryFilters) {
   return useQuery({

@@ -8,7 +8,7 @@ D9). The result is a page-ordered prefix of the matching chunks, bounded by
 `read_paper_max_tokens` (summed from each chunk's stored `n_tokens`) — a real
 budget for a real deep read (§6c row 1, D1), not the ≤50-word/≤3-quote
 *display* cap. That cap governs verbatim quotes surfacing in an ANSWER (§6c
-row 4, decisions.md 2026-07-06) and is enforced at answer-assembly (#23/#30)
+row 4, DECISIONS.md 2026-07-06) and is enforced at answer-assembly (#23/#30)
 and the frontend (#26) — never here.
 """
 

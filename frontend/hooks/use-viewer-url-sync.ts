@@ -4,14 +4,14 @@ import { useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { searchParamsFromViewerState, useViewerStore } from "@/stores/viewer-store";
 
-/** The store<->URL glue (D-2, decisions.md): `viewer-store.ts` holds the pure
+/** The store<->URL glue (D-2, DECISIONS.md): `viewer-store.ts` holds the pure
  * state and the pure URL<->state functions (tested directly, no router
  * needed); this hook is the thin, framework-bound wiring that calls them
  * from a live browser URL — `next/navigation`'s router hooks only run
  * inside a component, so this can't live in the store itself.
  *
  * ONE effect, not two (an earlier two-effect version raced a stale
- * pre-hydration closure on initial mount — see git history / decisions.md).
+ * pre-hydration closure on initial mount — see git history / DECISIONS.md).
  *
  * Classification is by `prevStoreString` (what the STORE said last time this
  * effect ran), not by comparing the live URL against the hook's own last

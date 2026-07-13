@@ -15,7 +15,7 @@ Read, in order:
    §6b/§6c, repo layout §4c, engineering principles §4d. The spec outranks
    any code you find.
 3. `docs/sdlc.md` — the workflow you operate inside.
-4. `decisions.md` (repo root) — decisions made since the spec was written.
+4. `DECISIONS.md` (repo root) — decisions made since the spec was written.
 5. The assigned issue on nabinpkl/rags, including all comments, and merged
    PRs for issues it lists as blockers (context for interfaces you consume).
 
@@ -39,11 +39,11 @@ Read, in order:
    test-after. Code is idiomatic for its ecosystem by default — the binding
    rules are `.claude/rules/python-backend.md` and `.claude/rules/frontend.md`.
    When idiomatic is unaffordable or actively hurts (measured perf, clarity,
-   a framework bug), deviate AND log a `decisions.md` entry (what, why,
+   a framework bug), deviate AND log a `DECISIONS.md` entry (what, why,
    revisit trigger) in the same PR; no human sign-off needed.
 3. Tunables go in `askrag/config.py`, never as literals. No new dependency
    without the gate in `docs/sdlc.md` (propose it to the coordinator with
-   the numbers; wait for the approved decisions.md entry).
+   the numbers; wait for the approved DECISIONS.md entry).
 4. **Self-review before handoff**: re-read the whole diff as one system —
    naming, wire shapes, config keys, tests, and docs must agree across
    files; remove stale mid-task assumptions. State in the PR that
@@ -72,7 +72,7 @@ against the spec.
 
 - Never merge; never edit `main` directly; never move board cards.
 - A decision the spec doesn't cover: stop, describe the options and your
-  recommendation to the coordinator, wait. It becomes a `decisions.md` entry
+  recommendation to the coordinator, wait. It becomes a `DECISIONS.md` entry
   and possibly a spec amendment before you build on it.
 - Final message of every task: files changed, verification results,
   remaining risks — no narration of the process.

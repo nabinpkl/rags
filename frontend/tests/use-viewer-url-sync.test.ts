@@ -1,4 +1,4 @@
-// The store<->URL sync hook (D-2, decisions.md #28/#29). This file is new
+// The store<->URL sync hook (D-2, DECISIONS.md #28/#29). This file is new
 // (issue #32): D-3 requires proving this hook survives RAPID SEQUENTIAL
 // agent-driven pushes (open->page->filter landing across ticks) without
 // dropping one, and that back/forward + a shared URL restore the exact
@@ -22,7 +22,7 @@ import { useViewerStore } from "@/stores/viewer-store";
 
 // router.push is async in real Next.js — `searchParams` doesn't reflect a
 // push until the navigation commits, often several ticks later (round-1
-// review finding, decisions.md 2026-07-09). The mock defers committing to
+// review finding, DECISIONS.md 2026-07-09). The mock defers committing to
 // `mockState.search` until `commitPendingPush()` runs, so a test can
 // reproduce that lag deliberately instead of the push landing synchronously.
 let pendingSearch: string | null = null;

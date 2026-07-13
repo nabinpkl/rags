@@ -166,7 +166,7 @@ def test_recorded_run_roundtrips_tool_call_citations(settings):
 
 def test_tool_call_citations_default_to_empty_when_absent_from_stored_json(settings, tmp_path):
     # Simulates a pre-#27 traces.db row: tool_calls JSON has no "citations"
-    # key at all. Reading it back must not KeyError (decisions.md, issue #27).
+    # key at all. Reading it back must not KeyError (DECISIONS.md, issue #27).
     conn = sqlite3.connect(tmp_path / "traces.db")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS runs (run_id TEXT PRIMARY KEY, created_at TEXT, day TEXT,"

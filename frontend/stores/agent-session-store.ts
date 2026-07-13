@@ -18,7 +18,7 @@ import type {
 // something.
 //
 // `replay` was originally a member of THIS union — that conflated turn
-// lifecycle with session mode and was a real bug (decisions.md 2026-07-09
+// lifecycle with session mode and was a real bug (DECISIONS.md 2026-07-09
 // round 2): `applyEvent` reassigns `status` on every event including the
 // replayed stream's own tool_call/tool_result_summary/text events, so
 // `status: "replay"` set in onopen got clobbered by the replayed stream's
@@ -71,7 +71,7 @@ export interface AgentSessionState {
   mode: AgentMode;
   sessionId: string | null;
   turns: Turn[];
-  // The citation-verification set (decisions.md 2026-07-08): a paper id
+  // The citation-verification set (DECISIONS.md 2026-07-08): a paper id
   // lands here only once a tool_call/ui_action that referenced it is
   // confirmed by an ok=true tool_result_summary. message-markdown.tsx reads
   // this to decide chip vs plain text.
@@ -126,7 +126,7 @@ function paperIdFromArgs(args: Record<string, unknown>): string | null {
 }
 
 /** Dedup + merge, first-seen order — mirrors `sse_events.citations_from_tool_calls`'s
- * own aggregation posture (issue #27 decisions.md) one layer up: a paper's
+ * own aggregation posture (issue #27 DECISIONS.md) one layer up: a paper's
  * chunk_ids only ever grow across the session, never drop a previously-cited
  * chunk just because a later turn's citation for the same paper is a subset. */
 function mergeCitations(

@@ -24,7 +24,7 @@ function ResultMark({ result }: { result: TimelineEntry["result"] }) {
 }
 
 /** Renders exactly what the stream carries: a tool's name + args resolving
- * to ok/error — nothing else (decisions.md 2026-07-08). `tool_result_summary`
+ * to ok/error — nothing else (DECISIONS.md 2026-07-08). `tool_result_summary`
  * never carries a content field, so there is nothing richer to show: no
  * chunk counts, no scores, no rows, no payloads.
  *

@@ -14,7 +14,7 @@ const CITATION_SCHEME = "citation:";
 /** Rewrites a VERIFIED arXiv id into a markdown link the `a` override below
  * turns into a citation chip. An unverified id is left as plain text —
  * ReactMarkdown never HTML-parses it, so it renders inert by construction,
- * exactly like every other word in the answer (decisions.md 2026-07-08). */
+ * exactly like every other word in the answer (DECISIONS.md 2026-07-08). */
 function linkifyVerifiedCitations(text: string, verifiedPaperIds: ReadonlySet<string>): string {
   return text.replace(ARXIV_ID_PATTERN, (match, id: string) =>
     verifiedPaperIds.has(id) ? `[${match}](${CITATION_SCHEME}${id})` : match,

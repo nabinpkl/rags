@@ -16,7 +16,7 @@ a turn's token count is unknown pre-flight and is enforced inside the loop (#23)
 by the step/token cap. This gate governs the spend/count caps that are knowable
 before the turn runs.
 
-Concurrency (decisions.md 2026-07-05): real cost is known only post-call and
+Concurrency (DECISIONS.md 2026-07-05): real cost is known only post-call and
 written by record_run() afterward, so check-then-record has a window. This gate
 is SEQUENTIALLY correct — no *sequence* of requests can exceed the global cap.
 Concurrent in-flight requests can overshoot by at most (in-flight count) ×

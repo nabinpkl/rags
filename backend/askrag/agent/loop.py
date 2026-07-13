@@ -123,7 +123,7 @@ def anthropic_client_from_settings(settings: Settings) -> AnthropicModelClient:
     OpenRouter's Anthropic-compatible endpoint (no trailing /v1 — the SDK
     appends /v1/messages itself), authenticated via `auth_token` (Bearer),
     since OpenRouter documents Bearer auth rather than Anthropic's native
-    x-api-key header (owner directive 2026-07-06, decisions.md).
+    x-api-key header (owner directive 2026-07-06, DECISIONS.md).
     """
     if settings.agent_api_base_url:
         client = anthropic.Anthropic(
@@ -152,7 +152,7 @@ def _citations_of(name: str, result: Any) -> tuple[Citation, ...]:
 
     Only `search_corpus`'s `ScoredChunk`s carry a `chunk_id`; `read_paper`'s
     page-range spans and `query_metadata`'s facts don't, so they contribute
-    no citations here (known gap, issue #27 decisions.md: a `read_paper`
+    no citations here (known gap, issue #27 DECISIONS.md: a `read_paper`
     deep-read can't yet drive the cited-excerpts pane, only search hits can).
     Named by tool, mirroring `sse_events.translate()`'s existing
     `name == "drive_ui"` special-case — the same "know one tool's shape at

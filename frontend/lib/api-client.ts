@@ -35,14 +35,14 @@ async function getJson<T>(
 }
 
 /** GET /api/papers — cursor-paginated browse or (q set) bounded search
- * (D-1/D-2, decisions.md). */
+ * (D-1/D-2, DECISIONS.md). */
 export function fetchPapers(query: PapersQuery): Promise<PapersResponse> {
   return getJson("/api/papers", query);
 }
 
 /** GET /api/facets — categorical (category/year/license/venue) counts for
  * the facet rail. A different "facet" sense than `PaperListItem.facets`
- * (routes_explorer.py's module docstring, decisions.md Fill-in 2). */
+ * (routes_explorer.py's module docstring, DECISIONS.md Fill-in 2). */
 export function fetchFacets(query: FacetsQuery): Promise<FacetsResponse> {
   return getJson("/api/facets", query);
 }
