@@ -4,6 +4,12 @@ One coordinator session, one persistent implementor agent, one persistent
 reviewer agent. Work flows through GitHub PRs; the coordinator is the only
 role that merges. Role briefs live in `.claude/briefs/`.
 
+> The generic shape of this loop — roles, green definition, dependency gate,
+> idiom-deviation rule, coherence auditor — now lives once in the taste plugin
+> (`taste:agent-orchestration`); the tmux scripts and branch hook are installed
+> from there by `just harness-install`, not vendored in this repo. This file
+> keeps only askRAG's project-specific delivery details.
+
 ## Roles
 
 - **Coordinator** (the main session): owns the board, assigns one issue at a
