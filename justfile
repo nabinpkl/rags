@@ -10,6 +10,12 @@ collector := "collector/justfile"
 default:
     @just --list
 
+# Install/refresh the shared taste-plugin SDLC harness (agent-* scripts, the
+# branch-protection hook, and the rendered role briefs). Run once per clone and
+# after a plugin update. Source of truth: the nabin-ecc taste plugin.
+harness-install:
+    bash "${TASTE_HARNESS:-$HOME/projects/nabin-ecc/taste/scripts/harness}/harness-install.sh"
+
 # One-time collector setup: uv-managed environment + dependencies
 setup *ARGS:
     @just --justfile {{collector}} {{ARGS}} setup

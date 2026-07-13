@@ -17,3 +17,9 @@ __pycache__/
 .claude/tasks/
 # Per-worker git worktrees (each worker's isolated checkout)
 .worktrees/
+/scripts/agent-*.sh
+/scripts/_common.sh
+/scripts/git-hooks
+/.claude/run/
+/.claude/briefs/
+/.worktrees/
