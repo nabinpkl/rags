@@ -141,7 +141,7 @@ def test_allow_reason_is_empty(settings):
 def test_no_sequence_of_requests_exceeds_global_cap(settings):
     # Drive the real check-then-record loop sequentially: only spend when the
     # gate ALLOWs, recording each cost before the next check. Per the D11
-    # concurrency decision (decisions.md 2026-07-05), the gate is a pre-flight
+    # concurrency decision (DECISIONS.md 2026-07-05), the gate is a pre-flight
     # read that doesn't know the pending cost, so the LAST allowed request
     # overshoots by at most one request's cost — the sequential (×1) case of
     # the accepted, bounded overshoot. The invariant: (1) the gate NEVER ALLOWs

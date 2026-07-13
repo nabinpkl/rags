@@ -37,7 +37,7 @@ function useDebouncedYearInput(
 }
 
 /** Category buttons + a year range, reading `GET /api/facets` for counts
- * (the CATEGORICAL facet sense, decisions.md #27 Fill-in 2 — distinct from
+ * (the CATEGORICAL facet sense, DECISIONS.md #27 Fill-in 2 — distinct from
  * paper-table.tsx's diversity-score `facets=`) and writing viewer-store
  * filter state. Counts/buckets reflect the current category+year filters
  * uniformly (no exclude-own-dimension faceting yet, per that entry's

@@ -17,7 +17,7 @@ interface ChatDenyBody {
  * store slices.
  *
  * Native EventSource can't POST a body or read response headers, hence
- * @microsoft/fetch-event-source (decisions.md 2026-07-08). */
+ * @microsoft/fetch-event-source (DECISIONS.md 2026-07-08). */
 export function useAgentStream() {
   const controllerRef = useRef<AbortController | null>(null);
 

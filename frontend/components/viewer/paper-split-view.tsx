@@ -10,7 +10,7 @@ const EMPTY_CHUNK_IDS: readonly string[] = [];
 
 /** Layout + header for the #29 viewer region: `arxiv-pdf-frame.tsx` (reading
  * surface) | `cited-excerpts-pane.tsx` (what the agent cited), under a
- * header that D-3 (decisions.md) requires ALWAYS show the abs-page link and
+ * header that D-3 (DECISIONS.md) requires ALWAYS show the abs-page link and
  * an "open on arXiv" button (§6b link-back) — regardless of which D9 rung
  * the PDF pane is on, even mid-load or on a 404. Mounted by `app/page.tsx`
  * only when `viewer-store`'s `paper` is set; reads that store plus

@@ -1,5 +1,5 @@
 // The citation-verification set is the anti-hallucination guard
-// (decisions.md 2026-07-08) — the security-relevant behavior of this store,
+// (DECISIONS.md 2026-07-08) — the security-relevant behavior of this store,
 // tested here directly rather than only indirectly through a component.
 import { beforeEach, describe, expect, it } from "vitest";
 import { useAgentSessionStore } from "@/stores/agent-session-store";

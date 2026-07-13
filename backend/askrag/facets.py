@@ -1,6 +1,6 @@
 """Facet counting over corpus.db `papers` — the shared read helper behind
 `query_metadata`'s `count_papers` group-by and `GET /api/facets`/the papers
-list's `facets=` scoping (D-2, issue #27 decisions.md entry).
+list's `facets=` scoping (D-2, issue #27 DECISIONS.md entry).
 
 One `{Literal -> column}` map, one WHERE-builder, one GROUP BY query template.
 A model-facing histogram (`query_metadata`) and the explorer's facet rail

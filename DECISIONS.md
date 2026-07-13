@@ -210,7 +210,7 @@ carries no `paper_id`) was silently dropped from reconciliation.
 `paper_id` — closing the `set_filters` gap. A new `confirmedUiActions` queue
 fills only when the paired `tool_result_summary` is `ok=true` for the same
 pending call's `resultName` — the exact same reconciliation branch that
-already fed `verifiedPaperIds` (decisions.md 2026-07-08), extended to also
+already fed `verifiedPaperIds` (DECISIONS.md 2026-07-08), extended to also
 push the full action. An `ok=false` result (drive_ui.py's own corpus.db
 check rejected the target) reaches neither `verifiedPaperIds` nor
 `confirmedUiActions` — a hallucinated target never navigates.
@@ -233,7 +233,7 @@ same never-unmounts reason #29's entry already gives for that hook.
 `set_filters` — the routing rule the brief named explicitly
 (`open_paper`/`goto_page` → viewer, `set_filters` → back to the explorer,
 since `AppRegion` keys the swap on `paper`). Tracing through
-`use-viewer-url-sync.ts`'s existing classifier (the round-1 fix, decisions.md
+`use-viewer-url-sync.ts`'s existing classifier (the round-1 fix, DECISIONS.md
 2026-07-09 below) showed it already satisfies the "rapid sequential pushes"
 requirement as written: it classifies by comparing the current store-derived
 string against `prevStoreString` (what the store said last time the effect
@@ -247,7 +247,7 @@ back/forward + shared-URL round trip (acceptance item 2).
 
 **Alternatives rejected:** having `use-drive-ui.ts` apply directly off the
 raw/provisional `ui_action` event and roll back on a later `ok=false`
-result — the frontend rules' "verify before act" posture (decisions.md
+result — the frontend rules' "verify before act" posture (DECISIONS.md
 2026-07-08) already rejected this shape for `verifiedPaperIds`, and applying-
 then-reverting a navigation is a worse user experience than not navigating
 until confirmed; keeping `pendingCall` as a single slot rather than a stack —
@@ -382,7 +382,7 @@ sync effect needs to see to push the new `?paper=` URL, and (b) is also what
 have run (a)'s effect, the effect's cleanup fires before its body ever runs
 for that update, and the URL push never happens — the open-paper action
 silently fails to update the URL. This is the same class of bug as #28's
-own cross-tick carry-over note (decisions.md, "apply open-paper + goto-page
+own cross-tick carry-over note (DECISIONS.md, "apply open-paper + goto-page
 in ONE store update") one level up: not two coalesced writes racing, but the
 SYNC OWNER ITSELF getting unmounted mid-reaction. Fixed by hoisting the one
 `useViewerUrlSync()` call to a small `AppRegion` component defined directly
@@ -880,7 +880,7 @@ single one-shot turn. `loop.py`'s `main()` and `_print_event()` are deleted
 outright (shed, not aliased) along with the now-unused `argparse`/`sys`/
 `telemetry` imports they were the only callers of. `just repl` (new) and
 `just smoke-agent` (repointed) both call `askrag.cli` — the smoke recipe's
-OpenRouter cheap-first behavior (decisions.md 2026-07-06) is unchanged,
+OpenRouter cheap-first behavior (DECISIONS.md 2026-07-06) is unchanged,
 only the module it invokes changed.
 **Alternatives rejected:** keeping `loop.main` for one-shot smoke and adding
 `cli.py` only for the interactive REPL (two entrypoints into the same loop
@@ -946,7 +946,7 @@ unchanged).
 
 **Context:** an #23 issue comment (carried forward from #22/#58) called the
 per-answer quote-accounting gate a "hard acceptance gate... not optional" for
-this issue. The 2026-07-06 `read_paper` decisions.md entry (below) already
+this issue. The 2026-07-06 `read_paper` DECISIONS.md entry (below) already
 moved that cap downstream to "answer-assembly (#23/#30)" once `read_paper`'s
 own tool-level cap was removed as contradicting §6c row 1/D1. #23's own task
 brief scopes the server-side gate out explicitly: building it needs verified
@@ -1229,7 +1229,7 @@ Voyage free quota, but throttled); the tradeoff is CPU cost at query time
 on the production VPS instead of an API call — untested until #16 lands and
 is measured on real request latency. Voyage stays fully wired behind
 `embedding_backend=voyage` for a future paid-tier or eval-driven swap; its
-tests, pacing config, and decisions.md history are unchanged.
+tests, pacing config, and DECISIONS.md history are unchanged.
 **Revisit when:** a paid embeddings tier enters the budget (Tier-1 billing
 addresses the throughput problem outright), or #18 evals show a paid/larger
 model retrieves meaningfully better than nomic-v1.5 on this corpus, or #16's
@@ -1467,7 +1467,7 @@ React, state management, state machines).
 **Decision:** binding per-path idiom rules live in `.claude/rules/`
 (`python-backend.md`, `frontend.md`); implementor and reviewer briefs and
 `docs/sdlc.md` wire to them. When idiomatic is unaffordable or hurts, the
-implementor deviates and logs a decisions.md entry (what, why, revisit
+implementor deviates and logs a DECISIONS.md entry (what, why, revisit
 trigger) in the same PR — explicitly WITHOUT human sign-off; entries exist
 for later revisiting, not gating.
 **Alternatives rejected:** per-PR human approval of deviations (defeats the

@@ -13,7 +13,7 @@ Read, in order:
    Review against it: decision records D1–D14, tool contracts §5, threat
    model §6, arXiv compliance §6b/§6c, layout §4c, principles §4d.
 3. `docs/sdlc.md` — the workflow you operate inside.
-4. `decisions.md` (repo root) — decisions that legitimately deviate from or
+4. `DECISIONS.md` (repo root) — decisions that legitimately deviate from or
    extend the spec; do not flag code that follows a logged decision.
 5. The PR itself: `gh pr view <n>`, `gh pr diff <n>`, the linked issue and
    its acceptance checklist.
@@ -35,7 +35,7 @@ the diff is the truth). Priority order:
    security behavior added test-after (spec forbids it).
 5. **Idiom**: non-idiomatic Python/FastAPI/React per the binding rules in
    `.claude/rules/` (python-backend.md, frontend.md) WITHOUT a logged
-   `decisions.md` entry — severity by blast radius (an unidiomatic wire
+   `DECISIONS.md` entry — severity by blast radius (an unidiomatic wire
    type is major; a local style miss is minor). A deviation that has its
    decision entry is judged against the entry's stated reasoning, not
    against the default.
@@ -77,6 +77,6 @@ verdict in your final message to the coordinator.
 - If a finding is rejected with reasoning you still believe is wrong,
   restate it once with the failure scenario sharpened; after that, flag it
   for coordinator arbitration instead of repeating.
-- A finding that contradicts a `decisions.md` entry or a spec decision
+- A finding that contradicts a `DECISIONS.md` entry or a spec decision
   record is a finding against the DECISION — raise it as a question for the
   coordinator, not as a code finding.

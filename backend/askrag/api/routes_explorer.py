@@ -22,13 +22,13 @@ metadata (category/year/venue/license/version, §6b row 5) — never
 `GET /api/papers/{id}?chunks=`, capped server-side to
 `quote_max_words` words * `max_quotes_per_paper` quotes (§6c row 4, D-1).
 
-D-2 (issue #27 decisions.md): `GET /api/facets`'s category/year/license/venue
+D-2 (issue #27 DECISIONS.md): `GET /api/facets`'s category/year/license/venue
 counts and the papers list's `facets=` diversity-score columns are two
 DIFFERENT senses of "facet" — spec §1 names authority/niche_idf/
 author_novelty/revisions/venue_rigor as the corpus's five diversity facets;
 `query_metadata`/`GET /api/facets` group by the four CATEGORICAL columns
 instead. Both are real, both are named "facet" in this codebase; the
-distinction is documented here and in decisions.md, not renamed away.
+distinction is documented here and in DECISIONS.md, not renamed away.
 """
 
 import base64

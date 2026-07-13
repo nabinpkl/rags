@@ -1,5 +1,5 @@
 // Explorer/viewer UI state (spec §4c): open paper, page, filters —
-// drive_ui's target once #29 lands. D-2 (decisions.md): the URL is the
+// drive_ui's target once #29 lands. D-2 (DECISIONS.md): the URL is the
 // SOURCE OF TRUTH; this store derives from it. The store itself never
 // touches the URL directly — zustand actions here only set state. The
 // actual URL read/write glue is hooks/use-viewer-url-sync.ts, since

@@ -16,7 +16,7 @@ any architecturally load-bearing issue begins. One coherent slice per run.
 2. `docs/superpowers/specs/2026-07-04-agentic-rag-design.md` — the spec is the
    coherence oracle: decision records D1–D15, tool contracts §5, threat model
    §6, arXiv rules §6b/§6c, repo layout §4c, engineering principles §4d.
-3. `decisions.md` — every decision made since the spec, including deviations
+3. `DECISIONS.md` — every decision made since the spec, including deviations
    with their revisit triggers.
 4. `docs/sdlc.md` — how the work is delivered.
 5. The **previous checkpoint** in `docs/checkpoints/` if one exists — you diff

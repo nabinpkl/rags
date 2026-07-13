@@ -8,7 +8,7 @@ const DEBOUNCE_MS = 300;
 /** Semantic + keyword search box hitting `/api/papers?q=` (via
  * use-papers-query.ts's usePapersQuery, HybridSearch under the hood — D8's
  * fail-soft BM25 degrade already covers "keyword" as a fallback, not a
- * separate mode, decisions.md #27 Fill-in 1). Debounces local edits into the
+ * separate mode, DECISIONS.md #27 Fill-in 1). Debounces local edits into the
  * store so every keystroke doesn't push a URL change / refetch. */
 export function CorpusSearchBar() {
   const q = useViewerStore((state) => state.q);

@@ -35,7 +35,7 @@ work is broken into GitHub issues.
   one persistent implementor builds on `issue-<n>-<slug>` branches, one
   persistent reviewer files verdicts, coordinator merges. Role briefs:
   `.claude/briefs/`. Only the coordinator merges or moves board cards.
-- Decisions the spec doesn't cover stop the work: log in `decisions.md`,
+- Decisions the spec doesn't cover stop the work: log in `DECISIONS.md`,
   amend the spec in the same PR (see sdlc.md).
 - New dependencies pass the gate in `docs/sdlc.md` (popular, actively
   maintained, advisory-clean, logged) — spec §4b packages are pre-approved.
@@ -55,7 +55,7 @@ work is broken into GitHub issues.
 - Comments state constraints the code can't ("read-only by construction,
   see D4"), never narration.
 - Idiomatic by default: per-path language/framework rules in
-  `.claude/rules/`; deviating needs a `decisions.md` entry (why + revisit
+  `.claude/rules/`; deviating needs a `DECISIONS.md` entry (why + revisit
   trigger), no human sign-off.
 - Any deviation from a spec decision needs a new/updated decision record in
   the spec — no silent architecture drift.

@@ -1,6 +1,6 @@
 """Tests for askrag.tools.query_metadata — enum'd metadata query ops (§5/§6).
 
-No model-authored SQL exists anywhere in this tool (decisions.md
+No model-authored SQL exists anywhere in this tool (DECISIONS.md
 2026-07-06): the old SQL-injection/DoS-refusal tests are gone — moot, there
 is no SQL surface left to inject into. Security-relevant behavior here is
 "the union accepts only these three shapes"; that is asserted directly by

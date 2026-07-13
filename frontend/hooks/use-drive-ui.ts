@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 import { useViewerStore } from "@/stores/viewer-store";
 
-/** The agent-session-store <-> viewer-store bridge (D-2, decisions.md, issue
+/** The agent-session-store <-> viewer-store bridge (D-2, DECISIONS.md, issue
  * #32) — mirrors use-viewer-url-sync.ts's role bridging store<->URL.
  * `agent-session-store.ts` must not import `viewer-store.ts` (frontend
  * rules: one authoritative home per fact, stores stay decoupled); this hook

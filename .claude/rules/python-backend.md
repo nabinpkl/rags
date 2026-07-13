@@ -6,7 +6,7 @@ paths:
 
 # Python / FastAPI idiom — default posture
 
-Idiomatic by default. A deviation needs a `decisions.md` entry (what, why,
+Idiomatic by default. A deviation needs a `DECISIONS.md` entry (what, why,
 revisit trigger) in the same PR — no human sign-off. Non-idiomatic code
 without a logged decision is a review finding.
 

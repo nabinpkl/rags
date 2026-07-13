@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     judge_model: str = "claude-opus-4-8"
     # Backend + model are a PAIR: "local" expects a Hugging Face model id,
     # "voyage" expects a Voyage model name (voyage-4-lite is the parked-but-
-    # working operating point — decisions.md 2026-07-05, D5 amendment).
+    # working operating point — DECISIONS.md 2026-07-05, D5 amendment).
     embedding_backend: Literal["local", "voyage"] = "local"
     embedding_model: str = "nomic-ai/nomic-embed-text-v1.5"
     embedding_dims: int = 512  # a documented trained MRL point for this model (D5)
@@ -100,10 +100,10 @@ class Settings(BaseSettings):
     # 0 = no merge (current strict-D7 behavior). The eval-sweep knob wired in
     # #19: chunk COUNT is eval-gated (D7 revisit + D14), not a target, so
     # tail-merge of sub-threshold chunks stays disabled until evals measure
-    # whether the small-chunk tail hurts recall (decisions.md 2026-07-05).
+    # whether the small-chunk tail hurts recall (DECISIONS.md 2026-07-05).
     chunk_min_tokens: int = 0
 
-    # --- ingest: embedding (D5 as amended; decisions.md 2026-07-05) ---------
+    # --- ingest: embedding (D5 as amended; DECISIONS.md 2026-07-05) ---------
     # Prices the --estimate for API backends; local runs cost $0 by
     # construction (voyage-4-lite list price kept for the parked path).
     embedding_usd_per_mtok: float = 0.02
@@ -160,7 +160,7 @@ class Settings(BaseSettings):
     search_corpus_max_k: int = 25
     # read_paper's model-facing token budget (§6c row 1: "the model may read
     # full text via read_paper" — a real deep-read, not the ≤50w/≤3-quote
-    # display cap, which moved to answer-assembly/#23/#30, decisions.md
+    # display cap, which moved to answer-assembly/#23/#30, DECISIONS.md
     # 2026-07-06). 16,000 ≈ 20% of message_token_budget: generous enough to
     # cover a full short arXiv CS paper's chunks (~1,000 tokens/chunk, D7) or
     # a substantial page range of a longer one, while still leaving room for
@@ -199,7 +199,7 @@ class Settings(BaseSettings):
 
     # --- query_metadata limits (§5; defaults until measured) ---------------
     # Top-N cap on a count_papers histogram's distinct groups (renamed from
-    # the old raw-SQL row cap, decisions.md 2026-07-06 — the enum'd `op`
+    # the old raw-SQL row cap, DECISIONS.md 2026-07-06 — the enum'd `op`
     # union has no free-form row-returning path left to cap).
     query_metadata_histogram_max_groups: int = 500
 
@@ -210,7 +210,7 @@ class Settings(BaseSettings):
     # q non-empty: HybridSearch.search()'s k. Search naturally returns a
     # bounded top-k, not an arbitrarily-deep ranked table (D8) — pagination
     # over a q result stops once this many papers are exhausted, it never
-    # re-queries with a larger k per page (decisions.md, issue #27).
+    # re-queries with a larger k per page (DECISIONS.md, issue #27).
     explorer_search_k: int = 100
     # GET /api/facets and a papers-list facets= request: distinct-group cap
     # per dimension. A parameter, not a fork of query_metadata's histogram

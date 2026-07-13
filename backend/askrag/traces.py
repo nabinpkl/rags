@@ -31,7 +31,7 @@ from askrag.config import Settings, get_settings
 # column here (as #30 did with question/answer_text) is a no-op against a
 # table that already exists, and the next INSERT fails with "table runs has
 # no column named ...". Any column change to this schema needs the dev
-# traces.db deleted so it regenerates. (decisions.md 2026-07-05 covers this;
+# traces.db deleted so it regenerates. (DECISIONS.md 2026-07-05 covers this;
 # this is the durable home a future schema-editor actually reads.)
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -61,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_showcase ON runs (showcase);
 @dataclass(frozen=True)
 class Citation:
     """One retrieved (paper_id, chunk_id) pair from a tool call's result —
-    IDS ONLY, never chunk text (§6c row 4/D-1, issue #27 decisions.md) — the
+    IDS ONLY, never chunk text (§6c row 4/D-1, issue #27 DECISIONS.md) — the
     same posture `ToolCallRecord` already holds for its own result: no
     payload, ever, past this boundary."""
 
@@ -253,7 +253,7 @@ def _row_to_run(row) -> Run:
                 error=t.get("error"),
                 # .get(): a pre-#27 tool_calls JSON blob has no citations key
                 # at all — unlike a SQL column, this needs no traces.db wipe
-                # to read back cleanly (issue #27 decisions.md).
+                # to read back cleanly (issue #27 DECISIONS.md).
                 citations=tuple(
                     Citation(paper_id=c["paper_id"], chunk_id=c["chunk_id"])
                     for c in t.get("citations", [])

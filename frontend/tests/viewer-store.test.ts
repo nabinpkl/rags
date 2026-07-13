@@ -1,4 +1,4 @@
-// D-2 (decisions.md): the URL is the source of truth; the store derives
+// D-2 (DECISIONS.md): the URL is the source of truth; the store derives
 // from it. This is the acceptance gate — store <-> URL symmetry, both pure
 // conversion functions and the store's own actions.
 import { beforeEach, describe, expect, it } from "vitest";

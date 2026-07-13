@@ -5,7 +5,7 @@ paths:
 
 # React / Next.js idiom — default posture
 
-Idiomatic by default. A deviation needs a `decisions.md` entry (what, why,
+Idiomatic by default. A deviation needs a `DECISIONS.md` entry (what, why,
 revisit trigger) in the same PR — no human sign-off. Non-idiomatic code
 without a logged decision is a review finding.
 
@@ -36,7 +36,7 @@ without a logged decision is a review finding.
   booleans. Transitions are functions; impossible combinations don't
   typecheck.
 - Session mode (live / replay) is a SEPARATE field from turn-lifecycle
-  status, not a member of the same union (decisions.md 2026-07-09, agent
+  status, not a member of the same union (DECISIONS.md 2026-07-09, agent
   panel round 2): a status field that churns on every stream event will
   clobber a mode value folded into it the moment the next event arrives.
   Anything that's "set once, read elsewhere, and must survive an unrelated

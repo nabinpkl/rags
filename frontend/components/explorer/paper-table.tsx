@@ -138,7 +138,7 @@ export function PaperTable() {
       },
     ];
 
-    // D-3 (decisions.md): no column backed by empty data — only shown once
+    // D-3 (DECISIONS.md): no column backed by empty data — only shown once
     // at least one loaded row actually carries a venue_rigor score.
     if (hasRigorData) {
       cols.push({

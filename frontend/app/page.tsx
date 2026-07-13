@@ -17,7 +17,7 @@ import { useViewerStore } from "@/stores/viewer-store";
  * on either of THOSE would mean a row click's `setPaper` unmounts the sync
  * owner in the same commit that was supposed to push the new `?paper=` URL,
  * dropping the push entirely — the same class of race #28's cross-tick
- * carry-over note (decisions.md) warns about, one level up.
+ * carry-over note (DECISIONS.md) warns about, one level up.
  *
  * `useDriveUi()` (#32) is mounted here for the same reason: it's the agent-
  * driven counterpart of a row click, so it needs the same never-unmounts

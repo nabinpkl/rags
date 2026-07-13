@@ -274,7 +274,7 @@ class LocalEmbeddings:
                 "unpinned model can silently change our vectors (D5 amendment)"
             )
         # Heavyweight import deferred so --estimate, the Voyage path, and the
-        # test suite never pay torch's import cost (decisions.md 2026-07-05).
+        # test suite never pay torch's import cost (DECISIONS.md 2026-07-05).
         import torch
         from sentence_transformers import SentenceTransformer
 

@@ -9,7 +9,7 @@ role that merges. Role briefs live in `.claude/briefs/`.
 - **Coordinator** (the main session): owns the board, assigns one issue at a
   time to the implementor, relays diffs and findings between the two agents,
   arbitrates disputes (spec is the tiebreaker), merges PRs, closes issues,
-  promotes newly unblocked board items, and maintains `decisions.md`,
+  promotes newly unblocked board items, and maintains `DECISIONS.md`,
   `CLAUDE.md`, and the spec.
 - **Implementor** (one instance, continued across tasks): implements exactly
   one issue at a time on a branch, self-reviews the diff before handoff,
@@ -23,13 +23,13 @@ role that merges. Role briefs live in `.claude/briefs/`.
 No parallel implementors, no fresh implementor per task: continuity of
 context is the point. If the coordinator session restarts, re-spawn roles
 with their briefs; durable context lives in artifacts (PRs, issue comments,
-decisions.md, the spec), not in any agent's memory.
+DECISIONS.md, the spec), not in any agent's memory.
 
 ## Worker harness (tmux)
 
 Workers run as interactive `claude` CLIs in tiled panes of one `agents` window
 in the human's **pre-existing** `rags` tmux session, so both the coordinator and
-the human can watch them work (decisions.md 2026-07-06). Three roles:
+the human can watch them work (DECISIONS.md 2026-07-06). Three roles:
 `implementor`, `reviewer` (per-PR, Sonnet), and `auditor` (Opus, read-only,
 slice-boundary coherence — see below). Scripts in `scripts/`:
 
@@ -64,7 +64,7 @@ happen are stopped by permission mode and hooks, not by someone watching.
 tier — only sees the diff; it cannot see cross-issue drift. At each vertical
 slice / epic boundary, and before any architecturally load-bearing issue, the
 coordinator spawns the auditor (Opus) to read the *whole* slice + spec +
-`decisions.md` + the previous checkpoint and judge coherence: concept
+`DECISIONS.md` + the previous checkpoint and judge coherence: concept
 duplication, cross-layer contract rot, spec divergence, and emergent boundary
 gaps (e.g. the two-`read_paper`-calls §6c breach that a single diff never
 shows). It writes `docs/checkpoints/<date>-<slice>.md` with a `COHERENT` /
@@ -88,7 +88,7 @@ pass on top of the standard Sonnet review; routine PRs stay Sonnet.
    pushes fixes. Coordinator sends the new diff back to the reviewer.
 6. Repeat. **After 3 FINDINGS rounds the coordinator arbitrates**: each
    unresolved finding is decided against the spec, the decision goes in the
-   PR thread, and if it changed anything architectural, in `decisions.md`.
+   PR thread, and if it changed anything architectural, in `DECISIONS.md`.
 7. On GREEN + the full green definition below: coordinator squash-merges
    (`gh pr merge --squash`), subject `<type>: <summary> (#<issue>)`, closes
    the issue with measured numbers commented, moves the card to **Done**,
@@ -111,10 +111,10 @@ pass on top of the standard Sonnet review; routine PRs stay Sonnet.
 
 Any choice the spec doesn't already make (or contradicts) stops the loop:
 
-1. Coordinator logs it in `decisions.md` (dated entry: context, decision,
+1. Coordinator logs it in `DECISIONS.md` (dated entry: context, decision,
    alternatives, consequence).
 2. The spec gets a new or amended decision record **in the same PR** as the
-   code that depends on it. `decisions.md` says which spec section changed;
+   code that depends on it. `DECISIONS.md` says which spec section changed;
    "Spec updated: pending" is only acceptable for process-only decisions.
 3. Silent drift between code and spec is a bug (CLAUDE.md hard rule).
 
@@ -138,7 +138,7 @@ run with the repo token):
   calls per action.
 - Gate evidence carries **measured numbers** (checked on the day, source
   named), never remembered ones.
-- Result recorded as a `decisions.md` entry (name, version, numbers checked,
+- Result recorded as a `DECISIONS.md` entry (name, version, numbers checked,
   verdict). The implementor proposes, the coordinator approves the entry
   before the dep lands.
 
@@ -147,7 +147,7 @@ run with the repo token):
 Code is idiomatic for its ecosystem by default; the binding per-path rules
 live in `.claude/rules/` (`python-backend.md`, `frontend.md`) and apply to
 both implementor and reviewer. When idiomatic is unaffordable or actively
-hurts, the implementor deviates and logs a `decisions.md` entry (what, why,
+hurts, the implementor deviates and logs a `DECISIONS.md` entry (what, why,
 revisit trigger) in the same PR — **no human sign-off needed**; the entry
 exists so the deviation can be revisited, not to gate it. The reviewer
 treats undocumented non-idiom as a finding (severity by blast radius) and

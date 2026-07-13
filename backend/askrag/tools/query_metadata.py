@@ -1,6 +1,6 @@
 """tool: query_metadata — enum'd metadata queries over corpus.db (§5).
 
-Replaces model-authored SQL (decisions.md 2026-07-06, pre-#23) with a
+Replaces model-authored SQL (DECISIONS.md 2026-07-06, pre-#23) with a
 `drive_ui`-style discriminated union of exactly three ops: `count_papers`
 (scalar count or a group-by histogram), `paper_facets` (point lookup by
 paper id), `corpus_stats` (corpus-wide totals). Every op runs a FIXED
@@ -11,7 +11,7 @@ anywhere, so the SQL-injection/DoS surface the old authorizer/timeout
 machinery guarded against no longer exists (§6, superseded).
 
 `count_papers`' group-by counting SQL lives in `askrag.facets` (D-2, issue
-#27 decisions.md): `GET /api/facets` and the papers list's `facets=`
+#27 DECISIONS.md): `GET /api/facets` and the papers list's `facets=`
 scoping share the exact same column map and query template via that module,
 each supplying only its own `max_groups` cap — no second copy anywhere.
 

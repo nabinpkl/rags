@@ -1,10 +1,10 @@
 """The terminal REPL (#24) — the ONE terminal entrypoint for the agent loop,
 milestone 3's exit artifact. No question arg -> interactive multi-turn REPL;
 one question arg -> a single one-shot turn. Replaces `askrag.agent.loop`'s
-former `main`/`_print_event` (decisions.md 2026-07-07: one CLI, one way) —
+former `main`/`_print_event` (DECISIONS.md 2026-07-07: one CLI, one way) —
 `just repl` and `just smoke-agent` both point here now.
 
-Cheap-first (owner directive 2026-07-06, decisions.md): set
+Cheap-first (owner directive 2026-07-06, DECISIONS.md): set
 `ASKRAG_AGENT_API_BASE_URL` + `OPENROUTER_API_KEY` to route through
 `smoke_model` via OpenRouter; leave both unset to hit real Anthropic/Haiku
 (D3) directly.

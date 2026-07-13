@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 // D9's fallback ladder, isolated to this one file — the named seam spec §4d
 // calls out ("`arxiv-pdf-frame.tsx` isolates the D9 fallback ladder"), so a
 // future rung change (or a real Safari/WebKit failure — spec §10, unverified
-// here) is a swap inside this file, nothing else. D-2 (decisions.md):
+// here) is a swap inside this file, nothing else. D-2 (DECISIONS.md):
 // inverted from D9's original iframe-first draft — an embedded webview with
 // no native PDF plugin turns an iframe PDF load into a download (observed
 // 2026-07-04), so rung 2 (PDF.js fetching bytes itself, in the user's

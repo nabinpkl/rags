@@ -150,7 +150,7 @@ prices drop (they do) → re-run the arithmetic.
 at a cheap OpenRouter model (`smoke_model`) for a live smoke before spending
 on Haiku. Prod serving is unchanged — empty `agent_api_base_url` is direct
 Anthropic/Haiku, this decision's arithmetic still holds. Full record:
-decisions.md 2026-07-06.
+DECISIONS.md 2026-07-06.
 
 ---
 
@@ -266,7 +266,7 @@ against that budget outweighs a few MTEB points; ingest-time speed doesn't
 carry the same weight (Mac + MPS, one-time job). Uses Nomic's mandatory
 asymmetric prefixes (`search_document: ` / `search_query: `) — both sides
 read the same config knobs, or recall silently degrades. Full gate record
-(sentence-transformers, torch) and the model-selection evidence: decisions.md
+(sentence-transformers, torch) and the model-selection evidence: DECISIONS.md
 2026-07-05. **Per-model artifact keying** (new invariant, this amendment):
 every vectors parquet lives at `corpus/vectors/<model_slug>.parquet` (slug =
 short model name + dims) with full provenance in the parquet file metadata
@@ -341,7 +341,7 @@ estimate (24% of chunks <200 tokens), accepted for the demo because the
 revisit trigger above is recall@k, not a count. A `chunk_min_tokens` merge
 knob exists in config, disabled by default (0 = no merge); the #19 eval sweep
 decides whether merging the small-chunk tail helps recall before it is
-enabled. See decisions.md 2026-07-05.
+enabled. See DECISIONS.md 2026-07-05.
 
 ---
 
@@ -495,7 +495,7 @@ budgeting is weak against rotation — accepted; the global cap is the real
 backstop, the per-IP layer just keeps one visitor from accidentally hogging.
 The budget gate (#21) is a pre-flight read, so concurrent in-flight requests
 can overshoot the cap by at most (in-flight count) × (per-message cost cap) —
-accepted-and-bounded, tightened at #23/#30 if needed (decisions.md 2026-07-05).
+accepted-and-bounded, tightened at #23/#30 if needed (DECISIONS.md 2026-07-05).
 
 **Revisit when.** Real traffic regularly exhausts the cap (a good problem:
 raise it, or add opt-in BYO-key for power users). Abuse defeats Cloudflare
@@ -729,7 +729,7 @@ this decision closes, not a variant of it); filtering only at the FastAPI
 route layer instead of the shared SQL predicate (reopens the copy-paste
 risk D-2/#27 closed by centralizing count queries in `askrag.facets`);
 leaving `corpus_stats` unscoped as a fast-follow (an interim call, revised
-during PR #74 review — see decisions.md: it kept the M4-demo bug reachable
+during PR #74 review — see DECISIONS.md: it kept the M4-demo bug reachable
 through agent answers, e.g. "how big is your corpus?" → "6,460 papers"
 while `count_papers`' own buckets summed to ~200 in the same turn);
 deferring the `SYSTEM_PROMPT` fix to a fast-follow too (also rejected —
@@ -796,7 +796,7 @@ implies. Anything not listed here is not in v1.
 | Validation | pydantic v2 | request/response + tool-argument schemas (the `drive_ui` enum lives here) |
 | LLM | `anthropic` SDK | Haiku 4.5, prompt caching, streaming (D3) |
 | Embeddings | **sentence-transformers** (local, default) / httpx → Voyage REST API (parked) | nomic-embed-text-v1.5 @512d, `embedding_backend` flag (D5 second amendment); Voyage (voyage-4-lite @512d) stays wired behind the flag |
-| Vector archive | **pyarrow** (pinned) | writes/reads per-model `corpus/vectors/<model_slug>.parquet` — the D4/D5 embedding archive index layers rebuild from; gate record in decisions.md 2026-07-05 |
+| Vector archive | **pyarrow** (pinned) | writes/reads per-model `corpus/vectors/<model_slug>.parquet` — the D4/D5 embedding archive index layers rebuild from; gate record in DECISIONS.md 2026-07-05 |
 | Vector store | **chromadb** (embedded, pinned) | D4 |
 | Metadata/FTS/traces | **sqlite3** stdlib + FTS5 | D4, D13; no ORM — the SQL *is* portfolio material |
 | PDF extraction | **pymupdf4llm** | D6, offline only |
@@ -1119,7 +1119,7 @@ box is public.
 | Output-side XSS | Model emits hostile markdown/HTML sourced from a paper | Render as sanitized markdown (no raw HTML); citations verified server-side against real chunk ids before display |
 | Sandbox abuse | Injected/hostile code in `run_python` | D10: no network, read-only public data, rlimits, fresh container, non-root |
 | Cross-user leakage | Session bleed, shared caches | Ephemeral sessions (TTL, server-side); no cross-user caches except the immutable corpus; per-execution sandboxes |
-| SQL injection (ish) | N/A — no model-authored SQL; `query_metadata` is an enum'd union of parameterized shapes only (decisions.md 2026-07-06, pre-#23) | Vector retired: filters bind as `?`, `group_by` resolves through a server-side column map, no free-form SQL field exists in the schema |
+| SQL injection (ish) | N/A — no model-authored SQL; `query_metadata` is an enum'd union of parameterized shapes only (DECISIONS.md 2026-07-06, pre-#23) | Vector retired: filters bind as `?`, `group_by` resolves through a server-side column map, no free-form SQL field exists in the schema |
 | Box compromise | Standard VPS surface | Caddy auto-TLS, ssh keys only, fail2ban, unattended-upgrades, admin behind basic-auth + Cloudflare |
 
 **Residual risks, stated:** kernel-level container escape (accepted — public
@@ -1182,7 +1182,7 @@ text). Risk management, not legal advice; each rule tagged by its basis.
 | Per-paper `license` field carried from the Kaggle seed into `corpus.db` at ingest; CC0/CC-BY papers *may* show fuller text with attribution (v2 option, not v1 scope); the "vast majority" default-license papers get the caps above | Conservative choice; the metadata provides the field for exactly this |
 | Takedown path: a contact link, and removal of a paper's summaries/excerpts from the index on author objection | Conservative choice mirroring Semantic Scholar et al. |
 
-**Clarification (2026-07-06, decisions.md; issue #58):** row 1 and row 4 are
+**Clarification (2026-07-06, DECISIONS.md; issue #58):** row 1 and row 4 are
 two different enforcement points, not one. `read_paper` (row 1) is the
 MODEL's read tool — it returns page-bounded extracted text up to
 `config.read_paper_max_tokens`, a real budget for a real deep read, and must

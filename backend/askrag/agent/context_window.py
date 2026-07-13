@@ -5,7 +5,7 @@ Token counts here are a pre-call ESTIMATE (tiktoken, `tokenizer_encoding`)
 used only to decide when to evict; the loop's real cost/budget accounting
 comes from the API's `usage` field on each response, not this estimate.
 
-Evict-only for v1, not evict-then-summarize (decisions.md 2026-07-06):
+Evict-only for v1, not evict-then-summarize (DECISIONS.md 2026-07-06):
 summarizing needs an extra model call, which breaks the API-free test story
 (house rule — tests never call an LLM) and spends part of the very budget it
 is trying to save. Revisit trigger: eviction demonstrably drops context an

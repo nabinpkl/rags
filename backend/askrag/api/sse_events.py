@@ -69,7 +69,7 @@ class UiActionEvent:
     through untouched here — corpus.db existence-checking still happens at
     tool dispatch, unaffected by this event firing first.
 
-    ADVISORY, NOT VALIDATED (decisions.md 2026-07-07): `translate()` builds
+    ADVISORY, NOT VALIDATED (DECISIONS.md 2026-07-07): `translate()` builds
     this from the `TOOL_CALL` `AgentEvent`, i.e. the model's raw args
     *before* `drive_ui.run()` checks the target against corpus.db. A
     hallucinated or malformed target can still produce a `ui_action` here; a
@@ -101,7 +101,7 @@ class CostEvent:
 @dataclass(frozen=True)
 class Citation:
     """One paper's cited chunk ids, ids only — no chunk text ever rides the
-    stream (§6c row 4/D-1, issue #27 decisions.md: "ids on the wire, text
+    stream (§6c row 4/D-1, issue #27 DECISIONS.md: "ids on the wire, text
     only from the capped `GET /api/papers/{id}?chunks=` endpoint"). Groups
     `traces.Citation` pairs (one per retrieved chunk) by paper_id. A nested
     payload on `DoneEvent`, not its own SSE vocabulary member — no `type`
