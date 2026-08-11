@@ -78,7 +78,10 @@ class Settings(BaseSettings):
     )
     # Smoke-only model, routed through OpenRouter when agent_api_base_url is
     # set. Prod agent stays `agent_model` (Haiku, D3) regardless.
-    smoke_model: str = "deepseek/deepseek-v4-flash"
+    # Version-pinned (not the floating `deepseek-v4-flash` alias): a smoke
+    # model that silently changes under us turns "the loop still works" into
+    # an unrepeatable observation.
+    smoke_model: str = "deepseek/deepseek-v4-flash-0731"
 
     # --- ingest: extraction (D6) -------------------------------------------
     extract_workers: int = 8  # process pool size; extraction is CPU-bound C
