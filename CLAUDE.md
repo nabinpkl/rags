@@ -83,6 +83,9 @@ work is broken into GitHub issues.
   `just eval`. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
   `POST /api/chat`). Frontend (after #26): `pnpm build`, `pnpm gen:api`.
+- Deploy (#81): `just deploy` (compose up; ingress on loopback), `just
+  deploy-tailnet` (publish via the host's tailscaled), plus `deploy-logs`,
+  `deploy-down`, `deploy-reseed`. Runbook: `deploy/README.md`.
   <!-- Update this section as recipes land; wrong commands are worse than none. -->
 
 ## Evolving this file (coordinator mandate)

@@ -104,6 +104,57 @@ smoke-agent *ARGS:
     question="${question#q=}"
     cd backend && uv run python -m askrag.cli "$question"
 
+# --- deployment (#81; D13) ------------------------------------------------
+# compose lives in deploy/, so `docker compose -f deploy/compose.yml` picks up
+# deploy/.env automatically (project dir = the compose file's dir).
+
+# Build images and bring the stack up (ingress on 127.0.0.1 only)
+deploy *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f deploy/.env ]; then
+        echo "deploy/.env missing — cp deploy/.env.example deploy/.env and fill it in" >&2
+        exit 1
+    fi
+    docker compose -f deploy/compose.yml up -d --build {{ARGS}}
+    docker compose -f deploy/compose.yml ps
+
+# Stop the stack (volumes survive: traces.db and the chroma copy)
+deploy-down *ARGS:
+    docker compose -f deploy/compose.yml down {{ARGS}}
+
+# Follow container logs
+deploy-logs *ARGS:
+    docker compose -f deploy/compose.yml logs -f {{ARGS}}
+
+# Re-seed the chroma volume from the host snapshot — run after a re-ingest
+# (D12: refreshing prod = new snapshot + restart), NOT part of a normal deploy
+deploy-reseed:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    docker compose -f deploy/compose.yml down
+    docker volume rm askrag_chroma
+    just deploy
+
+# Publish the loopback ingress onto the tailnet (tailnet HTTPS + MagicDNS).
+# Needs the tailscale operator or sudo; idempotent.
+deploy-tailnet:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; . deploy/.env; set +a
+    ingress="${ASKRAG_INGRESS_PORT:-8420}"
+    tsport="${ASKRAG_TAILNET_PORT:-8443}"
+    tailscale serve --bg --https="$tsport" "http://127.0.0.1:${ingress}"
+    host="$(tailscale status --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
+    echo "askRAG is on the tailnet: https://${host}:${tsport}"
+
+# Withdraw the tailnet listener (the stack keeps running on loopback)
+deploy-tailnet-off:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; . deploy/.env; set +a
+    tailscale serve --https="${ASKRAG_TAILNET_PORT:-8443}" off
+
 # Backend tests only (pytest via uv; extra args pass through)
 be-test *ARGS:
     cd backend && uv run pytest {{ARGS}}

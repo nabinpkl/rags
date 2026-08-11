@@ -1,0 +1,82 @@
+# syntax=docker/dockerfile:1
+#
+# askRAG API image (D13). Build context is the REPO ROOT: the uv workspace
+# (issue #79) resolves from the root pyproject.toml + the one shared uv.lock,
+# so every member's manifest must be present even though only `askrag` is
+# installed here.
+#
+# Corpus artifacts are never baked in — they mount read-only at run time
+# (D12 snapshot, D4 read-only serving posture).
+
+# Base images are digest-pinned, same rule as CI's SHA-pinned actions
+# (sdlc.md dependency gate); the trailing comment names the tag each digest
+# was resolved from.
+# uv:python3.13-bookworm-slim
+FROM ghcr.io/astral-sh/uv@sha256:531f855bda2c73cd6ef67d56b733b357cea384185b3022bd09f05e002cd144ca AS builder
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+WORKDIR /app
+
+# Dependency layer: manifests + lock only, so editing backend source doesn't
+# re-resolve or re-download torch. --no-install-workspace installs the locked
+# third-party deps WITHOUT any workspace member.
+COPY pyproject.toml uv.lock ./
+COPY backend/pyproject.toml backend/
+COPY evals/pyproject.toml evals/
+COPY collector/pyproject.toml collector/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-workspace --package askrag
+
+# Source layer: install askrag itself as a built wheel (--no-editable), so
+# the runtime stage needs nothing but the venv.
+COPY backend/ backend/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-editable --package askrag
+
+
+# python:3.13-slim-bookworm
+FROM python@sha256:00faa2debb87529f9f0764e9491d8ba400a3678976616c3bd7cb193745ac20d1 AS runtime
+
+# Non-root by construction; uid/gid are fixed so the traces volume keeps a
+# stable owner across rebuilds.
+RUN groupadd --system --gid 10001 askrag \
+    && useradd --system --uid 10001 --gid 10001 --no-create-home askrag
+
+COPY --from=builder --chown=root:root /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+# askrag is installed into site-packages, so config.py's _REPO_ROOT default
+# does NOT resolve to anything meaningful in-container. Every data path is
+# therefore explicit here (compose mounts match these, ro/rw as noted).
+ENV ASKRAG_CORPUS_DIR=/data/corpus \
+    ASKRAG_EMBEDDING_CACHE_DIR=/data/corpus/models \
+    ASKRAG_TRACES_DB_PATH=/state/traces.db \
+    PYTHONUNBUFFERED=1 \
+    # The embedding weights are a pinned revision already present in the
+    # read-only cache mount (D5). Offline mode makes that a guarantee: no
+    # hub call at startup, no write attempt against a ro mount.
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
+
+# /state must exist and be askrag-owned IN THE IMAGE: Docker initializes a
+# fresh named volume from the image path it is mounted over, ownership
+# included. Created root-owned (or not at all), the volume would land as
+# root:root and the non-root process could not create traces.db.
+RUN mkdir -p /state /data/corpus \
+    && chown askrag:askrag /state
+
+WORKDIR /app
+USER askrag
+EXPOSE 8000
+
+# Liveness AND corpus readability in one probe: /api/facets reads corpus.db.
+# urllib, not curl — the slim image ships no HTTP client and this one is free.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD ["python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/facets', timeout=8).read(1)"]
+
+# Single worker on purpose: SessionStore is process-local in-memory state and
+# the budget cascade counts per process (D13 "one FastAPI process, no Redis").
+CMD ["uvicorn", "askrag.api.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+#
+# askRAG web image (D13): Next.js STATIC EXPORT baked into Caddy. No Node
+# process survives the build — prod serves files, and the app is
+# client-rendered against the FastAPI API through this same origin.
+#
+# Build context is the repo root (shared with Dockerfile.api).
+
+# Digest-pinned (see Dockerfile.api); comments name the resolved tags.
+# node:24-bookworm-slim
+FROM node@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS build
+
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    CI=1
+
+WORKDIR /app
+
+# pnpm comes from package.json's packageManager field via corepack — the same
+# version CI pins, never a floating global install.
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+RUN corepack enable && corepack prepare --activate
+RUN --mount=type=cache,target=/pnpm-store \
+    pnpm config set store-dir /pnpm-store && pnpm install --frozen-lockfile
+
+COPY frontend/ ./
+
+# Empty = same-origin ("/api/..." through Caddy), which is the deployed
+# shape. Overridable for a split-origin deployment; lib/api-client.ts reads
+# it at BUILD time, so it is baked, not runtime config.
+ARG NEXT_PUBLIC_API_BASE_URL=""
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
+RUN pnpm build
+
+
+# caddy:2-alpine
+FROM caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 AS runtime
+
+COPY --from=build /app/out /srv
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+
+EXPOSE 8080
