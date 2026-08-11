@@ -20,6 +20,7 @@ import anthropic
 
 from askrag import traces
 from askrag.agent.context_window import evict_oldest
+from askrag.agent.pricing import TurnCost
 from askrag.agent.prompts import SYSTEM_PROMPT, fence
 from askrag.config import Settings, get_settings
 from askrag.tools import registry
@@ -259,16 +260,14 @@ def run_turn(
     messages = [*messages, {"role": "user", "content": user_message}]
     tool_params = _tool_params()
     tool_records: list[ToolCallRecord] = []
-    # `fresh_in` (input_tokens + cache_creation_input_tokens) is billed at the
-    # full input rate; `cache_read` at the reduced rate (D3 prompt caching).
-    # Both count toward real context size for the budget check and the
-    # persisted `tokens_in` total below — only the PRICE differs, not whether
-    # a cache-read token counts as "used". Folding cache_creation into the
-    # full input rate is a deliberate approximation: Anthropic actually bills
-    # cache WRITES at ~1.25x input, and config has no
-    # agent_usd_per_mtok_cache_write — the delta is sub-cent on a few k of
-    # system+tools tokens, negligible against the $0.50/day cap (D11).
-    fresh_in = out = cache_read = 0
+    # Token tiers and dollars both live in TurnCost (pricing.py): the provider's
+    # own `usage.cost` when it reports one, config's rate table otherwise.
+    # Folding cache_creation into the full input rate is a deliberate
+    # approximation on the table path — Anthropic bills cache WRITES at ~1.25x
+    # input and config has no agent_usd_per_mtok_cache_write — the delta is
+    # sub-cent on a few k of system+tools tokens, negligible against the
+    # $0.50/day cap (D11).
+    cost = TurnCost()
     stop_reason = StopReason.END_TURN
     final_text = ""
     step = 0
@@ -279,9 +278,7 @@ def run_turn(
         )
         response = client.create(system=SYSTEM_PROMPT, messages=messages, tools=tool_params)
 
-        fresh_in += response.usage.input_tokens + (response.usage.cache_creation_input_tokens or 0)
-        out += response.usage.output_tokens
-        cache_read += response.usage.cache_read_input_tokens or 0
+        cost.add(response.usage)
         messages = [*messages, {"role": "assistant", "content": response.content}]
 
         text = _text_of(response)
@@ -296,7 +293,7 @@ def run_turn(
         if step > settings.max_tool_steps_per_message:
             stop_reason = StopReason.STEP_CAP
             break
-        if fresh_in + cache_read + out > settings.message_token_budget:
+        if cost.tokens_total > settings.message_token_budget:
             stop_reason = StopReason.TOKEN_BUDGET
             break
 
@@ -311,25 +308,19 @@ def run_turn(
             messages, ceiling_tokens=settings.message_token_budget, settings=settings
         )
         response = client.create(system=SYSTEM_PROMPT, messages=messages, tools=None)
-        fresh_in += response.usage.input_tokens + (response.usage.cache_creation_input_tokens or 0)
-        out += response.usage.output_tokens
-        cache_read += response.usage.cache_read_input_tokens or 0
+        cost.add(response.usage)
         messages = [*messages, {"role": "assistant", "content": response.content}]
         final_text = _text_of(response) or final_text
 
-    tokens_in = fresh_in + cache_read  # the persisted/reported total, billing-tier-agnostic
-    cost_usd = (
-        fresh_in / 1_000_000 * settings.agent_usd_per_mtok_in
-        + out / 1_000_000 * settings.agent_usd_per_mtok_out
-        + cache_read / 1_000_000 * settings.agent_usd_per_mtok_cache_read
-    )
+    tokens_in = cost.tokens_in
+    cost_usd = cost.usd(settings)
     run_id = traces.record_run(
         session_id=session_id,
         ip=ip,
         question=user_message,
         answer_text=final_text,
         tokens_in=tokens_in,
-        tokens_out=out,
+        tokens_out=cost.out,
         cost_usd=cost_usd,
         latency_ms=(time.monotonic() - started) * 1000,
         tool_calls=tool_records,
@@ -343,7 +334,7 @@ def run_turn(
         stop_reason=stop_reason,
         tool_calls=tuple(tool_records),
         tokens_in=tokens_in,
-        tokens_out=out,
+        tokens_out=cost.out,
         cost_usd=cost_usd,
         run_id=run_id,
         messages=messages,

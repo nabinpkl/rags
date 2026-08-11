@@ -14,6 +14,57 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-08-11 — Turn cost comes from the provider when the provider reports it (#81, owner directive)
+
+**Context:** the tailnet deployment routes the agent through OpenRouter's cheap
+smoke model, but the ledger prices every turn from `config.py`'s
+`agent_usd_per_mtok_*` — Haiku's rates (D3). Measured on the deployed box: a
+turn billed $0.0039 was logged as $0.0621, ~16x over. Three verification
+questions "spent" the $0.10 daily IP cap (D11) while real spend was under a
+cent, so the demo locked itself out. The owner asked whether pricing could come
+from OpenRouter instead of being hardcoded.
+
+**Decision:** it can come from something better than OpenRouter's price table —
+OpenRouter returns `usage.cost`, the exact amount it billed, on every response,
+and the Anthropic SDK preserves it as a pydantic extra (verified against the
+live endpoint: `usage.cost = 2.1e-05`). New `askrag/agent/pricing.py` owns turn
+accounting: `TurnCost` accumulates tokens per billing tier and prefers the
+provider's figure, falling back to the config table when no cost is reported —
+which is exactly the prod path, since real Anthropic sends no such field. No
+config flag selects between them; the provider's own answer decides.
+
+Two rules the tests pin, both about the direction of error:
+- **A mixed turn prices from the table**, never a partial provider sum — summing
+  only the calls that reported would under-report, and under-reporting is the
+  one direction D11's caps cannot absorb (spend passes a gate that should have
+  stopped it).
+- **A non-finite, negative, bool, or non-numeric cost counts as unreported.**
+  NaN especially: `nan > cap` is False, so a poisoned turn would never trip a
+  limit.
+
+**Alternatives rejected:** *fetching `/api/v1/models` pricing at startup* (a
+network dependency in the budget path, a cache to invalidate, and still a
+recomputation rather than the billed truth — the response already carries the
+answer); *per-generation lookups via OpenRouter's generation endpoint* (an
+extra request per turn for a number already in hand); *env-configured rates per
+deployment* (works, but every model change becomes a two-place edit that
+silently rots); *raising the caps* (treats the symptom and leaves the ledger
+lying).
+
+**Consequence:** cost badge, traces.db and the D11 cascade all now reflect real
+money on the OpenRouter path; the Haiku path is byte-identical to before.
+`config.py`'s rate table stays as prod pricing and fallback. Note the caps are
+now meaningful for the staging box: at ~$0.004/turn, $0.10/IP/day is ~25
+questions rather than two.
+
+**Revisit when.** A provider reports cost in a different field or unit (the
+extraction is one `getattr`, deliberately), or prompt-cache write pricing stops
+being a sub-cent approximation on the fallback path.
+
+Spec updated: §7 cost model (amendment 2026-08-11).
+
+---
+
 ## 2026-08-11 — Tailnet-first deployment: same compose, loopback ingress fronted by tailscaled (#81, owner directive)
 
 **Context:** owner directive — containerize backend + frontend and make the

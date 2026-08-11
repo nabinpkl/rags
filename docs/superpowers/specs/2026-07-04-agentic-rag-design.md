@@ -1245,6 +1245,18 @@ Worst case is bounded *by construction* (D11 global cap + flat-cost VPS), not
 by hope. The running per-conversation cost badge in the UI doubles as the
 budget system's public face.
 
+**What a turn costs is the provider's number when the provider states one**
+(amended 2026-08-11, issue #81). OpenRouter returns `usage.cost` — the exact
+amount billed — on every response, and the Anthropic SDK preserves it as a
+pydantic extra; `agent/pricing.py` uses it verbatim. The `agent_usd_per_mtok_*`
+table in `config.py` remains the fallback and prices the prod path unchanged,
+since real Anthropic reports no cost field (D3). A turn is priced entirely one
+way or the other — a mixed sum would *under*-report, the one error direction
+D11's caps cannot absorb. This matters because the two disagree by more than a
+rounding error: the tailnet deployment's smoke model bills ~16x below the Haiku
+rate table, so a table-priced ledger exhausted a day's cap in three questions
+while real spend was under a cent.
+
 ## 8. Build order
 
 Each milestone ends demoable; risk is front-loaded (retrieval quality and the
