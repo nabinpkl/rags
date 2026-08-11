@@ -62,3 +62,18 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 [tool.ty.environment]
 # Checked at the lowest supported version so 3.13-only APIs can't sneak in.
 python-version = "3.12"
+
+# torch on linux resolves from PyTorch's CPU index, not PyPI (issue #81,
+# DECISIONS.md 2026-08-11). PyPI's linux torch drags the whole CUDA stack
+# (cuda-toolkit + 20 nvidia-* wheels, 2.9 GB) into an environment that will
+# never have a GPU: D13 sizes prod at 2 vCPU / 4 GB, and embedding runs are
+# CPU/MPS by measurement (D5). Marker-scoped to linux on purpose — macOS
+# wheels carry no CUDA and MPS lives in the PyPI build, so dev machines
+# resolve exactly as before.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]

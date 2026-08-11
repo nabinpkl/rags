@@ -1,0 +1,67 @@
+# askRAG ingress (D13). One origin: static export at /, FastAPI under /api.
+#
+# TLS is deliberately absent here. In the tailnet deployment (issue #81) the
+# host's tailscaled terminates HTTPS with a tailnet cert and proxies to this
+# port on loopback; the public deployment (#37) puts Caddy's auto-TLS in
+# front of the SAME file by adding a site block with a real hostname.
+
+{
+	admin off
+	auto_https off
+	log {
+		format json
+	}
+}
+
+:8080 {
+	encode zstd gzip
+
+	# --- API -------------------------------------------------------------
+	handle /api/* {
+		reverse_proxy api:8000 {
+			# SSE is the whole agent UX (D13): -1 disables response
+			# buffering so each event reaches the browser when it is
+			# written, not when a buffer fills.
+			flush_interval -1
+			# No read timeout: an agent turn can think for many seconds
+			# between events without the stream being cut.
+			transport http {
+				read_timeout 0
+			}
+		}
+	}
+
+	# --- static export ----------------------------------------------------
+	handle {
+		root * /srv
+		# next export writes /foo.html, not /foo/index.html.
+		try_files {path} {path}.html {path}/index.html /404.html
+		file_server
+	}
+
+	handle_errors {
+		rewrite * /404.html
+		root * /srv
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Cross-Origin-Opener-Policy same-origin
+		-Server
+
+		# connect-src/frame-src name arxiv.org because the viewer's PDF
+		# bytes go browser -> arxiv.org DIRECTLY and never through us
+		# (D9/§6b); if this policy ever needs a PDF host of our own, that
+		# is a compliance bug, not a CSP fix. 'unsafe-inline' on scripts is
+		# forced by the static export's inline bootstrap — a nonce needs a
+		# server that renders HTML, which D13 deliberately does not run.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' https://arxiv.org https://export.arxiv.org; frame-src https://arxiv.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+	}
+
+	# Immutable build assets; everything else stays revalidated so a redeploy
+	# is visible without a hard refresh.
+	@static path /_next/static/*
+	header @static Cache-Control "public, max-age=31536000, immutable"
+}

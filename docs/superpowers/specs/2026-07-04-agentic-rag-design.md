@@ -570,6 +570,32 @@ point of failure — accepted for a demo; downtime costs nothing but pride.
 managed Postgres (D4 trigger) and a second box. The demo outgrows one
 maintainer's patience for ops → PaaS with the sandbox story redesigned.
 
+**Amendment 2026-08-11 (owner directive, issue #81): the stack lands on the
+tailnet before it lands in public.** The same `deploy/` artifacts run in two
+ingress modes. *Tailnet (now):* Caddy publishes on `127.0.0.1` only and the
+host's `tailscaled` fronts it via `tailscale serve` — tailnet HTTPS and a
+MagicDNS name, no public DNS, no Cloudflare, no auth to build, no bill to
+cap. *Public (#37):* the same compose file plus a Caddy site block with a
+real hostname and auto-TLS. Three constraints surfaced building it, each
+load-bearing:
+
+- **Chroma cannot run from the read-only snapshot.** `PersistentClient`
+  writes to its own SQLite on open (measured: `attempt to write a readonly
+  database`), so the vector index is copied into a container-private volume
+  at first deploy while the host snapshot stays untouched. corpus.db keeps
+  its `mode=ro` posture unchanged (D4).
+- **Prod torch is CPU-only.** PyPI's linux torch drags 2.9 GB of CUDA
+  wheels into a box that will never have a GPU; linux resolves from
+  PyTorch's CPU index instead (image 5.5 GB → 2.5 GB). macOS/MPS dev is
+  untouched.
+- **PDFs stay absent from the deployment, not merely unserved** — `pdfs/` is
+  not mounted into any container and `.dockerignore` keeps `corpus/` out of
+  every build context, so §6b holds by construction rather than by routing.
+
+**Revisit when.** The demo goes public (#37 flips the ingress), or a second
+deployment target appears (then the two modes want separate compose
+overlays, not one file with an env switch).
+
 ---
 
 ### D14. Eval harness ships in v1 and gates retrieval decisions
@@ -1005,8 +1031,11 @@ rags/
 │       └── viewer-store.test.ts     # drive_ui actions mutate store + URL symmetrically
 ├── deploy/
 │   ├── compose.yml                  # api + caddy services; corpus artifacts mounted ro; sandbox spawned ad-hoc (not a service)
-│   ├── Caddyfile                    # TLS, static frontend, /api reverse proxy, /admin basic-auth
+│   ├── Dockerfile.api               # uv workspace build, non-root, CPU-only torch; corpus mounts, never bakes
+│   ├── Dockerfile.web               # pnpm static export baked into Caddy; no Node process in prod
+│   ├── Caddyfile                    # TLS, static frontend, /api reverse proxy (SSE flush), /admin basic-auth
 │   ├── .env.example                 # every secret/setting the box needs, documented, no values
+│   ├── README.md                    # deploy + tailnet runbook (D13 amendment)
 │   └── backup.sh                    # nightly rclone of corpus.db, chroma/, traces.db (D13)
 └── e2e/
     └── demo-flow.spec.ts            # Playwright smoke: load explorer → ask agent → citation opens viewer (against deployed URL)

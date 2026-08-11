@@ -1,0 +1,97 @@
+# askRAG deployment (D13). Two services: the FastAPI API and Caddy serving
+# the static export + proxying /api. The sandbox (D10) is NOT a service — it
+# is spawned ad-hoc per execution.
+#
+# Ingress binds LOOPBACK ONLY. Reachability is the host's job: tailscaled
+# fronts this port with a tailnet cert (`just deploy-tailnet`, issue #81), and
+# the public deployment (#37) will front the same port with real TLS. Nothing
+# here ever listens on 0.0.0.0.
+
+name: askrag
+
+services:
+  # Chroma's PersistentClient writes to its own sqlite on open (verified
+  # 2026-08-11: `attempt to write a readonly database` against a ro dir), so
+  # it cannot run off the read-only snapshot like corpus.db does. The host
+  # snapshot stays pristine and the container gets a private copy in a volume,
+  # seeded once (DECISIONS.md 2026-08-11).
+  chroma-seed:
+    image: alpine@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce # alpine:3.22
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        if [ -z "$$(ls -A /dst 2>/dev/null)" ]; then
+          echo "seeding chroma volume from snapshot..."
+          cp -a /src/. /dst/
+        else
+          echo "chroma volume already seeded; leaving it alone"
+        fi
+        chown -R 10001:10001 /dst
+    volumes:
+      - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/chroma:/src:ro
+      - chroma:/dst
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    image: askrag-api:local
+    depends_on:
+      chroma-seed:
+        condition: service_completed_successfully
+    environment:
+      # D11 budget caps and D3 model selection live in config.py defaults;
+      # only deployment-specific values belong here.
+      ASKRAG_CORS_ALLOWED_ORIGINS: "[]" # same-origin behind Caddy
+      ASKRAG_AGENT_API_BASE_URL: ${ASKRAG_AGENT_API_BASE_URL:-}
+      ASKRAG_SMOKE_MODEL: ${ASKRAG_SMOKE_MODEL:-deepseek/deepseek-v4-flash}
+      ASKRAG_TRACE_IP_HASH_SALT: ${ASKRAG_TRACE_IP_HASH_SALT:?set a salt in deploy/.env — unsalted IP hashes are reversible}
+      ASKRAG_GLOBAL_DAILY_SPEND_CAP_USD: ${ASKRAG_GLOBAL_DAILY_SPEND_CAP_USD:-0.50}
+      ASKRAG_IP_DAILY_SPEND_CAP_USD: ${ASKRAG_IP_DAILY_SPEND_CAP_USD:-0.10}
+      ASKRAG_LOG_LEVEL: ${ASKRAG_LOG_LEVEL:-INFO}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      # The corpus snapshot is read-only by construction (D4/D12). pdfs/ is
+      # absent on purpose: nothing we serve may touch it (§6b).
+      - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/corpus.db:/data/corpus/corpus.db:ro
+      - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/models:/data/corpus/models:ro
+      - chroma:/data/corpus/chroma
+      # traces.db is the ONLY writable store (D13).
+      - traces:/state
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    image: askrag-web:local
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${ASKRAG_INGRESS_PORT:-8420}:8080"
+    cap_drop: [ALL]
+    # /usr/bin/caddy carries cap_net_bind_service as a FILE capability, and
+    # exec'ing such a binary fails with EPERM unless the capability is in the
+    # bounding set — so this is required to start, not to bind: the listener
+    # is 8080, an unprivileged port.
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+volumes:
+  # Container-private copy of the vector index (see chroma-seed).
+  chroma:
+  # Spend, sessions, traces — survives redeploys; backed up by #37's backup.sh.
+  traces:

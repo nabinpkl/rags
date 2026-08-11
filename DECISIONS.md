@@ -14,6 +14,102 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-08-11 — Tailnet-first deployment: same compose, loopback ingress fronted by tailscaled (#81, owner directive)
+
+**Context:** owner directive — containerize backend + frontend and make the
+stack reachable over the tailnet. #37 (public VPS, Cloudflare, backups, admin)
+stays open and unblocked-by-this; what was missing is any deployable artifact at
+all. The box already runs `tailscaled` with five other services published via
+`tailscale serve`.
+
+**Decision:** build the `deploy/` artifacts D13 always called for (compose,
+Caddyfile, `.env.example`, plus a Dockerfile per service), and make **ingress
+mode** the only thing that differs between tailnet and public. Caddy publishes
+on `127.0.0.1:${ASKRAG_INGRESS_PORT}` and nothing else; `just deploy-tailnet`
+runs `tailscale serve` on the host, which terminates tailnet TLS and proxies to
+that loopback port. No auth layer, no public DNS, no Cloudflare — the tailnet
+*is* the access control, which is exactly why it is the right first target for a
+budget-capped anonymous-by-design agent endpoint.
+
+**Alternatives rejected:** *Tailscale sidecar container* (its own tailnet node
+and MagicDNS name, and `docker compose up` would be the entire deploy — but it
+needs a minted auth key + state volume, and this box's convention is already
+host-level `serve`; revisit if the stack moves to a host without tailscaled);
+*bind Caddy straight to the tailnet IP* (simplest, but plain HTTP and no
+MagicDNS cert); *public deploy now* (that is #37, and it wants the compliance +
+self-attack checklist in #38 done first).
+
+**Consequence:** the deployment is host-coupled — one step (`tailscale serve`)
+lives outside compose, and it needs the tailscale operator or sudo. `just
+deploy-tailnet` / `deploy-tailnet-off` wrap it; the runbook is `deploy/README.md`.
+Ingress mode is the single diff #37 has to change.
+
+Spec updated: D13 amendment 2026-08-11 + §4c `deploy/` tree.
+
+---
+
+## 2026-08-11 — Chroma gets a container-private copy; the corpus snapshot stays read-only (#81)
+
+**Context:** D4/D12 say serving runs off a read-only snapshot, and #37's plan
+says "corpus artifacts ro". corpus.db honours that by construction
+(`db.connect_corpus()` opens `mode=ro`). Chroma does not: `PersistentClient`
+writes to its own SQLite the moment it opens, so a `:ro` mount fails at startup
+with `error returned from database: (code: 8) attempt to write a readonly
+database` (measured 2026-08-11 against a chmod'd copy, before writing any
+compose).
+
+**Decision:** mount `corpus.db` and `models/` read-only as planned, and give
+Chroma a **container-private copy in a named volume**, seeded once from the host
+snapshot by a one-shot `chroma-seed` service that `api` waits on
+(`service_completed_successfully`). The host snapshot is never opened writable
+by anything. `just deploy-reseed` rebuilds the volume after a re-ingest.
+
+**Alternatives rejected:** *mount `corpus/chroma` rw* (one bug away from the
+container mutating the snapshot — exactly the posture D4 exists to prevent);
+*bake the index into the image* (rebuild per corpus refresh, and D12 deliberately
+keeps the snapshot as data, not build input); *tmpfs* (not shareable between the
+seed and api containers, and re-copied on every restart).
+
+**Consequence:** ~37 MB of duplication at the 200-paper sample. At the full
+6,460-paper corpus (#15) this is the seed step's real cost and the volume's
+real size — measure it there; if the copy becomes slow enough to notice at
+deploy time, that is the revisit trigger for a read-only Chroma alternative or
+a rebuilt-in-place index.
+
+Spec updated: D13 amendment 2026-08-11.
+
+---
+
+## 2026-08-11 — torch resolves from the CPU index on linux (#81)
+
+**Context:** the shared lock's linux torch is the PyPI build, which depends on
+`cuda-toolkit` + ~20 `nvidia-*` wheels: 2.9 GB of CUDA in a venv of 5.3 GB. The
+deploy target (D13: 2 vCPU / 4 GB, and the current aarch64 box) has no GPU and
+never will; embedding runs are CPU/MPS by measurement (D5). A naive API image
+came to ~5.5 GB on a box with 28 GB free.
+
+**Decision:** `backend/pyproject.toml` pins an explicit `pytorch-cpu` index and
+sources torch from it **for linux only**
+(`marker = "sys_platform == 'linux'"`). `uv.lock` drops the whole CUDA stack;
+the API image is 2.53 GB. macOS resolves exactly as before — those wheels carry
+no CUDA and MPS lives in the PyPI build — so the Mac ingest path (D5's measured
+operating point) is untouched.
+
+**Alternatives rejected:** `[tool.uv] torch-backend = "cpu"` (verified inert
+under `--frozen`: it does not affect a locked resolution); `uv sync
+--no-install-package` for each CUDA wheel (would need all ~20 named in the
+Dockerfile, and torch would import against missing libs); accepting the 5.5 GB
+image (disk is the scarce resource on the target box).
+
+**Consequence:** linux dev boxes now get CPU torch too — correct here (no GPU),
+but a GPU linux machine joining the project would need this marker revisited.
+`just check` stays green on the CPU wheels (backend 342 passed / 1 skipped;
+frontend 110). Local venv 5.3 GB → 1.5 GB.
+
+Spec updated: D13 amendment 2026-08-11.
+
+---
+
 ## 2026-07-09 — Evals live at repo root; a uv-workspace prefactor is the one prerequisite (#79, owner directive)
 
 **Context:** refining the #17 plan, the owner directed that the eval harness

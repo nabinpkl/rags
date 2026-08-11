@@ -1,0 +1,31 @@
+# Build context = repo root (both images need the workspace lock / the
+# frontend tree). Everything heavy or host-specific stays out — most of all
+# corpus/, which is 12 GB and reaches containers as read-only MOUNTS, never
+# as image layers (D12: the snapshot is data, not build input; §6b: PDFs are
+# never packaged at all).
+corpus/
+.venv/
+.git/
+.worktrees/
+.claude/run/
+
+# Node + Next build outputs: the web image runs its own pnpm install/build,
+# and a host-built out/ would silently win over it.
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Local state and secrets — traces.db is a compose volume, .env comes from
+# the environment at run time.
+traces.db
+*.db-shm
+*.db-wal
+.env
+**/.env
+!deploy/.env.example
