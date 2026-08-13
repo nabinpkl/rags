@@ -27,6 +27,10 @@
      must stay dark enough for near-white text in both themes. One token
      serving both roles is what makes a dark theme unreadable. */
   --teal-ink: #0e5f56;
+  /* Hover fill for a control that is ALREADY filled because it is selected.
+     Such a control can't use the unselected hover (`--paper`): stepping
+     toward the resting background reads as a step back toward unselected. */
+  --teal-soft-strong: #cfe5e0;
 }
 
 .dark {
@@ -42,6 +46,7 @@
   --line: #2c343a;
   --teal-soft: #12332e;
   --teal-ink: #57d4bd;
+  --teal-soft-strong: #1b463f;
 }
 
 @theme inline {
@@ -60,6 +65,10 @@
   --color-machine-muted: #6d7d88;
   --color-teal: #12a38f;
   --color-teal-deep: #0e5f56;
+  /* Hover surface for the Ask button. DARKER than its resting colour, not
+     lighter: that button's label is near-white, and the intuitive move —
+     hovering toward `--color-teal` — drops it to 2.9:1, under AA. */
+  --color-teal-deep-hover: #0b4c45;
   --color-amber: #c9821a;
   --color-amber-soft: #f4e8d3;
   --color-rust: #a8412e;
@@ -71,7 +80,35 @@
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-teal-soft: var(--teal-soft);
+  --color-teal-soft-strong: var(--teal-soft-strong);
   --color-teal-ink: var(--teal-ink);
+}
+
+/* Interactive affordances, ported from docs/mockup.html (its `button` and
+   `:focus-visible` rules), which the components never carried over.
+   They belong here rather than on each control because they must hold for
+   controls that don't exist yet: spelled per-component, they drift the moment
+   someone adds a button, which is how a third of the app's controls ended up
+   inert under the pointer.
+
+   Hover COLOUR stays per-component — it depends on the surface a control sits
+   on (paper vs machine room) and on whether it is selected. What is uniform
+   is the promise that a control reacts at all. */
+@layer base {
+  /* Disabled controls opt out: a control that will not respond should not
+     advertise that it will. */
+  button:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 2px;
+  }
 }
 
 body {

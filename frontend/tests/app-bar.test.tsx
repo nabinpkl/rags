@@ -65,4 +65,14 @@ describe("AppBar", () => {
     expect(container.querySelector(".bg-teal")).toBeInTheDocument();
     expect(container.querySelector(".bg-amber")).not.toBeInTheDocument();
   });
+
+  // This bar is touch-first, but it is also what a narrow desktop window
+  // shows, and both its controls shipped with no pointer feedback at all
+  // (#87). Cursor and focus ring come from the base layer; the hover colour
+  // is per-control and so is what can go missing here.
+  it("gives both controls a hover treatment", () => {
+    render(<AppBar />);
+    expect(screen.getByRole("button", { name: /open filters/i }).className).toMatch(/hover:/);
+    expect(screen.getByRole("button", { name: /agent/i }).className).toMatch(/hover:/);
+  });
 });

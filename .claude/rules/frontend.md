@@ -22,6 +22,14 @@ Only askRAG-specific facts live here:
 - **SSE / API surface**: events dispatched using the vocabulary mirrored in
   `lib/sse.ts`; API access only through `lib/api-client.ts` with types from
   `lib/api-types.gen.ts` (generated, never hand-edited).
+- **Interactive affordances are base-layer, hover colour is per-component**
+  (#87): cursor and the focus ring live once in `app/globals.css` so they hold
+  for controls that don't exist yet — never re-spell them on a component.
+  Hover *colour* is per-component (it depends on the surface), and it goes in
+  the shared part of a `cn()`, never in the unselected branch of a
+  conditional: a selected control that stops reacting to the pointer reads as
+  disabled. Palette tokens for hover states are in `globals.css` alongside the
+  colours they step from.
 - **Next.js is static-export here (D13), and this diverges deliberately from
   sibling repos** (chatbot is SSR/RSC): `output: 'export'`, no server actions, no
   dynamic route segments; URL state via search params (`?paper=`). This section is

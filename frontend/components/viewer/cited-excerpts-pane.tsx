@@ -70,7 +70,7 @@ export function CitedExcerptsPane({
               key={section}
               type="button"
               onClick={() => scrollToSection(section)}
-              className="border-line bg-paper text-muted rounded border px-2 py-0.75 font-mono text-[10.5px]"
+              className="border-line bg-paper text-muted hover:border-teal-ink hover:text-teal-ink rounded border px-2 py-0.75 font-mono text-[10.5px]"
             >
               {section}
             </button>

@@ -101,6 +101,20 @@ describe("ThemeMenu", () => {
     expect(setTheme).not.toHaveBeenCalled();
   });
 
+  // The checked row is still a target — clicking it re-picks the theme and
+  // closes the menu. Hover used to live in the unselected branch of the
+  // conditional, so the one row you were most likely to point at was the one
+  // that went inert, which reads as disabled (#87).
+  it("keeps a hover treatment on the checked row, not just the others", () => {
+    mockTheme("light");
+    render(<ThemeMenu />);
+    fireEvent.click(screen.getByRole("button", { name: /theme/i }));
+
+    for (const item of screen.getAllByRole("menuitemradio")) {
+      expect(item.className).toMatch(/hover:/);
+    }
+  });
+
   it("exposes the popup relationship to assistive tech", () => {
     render(<ThemeMenu />);
     const button = screen.getByRole("button", { name: /theme/i });

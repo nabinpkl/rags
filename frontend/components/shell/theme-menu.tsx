@@ -95,8 +95,12 @@ export function ThemeMenu() {
                 setOpen(false);
               }}
               className={cn(
-                "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px]",
-                theme === value ? "text-teal-ink font-semibold" : "text-ink hover:bg-paper",
+                // Hover lives in the base string, not the unselected branch:
+                // the selected row is still a target (it re-picks the theme
+                // and closes the menu), and a row that goes inert under the
+                // pointer reads as disabled.
+                "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] hover:bg-paper",
+                theme === value ? "text-teal-ink font-semibold" : "text-ink",
               )}
             >
               <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
