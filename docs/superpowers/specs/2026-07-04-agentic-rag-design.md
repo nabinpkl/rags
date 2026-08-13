@@ -842,6 +842,7 @@ implies. Anything not listed here is not in v1.
 | Server state | **TanStack Query** | explorer data fetching/caching against FastAPI |
 | Client state | **zustand** | agent-panel session, timeline events, viewer state (`drive_ui` lands here) — one store, so TanStack owns server data and zustand owns UI/session state, never both |
 | Animation | **motion** | timeline streaming-in, panel transitions |
+| Theming | **next-themes** | light/dark/system with the choice persisted; sets `.dark` before first paint, which a static export cannot do itself (#85) |
 | Tables/lists | TanStack Table + TanStack Virtual | 6,460-row explorer stays smooth |
 | SSE client | `@microsoft/fetch-event-source` | POST + headers support that native `EventSource` lacks |
 | Markdown | react-markdown + remark-gfm, **no raw HTML** | the §6 output-sanitization defense, as a dependency choice |
@@ -1015,7 +1016,8 @@ rags/
 │   │   │   └── replay-banner.tsx    # "live budget spent — watching a recorded session" mode switch
 │   │   ├── shell/
 │   │   │   ├── drawer-panel.tsx     # docked column at/above a breakpoint, slide-over drawer below (#83); one element, one child instance
-│   │   │   └── app-bar.tsx          # narrow-viewport bar: filters hamburger + agent toggle; hidden from lg:
+│   │   │   ├── app-bar.tsx          # narrow-viewport bar: filters hamburger + agent toggle; hidden from lg:
+│   │   │   └── theme-menu.tsx       # light/dark/system icon button + menu, mounted in the footer (#85)
 │   │   └── ui/                      # shadcn-generated primitives, unmodified (regenerate, don't edit)
 │   ├── lib/
 │   │   ├── api-client.ts            # typed fetch wrapper over generated types; single base-URL owner

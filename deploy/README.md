@@ -53,6 +53,20 @@ just deploy-tailnet-off # withdraw the tailnet listener, keep serving on loopbac
 just deploy-reseed      # rebuild the chroma volume after a re-ingest (D12 refresh)
 ```
 
+## Disk
+
+`just deploy` rebuilds through BuildKit, whose cache mounts (uv's wheel cache,
+pnpm's store) grow by gigabytes across repeated rebuilds — ~17 GB after a
+day of iterating, on a box that also holds a 12 GB corpus. When the disk gets
+tight:
+
+```bash
+docker builder prune -f && docker image prune -f
+```
+
+Neither touches the running containers or the tagged images they use; the next
+build is just slower.
+
 ## Refreshing the corpus (D12)
 
 Ingest locally, copy the new `corpus.db` / `chroma/` into place on the host, then

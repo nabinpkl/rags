@@ -118,7 +118,7 @@ export function FacetFilters() {
           onClick={() => setFilters({ category: null })}
           className={cn(
             "flex items-center justify-between rounded px-2 py-2.5 text-left text-[13px] md:py-1.5",
-            category === null ? "bg-teal-soft text-teal-deep font-semibold" : "hover:bg-paper",
+            category === null ? "bg-teal-soft text-teal-ink font-semibold" : "hover:bg-paper",
           )}
         >
           <span>all</span>
@@ -135,7 +135,7 @@ export function FacetFilters() {
             className={cn(
               "flex items-center justify-between rounded px-2 py-2.5 text-left text-[13px] md:py-1.5",
               category === bucket.value
-                ? "bg-teal-soft text-teal-deep font-semibold"
+                ? "bg-teal-soft text-teal-ink font-semibold"
                 : "hover:bg-paper",
             )}
           >

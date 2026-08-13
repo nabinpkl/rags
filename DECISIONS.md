@@ -14,6 +14,63 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-08-13 — Theming lives in CSS variables, not `dark:` variants; next-themes owns the choice (#85, owner directive)
+
+**Context:** owner directive — light/dark/system with an icon-button menu. The
+palette was light-only apart from the agent panel's deliberately fixed
+machine-room dark, and #83 had just put the app somewhere people open at
+night.
+
+**Decision:** the palette moves into `:root` / `.dark` custom properties, and
+`@theme inline` maps Tailwind's color names onto them. A component writes
+`bg-paper` once and never learns which theme is active — so there are no
+`dark:` variants to keep in sync across fifteen files, and flipping a theme is
+one variable swap. Two consequences that had to be designed, not discovered:
+
+- **`--teal-ink` splits accent TEXT from `--color-teal-deep`, the accent
+  SURFACE.** The old single token was both the chip text colour and the Ask
+  button's background. Themed as one, either the dark-mode chips become
+  unreadable or the button loses its contrast against near-white label text.
+- **The machine-room palette is NOT themed.** The agent panel and the PDF
+  surround stay dark in both themes: that half of the screen is
+  instrumentation, and its darkness is the design's claim about what it is.
+  Dark mode makes the explorer *approach* it, never merge with it — hence
+  `--paper` at `#171c20`, a step lighter than `--color-machine`'s `#10161b`.
+
+`next-themes` owns the choice: it writes `.dark` **before first paint** via a
+blocking inline script, which a static export (D13, no server) cannot do
+itself — the alternative is a flash of the wrong theme on every load. "System"
+is a real third state that keeps following the OS, not a default that
+collapses into light or dark.
+
+**Dependency gate (sdlc.md):** next-themes 0.4.6, MIT, ~25.8M weekly
+downloads, 6.3k stars, repo active (pushed 2026-02), **0 advisories** (GitHub
+advisory DB + `pnpm audit`). Caveat recorded honestly: no npm release since
+0.4.6 (2025-03) though commits have landed since — acceptable for a small
+feature-complete library whose whole job is one script tag and a context, and
+the revisit trigger is it going unmaintained or breaking on a React major.
+
+**Alternatives rejected:** *hand-rolled (~40 lines: a store, an inline script,
+a class toggle)* — genuinely close, but the pre-paint script is the part with
+the sharp edges (storage key, system-change listener, SSR mismatch) and this
+is the library everyone else's edge cases have already been filed against;
+*`prefers-color-scheme` only* (no way to pin a theme against the OS);
+*`dark:` variants* (fifteen files to keep in sync, and every new component a
+chance to forget).
+
+**Consequence:** the control lives in the site footer — the only element that
+survives the explorer↔viewer swap AND every breakpoint, so it needs no second
+instance in the app bar. The static export's prerendered HTML cannot know the
+stored choice, so the button renders a neutral icon until mount.
+
+**Revisit when.** A third theme appears (the enum in theme-menu.tsx becomes a
+map worth deriving), or the design grows a surface that must differ per theme
+inside the machine-room half.
+
+Spec updated: §4b stack table, §4c frontend tree.
+
+---
+
 ## 2026-08-13 — Responsive shell: one element that docks or drawers, never two mounted copies (#83, owner directive)
 
 **Context:** #81 put the app on the tailnet, where it gets opened from a

@@ -1,3 +1,4 @@
+import { ThemeMenu } from "@/components/shell/theme-menu";
 import {
   ARXIV_ATTRIBUTION,
   ARXIV_URL,
@@ -34,6 +35,13 @@ export function SiteFooter() {
         <a href={`mailto:${TAKEDOWN_EMAIL}`} className="hover:text-ink underline">
           Takedown request
         </a>
+        {/* The theme control lives in the footer because it is the only element
+            that survives both the explorer↔viewer swap and every breakpoint —
+            one instance, reachable from every screen (#85). Last in the row so
+            it lands at the trailing edge rather than in the bottom-left
+            corner, where a wrapped footer would stack it under the browser's
+            own corner furniture. */}
+        <ThemeMenu />
       </div>
     </footer>
   );

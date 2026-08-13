@@ -50,7 +50,7 @@ export function PaperSplitView() {
           >
             ← corpus
           </button>
-          <span className="bg-teal-soft text-teal-deep rounded px-1.5 py-0.5 font-mono text-[10.5px]">
+          <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 font-mono text-[10.5px]">
             {data?.version ? `pinned ${data.version}` : "unpinned"}
           </span>
         </div>
@@ -64,7 +64,7 @@ export function PaperSplitView() {
               <span>·</span>
               <span>{data.year}</span>
               <span>·</span>
-              <span className="bg-teal-soft text-teal-deep rounded px-1.5 py-0.5 font-mono text-[10.5px]">
+              <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 font-mono text-[10.5px]">
                 {data.primary_category}
               </span>
               <span>·</span>
@@ -73,14 +73,14 @@ export function PaperSplitView() {
           {/* §6b: the abs-page link + "open on arXiv" CTA are ALWAYS present
               (D-3) — even before paper-detail resolves or if it 404s, since
               `paper` (the arxiv id) alone is enough to build both URLs. */}
-          <a href={absUrl} target="_blank" rel="noopener noreferrer" className="text-teal-deep">
+          <a href={absUrl} target="_blank" rel="noopener noreferrer" className="text-teal-ink">
             abs page ↗
           </a>
           <a
             href={absUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="border-teal-deep text-teal-deep hover:bg-teal-soft ml-1 rounded border px-2 py-0.5 font-mono text-[10.5px]"
+            className="border-teal-ink text-teal-ink hover:bg-teal-soft ml-1 rounded border px-2 py-0.5 font-mono text-[10.5px]"
           >
             open on arXiv ↗
           </a>
@@ -125,7 +125,7 @@ export function PaperSplitView() {
           >
             Cited excerpts
             {excerptCount > 0 && (
-              <span className="bg-teal-soft text-teal-deep rounded px-1.5 py-0.5 text-[10.5px]">
+              <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 text-[10.5px]">
                 {excerptCount}
               </span>
             )}
