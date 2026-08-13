@@ -4,9 +4,12 @@ import { Suspense } from "react";
 import { ChatPanel } from "@/components/agent-panel/chat-panel";
 import { ExplorerPanel } from "@/components/explorer/explorer-panel";
 import { PaperSplitView } from "@/components/viewer/paper-split-view";
+import { AppBar } from "@/components/shell/app-bar";
+import { DrawerPanel } from "@/components/shell/drawer-panel";
 import { SiteFooter } from "@/components/site-footer";
 import { useDriveUi } from "@/hooks/use-drive-ui";
 import { useViewerUrlSync } from "@/hooks/use-viewer-url-sync";
+import { useUiShellStore } from "@/stores/ui-shell-store";
 import { useViewerStore } from "@/stores/viewer-store";
 
 /** Explorer <-> viewer swap (#29): `viewer-store`'s `paper` (URL-synced,
@@ -37,22 +40,47 @@ function AppRegion() {
 // `useSearchParams`, which Next's static export build requires to be
 // wrapped in a boundary.
 //
+// Layout by width (#83): the agent panel docks as a column from `lg:` and is
+// a right-hand sheet below it; the facet rail does the same at `md:` (inside
+// explorer-panel.tsx, since filters belong to the corpus list). `AppBar`
+// carries the handles for whatever is undocked and disappears at `lg:`.
+//
+// `h-dvh`, not `h-screen`: on mobile browsers `100vh` is the height with the
+// URL bar RETRACTED, so a 100vh app shell puts its own footer under the
+// browser chrome until you scroll. `dvh` tracks the actual viewport.
+//
 // `SiteFooter` (§6b/§6c) sits outside `<main>`, as a sibling in a column
-// flex, not appended below a 100vh block — that would land it below the
+// flex, not appended below a full-height block — that would land it below the
 // fold. `<main>` takes `flex-1 min-h-0` so the footer's own height is
 // accounted for in the layout instead of overflowing the viewport.
 export default function Home() {
+  const overlay = useUiShellStore((state) => state.overlay);
+  const closeOverlay = useUiShellStore((state) => state.closeOverlay);
+
   return (
-    <div className="flex h-screen flex-col">
-      <main className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <div className="min-w-0 flex-1">
+    <div className="flex h-dvh flex-col">
+      <AppBar />
+      <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        {/* `min-h-0` as well as `min-w-0`: a flex item's default `min-height:
+            auto` refuses to shrink below its content, so the virtualized list
+            grew the column past the viewport and the paper rows rendered on
+            top of the footer. It only showed once the column stack got a
+            second row (the app bar) to compete with. */}
+        <div className="min-h-0 min-w-0 flex-1">
           <Suspense fallback={null}>
             <AppRegion />
           </Suspense>
         </div>
-        <div className="h-full w-full md:w-[420px]">
+        <DrawerPanel
+          dockAt="lg"
+          side="right"
+          label="Agent panel"
+          open={overlay === "agent"}
+          onClose={closeOverlay}
+          className="w-full sm:w-[420px] lg:h-full lg:w-[420px]"
+        >
           <ChatPanel />
-        </div>
+        </DrawerPanel>
       </main>
       <SiteFooter />
     </div>

@@ -14,6 +14,64 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-08-13 — Responsive shell: one element that docks or drawers, never two mounted copies (#83, owner directive)
+
+**Context:** #81 put the app on the tailnet, where it gets opened from a
+phone. The three-pane layout (facet rail | corpus | agent) had no narrow
+story: the 216px rail took over half a 390px screen, the table's four fixed
+columns (266px) left ~120px for a title, and the agent panel — the point of
+the project — stacked below the fold with nothing pointing at it. The spec
+never covered viewport behavior at all.
+
+**Decision:** two thresholds, matching Tailwind's own: the facet rail docks
+from `md:` (768px), the agent panel from `lg:` (1024px), and below each it
+becomes a slide-over drawer reached from a narrow-viewport `AppBar`
+(hamburger for filters, a labelled toggle with a live status dot for the
+agent). Between them the tablet case falls out for free: rail docked, agent
+still a sheet.
+
+The load-bearing constraint is that **each panel is ONE element wrapping ONE
+child instance**, positioned by CSS — not `{narrow ? <Sheet><Chat/></Sheet> :
+<Column><Chat/></Column>}`. The agent panel owns the app's only SSE
+subscription (`use-agent-stream.ts`) and the facet rail owns debounced filter
+inputs; a conditional render mounts those twice across a rotation, opening a
+second stream or dropping a half-typed year. `drawer-panel.tsx` holds that
+invariant and its test asserts the child renders exactly once in both modes.
+
+Consequences that are easy to get wrong, so they are pinned by tests:
+- A closed drawer is `invisible`, not merely translated off-screen — a
+  translated panel keeps its links and inputs in the tab order, so a keyboard
+  user tabs into an agent composer sitting outside the viewport.
+- Dialog semantics apply only while the panel IS a drawer. Docked, it is a
+  region; announcing a modal dialog would tell a screen-reader user the rest
+  of the app is inert when it is not. CSS cannot answer "am I docked", so
+  `use-media-query.ts` answers it in JS and `lib/breakpoints.ts` keeps the
+  numbers next to the classes they mirror.
+
+**Alternatives rejected:** *a CSS-only solution* (no way to switch ARIA roles,
+and a closed drawer would keep its tab stops); *a bottom tab bar* (a third
+navigation model on top of the explorer↔viewer swap and the `?paper=` URL);
+*a separate mobile route* (D13's static export has one shell by design, §4c
+decision 2); *a component library's Sheet* (a dependency for what is ~90 lines,
+and every one I looked at re-parents its child on breakpoint change).
+
+**Consequence:** the explorer table renders stacked cards below `md:` (same
+row element, same `row.original`, no second data path) and moves sorting into
+its own control, since the column headers that carried it are gone. The
+viewer's cited-excerpts pane becomes a bottom disclosure so the PDF keeps the
+screen. `h-dvh` replaces `h-screen` (mobile `100vh` is the URL-bar-retracted
+height, which pushed the footer under browser chrome), inputs are 16px below
+their breakpoints (smaller text makes iOS Safari zoom on focus and never zoom
+back), and the composer pads by `env(safe-area-inset-bottom)`.
+
+**Revisit when.** A third docked panel appears (the two-threshold scheme stops
+being obvious), or a real phone shows the 45vh excerpt cap is the wrong split.
+
+Spec updated: §4c frontend tree (shell/, ui-shell-store, use-media-query,
+breakpoints).
+
+---
+
 ## 2026-08-11 — Turn cost comes from the provider when the provider reports it (#81, owner directive)
 
 **Context:** the tailnet deployment routes the agent through OpenRouter's cheap

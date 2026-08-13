@@ -1,4 +1,9 @@
-import { ARXIV_ATTRIBUTION, ARXIV_URL, GITHUB_CONTACT_URL, TAKEDOWN_EMAIL } from "@/lib/attribution";
+import {
+  ARXIV_ATTRIBUTION,
+  ARXIV_URL,
+  GITHUB_CONTACT_URL,
+  TAKEDOWN_EMAIL,
+} from "@/lib/attribution";
 
 /** Persistent footer carrying arXiv's required attribution + the §6c
  * takedown/contact path. Mounted once in `app/page.tsx`, outside the
@@ -7,9 +12,9 @@ import { ARXIV_ATTRIBUTION, ARXIV_URL, GITHUB_CONTACT_URL, TAKEDOWN_EMAIL } from
  * `lib/attribution.ts` — the single source of truth for this legal text. */
 export function SiteFooter() {
   return (
-    <footer className="bg-panel border-line text-muted flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-4 py-2 text-xs">
+    <footer className="bg-panel border-line text-muted flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-3 py-1.5 text-[10.5px] leading-snug sm:px-4 sm:py-2 sm:text-xs">
       <p>{ARXIV_ATTRIBUTION}</p>
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3 pb-[env(safe-area-inset-bottom)]">
         <a
           href={ARXIV_URL}
           target="_blank"

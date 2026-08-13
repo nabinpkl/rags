@@ -7,6 +7,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "export",
   images: { unoptimized: true },
+  // `next dev` only serves /_next dev resources (HMR, the client bootstrap)
+  // to the host it was started on. Development here happens on the box that
+  // holds the corpus and is reached over the tailnet, so without this the dev
+  // server returns HTML that never hydrates — the app renders and then
+  // ignores every click. Dev-only: `next build` (the static export we deploy)
+  // does not read it.
+  allowedDevOrigins: ["oracle.pike-pride.ts.net"],
 };
 
 export default nextConfig;

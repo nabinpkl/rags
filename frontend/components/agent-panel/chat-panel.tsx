@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useAgentStream } from "@/hooks/use-agent-stream";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
+import { useUiShellStore } from "@/stores/ui-shell-store";
 import { cn } from "@/lib/utils";
 import { ToolTimeline } from "@/components/agent-panel/tool-timeline";
 import { CostBadge } from "@/components/agent-panel/cost-badge";
@@ -19,6 +20,7 @@ export function ChatPanel() {
   const mode = useAgentSessionStore((state) => state.mode);
   const turns = useAgentSessionStore((state) => state.turns);
   const verifiedPaperIds = useAgentSessionStore((state) => state.verifiedPaperIds);
+  const closeOverlay = useUiShellStore((state) => state.closeOverlay);
   const { ask } = useAgentStream();
 
   const busy = status.kind === "streaming" || status.kind === "tool_running";
@@ -33,14 +35,23 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="bg-machine border-machine-line text-machine-text flex h-full flex-col border-l">
+    <div className="bg-machine border-machine-line text-machine-text flex h-full min-h-0 flex-col lg:border-l">
       <header className="border-machine-line flex items-center gap-2 border-b px-3.5 py-2.5">
         <span
           className={cn("h-2 w-2 rounded-full", mode.kind === "replay" ? "bg-amber" : "bg-teal")}
         />
         <h2 className="font-mono text-[11px] tracking-wide uppercase">agent</h2>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
           <CostBadge cost={lastTurn?.cost ?? null} />
+          {/* `lg:hidden`, so the docked column has no dead tab stop. */}
+          <button
+            type="button"
+            onClick={closeOverlay}
+            aria-label="Close agent panel"
+            className="text-machine-muted hover:text-machine-text flex h-9 w-9 items-center justify-center text-lg lg:hidden"
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
         </div>
       </header>
 
@@ -68,18 +79,24 @@ export function ChatPanel() {
 
       <ReplayBanner mode={mode} status={status} />
 
-      <form onSubmit={handleSubmit} className="border-machine-line flex gap-2 border-t p-3">
+      <form
+        onSubmit={handleSubmit}
+        // The sheet reaches the bottom edge of the screen, so the composer
+        // pads past the iOS home indicator; docked, the footer already sits
+        // below it and the inset is 0 anyway.
+        className="border-machine-line flex gap-2 border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-3"
+      >
         <input
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           disabled={busy}
           placeholder="Ask about the corpus…"
-          className="bg-machine-2 border-machine-line text-machine-text flex-1 rounded border px-2.5 py-2 text-sm outline-none"
+          className="bg-machine-2 border-machine-line text-machine-text min-w-0 flex-1 rounded border px-2.5 py-2.5 text-[16px] outline-none lg:py-2 lg:text-sm"
         />
         <button
           type="submit"
           disabled={busy || question.trim().length === 0}
-          className="bg-teal-deep rounded px-3.5 py-2 text-sm font-semibold text-[#eafaf6] disabled:opacity-50"
+          className="bg-teal-deep shrink-0 rounded px-4 py-2.5 text-sm font-semibold text-[#eafaf6] disabled:opacity-50 lg:py-2"
         >
           Ask
         </button>

@@ -38,7 +38,11 @@ export function CorpusSearchBar() {
       onChange={(event) => setValue(event.target.value)}
       placeholder="Search the corpus — semantic + keyword"
       aria-label="Search corpus"
-      className="border-line bg-paper text-ink placeholder:text-muted w-full max-w-[420px] rounded px-3 py-1.5 text-[13.5px] outline-none"
+      // Its own full-width row below `sm:` (the header wraps): sharing a line
+      // with the "Corpus" heading at 390px leaves ~120px of input. 16px text
+      // below `sm:` too — iOS Safari zooms the page on a smaller focused font
+      // and never zooms back out.
+      className="border-line bg-paper text-ink placeholder:text-muted w-full max-w-[420px] rounded px-3 py-2 text-[16px] outline-none sm:w-auto sm:flex-1 sm:py-1.5 sm:text-[13.5px]"
     />
   );
 }

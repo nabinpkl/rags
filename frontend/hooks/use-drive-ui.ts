@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
+import { useUiShellStore } from "@/stores/ui-shell-store";
 import { useViewerStore } from "@/stores/viewer-store";
 
 /** The agent-session-store <-> viewer-store bridge (D-2, DECISIONS.md, issue
@@ -29,5 +30,10 @@ export function useDriveUi(): void {
     for (const action of actions) {
       applyDriveAction(action.action, action.args);
     }
+    // On a narrow viewport the agent panel is a sheet COVERING the region it
+    // just drove (#83): "opening 2401.00001…" would otherwise change a screen
+    // the reader cannot see. Docked, there is no overlay and this is a no-op,
+    // so the rule needs no breakpoint test — the store only tracks overlays.
+    useUiShellStore.getState().closeOverlay();
   }, [confirmedUiActions]);
 }

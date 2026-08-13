@@ -1013,17 +1013,23 @@ rags/
 │   │   │   ├── cost-badge.tsx       # running token/$ per conversation, from cost events
 │   │   │   ├── message-markdown.tsx # react-markdown + remark-gfm, raw HTML disabled (§6), verified-citation chips
 │   │   │   └── replay-banner.tsx    # "live budget spent — watching a recorded session" mode switch
+│   │   ├── shell/
+│   │   │   ├── drawer-panel.tsx     # docked column at/above a breakpoint, slide-over drawer below (#83); one element, one child instance
+│   │   │   └── app-bar.tsx          # narrow-viewport bar: filters hamburger + agent toggle; hidden from lg:
 │   │   └── ui/                      # shadcn-generated primitives, unmodified (regenerate, don't edit)
 │   ├── lib/
 │   │   ├── api-client.ts            # typed fetch wrapper over generated types; single base-URL owner
 │   │   ├── api-types.gen.ts         # openapi-typescript output — GENERATED, never hand-edited
 │   │   ├── sse.ts                   # fetch-event-source wrapper; discriminated union mirroring sse_events.py
+│   │   ├── breakpoints.ts           # the md/lg thresholds JS needs, paired with the Tailwind classes (#83)
 │   │   └── utils.ts                 # cn() only (see naming rules)
 │   ├── stores/
 │   │   ├── agent-session-store.ts   # zustand: messages, timeline events, budget/replay state
+│   │   ├── ui-shell-store.ts        # zustand: which narrow-viewport overlay is open (#83); deliberately NOT URL-synced
 │   │   └── viewer-store.ts          # zustand: open paper, page, filters — drive_ui's target, synced to URL search params
 │   ├── hooks/
 │   │   ├── use-papers-query.ts      # TanStack Query hooks for explorer endpoints
+│   │   ├── use-media-query.ts       # docked-or-drawer, for the ARIA half of the layout (#83)
 │   │   └── use-agent-stream.ts      # POST /api/chat via lib/sse.ts → dispatches events into stores
 │   └── tests/
 │       ├── tool-timeline.test.tsx   # events render in order; unknown event types don't crash
