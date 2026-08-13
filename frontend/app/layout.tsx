@@ -39,7 +39,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
+    // `suppressHydrationWarning` is required by next-themes and ONLY covers
+    // this element's own attributes: its pre-paint script sets `class` and
+    // `style` on <html> before React hydrates, so the server's markup
+    // necessarily differs here. Nothing below inherits the suppression.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${sans.variable} ${serif.variable} ${mono.variable}`}
+    >
       <body>
         <Providers>{children}</Providers>
       </body>

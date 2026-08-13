@@ -50,7 +50,7 @@ function sortArrow(active: boolean, descending: boolean) {
 function rigorDots(score: number) {
   const filled = Math.max(0, Math.min(3, Math.round(score * 3)));
   return (
-    <span className="text-teal-deep text-[10px] tracking-[2px]" aria-label={`rigor ${filled}/3`}>
+    <span className="text-teal-ink text-[10px] tracking-[2px]" aria-label={`rigor ${filled}/3`}>
       {Array.from({ length: 3 }, (_, i) => (
         <span key={i} className={i < filled ? "" : "text-line"}>
           ●
@@ -131,7 +131,7 @@ export function PaperTable() {
         id: "category",
         header: () => <span className="uppercase">Cat</span>,
         cell: ({ row }) => (
-          <span className="bg-teal-soft text-teal-deep rounded px-1.5 py-0.5 font-mono text-[10.5px]">
+          <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 font-mono text-[10.5px]">
             {row.original.primary_category}
           </span>
         ),
@@ -219,7 +219,7 @@ export function PaperTable() {
           className={cn(
             "border-line rounded border px-2.5 py-1 font-mono text-[11.5px]",
             sort === "year_desc" || sort === "year_asc"
-              ? "bg-teal-soft text-teal-deep border-teal-deep"
+              ? "bg-teal-soft text-teal-ink border-teal-ink"
               : "text-muted",
           )}
         >
@@ -231,7 +231,7 @@ export function PaperTable() {
           aria-pressed={sort === "title_asc"}
           className={cn(
             "border-line rounded border px-2.5 py-1 font-mono text-[11.5px]",
-            sort === "title_asc" ? "bg-teal-soft text-teal-deep border-teal-deep" : "text-muted",
+            sort === "title_asc" ? "bg-teal-soft text-teal-ink border-teal-ink" : "text-muted",
           )}
         >
           Title{sortArrow(sort === "title_asc", false)}
@@ -302,7 +302,7 @@ export function PaperTable() {
                     </span>
                     <div className="text-muted flex items-center gap-2 font-mono text-[11px]">
                       <span>{row.original.year}</span>
-                      <span className="bg-teal-soft text-teal-deep rounded px-1.5 py-0.5 text-[10.5px]">
+                      <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 text-[10.5px]">
                         {row.original.primary_category}
                       </span>
                       {typeof row.original.facets?.venue_rigor === "number" &&

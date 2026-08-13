@@ -1,15 +1,58 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (#85): next-themes puts `.dark` on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Tailwind v4 CSS-first config. Design tokens are bound to the font CSS
    variables set by next/font in layout.tsx (self-hosted at build time — the
-   deployed app makes no request to any font CDN, §4b). The full design-token
-   palette lands with the design pass; this scaffold establishes the wiring. */
+   deployed app makes no request to any font CDN, §4b).
+
+   THEMING (#85): the palette lives in `:root` / `.dark` as plain custom
+   properties and `@theme inline` only maps Tailwind's color names onto them.
+   That indirection is the whole design: a component writes `bg-paper` once
+   and never learns which theme is active, so there are no `dark:` variants to
+   keep in sync across 15 files — flipping a theme is one variable swap. */
+:root {
+  color-scheme: light;
+
+  /* Explorer/viewer "paper" palette (docs/mockup.html, issue #28). */
+  --paper: #f2f3ef;
+  --panel: #fbfbf9;
+  --ink: #1a2128;
+  --muted: #66727b;
+  --line: #dcdfd9;
+  --teal-soft: #e2efec;
+  /* Accent TEXT (chips, links, selected facets) — distinct from
+     `--color-teal-deep`, which is an accent SURFACE (the Ask button) and so
+     must stay dark enough for near-white text in both themes. One token
+     serving both roles is what makes a dark theme unreadable. */
+  --teal-ink: #0e5f56;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Kept a step lighter than the machine-room black below, so the agent
+     panel still reads as its own darker column rather than merging with the
+     explorer beside it. */
+  --paper: #171c20;
+  --panel: #1e242a;
+  --ink: #e8ebe8;
+  --muted: #98a3aa;
+  --line: #2c343a;
+  --teal-soft: #12332e;
+  --teal-ink: #57d4bd;
+}
+
 @theme inline {
   --font-sans: var(--font-instrument-sans);
   --font-serif: var(--font-stix-two-text);
   --font-mono: var(--font-spline-sans-mono);
 
-  /* Agent panel "machine-room" palette (docs/mockup.html). */
+  /* Agent panel "machine-room" palette (docs/mockup.html) — deliberately NOT
+     themed: the machine room is dark in both themes. It is the app's one
+     fixed surface, the visual claim that this half is instrumentation rather
+     than document. */
   --color-machine: #10161b;
   --color-machine-2: #161e25;
   --color-machine-line: #26313a;
@@ -21,25 +64,30 @@
   --color-amber-soft: #f4e8d3;
   --color-rust: #a8412e;
 
-  /* Explorer "paper" palette (docs/mockup.html, issue #28) — the light-side
-     counterpart to the machine-room tokens above. The viewer (#29) reuses
-     these; the rest of the palette (if any) lands with that pass. */
-  --color-paper: #f2f3ef;
-  --color-panel: #fbfbf9;
-  --color-ink: #1a2128;
-  --color-muted: #66727b;
-  --color-line: #dcdfd9;
-  --color-teal-soft: #e2efec;
+  /* Themed (see :root / .dark above). */
+  --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-teal-soft: var(--teal-soft);
+  --color-teal-ink: var(--teal-ink);
 }
 
 body {
   font-family: var(--font-sans), system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
 }
 
 /* PDF page divs (components/viewer/arxiv-pdf-frame.tsx) are built
    imperatively via the DOM, not JSX — pdf.js's per-page canvas rendering is
    inherently imperative (docs/mockup.html's reference implementation),
-   ported as-is rather than fought into React state. */
+   ported as-is rather than fought into React state.
+
+   The page itself stays white in both themes: it is a photograph of a paper
+   document, not a surface of ours to restyle (and arXiv PDFs assume a white
+   background — inverting them would wreck figures). */
 .pdf-page {
   position: relative;
   margin: 0 auto 14px;

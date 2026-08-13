@@ -98,7 +98,7 @@ export function CitedExcerptsPane({
                 <button
                   type="button"
                   onClick={() => onJumpToPage(excerpt.page_start)}
-                  className="border-teal-deep text-teal-deep hover:bg-teal-soft rounded border px-2 py-0.5 font-mono text-[10.5px]"
+                  className="border-teal-ink text-teal-ink hover:bg-teal-soft rounded border px-2 py-0.5 font-mono text-[10.5px]"
                 >
                   → PDF p.{excerpt.page_start}
                 </button>
