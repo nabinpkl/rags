@@ -92,10 +92,10 @@ describe("PaperSplitView", () => {
       },
     });
     render(<PaperSplitView />);
-    expect(screen.getByText("pinned v3")).toBeInTheDocument();
+    expect(screen.getByText("version 3")).toBeInTheDocument();
   });
 
-  it("shows 'unpinned' when version is NULL (D9 fallback)", () => {
+  it('says "latest version" when version is NULL (D9 fallback)', () => {
     useViewerStore.getState().setPaper("1409.7842");
     mockDetail({
       data: {
@@ -117,7 +117,7 @@ describe("PaperSplitView", () => {
       },
     });
     render(<PaperSplitView />);
-    expect(screen.getByText("unpinned")).toBeInTheDocument();
+    expect(screen.getByText("latest version")).toBeInTheDocument();
   });
 
   it("the back button closes the viewer by clearing viewer-store's paper", () => {

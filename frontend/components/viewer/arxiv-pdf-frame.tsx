@@ -257,7 +257,14 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
   const toggleRung = () => setRung((current) => (current === 2 ? 1 : 2));
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-[#3c4650]">
+    // `min-w-0`: as a grid item this box's automatic minimum size is its
+    // min-content, which the rendered pages set — and those pages are sized
+    // FROM this box's clientWidth (renderPageInto), so an oversized column
+    // keeps the pages oversized and the pages keep the column oversized. That
+    // loop pushed the excerpts pane past the viewport and put a horizontal
+    // scrollbar on the whole page; the pane is scrollable, so it is free to
+    // shrink below its content.
+    <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-[#3c4650]">
       {/* Bounded on BOTH sides and allowed to wrap: unbounded, the provenance
           line and the rung button ran off a 390px screen and collided with
           the scrollbar. */}
@@ -266,14 +273,19 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
           arxiv.org/pdf/<b className="text-teal">{idv}</b>
           {rung === 2 && !loading ? ` p.${displayPage}` : ""}
         </span>
-        <span>— served by arXiv, never proxied</span>
+        {/* Provenance, kept in plain words: the point a reader cares about is
+            that the file comes from arXiv itself, not that we don't proxy it
+            (§6b, which is our constraint to keep, not their vocabulary). */}
+        <span>— loaded straight from arXiv</span>
         <button
           type="button"
           onClick={toggleRung}
-          title="D9 fallback ladder: rung 1 iframe / rung 2 PDF.js direct fetch"
+          title="Switch how this PDF is displayed"
           className="border-machine-line text-machine-muted hover:border-teal hover:text-teal rounded border px-1.5 py-0.5 font-mono text-[9.5px]"
         >
-          {rung === 1 ? "rung 1 · iframe" : "rung 2 · pdf.js"}
+          {/* Names the ACTION, not the current rung: a label reading "reader
+              view" next to a reader view can't be told from a status. */}
+          {rung === 1 ? "use built-in reader" : "use browser viewer"}
         </button>
       </div>
 
@@ -298,7 +310,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
             <div ref={pagesRef} />
             {loading && (
               <div className="text-machine-text absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[11px]">
-                fetching from arxiv.org…
+                loading from arxiv.org…
               </div>
             )}
           </div>
@@ -335,7 +347,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
             "rounded bg-black/70 px-4 py-3 text-center text-[12px] leading-relaxed",
           )}
         >
-          Couldn&apos;t fetch the PDF (offline?). Read the cited excerpts →
+          Couldn&apos;t load the PDF (offline?). Read the cited excerpts, or
           <a
             href={absUrl}
             target="_blank"

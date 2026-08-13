@@ -34,7 +34,7 @@ describe("CitedExcerptsPane", () => {
     );
     EXCERPTS.forEach((e) => expect(screen.getByText(new RegExp(e.text))).toBeInTheDocument());
     // §6c cap note is always visible — the pane's own stated posture.
-    expect(screen.getByText(/≤50 words, ≤3 per paper per answer/)).toBeInTheDocument();
+    expect(screen.getByText(/50 words.*3 per paper per answer/i)).toBeInTheDocument();
   });
 
   it("shows an empty state, not an error, before any citation exists", () => {
@@ -70,11 +70,11 @@ describe("CitedExcerptsPane", () => {
     const { rerender } = render(
       <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={true} onJumpToPage={vi.fn()} />,
     );
-    expect(screen.getByText(/more citations exist/i)).toBeInTheDocument();
+    expect(screen.getByText(/quoted more of this paper/i)).toBeInTheDocument();
 
     rerender(
       <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={false} onJumpToPage={vi.fn()} />,
     );
-    expect(screen.queryByText(/more citations exist/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/quoted more of this paper/i)).not.toBeInTheDocument();
   });
 });

@@ -58,9 +58,12 @@ export function CitedExcerptsPane({
       <h3 className="text-muted mb-1 hidden font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase md:block">
         Cited excerpts
       </h3>
+      {/* The two numbers stay (§6c is the reason this pane is capped at all,
+          and saying so is the honest thing) — but as a sentence, not as the
+          spec's inequality notation. */}
       <p className="text-muted mb-3.5 text-[11px] leading-relaxed">
-        Quotes are capped (≤50 words, ≤3 per paper per answer). The PDF is the reading surface; this
-        pane shows only what the agent cited.
+        Quotes are limited to 50 words, and 3 per paper per answer. Read the full paper on the left
+        — this panel shows only the passages the agent quoted.
       </p>
 
       {sections.length > 0 && (
@@ -107,7 +110,7 @@ export function CitedExcerptsPane({
           ))}
           {excerptsTruncated && (
             <p className="text-muted text-[11px] italic">
-              More citations exist for this paper than the per-answer cap shows here.
+              The agent quoted more of this paper than one answer can show.
             </p>
           )}
         </div>

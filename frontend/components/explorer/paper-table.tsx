@@ -211,8 +211,8 @@ export function PaperTable() {
         {isPending
           ? "loading…"
           : total !== null
-            ? `showing ${papers.length} of ${total.toLocaleString()} (virtualized)`
-            : `showing ${papers.length} search results (virtualized)`}
+            ? `showing ${papers.length} of ${total.toLocaleString()} papers`
+            : `showing ${papers.length} matching papers`}
       </div>
 
       {/* Sorting lives in the column headers, which the card layout drops —
