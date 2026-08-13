@@ -33,7 +33,7 @@ export function AppBar() {
           onClick={openFilters}
           aria-label="Open filters"
           aria-expanded={overlay === "filters"}
-          className="border-line text-ink -ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded border md:hidden"
+          className="border-line text-ink hover:border-ink/40 -ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded border md:hidden"
         >
           {/* Three bars, drawn not typed: a "☰" glyph renders at wildly
               different weights across platforms and is announced as text. */}
@@ -51,7 +51,7 @@ export function AppBar() {
         type="button"
         onClick={toggleAgent}
         aria-expanded={overlay === "agent"}
-        className="border-line text-ink ml-auto flex h-9 items-center gap-2 rounded border px-3 text-[13px]"
+        className="border-line text-ink hover:border-ink/40 ml-auto flex h-9 items-center gap-2 rounded border px-3 text-[13px]"
       >
         <span
           aria-hidden="true"

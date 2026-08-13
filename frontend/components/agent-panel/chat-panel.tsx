@@ -91,12 +91,12 @@ export function ChatPanel() {
           onChange={(event) => setQuestion(event.target.value)}
           disabled={busy}
           placeholder="Ask about the corpus…"
-          className="bg-machine-2 border-machine-line text-machine-text min-w-0 flex-1 rounded border px-2.5 py-2.5 text-[16px] outline-none lg:py-2 lg:text-sm"
+          className="bg-machine-2 border-machine-line text-machine-text min-w-0 flex-1 rounded border px-2.5 py-2.5 text-[16px] lg:py-2 lg:text-sm"
         />
         <button
           type="submit"
           disabled={busy || question.trim().length === 0}
-          className="bg-teal-deep shrink-0 rounded px-4 py-2.5 text-sm font-semibold text-[#eafaf6] disabled:opacity-50 lg:py-2"
+          className="bg-teal-deep hover:bg-teal-deep-hover shrink-0 rounded px-4 py-2.5 text-sm font-semibold text-[#eafaf6] disabled:opacity-50 disabled:hover:bg-teal-deep lg:py-2"
         >
           Ask
         </button>

@@ -46,7 +46,7 @@ export function PaperSplitView() {
           <button
             type="button"
             onClick={() => setPaper(null)}
-            className="text-muted -ml-2 flex h-9 items-center px-2 font-mono text-[11px]"
+            className="text-muted hover:text-ink -ml-2 flex h-9 items-center px-2 font-mono text-[11px]"
           >
             ← corpus
           </button>
@@ -73,7 +73,12 @@ export function PaperSplitView() {
           {/* §6b: the abs-page link + "open on arXiv" CTA are ALWAYS present
               (D-3) — even before paper-detail resolves or if it 404s, since
               `paper` (the arxiv id) alone is enough to build both URLs. */}
-          <a href={absUrl} target="_blank" rel="noopener noreferrer" className="text-teal-ink">
+          <a
+            href={absUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-teal-ink hover:underline"
+          >
             abs page ↗
           </a>
           <a
@@ -121,7 +126,7 @@ export function PaperSplitView() {
             type="button"
             onClick={() => setExcerptsOpen((open) => !open)}
             aria-expanded={excerptsOpen}
-            className="text-muted flex h-11 shrink-0 items-center gap-2 px-3.5 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase md:hidden"
+            className="text-muted hover:text-ink flex h-11 shrink-0 items-center gap-2 px-3.5 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase md:hidden"
           >
             Cited excerpts
             {excerptCount > 0 && (

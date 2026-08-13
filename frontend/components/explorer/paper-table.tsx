@@ -39,6 +39,16 @@ function toggleTitleSort(current: SortOption | null): SortOption | null {
   return current === "title_asc" ? null : "title_asc";
 }
 
+// The narrow-viewport sort chips, as one recipe for both. Hover has to read in
+// BOTH states: a selected chip is already filled, so it steps deeper rather
+// than toward `teal-soft` — moving it toward the unselected look on hover
+// would say "click to deselect" for a control that toggles sort direction.
+const SORT_CHIP = {
+  base: "border-line rounded border px-2.5 py-1 font-mono text-[11.5px]",
+  selected: "bg-teal-soft text-teal-ink border-teal-ink hover:bg-teal-soft-strong",
+  unselected: "text-muted hover:border-teal-ink hover:text-teal-ink",
+} as const;
+
 function sortArrow(active: boolean, descending: boolean) {
   if (!active) return null;
   return <span aria-hidden="true">{descending ? " ▼" : " ▲"}</span>;
@@ -98,7 +108,7 @@ export function PaperTable() {
           <button
             type="button"
             onClick={() => setFilters({ sort: toggleTitleSort(sort) })}
-            className="uppercase"
+            className="hover:text-ink uppercase"
           >
             Paper
             {sort === "title_asc" && sortArrow(true, false)}
@@ -117,7 +127,7 @@ export function PaperTable() {
           <button
             type="button"
             onClick={() => setFilters({ sort: toggleYearSort(sort) })}
-            className="uppercase"
+            className="hover:text-ink uppercase"
           >
             Year
             {sortArrow(sort === "year_desc" || sort === "year_asc", sort !== "year_asc")}
@@ -217,10 +227,8 @@ export function PaperTable() {
           onClick={() => setFilters({ sort: toggleYearSort(sort) })}
           aria-pressed={sort === "year_desc" || sort === "year_asc"}
           className={cn(
-            "border-line rounded border px-2.5 py-1 font-mono text-[11.5px]",
-            sort === "year_desc" || sort === "year_asc"
-              ? "bg-teal-soft text-teal-ink border-teal-ink"
-              : "text-muted",
+            SORT_CHIP.base,
+            sort === "year_desc" || sort === "year_asc" ? SORT_CHIP.selected : SORT_CHIP.unselected,
           )}
         >
           Year{sortArrow(sort === "year_desc" || sort === "year_asc", sort !== "year_asc")}
@@ -230,8 +238,8 @@ export function PaperTable() {
           onClick={() => setFilters({ sort: toggleTitleSort(sort) })}
           aria-pressed={sort === "title_asc"}
           className={cn(
-            "border-line rounded border px-2.5 py-1 font-mono text-[11.5px]",
-            sort === "title_asc" ? "bg-teal-soft text-teal-ink border-teal-ink" : "text-muted",
+            SORT_CHIP.base,
+            sort === "title_asc" ? SORT_CHIP.selected : SORT_CHIP.unselected,
           )}
         >
           Title{sortArrow(sort === "title_asc", false)}

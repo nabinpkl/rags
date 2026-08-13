@@ -340,7 +340,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
             href={absUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-teal ml-1 underline"
+            className="text-teal hover:text-machine-text ml-1 underline"
           >
             open on arXiv ↗
           </a>
