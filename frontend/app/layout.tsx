@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, STIX_Two_Text, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/app/providers";
@@ -26,6 +26,15 @@ const mono = Spline_Sans_Mono({
 export const metadata: Metadata = {
   title: "askRAG — agentic RAG over arXiv CS papers",
   description: "An agent that searches, reads, and cites arXiv CS papers.",
+};
+
+// `viewportFit: "cover"` is what makes `env(safe-area-inset-*)` resolve to
+// anything but 0 on a notched phone — the chat composer (#83) pads by it so
+// the send button doesn't sit under the home indicator.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

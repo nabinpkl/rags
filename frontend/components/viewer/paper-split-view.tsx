@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 import { useViewerStore } from "@/stores/viewer-store";
 import { usePaperDetail } from "@/hooks/use-paper-detail";
 import { ArxivPdfFrame } from "@/components/viewer/arxiv-pdf-frame";
 import { CitedExcerptsPane } from "@/components/viewer/cited-excerpts-pane";
+import { cn } from "@/lib/utils";
 
 const EMPTY_CHUNK_IDS: readonly string[] = [];
 
@@ -27,19 +29,24 @@ export function PaperSplitView() {
   );
 
   const { data, isPending, isError } = usePaperDetail(paper, chunkIds);
+  // Narrow viewports only: the pane is a bottom disclosure there, collapsed by
+  // default so the PDF — the reading surface (D9) — keeps the screen. From
+  // `md:` up it is the docked right column and this flag does nothing.
+  const [excerptsOpen, setExcerptsOpen] = useState(false);
 
   if (!paper) return null;
 
   const absUrl = `https://arxiv.org/abs/${paper}`;
+  const excerptCount = data?.excerpts?.length ?? 0;
 
   return (
     <div className="bg-paper flex h-full min-w-0 flex-col">
-      <div className="border-line bg-panel border-b px-5 py-3">
+      <div className="border-line bg-panel border-b px-3 py-2.5 sm:px-5 sm:py-3">
         <div className="mb-1.5 flex items-center gap-2.5">
           <button
             type="button"
             onClick={() => setPaper(null)}
-            className="text-muted font-mono text-[11px]"
+            className="text-muted -ml-2 flex h-9 items-center px-2 font-mono text-[11px]"
           >
             ← corpus
           </button>
@@ -86,7 +93,11 @@ export function PaperSplitView() {
           instead of scrolling internally — h-full pins the row to the
           flex parent's remaining height so each grid item's own
           overflow-auto region is what scrolls. */}
-      <div className="grid h-full min-h-0 flex-1 grid-cols-1 md:grid-cols-[1fr_320px]">
+      {/* Below `md:` this is two ROWS — the PDF taking 1fr and the excerpts
+          collapsing to their header — because a 50/50 split on a phone gives
+          the reading surface half a screen, usually to show "no cited
+          excerpts yet". */}
+      <div className="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-[1fr_auto] md:grid-cols-[1fr_320px] md:grid-rows-1">
         {isPending ? (
           <div className="text-machine-text flex h-full items-center justify-center bg-[#3c4650] font-mono text-[11px]">
             loading…
@@ -102,11 +113,43 @@ export function PaperSplitView() {
           // effect that calls setState synchronously on `idv` change.
           <ArxivPdfFrame key={paper} arxivId={paper} version={data?.version ?? null} page={page} />
         )}
-        <CitedExcerptsPane
-          excerpts={data?.excerpts ?? []}
-          excerptsTruncated={data?.excerpts_truncated ?? false}
-          onJumpToPage={(target) => setPage(target)}
-        />
+        {/* ONE pane instance in both layouts: it mints DOM ids per chunk for
+            its section jump-links, and a second copy would make
+            getElementById pick whichever rendered first. */}
+        <section className="border-line bg-panel flex min-h-0 flex-col border-t md:border-t-0 md:border-l">
+          <button
+            type="button"
+            onClick={() => setExcerptsOpen((open) => !open)}
+            aria-expanded={excerptsOpen}
+            className="text-muted flex h-11 shrink-0 items-center gap-2 px-3.5 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase md:hidden"
+          >
+            Cited excerpts
+            {excerptCount > 0 && (
+              <span className="bg-teal-soft text-teal-deep rounded px-1.5 py-0.5 text-[10.5px]">
+                {excerptCount}
+              </span>
+            )}
+            <span aria-hidden="true" className="ml-auto">
+              {excerptsOpen ? "▾" : "▴"}
+            </span>
+          </button>
+          <div
+            className={cn(
+              // Expanded, THIS box scrolls: its height is content-driven up to
+              // the cap, so the pane's own `h-full` has no definite parent to
+              // resolve against and its overflow would never trigger. Docked,
+              // the row has a real height and the pane scrolls itself.
+              "min-h-0 flex-1 overflow-y-auto md:block md:max-h-none md:overflow-visible",
+              excerptsOpen ? "max-h-[45vh]" : "hidden md:block",
+            )}
+          >
+            <CitedExcerptsPane
+              excerpts={data?.excerpts ?? []}
+              excerptsTruncated={data?.excerpts_truncated ?? false}
+              onJumpToPage={(target) => setPage(target)}
+            />
+          </div>
+        </section>
       </div>
     </div>
   );

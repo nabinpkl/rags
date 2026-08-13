@@ -10,9 +10,15 @@ interface CostBadgeProps {
 export function CostBadge({ cost }: CostBadgeProps) {
   if (cost === null) return null;
   return (
-    <span className="text-machine-muted font-mono text-[11px]">
-      <b className="text-amber font-semibold">${cost.cost_usd.toFixed(4)}</b> ·{" "}
-      {cost.tokens_in.toLocaleString()} in / {cost.tokens_out.toLocaleString()} out
+    // The dollar figure is the point (D11's public face, §7) and always shows;
+    // the token split is detail that would push the panel header past 390px
+    // once the counts reach six digits, so it waits for room.
+    <span className="text-machine-muted font-mono text-[11px] whitespace-nowrap">
+      <b className="text-amber font-semibold">${cost.cost_usd.toFixed(4)}</b>
+      <span className="hidden sm:inline">
+        {" "}
+        · {cost.tokens_in.toLocaleString()} in / {cost.tokens_out.toLocaleString()} out
+      </span>
     </span>
   );
 }

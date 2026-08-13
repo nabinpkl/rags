@@ -258,7 +258,10 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-[#3c4650]">
-      <div className="text-machine-text absolute top-2.5 left-2.5 z-10 flex items-center gap-2 rounded bg-black/60 px-2.5 py-1 font-mono text-[10.5px]">
+      {/* Bounded on BOTH sides and allowed to wrap: unbounded, the provenance
+          line and the rung button ran off a 390px screen and collided with
+          the scrollbar. */}
+      <div className="text-machine-text absolute top-2.5 right-2.5 left-2.5 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded bg-black/60 px-2.5 py-1 font-mono text-[10.5px]">
         <span>
           arxiv.org/pdf/<b className="text-teal">{idv}</b>
           {rung === 2 && !loading ? ` p.${displayPage}` : ""}
@@ -289,7 +292,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
           <div
             ref={wrapRef}
             aria-label="Rendered PDF, continuous scroll"
-            className="relative flex-1 overflow-auto px-4 pt-11 pb-4"
+            className="relative flex-1 overflow-auto px-2 pt-16 pb-4 sm:px-4 sm:pt-11"
             style={{ scrollBehavior: "smooth" }}
           >
             <div ref={pagesRef} />

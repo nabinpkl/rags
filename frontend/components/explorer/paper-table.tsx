@@ -197,20 +197,53 @@ export function PaperTable() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="text-muted px-5 pt-2.5 pb-1.5 font-mono text-[11.5px]">
+      <div className="text-muted px-3 pt-2.5 pb-1.5 font-mono text-[11.5px] sm:px-5">
         {isPending
           ? "loading…"
           : total !== null
             ? `showing ${papers.length} of ${total.toLocaleString()} (virtualized)`
             : `showing ${papers.length} search results (virtualized)`}
       </div>
+
+      {/* Sorting lives in the column headers, which the card layout drops —
+          so below `md:` it gets its own control rather than becoming
+          unreachable. */}
+      <div className="flex items-center gap-2 px-3 pb-2 md:hidden">
+        <span className="text-muted font-mono text-[10.5px] font-semibold tracking-[0.1em] uppercase">
+          Sort
+        </span>
+        <button
+          type="button"
+          onClick={() => setFilters({ sort: toggleYearSort(sort) })}
+          aria-pressed={sort === "year_desc" || sort === "year_asc"}
+          className={cn(
+            "border-line rounded border px-2.5 py-1 font-mono text-[11.5px]",
+            sort === "year_desc" || sort === "year_asc"
+              ? "bg-teal-soft text-teal-deep border-teal-deep"
+              : "text-muted",
+          )}
+        >
+          Year{sortArrow(sort === "year_desc" || sort === "year_asc", sort !== "year_asc")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilters({ sort: toggleTitleSort(sort) })}
+          aria-pressed={sort === "title_asc"}
+          className={cn(
+            "border-line rounded border px-2.5 py-1 font-mono text-[11.5px]",
+            sort === "title_asc" ? "bg-teal-soft text-teal-deep border-teal-deep" : "text-muted",
+          )}
+        >
+          Title{sortArrow(sort === "title_asc", false)}
+        </button>
+      </div>
       <div
         role="table"
         aria-label="Corpus papers"
-        className="border-line mx-5 mb-5 flex min-h-0 flex-1 flex-col border-t"
+        className="border-line mx-3 mb-3 flex min-h-0 flex-1 flex-col border-t sm:mx-5 sm:mb-5"
         style={{ fontVariantNumeric: "tabular-nums" }}
       >
-        <div role="rowgroup" className="border-ink flex border-b-[1.5px]">
+        <div role="rowgroup" className="border-ink hidden border-b-[1.5px] md:flex">
           <div role="row" className="flex w-full">
             {headerCells.map((header) => (
               <div
@@ -255,23 +288,51 @@ export function PaperTable() {
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <div
-                      key={cell.id}
-                      role="cell"
-                      className={cn(
-                        "px-1.5 py-2.5",
-                        cell.column.id === "title" ? "min-w-0" : "overflow-hidden",
-                      )}
-                      style={
-                        cell.column.id === "title"
-                          ? { flex: "1 1 0%", minWidth: 0 }
-                          : { flex: `0 0 ${COLUMN_WIDTH_PX[cell.column.id]}px` }
-                      }
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  {/* Card below `md:`. The fixed columns total 266px, which
+                      at 390px viewport width leaves the title about 120px —
+                      one or two words per line. Same row element, same
+                      measured height, no second data path: both layouts read
+                      `row.original`. */}
+                  <div role="cell" className="flex min-w-0 flex-col gap-1 px-2 py-2.5 md:hidden">
+                    <span className="font-serif text-[15px] leading-snug">
+                      {row.original.title}
+                    </span>
+                    <span className="text-muted line-clamp-1 font-sans text-[11.5px]">
+                      {row.original.authors}
+                    </span>
+                    <div className="text-muted flex items-center gap-2 font-mono text-[11px]">
+                      <span>{row.original.year}</span>
+                      <span className="bg-teal-soft text-teal-deep rounded px-1.5 py-0.5 text-[10.5px]">
+                        {row.original.primary_category}
+                      </span>
+                      {typeof row.original.facets?.venue_rigor === "number" &&
+                        rigorDots(row.original.facets.venue_rigor)}
+                      <span className="ml-auto whitespace-nowrap">
+                        {row.original.arxiv_id}
+                        {row.original.version ?? ""}
+                      </span>
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="hidden w-full md:flex">
+                    {row.getVisibleCells().map((cell) => (
+                      <div
+                        key={cell.id}
+                        role="cell"
+                        className={cn(
+                          "px-1.5 py-2.5",
+                          cell.column.id === "title" ? "min-w-0" : "overflow-hidden",
+                        )}
+                        style={
+                          cell.column.id === "title"
+                            ? { flex: "1 1 0%", minWidth: 0 }
+                            : { flex: `0 0 ${COLUMN_WIDTH_PX[cell.column.id]}px` }
+                        }
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               );
             })}

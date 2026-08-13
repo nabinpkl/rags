@@ -5,11 +5,49 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useDriveUi } from "@/hooks/use-drive-ui";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
+import { useUiShellStore } from "@/stores/ui-shell-store";
 import { useViewerStore } from "@/stores/viewer-store";
 
 beforeEach(() => {
   useAgentSessionStore.getState().reset();
   useViewerStore.getState().reset();
+  useUiShellStore.setState({ overlay: "none" });
+});
+
+describe("useDriveUi — the agent sheet gets out of its own way (#83)", () => {
+  it("closes the overlay once an action is applied", () => {
+    renderHook(() => useDriveUi());
+    useUiShellStore.getState().openAgent();
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+
+    act(() => {
+      startTurn("open that one");
+      applyEvent({
+        type: "ui_action",
+        action: "open_paper",
+        args: { action: "open_paper", paper_id: "1409.7842" },
+      });
+      applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
+    });
+
+    // The sheet covered the viewer it just opened; on a docked layout there
+    // is no overlay and this is simply already "none".
+    expect(useViewerStore.getState().paper).toBe("1409.7842");
+    expect(useUiShellStore.getState().overlay).toBe("none");
+  });
+
+  it("leaves the overlay alone when no action was confirmed", () => {
+    renderHook(() => useDriveUi());
+    useUiShellStore.getState().openAgent();
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+
+    act(() => {
+      startTurn("just chatting");
+      applyEvent({ type: "text", text: "no ui action here" });
+    });
+
+    expect(useUiShellStore.getState().overlay).toBe("agent");
+  });
 });
 
 describe("useDriveUi — applies only CONFIRMED ui_actions (D-1, issue #32)", () => {

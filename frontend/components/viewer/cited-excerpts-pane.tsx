@@ -52,7 +52,10 @@ export function CitedExcerptsPane({
       aria-label="Cited excerpts"
       className="border-line bg-panel h-full min-h-0 overflow-y-auto p-3.5"
     >
-      <h3 className="text-muted mb-1 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase">
+      {/* Below `md:` the pane sits inside a disclosure whose button already
+          says "Cited excerpts" (paper-split-view.tsx); repeating it there
+          reads as two headings for one section. */}
+      <h3 className="text-muted mb-1 hidden font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase md:block">
         Cited excerpts
       </h3>
       <p className="text-muted mb-3.5 text-[11px] leading-relaxed">
