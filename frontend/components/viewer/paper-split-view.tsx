@@ -51,7 +51,9 @@ export function PaperSplitView() {
             ← corpus
           </button>
           <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 font-mono text-[10.5px]">
-            {data?.version ? `pinned ${data.version}` : "unpinned"}
+            {/* §6b pins the PDF to a version; what a reader needs from that is
+                WHICH version they're reading, not the word "pinned". */}
+            {data?.version ? `version ${data.version.replace(/^v/, "")}` : "latest version"}
           </span>
         </div>
         <h2 className="text-ink font-serif text-[18px] leading-tight font-semibold">

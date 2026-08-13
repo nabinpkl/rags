@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import { useViewerStore } from "@/stores/viewer-store";
 
 const DEBOUNCE_MS = 300;
@@ -32,17 +33,28 @@ export function CorpusSearchBar() {
   }, [value, q, setFilters]);
 
   return (
-    <input
-      type="search"
-      value={value}
-      onChange={(event) => setValue(event.target.value)}
-      placeholder="Search the corpus — semantic + keyword"
-      aria-label="Search corpus"
-      // Its own full-width row below `sm:` (the header wraps): sharing a line
-      // with the "Corpus" heading at 390px leaves ~120px of input. 16px text
-      // below `sm:` too — iOS Safari zooms the page on a smaller focused font
-      // and never zooms back out.
-      className="border-line bg-paper text-ink placeholder:text-muted w-full max-w-[420px] rounded px-3 py-2 text-[16px] sm:w-auto sm:flex-1 sm:py-1.5 sm:text-[13.5px]"
-    />
+    // Its own full-width row below `sm:` (the header wraps): sharing a line
+    // with the "Corpus" heading at 390px leaves ~120px of input.
+    <div className="relative w-full max-w-[420px] sm:w-auto sm:flex-1">
+      {/* The field sits beside a serif heading, so it has to announce itself
+          as a control rather than as that heading's subtitle: a magnifier, a
+          border, and a surface a step off the page it sits on. Filled and
+          bordered in both themes — `bg-panel` reads lighter than `--paper` in
+          light and darker-but-distinct in dark. */}
+      <Search
+        aria-hidden="true"
+        className="text-muted pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
+      />
+      <input
+        type="search"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder="Search papers…"
+        aria-label="Search papers"
+        // 16px text below `sm:` — iOS Safari zooms the page on a smaller
+        // focused font and never zooms back out.
+        className="border-line bg-panel text-ink placeholder:text-muted w-full rounded border py-2 pr-3 pl-8 text-[16px] sm:py-1.5 sm:text-[13.5px]"
+      />
+    </div>
   );
 }

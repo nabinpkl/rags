@@ -61,7 +61,9 @@ describe("ArxivPdfFrame — rung 2 (PDF.js) is the default and fetches arxiv.org
     await waitFor(() => {
       expect(getDocumentMock).toHaveBeenCalledWith({ url: "https://arxiv.org/pdf/1409.7842v3" });
     });
-    expect(screen.getByText(/rung 2/)).toBeInTheDocument();
+    // The built-in reader is what rung 2 IS; the toggle offering the
+    // browser viewer is how that shows in the UI now.
+    expect(screen.getByRole("button", { name: /use browser viewer/i })).toBeInTheDocument();
   });
 });
 
@@ -84,7 +86,7 @@ describe("ArxivPdfFrame — manual rung toggle (rung 1, iframe)", () => {
     render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={null} />);
 
     await waitFor(() => expect(getDocumentMock).toHaveBeenCalled());
-    screen.getByRole("button", { name: /rung 2/ }).click();
+    screen.getByRole("button", { name: /use browser viewer/i }).click();
 
     const iframe = await screen.findByTitle("Paper PDF, served by arxiv.org");
     expect(iframe.getAttribute("src")).toMatch(/^https:\/\/arxiv\.org\/pdf\/1409\.7842v3/);
@@ -95,7 +97,7 @@ describe("ArxivPdfFrame — manual rung toggle (rung 1, iframe)", () => {
     render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={5} />);
 
     await waitFor(() => expect(getDocumentMock).toHaveBeenCalled());
-    screen.getByRole("button", { name: /rung 2/ }).click();
+    screen.getByRole("button", { name: /use browser viewer/i }).click();
 
     const iframe = await screen.findByTitle("Paper PDF, served by arxiv.org");
     expect(iframe.getAttribute("src")).toBe("https://arxiv.org/pdf/1409.7842v3#page=5");
