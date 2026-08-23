@@ -90,7 +90,29 @@ services:
     cap_add: [NET_BIND_SERVICE]
     security_opt:
       - no-new-privileges:true
+    # Health means "a browser would get data": the probe goes THROUGH the
+    # proxy to the API, so a dead web->api path reads as unhealthy here
+    # instead of as a 502 only a visitor sees.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "-T", "5", "http://127.0.0.1:8080/api/facets"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
     restart: unless-stopped
+
+networks:
+  # Our own address space and a STABLE bridge name. Docker's defaults — a
+  # free 172.x block and a bridge named after the network ID, which changes
+  # on every `compose down` — leave us exposed to any per-container firewall
+  # rule the host replays at boot for a subnet or bridge that used to be
+  # someone else's (README "Host reboots").
+  default:
+    driver_opts:
+      com.docker.network.bridge.name: askrag0
+    ipam:
+      config:
+        - subnet: 10.120.0.0/24
 
 volumes:
   # Container-private copy of the vector index (see chroma-seed).
