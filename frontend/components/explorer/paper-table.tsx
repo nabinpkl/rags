@@ -26,7 +26,9 @@ const FETCH_NEXT_THRESHOLD = 8;
 // Virtual's own documented pattern for a virtualized table.
 const COLUMN_WIDTH_PX: Record<string, number> = {
   year: 46,
-  category: 62,
+  // Wide enough for the longest chip ("quant-ph", "math.NA") on one line;
+  // at 62px it broke after the hyphen.
+  category: 76,
   rigor: 50,
   arxiv_id: 108,
 };
@@ -44,7 +46,7 @@ function toggleTitleSort(current: SortOption | null): SortOption | null {
 // than toward `teal-soft` — moving it toward the unselected look on hover
 // would say "click to deselect" for a control that toggles sort direction.
 const SORT_CHIP = {
-  base: "border-line rounded border px-2.5 py-1 font-mono text-[11.5px]",
+  base: "border-line min-h-9 rounded border px-3 py-1.5 font-mono text-[11.5px]",
   selected: "bg-teal-soft text-teal-ink border-teal-ink hover:bg-teal-soft-strong",
   unselected: "text-muted hover:border-teal-ink hover:text-teal-ink",
 } as const;
@@ -115,9 +117,16 @@ export function PaperTable() {
           </button>
         ),
         cell: ({ row }) => (
-          <div>
+          <div className="min-w-0">
             <span className="font-serif text-[15px]">{row.original.title}</span>
-            <span className="text-muted block font-sans text-[11.5px]">{row.original.authors}</span>
+            {/* One line: a 20-author list wrapped to 14 rows per paper and
+                made the list unscannable. The full string is a hover away. */}
+            <span
+              className="text-muted line-clamp-1 font-sans text-[11.5px]"
+              title={row.original.authors}
+            >
+              {row.original.authors}
+            </span>
           </div>
         ),
       },
@@ -141,7 +150,7 @@ export function PaperTable() {
         id: "category",
         header: () => <span className="uppercase">Cat</span>,
         cell: ({ row }) => (
-          <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 font-mono text-[10.5px]">
+          <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 font-mono text-[10.5px] whitespace-nowrap">
             {row.original.primary_category}
           </span>
         ),
@@ -206,7 +215,14 @@ export function PaperTable() {
   }, [virtualRows, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    // `@container`: the table/card switch below keys on THIS element's width
+    // (`@xl:` = 576px of it), not the viewport's. The docked facet rail and
+    // agent panel take up to 636px of a desktop window, so a 1040px laptop
+    // leaves the list ~400px — narrower than a phone — and a viewport
+    // breakpoint would still lay it out as a five-column table with a
+    // 98px title column. A shell panel docking or undocking must never be
+    // able to squeeze the list without it reflowing.
+    <div className="@container flex min-h-0 flex-1 flex-col">
       <div className="text-muted px-3 pt-2.5 pb-1.5 font-mono text-[11.5px] sm:px-5">
         {isPending
           ? "loading…"
@@ -216,9 +232,9 @@ export function PaperTable() {
       </div>
 
       {/* Sorting lives in the column headers, which the card layout drops —
-          so below `md:` it gets its own control rather than becoming
+          so in the card layout it gets its own control rather than becoming
           unreachable. */}
-      <div className="flex items-center gap-2 px-3 pb-2 md:hidden">
+      <div className="flex items-center gap-2 px-3 pb-2 @xl:hidden">
         <span className="text-muted font-mono text-[10.5px] font-semibold tracking-[0.1em] uppercase">
           Sort
         </span>
@@ -251,7 +267,7 @@ export function PaperTable() {
         className="border-line mx-3 mb-3 flex min-h-0 flex-1 flex-col border-t sm:mx-5 sm:mb-5"
         style={{ fontVariantNumeric: "tabular-nums" }}
       >
-        <div role="rowgroup" className="border-ink hidden border-b-[1.5px] md:flex">
+        <div role="rowgroup" className="border-ink hidden border-b-[1.5px] @xl:flex">
           <div role="row" className="flex w-full">
             {headerCells.map((header) => (
               <div
@@ -296,12 +312,12 @@ export function PaperTable() {
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  {/* Card below `md:`. The fixed columns total 266px, which
-                      at 390px viewport width leaves the title about 120px —
-                      one or two words per line. Same row element, same
-                      measured height, no second data path: both layouts read
-                      `row.original`. */}
-                  <div role="cell" className="flex min-w-0 flex-col gap-1 px-2 py-2.5 md:hidden">
+                  {/* Card when the list is narrower than `@xl`. The fixed
+                      columns total 266px, which at 390px leaves the title
+                      about 120px — one or two words per line. Same row
+                      element, same measured height, no second data path:
+                      both layouts read `row.original`. */}
+                  <div role="cell" className="flex min-w-0 flex-col gap-1 px-2 py-2.5 @xl:hidden">
                     <span className="font-serif text-[15px] leading-snug">
                       {row.original.title}
                     </span>
@@ -322,7 +338,7 @@ export function PaperTable() {
                     </div>
                   </div>
 
-                  <div className="hidden w-full md:flex">
+                  <div className="hidden w-full @xl:flex">
                     {row.getVisibleCells().map((cell) => (
                       <div
                         key={cell.id}

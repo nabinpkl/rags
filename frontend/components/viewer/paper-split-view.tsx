@@ -29,9 +29,10 @@ export function PaperSplitView() {
   );
 
   const { data, isPending, isError } = usePaperDetail(paper, chunkIds);
-  // Narrow viewports only: the pane is a bottom disclosure there, collapsed by
-  // default so the PDF — the reading surface (D9) — keeps the screen. From
-  // `md:` up it is the docked right column and this flag does nothing.
+  // Stacked layout only (the region narrower than `@3xl`): the pane is a
+  // bottom disclosure there, collapsed by default so the PDF — the reading
+  // surface (D9) — keeps the screen. Side by side, it is the docked right
+  // column and this flag does nothing.
   const [excerptsOpen, setExcerptsOpen] = useState(false);
 
   if (!paper) return null;
@@ -40,7 +41,12 @@ export function PaperSplitView() {
   const excerptCount = data?.excerpts?.length ?? 0;
 
   return (
-    <div className="bg-paper flex h-full min-w-0 flex-col">
+    // `@container`: the PDF|excerpts split keys on THIS region's width
+    // (`@3xl:` = 768px of it), not the viewport's — with the agent panel
+    // docked, a 1040px window leaves the viewer 620px, and a viewport
+    // breakpoint gave the reading surface 300px beside a 320px pane of
+    // "no excerpts yet".
+    <div className="@container bg-paper flex h-full min-w-0 flex-col">
       <div className="border-line bg-panel border-b px-3 py-2.5 sm:px-5 sm:py-3">
         <div className="mb-1.5 flex items-center gap-2.5">
           <button
@@ -59,11 +65,17 @@ export function PaperSplitView() {
         <h2 className="text-ink font-serif text-[18px] leading-tight font-semibold">
           {isPending ? "Loading…" : isError ? `Paper ${paper}` : data?.title}
         </h2>
+        {/* Clamped: on a phone the header is what the PDF has to fit under,
+            and a full affiliation list pushed the first page below the
+            fold. The full string is a hover away. */}
+        {data && (
+          <p className="text-muted line-clamp-1 text-[12px] sm:line-clamp-2" title={data.authors}>
+            {data.authors}
+          </p>
+        )}
         <div className="text-muted flex flex-wrap items-center gap-x-1.5 text-[12px]">
           {data && (
             <>
-              <span>{data.authors}</span>
-              <span>·</span>
               <span>{data.year}</span>
               <span>·</span>
               <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 font-mono text-[10.5px]">
@@ -100,11 +112,11 @@ export function PaperSplitView() {
           instead of scrolling internally — h-full pins the row to the
           flex parent's remaining height so each grid item's own
           overflow-auto region is what scrolls. */}
-      {/* Below `md:` this is two ROWS — the PDF taking 1fr and the excerpts
-          collapsing to their header — because a 50/50 split on a phone gives
-          the reading surface half a screen, usually to show "no cited
-          excerpts yet". */}
-      <div className="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-[1fr_auto] md:grid-cols-[1fr_320px] md:grid-rows-1">
+      {/* Narrower than `@3xl` this is two ROWS — the PDF taking 1fr and the
+          excerpts collapsing to their header — because a 50/50 split on a
+          phone gives the reading surface half a screen, usually to show "no
+          cited excerpts yet". */}
+      <div className="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-[1fr_auto] @3xl:grid-cols-[1fr_320px] @3xl:grid-rows-1">
         {isPending ? (
           <div className="text-machine-text flex h-full items-center justify-center bg-[#3c4650] font-mono text-[11px]">
             loading…
@@ -123,12 +135,12 @@ export function PaperSplitView() {
         {/* ONE pane instance in both layouts: it mints DOM ids per chunk for
             its section jump-links, and a second copy would make
             getElementById pick whichever rendered first. */}
-        <section className="border-line bg-panel flex min-h-0 flex-col border-t md:border-t-0 md:border-l">
+        <section className="border-line bg-panel flex min-h-0 flex-col border-t @3xl:border-t-0 @3xl:border-l">
           <button
             type="button"
             onClick={() => setExcerptsOpen((open) => !open)}
             aria-expanded={excerptsOpen}
-            className="text-muted hover:text-ink flex h-11 shrink-0 items-center gap-2 px-3.5 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase md:hidden"
+            className="text-muted hover:text-ink flex h-11 shrink-0 items-center gap-2 px-3.5 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase @3xl:hidden"
           >
             Cited excerpts
             {excerptCount > 0 && (
@@ -146,8 +158,8 @@ export function PaperSplitView() {
               // the cap, so the pane's own `h-full` has no definite parent to
               // resolve against and its overflow would never trigger. Docked,
               // the row has a real height and the pane scrolls itself.
-              "min-h-0 flex-1 overflow-y-auto md:block md:max-h-none md:overflow-visible",
-              excerptsOpen ? "max-h-[45vh]" : "hidden md:block",
+              "min-h-0 flex-1 overflow-y-auto @3xl:block @3xl:max-h-none @3xl:overflow-visible",
+              excerptsOpen ? "max-h-[45vh]" : "hidden @3xl:block",
             )}
           >
             <CitedExcerptsPane

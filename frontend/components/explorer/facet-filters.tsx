@@ -188,6 +188,22 @@ export function FacetFilters() {
           />
         </div>
       </div>
+
+      {/* Drawer only (`md:hidden`, like the header above): a filter applies
+          the moment it is tapped, but on a phone the result is behind this
+          sheet, so the way out says what is waiting there. The count is the
+          facets total, which is already filtered by the current selection.
+          Docked, the list is beside the rail and there is nothing to
+          dismiss. */}
+      <div className="border-line border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
+        <button
+          type="button"
+          onClick={closeOverlay}
+          className="bg-teal-deep hover:bg-teal-deep-hover w-full rounded py-2.5 text-sm font-semibold text-[#eafaf6]"
+        >
+          {data ? `Show ${data.total.toLocaleString()} papers` : "Show papers"}
+        </button>
+      </div>
     </div>
   );
 }
