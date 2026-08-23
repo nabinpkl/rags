@@ -67,6 +67,29 @@ docker builder prune -f && docker image prune -f
 Neither touches the running containers or the tagged images they use; the next
 build is just slower.
 
+## Host reboots
+
+The host runs `netfilter-persistent`, which replays `/etc/iptables/rules.v4` at
+boot. That file is a snapshot of whatever Docker, k3s and tailscaled had written
+at the moment someone last ran `netfilter-persistent save` — including Docker's
+per-container `raw PREROUTING … ! -i br-<id> -j DROP` rules. Docker never
+removes rules it did not write, so a rule saved for a network that has since
+been deleted comes back every boot and drops traffic to whichever containers
+now hold those addresses. On 2026-08-15 this silently cut `web -> api` for eight
+days while both containers reported healthy (the API's own probe runs over
+loopback inside the container).
+
+Two things in `compose.yml` make this deployment immune regardless of what the
+host or other projects do: the network has its own subnet (`10.120.0.0/24`,
+nobody else's range) and a fixed bridge name (`askrag0`, so a stale snapshot of
+*our own* rules is identical to what Docker writes anyway). The `web`
+healthcheck goes through the proxy to the API, so a broken path shows up in
+`docker compose ps`.
+
+If it ever happens anyway, the tell is `DOCKER-*` chain counters at zero while
+one rule in `sudo iptables -t raw -S PREROUTING` names a bridge that is not in
+`/sys/class/net/`. Delete it and purge its lines from `rules.v4`.
+
 ## Refreshing the corpus (D12)
 
 Ingest locally, copy the new `corpus.db` / `chroma/` into place on the host, then
