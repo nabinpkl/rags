@@ -276,12 +276,17 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
         {/* Provenance, kept in plain words: the point a reader cares about is
             that the file comes from arXiv itself, not that we don't proxy it
             (§6b, which is our constraint to keep, not their vocabulary). */}
-        <span>— loaded straight from arXiv</span>
+        {/* Dropped on a phone: it wrapped the bar to two lines over the top
+            of the first page. The header's "open on arXiv" link carries
+            the §6b provenance at every width. */}
+        <span className="hidden sm:inline">— loaded straight from arXiv</span>
         <button
           type="button"
           onClick={toggleRung}
           title="Switch how this PDF is displayed"
-          className="border-machine-line text-machine-muted hover:border-teal hover:text-teal rounded border px-1.5 py-0.5 font-mono text-[9.5px]"
+          // `text-machine-text`, not `-muted`: muted on the dark bar read as
+          // a disabled control, and nobody presses a control that looks off.
+          className="border-machine-muted text-machine-text hover:border-teal hover:text-teal rounded border px-2 py-1 font-mono text-[9.5px]"
         >
           {/* Names the ACTION, not the current rung: a label reading "reader
               view" next to a reader view can't be told from a status. */}
@@ -315,12 +320,14 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
             )}
           </div>
           {!loading && (
-            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded bg-black/60 px-2.5 py-1">
+            // The arrows are 36px square: a thumb target, not a glyph's ink.
+            // The bar's padding is theirs, not the container's.
+            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded bg-black/60 px-1">
               <button
                 type="button"
                 aria-label="Previous page"
                 onClick={() => gotoPage(displayPage - 1, false)}
-                className="text-machine-text hover:text-teal px-1.5 text-[15px]"
+                className="text-machine-text hover:text-teal flex h-9 w-9 items-center justify-center text-[17px]"
               >
                 ‹
               </button>
@@ -331,7 +338,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
                 type="button"
                 aria-label="Next page"
                 onClick={() => gotoPage(displayPage + 1, false)}
-                className="text-machine-text hover:text-teal px-1.5 text-[15px]"
+                className="text-machine-text hover:text-teal flex h-9 w-9 items-center justify-center text-[17px]"
               >
                 ›
               </button>

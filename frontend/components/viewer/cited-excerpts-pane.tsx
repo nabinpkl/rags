@@ -52,18 +52,20 @@ export function CitedExcerptsPane({
       aria-label="Cited excerpts"
       className="border-line bg-panel h-full min-h-0 overflow-y-auto p-3.5"
     >
-      {/* Below `md:` the pane sits inside a disclosure whose button already
-          says "Cited excerpts" (paper-split-view.tsx); repeating it there
-          reads as two headings for one section. */}
-      <h3 className="text-muted mb-1 hidden font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase md:block">
+      {/* In the stacked layout (paper-split-view.tsx's `@container`, below
+          `@3xl`) the pane sits inside a disclosure whose button already says
+          "Cited excerpts"; repeating it there reads as two headings for one
+          section. */}
+      <h3 className="text-muted mb-1 hidden font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase @3xl:block">
         Cited excerpts
       </h3>
       {/* The two numbers stay (§6c is the reason this pane is capped at all,
           and saying so is the honest thing) — but as a sentence, not as the
-          spec's inequality notation. */}
+          spec's inequality notation. "In the PDF viewer", not "on the left":
+          on a phone the viewer is above this pane. */}
       <p className="text-muted mb-3.5 text-[11px] leading-relaxed">
-        Quotes are limited to 50 words, and 3 per paper per answer. Read the full paper on the left
-        — this panel shows only the passages the agent quoted.
+        Quotes are limited to 50 words, and 3 per paper per answer. Read the full paper in the PDF
+        viewer — this panel shows only the passages the agent quoted.
       </p>
 
       {sections.length > 0 && (

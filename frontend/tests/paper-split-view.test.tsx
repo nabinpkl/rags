@@ -140,3 +140,20 @@ describe("PaperSplitView", () => {
     expect(usePaperDetailMock).toHaveBeenCalledWith("1409.7842", ["c1", "c2"]);
   });
 });
+
+// The split keys on the viewer's OWN width (`@container` + `@3xl:`), not the
+// viewport's: with the agent panel docked, a 1040px window leaves this region
+// 620px, and a viewport breakpoint gave the PDF 300px beside a 320px pane of
+// "no excerpts yet".
+describe("PaperSplitView layout", () => {
+  it("lays out the PDF|excerpts split by its own width, not the viewport", () => {
+    useViewerStore.getState().setPaper("1409.7842");
+    mockDetail({ isPending: true });
+    const { container } = render(<PaperSplitView />);
+
+    expect(container.firstElementChild?.className).toMatch(/@container/);
+    const disclosure = screen.getByRole("button", { name: /cited excerpts/i });
+    expect(disclosure.className).toMatch(/@3xl:hidden/);
+    expect(disclosure.className).not.toMatch(/\bmd:/);
+  });
+});
