@@ -50,8 +50,11 @@ class FakeStore:
         self.ids = ids
         self.calls: list[dict] = []
 
-    def query(self, embedding, k, *, category=None, year_min=None, year_max=None):
-        self.calls.append({"k": k})
+    def query(self, embedding, k, *, category=None, year_min=None, year_max=None, paper_ids=None):
+        self.calls.append({"k": k, "paper_ids": paper_ids})
+        if paper_ids is not None:
+            wanted = set(paper_ids)
+            return [i for i in self.ids if i.split("#")[0] in wanted][:k]
         return self.ids[:k]
 
 
@@ -97,7 +100,7 @@ def test_k_is_clamped_to_search_corpus_max_k(corpus_db):
         searcher=searcher,
         settings=Settings(search_corpus_max_k=3),
     )
-    assert store.calls == [{"k": 3}]
+    assert store.calls == [{"k": 3, "paper_ids": None}]
 
 
 def test_args_reject_an_open_filter_dict():
@@ -116,3 +119,36 @@ def test_args_reject_k_past_the_schema_ceiling():
 def test_args_require_a_nonblank_query():
     with pytest.raises(Exception):  # noqa: B017 — pydantic ValidationError
         SearchCorpusArgs(query="")
+
+
+def test_a_route_set_scope_narrows_retrieval(corpus_db):
+    """The scope is a keyword the model cannot author (see search_corpus.run)."""
+    store = FakeStore(["2401.00001#0"])
+    searcher = HybridSearch(
+        Settings(), embedder=FakeEmbedder(), vector_store=store, corpus_db_path=corpus_db
+    )
+
+    out_of_scope = run(
+        SearchCorpusArgs(query="attention"),
+        scope=("2499.99999",),
+        searcher=searcher,
+        settings=Settings(),
+    )
+    in_scope = run(
+        SearchCorpusArgs(query="attention"),
+        scope=("2401.00001",),
+        searcher=searcher,
+        settings=Settings(),
+    )
+
+    assert store.calls[0]["paper_ids"] == ("2499.99999",)
+    assert out_of_scope.chunks == ()
+    assert {c.paper_id for c in in_scope.chunks} == {"2401.00001"}
+
+
+def test_scope_is_absent_from_the_model_facing_schema():
+    """A scope the model can write is not a scope."""
+    fields = SearchCorpusArgs.model_json_schema()["properties"]
+
+    assert "scope" not in fields
+    assert "paper_ids" not in fields

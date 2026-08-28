@@ -126,3 +126,25 @@ def test_to_model_payload_is_a_plain_dict_of_the_result(corpus_db):
         "tokens_used": 3,
         "truncated": False,
     }
+
+
+def test_a_scoped_turn_refuses_a_paper_outside_its_claim(corpus_db):
+    """Scoping search without scoping direct reads leaves the scope open.
+
+    The model can name any indexed id here, so a scoped turn must refuse the
+    ones its landing-page claim does not cover.
+    """
+    with pytest.raises(ReadPaperError, match="outside this conversation's scope"):
+        run(
+            ReadPaperArgs(paper_id="2401.00001"),
+            scope=("2499.99999",),
+            corpus_db_path=corpus_db,
+        )
+
+
+def test_a_scoped_turn_reads_a_paper_inside_its_claim(corpus_db):
+    result = run(
+        ReadPaperArgs(paper_id="2401.00001"), scope=("2401.00001",), corpus_db_path=corpus_db
+    )
+
+    assert result.spans

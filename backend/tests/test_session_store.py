@@ -88,3 +88,36 @@ def test_saving_refreshes_the_ttl_clock():
     store.save("s1", [{"role": "user", "content": "still here"}])  # refreshes last_seen
     clock.advance(9)  # 18s since first save, but only 9s since the refresh
     assert store.get_or_create("s1") == [{"role": "user", "content": "still here"}]
+
+
+def test_history_does_not_cross_a_scope_change():
+    """Prior turns carry TOOL RESULTS — text from the papers they retrieved.
+
+    Reusing them across a scope change would answer a question asked about one
+    landing-page claim using another claim's papers: the tool scope would hold
+    while the context leaked around it.
+    """
+    store = SessionStore(settings=Settings(_env_file=None))  # ty: ignore[unknown-argument]
+    store.save("s1", [{"role": "user", "content": "about PPO"}], "1707.06347")
+
+    assert store.get_or_create("s1", "1707.06347") != []
+    assert store.get_or_create("s1", "2402.03300") == []
+    assert store.get_or_create("s1", None) == []
+
+
+def test_multi_turn_within_one_scope_keeps_its_history():
+    """The case that matters: a follow-up question about the same claim."""
+    store = SessionStore(settings=Settings(_env_file=None))  # ty: ignore[unknown-argument]
+    store.save("s1", [{"role": "user", "content": "first"}], "1707.06347")
+
+    history = store.get_or_create("s1", "1707.06347")
+    store.save("s1", [*history, {"role": "user", "content": "second"}], "1707.06347")
+
+    assert len(store.get_or_create("s1", "1707.06347")) == 2
+
+
+def test_unscoped_sessions_behave_exactly_as_before():
+    store = SessionStore(settings=Settings(_env_file=None))  # ty: ignore[unknown-argument]
+    store.save("s1", [{"role": "user", "content": "hi"}])
+
+    assert len(store.get_or_create("s1")) == 1
