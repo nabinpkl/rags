@@ -84,7 +84,8 @@ work is broken into GitHub issues.
 - Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`,
   `just eval`. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
-  `POST /api/chat`). Frontend (after #26): `pnpm build`. After ANY route or
+  `POST /api/chat`). Frontend (after #26): `pnpm build`, also run by the gate
+  (#52 — `tsc` is not `next build` in export mode). After ANY route or
   response-model change run `just gen-openapi` — `just check` catches type
   drift but not schema drift, because `openapi.json` is typegen's input.
 - Landing pipeline, in order: `just citations` (extract + resolve the citation

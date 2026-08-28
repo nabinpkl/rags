@@ -53,8 +53,13 @@ backend-check:
 draft-evals:
     cd evals && uv run python -c "print('draft-evals: not implemented (#17)')"
 
-# Frontend gate: lint + typecheck + tests + generated-types drift check.
+# Frontend gate: lint + typecheck + tests + generated-types drift + the export.
 # CI installs deps first (see ci.yml); locally, run `pnpm install` in frontend/ once.
+#
+# `pnpm build` is in the gate because `tsc --noEmit` is NOT `next build` in
+# export mode (#52): a change can type-check cleanly and still fail to export,
+# and without this the first sign of that is a failed deploy. It runs LAST —
+# it is the slowest step, so the cheap checks get to fail first.
 frontend-check:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -62,7 +67,7 @@ frontend-check:
         echo "frontend not scaffolded yet, skipping"
         exit 0
     fi
-    cd frontend && pnpm lint && pnpm typecheck && pnpm test && pnpm gen:api:check
+    cd frontend && pnpm lint && pnpm typecheck && pnpm test && pnpm gen:api:check && pnpm build
 
 # Full-repo gate — CI runs exactly this, so local green == CI green
 check: backend-check frontend-check
