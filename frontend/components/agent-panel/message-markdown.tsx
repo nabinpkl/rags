@@ -2,6 +2,7 @@
 
 import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { arxivAbsUrl } from "@/lib/arxiv-links";
 
 interface MessageMarkdownProps {
   text: string;
@@ -26,7 +27,7 @@ const CitationOrInertLink: Components["a"] = ({ href, children }) => {
     const paperId = href.slice(CITATION_SCHEME.length);
     return (
       <a
-        href={`https://arxiv.org/abs/${paperId}`}
+        href={arxivAbsUrl(paperId)}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-block rounded border border-teal/40 bg-teal/10 px-1 font-mono text-[10px] text-teal hover:bg-teal/25"

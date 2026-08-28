@@ -6,7 +6,7 @@
 // ladder's fallback behavior, not pdf.js's own rendering.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { ArxivPdfFrame, arxivPdfUrl } from "@/components/viewer/arxiv-pdf-frame";
+import { ArxivPdfFrame } from "@/components/viewer/arxiv-pdf-frame";
 
 const { getDocumentMock } = vi.hoisted(() => ({ getDocumentMock: vi.fn() }));
 
@@ -43,16 +43,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("arxivPdfUrl — §6b version pinning", () => {
-  it("pins to the exact version when one is known", () => {
-    expect(arxivPdfUrl("2401.00001", "v3")).toBe("https://arxiv.org/pdf/2401.00001v3");
-  });
-
-  it("falls back to the unpinned URL when version is NULL (pre-backfill stragglers, D9)", () => {
-    expect(arxivPdfUrl("2401.00001", null)).toBe("https://arxiv.org/pdf/2401.00001");
-  });
-});
-
 describe("ArxivPdfFrame — rung 2 (PDF.js) is the default and fetches arxiv.org directly", () => {
   it("requests the version-pinned URL, never a same-origin/proxy path", async () => {
     getDocumentMock.mockReturnValue({ promise: new Promise(() => {}), destroy: vi.fn() }); // never resolves — asserts the request itself
@@ -76,7 +66,9 @@ describe("ArxivPdfFrame — automatic fallback to rung 3", () => {
     render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={null} />);
 
     const link = await screen.findByRole("link", { name: /open on arXiv/i });
-    expect(link).toHaveAttribute("href", "https://arxiv.org/abs/1409.7842");
+    // Version-pinned, like the PDF URL beside it: the fallback rung must not
+    // quietly hand the reader a different revision than the one we read (D9).
+    expect(link).toHaveAttribute("href", "https://arxiv.org/abs/1409.7842v3");
   });
 });
 

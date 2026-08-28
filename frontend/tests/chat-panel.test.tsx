@@ -46,6 +46,6 @@ describe("ChatPanel", () => {
     );
     fireEvent.click(first);
     fireEvent.submit(screen.getByRole("textbox", { name: /question for the agent/i }));
-    expect(ask).toHaveBeenCalledWith(first.textContent);
+    expect(ask).toHaveBeenCalledWith(first.textContent, undefined); // unscoped: no landing claim
   });
 });

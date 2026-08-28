@@ -7,6 +7,7 @@ import { usePaperDetail } from "@/hooks/use-paper-detail";
 import { ArxivPdfFrame } from "@/components/viewer/arxiv-pdf-frame";
 import { CitedExcerptsPane } from "@/components/viewer/cited-excerpts-pane";
 import { cn } from "@/lib/utils";
+import { arxivAbsUrl } from "@/lib/arxiv-links";
 
 const EMPTY_CHUNK_IDS: readonly string[] = [];
 
@@ -37,7 +38,7 @@ export function PaperSplitView() {
 
   if (!paper) return null;
 
-  const absUrl = `https://arxiv.org/abs/${paper}`;
+  const absUrl = arxivAbsUrl(paper, data?.version);
   const excerptCount = data?.excerpts?.length ?? 0;
 
   return (
