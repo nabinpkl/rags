@@ -72,6 +72,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/landing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Landing
+         * @description The whole front page in one call — it is one static composition.
+         *
+         *     `limit` defaults to `frontier_top_cited` because that setting IS the
+         *     manifest select_frontier.py indexed against: a smaller default would
+         *     silently hide foundations whose papers we fetched, chunked and embedded,
+         *     and a larger one would list foundations with no indexed citers behind them.
+         */
+        get: operations["get_landing_api_landing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/foundations/{arxiv_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Foundation */
+        get: operations["get_foundation_api_foundations__arxiv_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -82,6 +124,8 @@ export interface components {
             question: string;
             /** Session Id */
             session_id?: string | null;
+            /** Foundation Id */
+            foundation_id?: string | null;
         };
         /** CitedExcerpt */
         CitedExcerpt: {
@@ -95,6 +139,42 @@ export interface components {
             page_end: number;
             /** Text */
             text: string;
+        };
+        /** CitedYearBucket */
+        CitedYearBucket: {
+            /** Year */
+            year: number | null;
+            /** Citations */
+            citations: number;
+        };
+        /** CoCitedWork */
+        CoCitedWork: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string | null;
+            /** Version */
+            version: string | null;
+            /** Cite Both */
+            cite_both: number;
+        };
+        /**
+         * CohortStats
+         * @description The four numbers the page opens with, each derived, none configured.
+         */
+        CohortStats: {
+            /** Window Start */
+            window_start: string | null;
+            /** Window End */
+            window_end: string | null;
+            /** Papers In Window */
+            papers_in_window: number;
+            /** Papers With References */
+            papers_with_references: number;
+            /** Citations */
+            citations: number;
+            /** Cited Works */
+            cited_works: number;
         };
         /** FacetBucketOut */
         FacetBucketOut: {
@@ -119,10 +199,64 @@ export interface components {
             license: components["schemas"]["FacetDimension"];
             venue: components["schemas"]["FacetDimension"];
         };
+        /**
+         * Foundation
+         * @description A work our recent cohort builds on. Not a `papers` row — see cited_works.
+         */
+        Foundation: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string | null;
+            /** Authors */
+            authors: string | null;
+            /** Primary Category */
+            primary_category: string | null;
+            /** Year */
+            year: number | null;
+            /** Version */
+            version: string | null;
+            /** Cited By */
+            cited_by: number;
+        };
+        /** FoundationDetailResponse */
+        FoundationDetailResponse: {
+            foundation: components["schemas"]["Foundation"];
+            /** Co Cited */
+            co_cited: components["schemas"]["CoCitedWork"][];
+            /** Indexed Citers */
+            indexed_citers: components["schemas"]["IndexedCiter"][];
+            /** Total Citers */
+            total_citers: number;
+            /** Scope Size */
+            scope_size: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * IndexedCiter
+         * @description A citing paper we hold and have indexed — every one of these opens.
+         */
+        IndexedCiter: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string;
+            /** Primary Category */
+            primary_category: string;
+            /** Version */
+            version: string | null;
+        };
+        /** LandingResponse */
+        LandingResponse: {
+            stats: components["schemas"]["CohortStats"];
+            /** Foundations */
+            foundations: components["schemas"]["Foundation"][];
+            /** Cited Years */
+            cited_years: components["schemas"]["CitedYearBucket"][];
         };
         /** PaperDetailResponse */
         PaperDetailResponse: {
@@ -341,6 +475,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FacetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_landing_api_landing_get: {
+        parameters: {
+            query?: {
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LandingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_foundation_api_foundations__arxiv_id__get: {
+        parameters: {
+            query?: {
+                co_cited_limit?: number;
+                citers_limit?: number | null;
+            };
+            header?: never;
+            path: {
+                arxiv_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoundationDetailResponse"];
                 };
             };
             /** @description Validation Error */

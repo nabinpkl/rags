@@ -20,11 +20,26 @@ const SUGGESTED_QUESTIONS = [
   "Summarize recent work on multilingual instruction tuning",
 ] as const;
 
+export interface ChatScope {
+  /** The landing-page claim this conversation is about. Sent to the server,
+   * which resolves it to that claim's indexed papers; the client never names
+   * a paper set (routes_chat._resolve_scope). */
+  foundationId: string;
+  /** What the scope is, in the reader's words — shown above the composer so
+   * the answer's boundaries are visible before the question is asked. */
+  label: string;
+  starters: readonly string[];
+}
+
 /** The machine-room agent panel: message list + timeline + composer, wired
  * to the single SSE connection owner (use-agent-stream.ts). Composition
  * only — parsing, event dispatch, and citation verification all live
- * upstream, in the hook and the store. */
-export function ChatPanel() {
+ * upstream, in the hook and the store.
+ *
+ * `scope` makes this the landing page's ask surface too, rather than a second
+ * chat implementation: same store, same SSE path, same timeline — only the
+ * starters and the server-side paper scope differ. */
+export function ChatPanel({ scope }: { scope?: ChatScope } = {}) {
   const [question, setQuestion] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const status = useAgentSessionStore((state) => state.status);
@@ -42,7 +57,7 @@ export function ChatPanel() {
     const trimmed = question.trim();
     if (!trimmed || busy) return;
     setQuestion("");
-    void ask(trimmed);
+    void ask(trimmed, scope?.foundationId);
   }
 
   return (
@@ -70,11 +85,12 @@ export function ChatPanel() {
         {turns.length === 0 && (
           <div className="flex flex-col gap-3">
             <p className="text-machine-muted text-sm">
-              Ask about the corpus — I search, read, and compute; every step shows here with its
-              cost.
+              {scope
+                ? `Answers come from ${scope.label} — I search and read those papers, and every step shows here with its cost.`
+                : "Ask about the corpus — I search, read, and compute; every step shows here with its cost."}
             </p>
             <ul className="flex flex-col gap-1.5" aria-label="Example questions">
-              {SUGGESTED_QUESTIONS.map((example) => (
+              {(scope?.starters ?? SUGGESTED_QUESTIONS).map((example) => (
                 <li key={example}>
                   <button
                     type="button"

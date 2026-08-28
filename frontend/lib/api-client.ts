@@ -57,3 +57,30 @@ export function fetchPaperDetail(
 ): Promise<PaperDetailResponse> {
   return getJson(`/api/papers/${encodeURIComponent(paperId)}`, query);
 }
+
+type LandingQuery = NonNullable<paths["/api/landing"]["get"]["parameters"]["query"]>;
+export type LandingResponse =
+  paths["/api/landing"]["get"]["responses"][200]["content"]["application/json"];
+type FoundationQuery = NonNullable<
+  paths["/api/foundations/{arxiv_id}"]["get"]["parameters"]["query"]
+>;
+export type FoundationDetailResponse =
+  paths["/api/foundations/{arxiv_id}"]["get"]["responses"][200]["content"]["application/json"];
+export type Foundation = LandingResponse["foundations"][number];
+
+/** GET /api/landing — the whole front page in one call. One request because
+ * the page is one static composition; N round-trips would only add latency
+ * to a view that shows everything at once. */
+export function fetchLanding(query: LandingQuery = {}): Promise<LandingResponse> {
+  return getJson("/api/landing", query);
+}
+
+/** GET /api/foundations/{id} — a foundation's co-cited works and the citing
+ * papers we have indexed. The `cited_by` count is every citer; the list is
+ * only the readable ones (D16) — render both, never conflate them. */
+export function fetchFoundation(
+  arxivId: string,
+  query: FoundationQuery = {},
+): Promise<FoundationDetailResponse> {
+  return getJson(`/api/foundations/${encodeURIComponent(arxivId)}`, query);
+}

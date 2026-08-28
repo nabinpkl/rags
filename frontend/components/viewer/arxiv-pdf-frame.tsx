@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import { cn } from "@/lib/utils";
+import { arxivAbsUrl, arxivPdfUrl } from "@/lib/arxiv-links";
 
 // D9's fallback ladder, isolated to this one file — the named seam spec §4d
 // calls out ("`arxiv-pdf-frame.tsx` isolates the D9 fallback ladder"), so a
@@ -42,13 +43,6 @@ function loadPdfjs() {
   return pdfjsModulePromise;
 }
 
-/** D9/§6b: version-pinned whenever we have one (`version` from the detail
- * endpoint, e.g. "v3"); NULL falls back to the unpinned URL — never any
- * origin but arxiv.org, never our own server. */
-export function arxivPdfUrl(arxivId: string, version: string | null): string {
-  return `https://arxiv.org/pdf/${arxivId}${version ?? ""}`;
-}
-
 interface ArxivPdfFrameProps {
   arxivId: string;
   version: string | null;
@@ -64,7 +58,7 @@ interface ArxivPdfFrameProps {
 export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
   const idv = `${arxivId}${version ?? ""}`;
   const url = arxivPdfUrl(arxivId, version);
-  const absUrl = `https://arxiv.org/abs/${arxivId}`;
+  const absUrl = arxivAbsUrl(arxivId, version);
   const targetPage = page ?? 1;
 
   const [rung, setRung] = useState<Rung>(DEFAULT_RUNG);
