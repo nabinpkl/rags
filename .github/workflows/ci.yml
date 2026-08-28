@@ -1,6 +1,7 @@
 # The single gate: CI runs `just check`, the same command every role runs
 # locally, so local green == CI green by construction (issue #44).
-# frontend-check runs pnpm lint+typecheck+test+typegen-drift (issue #26).
+# frontend-check runs pnpm lint+typecheck+test+typegen-drift, then the
+# static export itself (`pnpm build`) — tsc is not next build (#52).
 # No corpus access in CI: tests build tmp fixtures. Eval smoke lands with #24.
 name: ci
 
