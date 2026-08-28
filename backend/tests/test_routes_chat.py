@@ -107,7 +107,9 @@ def _sse_data_lines(resp) -> list[dict]:
 
 
 def test_allow_streams_events_in_order_and_closes_with_cost_and_done(tmp_path, monkeypatch):
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({"n_papers": 6460}))
+    monkeypatch.setattr(
+        registry, "dispatch", lambda name, args, *, scope=None: StubResult({"n_papers": 6460})
+    )
     settings = make_settings(tmp_path)
     client = ScriptedModelClient([tool_use_response("t1"), text_response("There are 6460 papers.")])
     app = make_app(settings=settings, client=client)
@@ -136,7 +138,7 @@ def test_allow_streams_events_in_order_and_closes_with_cost_and_done(tmp_path, m
 
 
 def test_allow_mints_a_session_id_when_absent(tmp_path, monkeypatch):
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({}))
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
     settings = make_settings(tmp_path)
     client = ScriptedModelClient([text_response("hi")])
     app = make_app(settings=settings, client=client)
@@ -149,7 +151,7 @@ def test_allow_mints_a_session_id_when_absent(tmp_path, monkeypatch):
 
 
 def test_allow_persists_a_trace_with_question_and_answer(tmp_path, monkeypatch):
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({}))
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
     settings = make_settings(tmp_path)
     client = ScriptedModelClient([text_response("the answer")])
     app = make_app(settings=settings, client=client)
@@ -234,7 +236,7 @@ def test_replay_with_no_showcase_pool_returns_503(tmp_path):
 
 
 def test_live_stream_is_incremental_not_a_buffered_dump(tmp_path, monkeypatch):
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({}))
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
     settings = make_settings(tmp_path)
     release = threading.Event()
 
@@ -281,7 +283,7 @@ def test_live_stream_is_incremental_not_a_buffered_dump(tmp_path, monkeypatch):
 
 
 def test_live_stream_surfaces_a_terminal_event_on_loop_exception(tmp_path, monkeypatch):
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({}))
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
     settings = make_settings(tmp_path)
 
     class ExplodingClient:
@@ -296,3 +298,142 @@ def test_live_stream_surfaces_a_terminal_event_on_loop_exception(tmp_path, monke
             events = _sse_data_lines(resp)
 
     assert events == [{"type": "done", "stop_reason": "error", "run_id": ""}]
+
+
+# --- SCOPE: a landing-page claim narrows the turn, server-side -------------
+
+
+def _scoped_corpus(tmp_path):
+    """A corpus where 2401.00001 cites PPO and is indexed; 2401.00002 is not."""
+    from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
+    from askrag.ingest.resolve_cited_works import CitedWorkRow
+
+    def paper(arxiv_id):
+        return PaperRow(
+            arxiv_id=arxiv_id,
+            title="t",
+            authors="a",
+            abstract="x",
+            categories="cs.LG",
+            published="2024-01-01",
+            version="v1",
+            license=None,
+            venue=None,
+            authority=None,
+            niche_idf=None,
+            author_novelty=None,
+            revisions=None,
+            venue_rigor=None,
+        )
+
+    _write_corpus_db(
+        tmp_path / "corpus.db",
+        [paper("2401.00001"), paper("2401.00002")],
+        [ChunkRow("2401.00001#0", "2401.00001", "__paper__", 1, 1, "grpo", 2)],
+        [CitedWorkRow("1707.06347", "PPO", "J. S.", "cs.LG", 2017, "v2")],
+        [("2401.00001", "1707.06347"), ("2401.00002", "1707.06347")],
+    )
+    return make_settings(tmp_path, corpus_dir=tmp_path)
+
+
+def test_a_foundation_id_scopes_the_turn_to_its_indexed_citers(tmp_path, monkeypatch):
+    """The route resolves the scope; the model never writes it (§5/§6).
+
+    Both papers cite PPO, but only 2401.00001 is indexed — the agent is handed
+    the papers it can actually read, and cannot reach past them.
+    """
+    seen: list[object] = []
+
+    def fake_dispatch(name, args, *, scope=None):
+        seen.append(scope)
+        return StubResult({"ok": True})
+
+    monkeypatch.setattr(registry, "dispatch", fake_dispatch)
+    settings = _scoped_corpus(tmp_path)
+    client = ScriptedModelClient([tool_use_response("t1"), text_response("answered")])
+    app = make_app(settings=settings, client=client)
+
+    with TestClient(app) as tc:
+        with tc.stream(
+            "POST",
+            "/api/chat",
+            json={"question": "what do they report?", "foundation_id": "1707.06347"},
+        ) as resp:
+            assert resp.status_code == 200
+            _sse_data_lines(resp)
+
+    assert seen == [("2401.00001",)]
+
+
+def test_an_unscoped_turn_still_passes_no_scope(tmp_path, monkeypatch):
+    seen: list[object] = []
+
+    def fake_dispatch(name, args, *, scope=None):
+        seen.append(scope)
+        return StubResult({"ok": True})
+
+    monkeypatch.setattr(registry, "dispatch", fake_dispatch)
+    settings = _scoped_corpus(tmp_path)
+    client = ScriptedModelClient([tool_use_response("t1"), text_response("answered")])
+    app = make_app(settings=settings, client=client)
+
+    with TestClient(app) as tc:
+        with tc.stream("POST", "/api/chat", json={"question": "anything"}) as resp:
+            _sse_data_lines(resp)
+
+    assert seen == [None]
+
+
+def test_an_unknown_foundation_is_404_not_a_silently_unscoped_turn(tmp_path):
+    """Falling back to the whole corpus would answer a different question."""
+    settings = _scoped_corpus(tmp_path)
+    client = ScriptedModelClient([text_response("answered")])
+    app = make_app(settings=settings, client=client)
+
+    with TestClient(app) as tc:
+        resp = tc.post("/api/chat", json={"question": "q", "foundation_id": "9999.99999"})
+
+    assert resp.status_code == 404
+
+
+def test_a_claim_with_no_indexed_papers_is_refused_before_spending(tmp_path):
+    """An empty scope retrieves nothing by construction.
+
+    Running the turn anyway would spend against the D11 caps to produce "I
+    found nothing" — refusing pre-flight is the budget gate's own posture.
+    """
+    from askrag.ingest.build_indexes import PaperRow, _write_corpus_db
+    from askrag.ingest.resolve_cited_works import CitedWorkRow
+
+    paper = PaperRow(
+        arxiv_id="2401.00002",
+        title="t",
+        authors="a",
+        abstract="x",
+        categories="cs.LG",
+        published="2024-01-01",
+        version="v1",
+        license=None,
+        venue=None,
+        authority=None,
+        niche_idf=None,
+        author_novelty=None,
+        revisions=None,
+        venue_rigor=None,
+    )
+    # 2401.00002 cites PPO but has no chunks, so nothing about PPO is readable.
+    _write_corpus_db(
+        tmp_path / "corpus.db",
+        [paper],
+        [],
+        [CitedWorkRow("1707.06347", "PPO", "J. S.", "cs.LG", 2017, "v2")],
+        [("2401.00002", "1707.06347")],
+    )
+    settings = make_settings(tmp_path, corpus_dir=tmp_path)
+    app = make_app(settings=settings, client=ScriptedModelClient([text_response("x")]))
+
+    with TestClient(app) as tc:
+        resp = tc.post("/api/chat", json={"question": "q", "foundation_id": "1707.06347"})
+
+    assert resp.status_code == 422
+    assert "nothing to answer from" in resp.json()["detail"]

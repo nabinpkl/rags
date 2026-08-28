@@ -93,7 +93,7 @@ def make_settings(tmp_path, **overrides):
 def test_tool_dispatch_round_trips_through_registry(tmp_path, monkeypatch):
     calls = []
 
-    def fake_dispatch(name, args):
+    def fake_dispatch(name, args, *, scope=None):
         calls.append((name, args))
         return StubResult({"n_papers": 6460})
 
@@ -139,7 +139,7 @@ def test_search_corpus_result_ids_land_in_the_tool_call_record_as_citations(tmp_
     monkeypatch.setattr(
         registry,
         "dispatch",
-        lambda name, args: StubSearchCorpusResult(
+        lambda name, args, *, scope=None: StubSearchCorpusResult(
             [
                 FakeScoredChunk(paper_id="2401.00001", chunk_id="2401.00001#0"),
                 FakeScoredChunk(paper_id="2401.00001", chunk_id="2401.00001#1"),
@@ -164,7 +164,9 @@ def test_search_corpus_result_ids_land_in_the_tool_call_record_as_citations(tmp_
 
 
 def test_non_search_corpus_tool_calls_carry_no_citations(tmp_path, monkeypatch):
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({"n_papers": 6460}))
+    monkeypatch.setattr(
+        registry, "dispatch", lambda name, args, *, scope=None: StubResult({"n_papers": 6460})
+    )
     client = ScriptedModelClient([tool_use_response("t1"), text_response("ok")])
     settings = make_settings(tmp_path)
 
@@ -177,7 +179,9 @@ def test_non_search_corpus_tool_calls_carry_no_citations(tmp_path, monkeypatch):
 
 def test_fence_present_and_labeled_on_every_tool_result(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        registry, "dispatch", lambda name, args: StubResult({"paper_id": args["paper_id"]})
+        registry,
+        "dispatch",
+        lambda name, args, *, scope=None: StubResult({"paper_id": args["paper_id"]}),
     )
     client = ScriptedModelClient(
         [
@@ -242,7 +246,7 @@ def test_unknown_tool_becomes_an_error_tool_result_not_a_crash(tmp_path):
 
 
 def test_step_cap_enforcement_forces_a_final_synthesis_turn(tmp_path, monkeypatch):
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({}))
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
     settings = make_settings(tmp_path)
 
     # The model keeps asking for one more tool call forever; the loop must
@@ -283,7 +287,7 @@ def test_step_cap_enforcement_forces_a_final_synthesis_turn(tmp_path, monkeypatc
 
 
 def test_token_budget_stop_forces_a_final_synthesis_turn(tmp_path, monkeypatch):
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({}))
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
     settings = make_settings(tmp_path, message_token_budget=100)
 
     client = ScriptedModelClient(
@@ -313,7 +317,7 @@ def test_token_budget_stop_forces_a_final_synthesis_turn(tmp_path, monkeypatch):
 
 
 def test_cost_and_traces_recorded_once_per_turn(tmp_path, monkeypatch):
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({}))
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
     settings = make_settings(tmp_path)
     client = ScriptedModelClient(
         [
@@ -345,7 +349,7 @@ def test_cache_read_tokens_count_toward_total_but_price_at_the_cache_rate(tmp_pa
     # A response usage with cache_read_input_tokens set must still be counted
     # in tokens_in (it was real context the model read) while being billed at
     # agent_usd_per_mtok_cache_read, not the full input rate.
-    monkeypatch.setattr(registry, "dispatch", lambda name, args: StubResult({}))
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
     settings = make_settings(tmp_path)
     client = ScriptedModelClient(
         [
@@ -368,3 +372,37 @@ def test_cache_read_tokens_count_toward_total_but_price_at_the_cache_rate(tmp_pa
         + 900 / 1_000_000 * settings.agent_usd_per_mtok_cache_read
     )
     assert result.cost_usd == pytest.approx(expected_cost)
+
+
+def test_a_scoped_turn_passes_its_scope_to_every_tool_call(tmp_path, monkeypatch):
+    """The scope reaches dispatch as a keyword, for the whole turn.
+
+    A scope the model could omit by not writing an argument would be no scope
+    at all — the loop supplies it on every call, whatever the model asked for.
+    """
+    seen: list[tuple[str, ...] | None] = []
+
+    def fake_dispatch(name, args, *, scope=None):
+        seen.append(scope)
+        return StubResult({"ok": True})
+
+    monkeypatch.setattr(registry, "dispatch", fake_dispatch)
+    client = ScriptedModelClient(
+        [
+            tool_use_response("t1", name="read_paper", args={"paper_id": "2401.00001"}),
+            tool_use_response("t2", name="query_metadata", args={"op": "corpus_stats"}),
+            text_response("done"),
+        ]
+    )
+
+    loop.run_turn(
+        [],
+        "what do they report?",
+        session_id="s1",
+        ip="127.0.0.1",
+        client=client,
+        settings=make_settings(tmp_path),
+        scope=("2401.00001", "2401.00002"),
+    )
+
+    assert seen == [("2401.00001", "2401.00002"), ("2401.00001", "2401.00002")]

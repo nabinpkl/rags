@@ -164,7 +164,9 @@ def _citations_of(name: str, result: Any) -> tuple[Citation, ...]:
 
 
 def _dispatch_tool_calls(
-    tool_use_blocks: list[Any], on_event: Callable[[AgentEvent], None]
+    tool_use_blocks: list[Any],
+    on_event: Callable[[AgentEvent], None],
+    scope: tuple[str, ...] | None = None,
 ) -> tuple[list[dict[str, Any]], list[ToolCallRecord]]:
     result_blocks: list[dict[str, Any]] = []
     records: list[ToolCallRecord] = []
@@ -172,7 +174,7 @@ def _dispatch_tool_calls(
         name, args = block.name, block.input
         on_event(AgentEvent(EventKind.TOOL_CALL, {"name": name, "args": args}))
         try:
-            result = registry.dispatch(name, args)
+            result = registry.dispatch(name, args, scope=scope)
         except Exception as exc:  # noqa: BLE001 — any tool/schema failure (unknown
             # tool, bad args, a lookup-target that doesn't exist) becomes an
             # is_error tool_result the model can react to, never a crashed turn.
@@ -249,6 +251,7 @@ def run_turn(
     client: ModelClient,
     settings: Settings | None = None,
     on_event: Callable[[AgentEvent], None] = _noop_event,
+    scope: tuple[str, ...] | None = None,
 ) -> TurnResult:
     """Run one user-message turn to completion: append the user message, call
     the model, dispatch any requested tools, repeat until the model stops on
@@ -298,7 +301,7 @@ def run_turn(
             break
 
         tool_use_blocks = [b for b in response.content if getattr(b, "type", None) == "tool_use"]
-        result_blocks, records = _dispatch_tool_calls(tool_use_blocks, on_event)
+        result_blocks, records = _dispatch_tool_calls(tool_use_blocks, on_event, scope)
         tool_records.extend(records)
         messages = [*messages, {"role": "user", "content": result_blocks}]
 

@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from askrag import traces
+from askrag import db, traces
 from askrag.agent import budgets
 from askrag.agent.loop import (
     AgentEvent,
@@ -35,6 +35,7 @@ from askrag.agent.loop import (
 )
 from askrag.api import sse_events
 from askrag.api.replay import replay_events
+from askrag.api.routes_landing import find_foundation, scope_paper_ids
 from askrag.api.session_store import SessionStore
 from askrag.config import Settings, get_settings
 
@@ -45,6 +46,11 @@ _logger = logging.getLogger(__name__)
 class ChatRequest(BaseModel):
     question: str
     session_id: str | None = None
+    # A landing-page claim to answer within, e.g. "1707.06347". The route
+    # resolves it to that claim's INDEXED papers and binds the result into
+    # tool dispatch, so the model receives a scope it cannot widen (§5/§6).
+    # An unknown id is a 404, never a silently unscoped turn.
+    foundation_id: str | None = None
 
 
 def get_model_client(settings: Settings = Depends(get_settings)) -> ModelClient:
@@ -100,6 +106,8 @@ async def _stream_live_turn(
     client: ModelClient,
     settings: Settings,
     session_store: SessionStore,
+    scope: tuple[str, ...] | None = None,
+    scope_key: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """The sync-loop -> async-SSE bridge (the load-bearing piece of this
     route). `run_turn` is synchronous and blocking (sync SQLite + model
@@ -140,6 +148,7 @@ async def _stream_live_turn(
                     client=client,
                     settings=settings,
                     on_event=on_event,
+                    scope=scope,
                 )
             )
         except BaseException as exc:  # noqa: BLE001 — any loop failure still closes
@@ -180,9 +189,38 @@ async def _stream_live_turn(
 
     result = outcome.result
     assert result is not None  # by construction: run_and_close sets one or the other
-    session_store.save(session_id, result.messages)
+    session_store.save(session_id, result.messages, scope_key)
     yield {"data": json.dumps(sse_events.serialize(sse_events.cost_event(result)))}
     yield {"data": json.dumps(sse_events.serialize(sse_events.done_event(result)))}
+
+
+def _resolve_scope(foundation_id: str | None, settings: Settings) -> tuple[str, ...] | None:
+    """A landing-page claim -> the indexed papers a turn may be answered from.
+
+    Resolved HERE, from corpus.db, rather than accepted as a client-supplied
+    id list: a scope a caller can write is not a scope. An unknown foundation
+    is a 404 — quietly running the turn unscoped would answer a question the
+    user framed as being about one claim using the whole corpus.
+    """
+    if foundation_id is None:
+        return None
+    conn = db.connect_corpus(settings.corpus_db_path)
+    try:
+        if find_foundation(conn, foundation_id) is None:
+            raise HTTPException(status_code=404, detail=f"no cited work with id {foundation_id!r}")
+        scope = scope_paper_ids(conn, foundation_id)
+    finally:
+        conn.close()
+    if not scope:
+        # An empty scope retrieves nothing by construction, so the turn would
+        # spend real money against the D11 caps to produce "I found nothing".
+        # Refusing pre-flight is the same posture as the budget gate below:
+        # say why, before spending.
+        raise HTTPException(
+            status_code=422,
+            detail=f"no indexed papers for {foundation_id!r} — nothing to answer from",
+        )
+    return scope
 
 
 @router.post("/api/chat", response_model=None)
@@ -227,7 +265,8 @@ async def post_chat(
             },
         )
 
-    messages = session_store.get_or_create(session_id)
+    scope = _resolve_scope(body.foundation_id, settings)
+    messages = session_store.get_or_create(session_id, body.foundation_id)
     return EventSourceResponse(
         _stream_live_turn(
             messages=messages,
@@ -237,6 +276,8 @@ async def post_chat(
             client=client,
             settings=settings,
             session_store=session_store,
+            scope=scope,
+            scope_key=body.foundation_id,
         ),
         headers={"X-AskRAG-Session-Id": session_id},
     )
