@@ -26,7 +26,6 @@ import logging
 import sqlite3
 import sys
 import xml.etree.ElementTree as ET
-import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -40,14 +39,16 @@ import httpx
 
 from askrag import telemetry
 from askrag.config import get_settings
+from askrag.ingest import kaggle_seed
 from askrag.ingest.embed_chunks import read_vectors
+from askrag.ingest.extract_citations import read_citations
+from askrag.ingest.resolve_cited_works import CitedWorkRow, read_cited_works
 
 _log = logging.getLogger("askrag.ingest.build_indexes")
 
 # Protocol facts, not tunables.
 _EXPORT_ARXIV_QUERY_URL = "https://export.arxiv.org/api/query"
 _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
-_SEED_MEMBER = "arxiv-metadata-oai-snapshot.json"
 
 
 class IndexBuildError(Exception):
@@ -108,6 +109,8 @@ class BuildStats:
     versions_missing: int = 0
     licenses_found: int = 0
     chroma_count: int = 0
+    cited_works: int = 0
+    citations: int = 0
 
 
 def _read_papers(arxiv_db: Path) -> list[PaperRow]:
@@ -170,16 +173,11 @@ def read_seed_licenses(seed_zip: Path, wanted_ids: set[str]) -> dict[str, str]:
     issue #14 acceptance); the seed is 5+ GB uncompressed, so this never
     materializes it.
     """
-    licenses: dict[str, str] = {}
-    with zipfile.ZipFile(seed_zip) as zf, zf.open(_SEED_MEMBER) as fh:
-        for raw in fh:
-            record = json.loads(raw)
-            arxiv_id = record.get("id", "")
-            if arxiv_id in wanted_ids and record.get("license"):
-                licenses[arxiv_id] = record["license"]
-                if len(licenses) == len(wanted_ids):
-                    break
-    return licenses
+    return {
+        record["id"]: record["license"]
+        for record in kaggle_seed.iter_records(seed_zip, wanted_ids)
+        if record.get("license")
+    }
 
 
 def fetch_versions(
@@ -218,7 +216,19 @@ def fetch_versions(
     return versions
 
 
-def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRow]) -> None:
+def _write_corpus_db(
+    db_path: Path,
+    papers: list[PaperRow],
+    chunks: list[ChunkRow],
+    cited_works: Sequence[CitedWorkRow] = (),
+    citations: Sequence[tuple[str, str]] = (),
+) -> None:
+    """Write the deployable corpus.db.
+
+    The citation tables default to empty because a corpus built before
+    extract_citations ran is a legitimate (landing-page-less) artifact, not a
+    caller mistake — `run` always passes them explicitly.
+    """
     # tmp + rename: a killed build never leaves a half-written corpus.db that
     # a read-only server would then trust (same contract as every ingest stage).
     tmp = db_path.with_suffix(db_path.suffix + ".tmp")
@@ -264,6 +274,34 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
             CREATE VIRTUAL TABLE chunks_fts USING fts5(
                 text, content=chunks, content_rowid=rowid, tokenize='porter unicode61'
             );
+            -- Catalog metadata for works our papers CITE. Separate from
+            -- `papers` on purpose: a `papers` row means we hold the text and
+            -- can retrieve it, a `cited_works` row means we know only what the
+            -- Kaggle catalog says. Merging them would let a work nothing can
+            -- read surface wherever a readable paper can.
+            CREATE TABLE cited_works (
+                arxiv_id         TEXT PRIMARY KEY,
+                title            TEXT,           -- NULL => catalog had no record
+                authors          TEXT,
+                primary_category TEXT,
+                year             INTEGER,
+                version          TEXT            -- NULL => unpinned arxiv.org URL (D9)
+            );
+            CREATE TABLE citations (
+                citing_id TEXT NOT NULL REFERENCES papers(arxiv_id),
+                cited_id  TEXT NOT NULL REFERENCES cited_works(arxiv_id),
+                PRIMARY KEY (citing_id, cited_id)
+            ) WITHOUT ROWID;
+            -- The landing page's every query reads by cited_id ("who cites
+            -- this?"); the PK already covers the citing_id direction.
+            CREATE INDEX citations_cited ON citations(cited_id);
+            -- There is deliberately NO (arxiv_id, year) covering index on
+            -- cited_works. One was tried for the cited-year histogram and
+            -- measured on a quiet box (2026-08-28, 162k edges): without
+            -- ANALYZE the planner ignored it entirely (110 ms either way);
+            -- with ANALYZE it used it and still bought nothing (91.3 vs
+            -- 91.4 ms). The 17% that ANALYZE below does buy comes from the
+            -- join order, not from any index. Re-measure before adding one.
             CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
         )
@@ -299,6 +337,16 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
             ],
         )
         conn.execute("INSERT INTO chunks_fts(rowid, text) SELECT rowid, text FROM chunks")
+        # cited_works before citations: the FK on cited_id is enforced (PRAGMA
+        # foreign_keys=ON above), so the referenced rows must already exist.
+        conn.executemany(
+            "INSERT INTO cited_works VALUES (?,?,?,?,?,?)",
+            [
+                (w.arxiv_id, w.title, w.authors, w.primary_category, w.year, w.version)
+                for w in cited_works
+            ],
+        )
+        conn.executemany("INSERT INTO citations VALUES (?,?)", citations)
         # Snapshot stamp (D12): the footer's "corpus YYYY-MM" and ingest_stats
         # read this instead of guessing from file mtimes.
         built_at = datetime.now(tz=UTC).isoformat(timespec="seconds")
@@ -306,6 +354,11 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
             "INSERT INTO meta VALUES (?,?)",
             [("built_at", built_at), ("snapshot", built_at[:7])],
         )
+        # Without stats the planner drives the cited-year histogram from the
+        # citations side and takes 110 ms; with them it flips the join and
+        # takes 91 ms (measured 2026-08-28). The snapshot is frozen (D12), so
+        # these stats never go stale between builds.
+        conn.execute("ANALYZE")
         conn.commit()
     finally:
         conn.close()
@@ -316,13 +369,34 @@ def _validate_inputs(
     chunk_ids_embedded: list[str],
     chunks: list[ChunkRow],
     papers_by_id: dict[str, PaperRow],
+    cited_works: Sequence[CitedWorkRow] = (),
+    citations: Sequence[tuple[str, str]] = (),
 ) -> None:
+    """Write the deployable corpus.db.
+
+    The citation tables default to empty because a corpus built before
+    extract_citations ran is a legitimate (landing-page-less) artifact, not a
+    caller mistake — `run` always passes them explicitly.
+    """
     """Every input invariant, checked BEFORE any artifact is written.
 
     A failed build must leave the previous corpus.db + chroma generation
     untouched (review finding #55-1): validate-then-write, never the reverse.
     `read_vectors`' slug/provenance refusal runs earlier still, at read time.
     """
+    dangling_citing = sorted({a for a, _ in citations} - papers_by_id.keys())
+    if dangling_citing:
+        raise IndexBuildError(
+            f"{len(dangling_citing)} citation(s) come from a paper missing in arxiv.db "
+            f"(first: {dangling_citing[0]}) — citations.tsv built from a different "
+            "text tree than the collector db?"
+        )
+    dangling_cited = sorted({b for _, b in citations} - {w.arxiv_id for w in cited_works})
+    if dangling_cited:
+        raise IndexBuildError(
+            f"{len(dangling_cited)} cited id(s) missing from cited_works.jsonl "
+            f"(first: {dangling_cited[0]}) — stale cited_works, rerun resolve_cited_works"
+        )
     orphans = sorted({c.paper_id for c in chunks} - papers_by_id.keys())
     if orphans:
         raise IndexBuildError(
@@ -398,6 +472,11 @@ def run(
     collection_name: str,
     *,
     add_batch_size: int,
+    # Optional: a corpus built before extract_citations ran is a legitimate
+    # (landing-page-less) artifact, so absent paths mean "no citation graph"
+    # rather than a caller mistake.
+    citations_path: Path | None = None,
+    cited_works_path: Path | None = None,
     backfill_timeout_seconds: float,
     backfill_transport: httpx.BaseTransport | None = None,
 ) -> BuildStats:
@@ -407,14 +486,32 @@ def run(
     with tracer.start_as_current_span("askrag.ingest.build_indexes") as span:
         papers = _read_papers(arxiv_db)
         chunks = _read_chunks(chunks_path)
+        # The citation graph is optional input: a corpus built before
+        # extract_citations ran still produces a valid (landing-page-less)
+        # index pair, and says so rather than shipping silently empty tables.
+        have_citations = citations_path is not None and citations_path.exists()
+        citations = read_citations(citations_path) if have_citations else []
+        cited_works = (
+            read_cited_works(cited_works_path)
+            if cited_works_path is not None and cited_works_path.exists()
+            else []
+        )
+        if not citations:
+            _log.warning(
+                f"no citation edges at {citations_path or '<unset>'} — corpus.db will carry empty "
+                "citations/cited_works tables and the landing page will have nothing to rank"
+            )
         stats.papers, stats.chunks = len(papers), len(chunks)
+        stats.citations, stats.cited_works = len(citations), len(cited_works)
 
         # ALL validation precedes any write or network/seed stage: a failed
         # build leaves the previous artifact generation untouched, and bad
         # inputs fail before the 5.4 GB seed pass (review finding #55-1).
         table = read_vectors(vectors_parquet, expected_slug=collection_name)
         embedded_ids = table["chunk_id"].to_pylist()
-        _validate_inputs(embedded_ids, chunks, {p.arxiv_id: p for p in papers})
+        _validate_inputs(
+            embedded_ids, chunks, {p.arxiv_id: p for p in papers}, cited_works, citations
+        )
 
         licenses = read_seed_licenses(seed_zip, {p.arxiv_id for p in papers})
         stats.licenses_found = len(licenses)
@@ -441,7 +538,7 @@ def run(
         ]
         papers_by_id = {p.arxiv_id: p for p in papers}
 
-        _write_corpus_db(corpus_db, papers, chunks)
+        _write_corpus_db(corpus_db, papers, chunks, cited_works, citations)
         stats.chroma_count = _load_chroma(
             chroma_dir,
             collection_name,
@@ -466,12 +563,15 @@ def run(
         span.set_attribute("askrag.versions_backfilled", stats.versions_backfilled)
         span.set_attribute("askrag.versions_missing", stats.versions_missing)
         span.set_attribute("askrag.licenses_found", stats.licenses_found)
+        span.set_attribute("askrag.cited_works", stats.cited_works)
+        span.set_attribute("askrag.citations", stats.citations)
 
     _log.info(
         f"build_indexes: {stats.papers} papers, {stats.chunks} chunks -> {corpus_db.name} "
         f"+ chroma '{collection_name}' ({stats.chroma_count}); "
         f"versions backfilled {stats.versions_backfilled} (missing {stats.versions_missing}), "
-        f"licenses {stats.licenses_found}"
+        f"licenses {stats.licenses_found}; "
+        f"{stats.citations} citations over {stats.cited_works} cited works"
     )
     return stats
 
@@ -487,6 +587,8 @@ def main(argv: list[str] | None = None) -> int:
             chunks_path=settings.chunks_jsonl_path,
             vectors_parquet=settings.vectors_parquet_path,
             seed_zip=settings.kaggle_seed_path,
+            citations_path=settings.citations_path,
+            cited_works_path=settings.cited_works_path,
             corpus_db=settings.corpus_db_path,
             chroma_dir=settings.chroma_dir,
             collection_name=settings.embedding_model_slug,

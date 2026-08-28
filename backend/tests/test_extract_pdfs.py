@@ -213,3 +213,42 @@ def test_page_cap_ignored_on_full_corpus_runs(corpus):
     stats = run(corpus, sample_max_pages=3)  # no limit -> not a sample build
     assert stats.extracted == 1
     assert (corpus["extracted"] / "2601.00001.json").exists()
+
+
+# --- only_ids: the landing page's index frontier ----------------------------
+
+
+def test_only_ids_extracts_the_manifest_and_nothing_else(corpus, tmp_path):
+    """The frontier is a few hundred papers inside a 121 GB PDF tree.
+
+    Extracting the tree to reach them would cost days for no gain, so a
+    manifest run must touch exactly the named ids.
+    """
+    corpus["pdfs"].mkdir(parents=True)
+    for arxiv_id in ("2606.00001", "2606.00002", "2606.00003"):
+        make_pdf(corpus["pdfs"] / f"{arxiv_id}.pdf", ["1 Intro"])
+
+    stats = run(corpus, only_ids={"2606.00001", "2606.00003"})
+
+    assert stats.total == 2
+    assert {p.stem for p in corpus["extracted"].glob("*.json")} == {"2606.00001", "2606.00003"}
+
+
+def test_a_manifest_id_with_no_pdf_is_reported_not_ignored(corpus, tmp_path, caplog):
+    """A silently short frontier extraction becomes a silently dead link."""
+    corpus["pdfs"].mkdir(parents=True)
+    make_pdf(corpus["pdfs"] / "2606.00001.pdf", ["1 Intro"])
+
+    with caplog.at_level("WARNING"):
+        stats = run(corpus, only_ids={"2606.00001", "2606.99999"})
+
+    assert stats.total == 1
+    assert "2606.99999" in caplog.text
+
+
+def test_no_only_ids_still_walks_the_whole_tree(corpus, tmp_path):
+    corpus["pdfs"].mkdir(parents=True)
+    for arxiv_id in ("2606.00001", "2606.00002"):
+        make_pdf(corpus["pdfs"] / f"{arxiv_id}.pdf", ["1 Intro"])
+
+    assert run(corpus).total == 2

@@ -465,7 +465,7 @@ def download_pdf(session: requests.Session, arxiv_id: str, url: str, *, pace: bo
 def fetch_pdf(session: requests.Session, rec: dict, source: str) -> Path | None:
     """Fetch a paper's PDF from the chosen source, with GCS->arXiv fallback."""
     arxiv_id = rec["arxiv_id"]
-    if source == "gcs":
+    if source in ("gcs", "gcs-only"):
         url = gcs_pdf_url(arxiv_id, rec.get("version", ""))
         if url is None:
             print(f"  ! {arxiv_id}: not on GCS mirror (old-style id / no version); skipping",
@@ -474,6 +474,11 @@ def fetch_pdf(session: requests.Session, rec: dict, source: str) -> Path | None:
         path = download_pdf(session, arxiv_id, url, pace=False)
         if path is not None:
             return path
+        if source == "gcs-only":
+            # Mirror lag is the common cause (it syncs on Sundays); the paper
+            # will be there next sync. No paced arXiv traffic for it (§6b).
+            print(f"  gcs miss for {arxiv_id}; gcs-only, skipping", file=sys.stderr)
+            return None
         # GCS miss (e.g. mirror lag on very recent papers): fall back to arXiv
         print(f"  gcs miss for {arxiv_id}, falling back to arXiv scraper...", file=sys.stderr)
         return download_pdf(session, arxiv_id, pdf_url(arxiv_id), pace=True)
@@ -494,7 +499,7 @@ def process_record(conn, session, rec: dict, source: str) -> int:
     rec = {
         **rec,
         "version": rec.get("version", ""),  # ensure present for the insert
-        "pdf_path": str(pdf_path.relative_to(ROOT)),
+        "pdf_path": str(pdf_path.relative_to(CORPUS_DIR)),
         "size_bytes": size,
         "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
@@ -520,7 +525,7 @@ def run(*, oai_set: str, frm: str, until: str, max_gb: float | None, limit: int 
     n = 0
     skipped = 0
     # concurrency only for GCS; the arXiv scraper must stay single-connection.
-    parallel = concurrency > 1 and source == "gcs"
+    parallel = concurrency > 1 and source in ("gcs", "gcs-only")
     batch: list[dict] = []
 
     if seed_file:
@@ -550,7 +555,7 @@ def run(*, oai_set: str, frm: str, until: str, max_gb: float | None, limit: int 
                     continue
                 size = path.stat().st_size
                 rec2 = {**r, "version": r.get("version", ""),
-                        "pdf_path": str(path.relative_to(ROOT)), "size_bytes": size,
+                        "pdf_path": str(path.relative_to(CORPUS_DIR)), "size_bytes": size,
                         "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
                 try:
                     upsert_paper(conn, rec2)
@@ -760,7 +765,7 @@ def _download_selected(conn, seed_file: str, selected: list, concurrency: int,
                                   "abstract": "", "categories": "", "datestamp": "",
                                   "published": ""})
             rec = {**base, "arxiv_id": aid, "version": ver,
-                   "pdf_path": str(path.relative_to(ROOT)),
+                   "pdf_path": str(path.relative_to(CORPUS_DIR)),
                    "size_bytes": path.stat().st_size,
                    "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                    **(extra.get(aid) or {})}
@@ -1279,7 +1284,7 @@ def run_reorganize() -> None:
     for aid, rel in conn.execute(
         "SELECT arxiv_id, pdf_path FROM papers WHERE pdf_path IS NOT NULL"
     ).fetchall():
-        want = str(local_pdf_path(aid).relative_to(ROOT))
+        want = str(local_pdf_path(aid).relative_to(CORPUS_DIR))
         if rel != want:
             conn.execute("UPDATE papers SET pdf_path=? WHERE arxiv_id=?", (want, aid))
             fixed += 1
@@ -1311,10 +1316,11 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--seed-file", default=None,
                    help="Kaggle arXiv snapshot (.zip or .json) to discover ids offline, "
                         "instead of crawling OAI-PMH.")
-    b.add_argument("--source", choices=["gcs", "arxiv"], default="gcs",
+    b.add_argument("--source", choices=["gcs", "gcs-only", "arxiv"], default="gcs",
                    help="where to download PDFs: gcs = free unthrottled Google mirror "
-                        "(default, needs --seed-file for versions); arxiv = export.arxiv.org "
-                        "scraper (rate-limited fallback)")
+                        "(default, needs --seed-file for versions; falls back to arXiv on a "
+                        "miss); gcs-only = mirror only, a miss is skipped (mirror lag, no "
+                        "arXiv traffic); arxiv = export.arxiv.org scraper (rate-limited)")
     b.add_argument("--date-field", choices=["submitted", "updated"], default="submitted",
                    help="which date --from/--until filter on in seed mode: "
                         "submitted = original v1 date (default), updated = last metadata change")
@@ -1440,7 +1446,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     source = getattr(args, "source", "arxiv")  # update always uses arxiv (low volume)
-    if source == "gcs" and not getattr(args, "seed_file", None):
+    if source in ("gcs", "gcs-only") and not getattr(args, "seed_file", None):
         print("--source gcs needs --seed-file (the GCS path requires the version "
               "from metadata). Pass a seed, or use --source arxiv.", file=sys.stderr)
         return 1
