@@ -360,3 +360,151 @@ def test_dtd_in_backfill_response_is_refused(paths):
     requests: list[httpx.Request] = []
     with pytest.raises(IndexBuildError, match="DTD"):
         run(paths, transport=atom_transport(requests, body=dtd))
+
+
+# --- the citation graph (landing page) --------------------------------------
+
+
+def _citation_inputs(tmp_path, edges, works):
+    """Write the two optional citation inputs; return their paths."""
+    citations = tmp_path / "citations.tsv"
+    citations.write_text("".join(f"{a}\t{b}\n" for a, b in edges), encoding="utf-8")
+    cited_works = tmp_path / "cited_works.jsonl"
+    cited_works.write_text(
+        "".join(json.dumps(w) + "\n" for w in works),
+        encoding="utf-8",
+    )
+    return {"citations_path": citations, "cited_works_path": cited_works}
+
+
+def _work(arxiv_id, title="A cited work"):
+    return {
+        "arxiv_id": arxiv_id,
+        "title": title,
+        "authors": "A. Author",
+        "primary_category": "cs.LG",
+        "year": 2017,
+        "version": "v2",
+    }
+
+
+def test_citations_and_cited_works_land_in_corpus_db(paths, tmp_path):
+    inputs = _citation_inputs(
+        tmp_path,
+        [("2401.00001", "1707.06347"), ("2401.00002", "1707.06347")],
+        [_work("1707.06347", "Proximal Policy Optimization Algorithms")],
+    )
+
+    stats, _ = run(paths, **inputs)
+
+    assert (stats.citations, stats.cited_works) == (2, 1)
+    conn = sqlite3.connect(paths["corpus_db"])
+    try:
+        assert conn.execute("SELECT count(*) FROM citations").fetchone()[0] == 2
+        # The landing page's core query: who cites this, and what is it called?
+        row = conn.execute(
+            "SELECT w.title, count(*) FROM citations c"
+            " JOIN cited_works w ON w.arxiv_id = c.cited_id"
+            " GROUP BY c.cited_id"
+        ).fetchone()
+        assert row == ("Proximal Policy Optimization Algorithms", 2)
+    finally:
+        conn.close()
+
+
+def test_a_cited_work_we_never_hold_is_not_a_paper(paths, tmp_path):
+    """The D16 boundary in the schema: cited_works is not a second papers table.
+
+    1707.06347 is cited but absent from `papers`, so nothing that scopes to the
+    indexed corpus can ever surface it as retrievable.
+    """
+    inputs = _citation_inputs(tmp_path, [("2401.00001", "1707.06347")], [_work("1707.06347")])
+
+    run(paths, **inputs)
+
+    conn = sqlite3.connect(paths["corpus_db"])
+    try:
+        assert (
+            conn.execute("SELECT count(*) FROM papers WHERE arxiv_id = '1707.06347'").fetchone()[0]
+            == 0
+        )
+        assert (
+            conn.execute(
+                "SELECT count(*) FROM cited_works WHERE arxiv_id = '1707.06347'"
+            ).fetchone()[0]
+            == 1
+        )
+    finally:
+        conn.close()
+
+
+def test_build_without_citation_inputs_still_succeeds(paths):
+    """A corpus built before extract_citations ran is a valid artifact."""
+    stats, _ = run(paths)
+
+    assert (stats.citations, stats.cited_works) == (0, 0)
+    conn = sqlite3.connect(paths["corpus_db"])
+    try:
+        assert conn.execute("SELECT count(*) FROM citations").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_citation_from_an_unknown_paper_fails_before_any_write(paths, tmp_path):
+    inputs = _citation_inputs(tmp_path, [("2499.99999", "1707.06347")], [_work("1707.06347")])
+
+    with pytest.raises(IndexBuildError, match="missing in arxiv.db"):
+        run(paths, **inputs)
+
+    assert not paths["corpus_db"].exists()
+
+
+def test_stale_cited_works_fails_before_any_write(paths, tmp_path):
+    """citations.tsv regenerated without rerunning resolve_cited_works."""
+    inputs = _citation_inputs(tmp_path, [("2401.00001", "1707.06347")], [])
+
+    with pytest.raises(IndexBuildError, match="rerun resolve_cited_works"):
+        run(paths, **inputs)
+
+    assert not paths["corpus_db"].exists()
+
+
+def test_the_build_leaves_planner_stats_behind(tmp_path):
+    """ANALYZE at build time is worth 17% on the cited-year histogram.
+
+    Measured 2026-08-28 over 162k edges: 110 ms without stats, 91 ms with.
+    The snapshot is frozen (D12), so stats written once stay accurate.
+    """
+    from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
+
+    paper = PaperRow(
+        arxiv_id="2608.00001",
+        title="A paper",
+        authors="A. Author",
+        abstract="An abstract.",
+        categories="cs.CL",
+        published="2026-08-01",
+        version="v1",
+        license=None,
+        venue=None,
+        authority=None,
+        niche_idf=None,
+        author_novelty=None,
+        revisions=None,
+        venue_rigor=None,
+    )
+    chunk = ChunkRow("2608.00001#0", "2608.00001", "__paper__", 1, 1, "some text", 2)
+
+    corpus_db = tmp_path / "corpus.db"
+    _write_corpus_db(corpus_db, [paper], [chunk])
+    conn = sqlite3.connect(f"file:{corpus_db}?mode=ro", uri=True)
+    try:
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        indexes = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+    finally:
+        conn.close()
+
+    assert "sqlite_stat1" in tables
+    # The (arxiv_id, year) covering index was measured to buy nothing; if it
+    # comes back, it needs a measurement, not an intuition.
+    assert "cited_works_year" not in indexes

@@ -34,6 +34,7 @@ import logging
 import re
 import sys
 import time
+from collections.abc import Collection
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,6 +45,7 @@ import pymupdf4llm
 
 from askrag import telemetry
 from askrag.config import get_settings
+from askrag.ingest.select_frontier import read_frontier
 
 _log = logging.getLogger("askrag.ingest.extract_pdfs")
 
@@ -231,12 +233,32 @@ def run(
     limit: int | None = None,
     retry_skipped: bool = False,
     sample_max_pages: int = 0,
+    only_ids: Collection[str] | None = None,
 ) -> RunStats:
-    """Extract every PDF under pdfs_dir; returns counts for the run summary."""
+    """Extract every PDF under pdfs_dir; returns counts for the run summary.
+
+    `only_ids` restricts the run to a named set — the landing page's index
+    frontier is a few hundred papers inside a 121 GB PDF tree, and extracting
+    the tree to reach them would cost days for no gain.
+    """
     extracted_dir.mkdir(parents=True, exist_ok=True)
     skiplist = _load_skiplist(skiplist_path)
 
     all_pdfs = sorted(pdfs_dir.rglob("*.pdf"))
+    if only_ids is not None:
+        wanted = set(only_ids)
+        all_pdfs = [pdf for pdf in all_pdfs if pdf.stem in wanted]
+        absent = wanted - {pdf.stem for pdf in all_pdfs}
+        if absent:
+            # Loud, because a silently short frontier extraction becomes a
+            # silently unanswerable link on the page.
+            _log.warning(
+                "%d of %d requested id(s) have no PDF under %s (first: %s)",
+                len(absent),
+                len(wanted),
+                pdfs_dir,
+                sorted(absent)[0],
+            )
     if limit is not None and limit < len(all_pdfs):
         # Sampling policy (owner directive 2026-07-05, issue #11): monster
         # papers distort a sample (one 398-page monograph was 10% of all
@@ -354,7 +376,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--retry-skipped", action="store_true", help="re-attempt PDFs already on the skiplist"
     )
+    parser.add_argument(
+        "--frontier",
+        action="store_true",
+        help="extract only the index manifest's papers (corpus/frontier.json)",
+    )
     args = parser.parse_args(argv)
+    only_ids = read_frontier(settings.frontier_path).paper_ids if args.frontier else None
     try:
         run(
             pdfs_dir=settings.pdfs_dir,
@@ -364,6 +392,7 @@ def main(argv: list[str] | None = None) -> int:
             limit=args.limit,
             retry_skipped=args.retry_skipped,
             sample_max_pages=settings.sample_max_pages,
+            only_ids=only_ids,
         )
     finally:
         # Flush before exit: the CLI process ends right after the run span, and
