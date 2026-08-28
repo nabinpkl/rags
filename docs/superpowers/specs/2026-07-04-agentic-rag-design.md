@@ -527,6 +527,15 @@ refreshes being a 30-minute chore.
 refreshes exceed monthly cadence — then build the pipeline *as* the next
 portfolio chapter (it's D4's pgvector trigger too).
 
+**Amendment (2026-08-27, landing page).** The snapshot is now defined as *the
+papers this month's page points at* (D16's amendment: `select_frontier.py`'s
+manifest), refreshed on a monthly manual cadence — pull the month, extract
+text, recompute citations, derive the frontier, chunk and embed it, rebuild.
+**No VPS cron; D12's rejection of one stands unchanged**, and there is still
+no serve-time freshness. What the amendment buys is that "stale" now has a
+size: the page's own window banner states the id-months it covers, derived
+from the citing side of the graph rather than written down anywhere.
+
 ---
 
 ### D13. Stack: FastAPI (uv) + Next.js, self-hosted on one Hetzner-class VPS, Caddy, SSE
@@ -774,6 +783,70 @@ honest by construction.
 6,460 papers and every total self-corrects with no code change — this was
 designed to converge, not to be swapped out.
 
+**Amendment (2026-08-27, landing page).** The RULE is unchanged; what changed
+is why the scope is affordable and how counts relate to lists.
+
+- The indexed set is no longer an arbitrary prefix of the corpus. It is
+  *derived from the landing page's own claims*: `ingest/select_frontier.py`
+  emits the top-N cited works plus a capped, newest-first sample of each
+  one's citers, and exactly those papers are chunked and embedded. Every link
+  the page offers is therefore answerable **by construction** — a stronger
+  property than "most of the corpus is indexed", and the reason the scope is
+  no longer a bug being tolerated.
+- `routes_landing.py` counts over `citations` WITHOUT `INDEXED_PREDICATE`,
+  and this is deliberate: **a count of citations is not an offer of
+  retrieval.** 1,174 papers really do cite Qwen3 whether or not we hold their
+  text. What D16 forbids is the app surfacing a paper it cannot retrieve, so
+  every LIST those routes return is restricted to indexed papers while the
+  COUNTS stay honest totals. The page reads "8 of 1,174" and all 8 open. No
+  `readable` flag reaches the wire, no two-tier UI, no badges — unchanged.
+- `cited_works` is a separate table from `papers` for the same reason: a
+  `papers` row means "we hold this text and can retrieve it", a `cited_works`
+  row means "the Kaggle catalog describes it". Merging them would let a work
+  nothing can read surface wherever a readable paper can.
+
+**Revisit when.** A breadth tier lands (abstract-level index over all cs
+history). A paper matched at abstract level *cannot be quoted* — we hold no
+text for it — so the tool contracts would then have to distinguish "found"
+from "readable", which this decision currently does not have to.
+
+---
+
+### D17. PDFs are transient; text and the citation graph are the retained artifacts
+
+**Decision.** A PDF is fetched, extracted, and deleted. What we keep per paper
+is the extracted text and the arXiv ids its reference list names. Retention is
+therefore ~68 KB/paper instead of ~4.7 MB/paper — **70x smaller** — which is
+what makes a rolling window over cs affordable at all: five months of cs PDFs
+fill a 365 GB volume, while the same span in text form is under 10 GB.
+
+**Why.** The binding constraint on corpus size turned out to be one-time
+transfer, not disk, and the extra megabytes in a PDF are figures, not writing:
+text length saturates against PDF size (a 0.3 MB PDF yields ~35 KB of text; a
+9 MB PDF yields ~65 KB). Keeping the bytes buys nothing we use. §6b prohibits
+*serving, proxying, or caching* e-prints externally — it has never prohibited
+internal extraction, which §6c row 1 explicitly sanctions — but the
+internal/external distinction was inferred rather than written, and a rule
+that important should not have to be inferred. **This decision states it:
+extraction is internal processing; retention of the bytes is not required by
+it, and deleting them narrows our exposure rather than widening it.**
+
+**Alternatives rejected.** *Keep every PDF* (the status quo — 121 GB for two
+months of cs, and the ceiling that forced "we can only afford 2 months", which
+was never true of text). *Keep PDFs only for the indexed frontier* (a second
+retention rule to reason about, for ~300 papers, saving nothing that matters).
+*Re-fetch on demand at serve time* (would put arxiv.org in the request path,
+which D9 exists to keep it out of).
+
+**Risks accepted.** Re-extracting a paper means re-fetching it from the GCS
+mirror — free and fast, but not instant, so a chunker change costs a download
+pass. Extraction quality is frozen at the extractor version that ran: if
+PyMuPDF4LLM improves, we re-fetch rather than re-run over local bytes.
+
+**Revisit when.** Re-extraction becomes routine (more than ~quarterly), or the
+mirror stops carrying a month we need — either would make the bytes worth
+their disk again.
+
 ---
 
 ## 4. Architecture
@@ -892,7 +965,11 @@ Three layout decisions resolved here, deliberately:
    README section adjusted). Root stays clean: three top-level codebases
    (`collector/`, `backend/`, `frontend/`), one data directory, one deploy
    directory, docs.
-2. **No dynamic routes in the frontend.** Static export (D13) plus 6,460
+2. **No dynamic routes in the frontend.** *(Amended 2026-08-27: no DYNAMIC
+   routes — a second STATIC route is compatible and now exists. The landing
+   page is `/`, the app shell moved unchanged to `/app`. Both are prerendered
+   by the export; neither needs `generateStaticParams`. The rule was always
+   about not SSG-ing 6,460 pages, not about page count.)* Static export (D13) plus 6,460
    papers makes `paper/[id]/page.tsx` the wrong tool (it would SSG 6,460
    pages or fight `generateStaticParams`). The app is one shell; the open
    paper is a search param (`/?paper=2606.12345&page=4`), owned by the
@@ -918,6 +995,7 @@ rags/
 │   ├── pyproject.toml               # uv-managed, uv.lock committed
 │   ├── justfile                     # collector recipes; root justfile delegates here
 │   ├── arxiv_ingest.py              # discovery + download + arxiv.db index (already built)
+│   ├── fetch_ids.py                 # download a NAMED id list (the frontier manifest), vs the discovery paths above
 │   ├── test_arxiv_ingest.py
 │   ├── test_diverse.py
 │   └── README.md                    # collector usage (formerly the root README)
@@ -943,6 +1021,7 @@ rags/
 │   │   ├── api/
 │   │   │   ├── app.py               # FastAPI assembly: routers, CORS, lifespan (opens stores once), static admin
 │   │   │   ├── routes_explorer.py   # GET /api/papers, /api/papers/{id}, /api/facets — browse/filter/search
+│   │   │   ├── routes_landing.py    # GET /api/landing, /api/foundations/{id} — the citation graph the front door ranks (D16 amendment)
 │   │   │   ├── routes_chat.py       # POST /api/chat — budget gate → agent loop → SSE stream; replay mode when capped
 │   │   │   ├── routes_admin.py      # GET /admin — basic-auth spend/trace dashboard (D13)
 │   │   │   └── sse_events.py        # the SSE event vocabulary: thinking|tool_call|tool_result_summary|ui_action|text|cost|done — single source, mirrored by frontend lib/sse.ts
@@ -965,7 +1044,11 @@ rags/
 │   │   │   ├── fts.py               # FTS5/BM25 query construction and escaping
 │   │   │   └── embeddings.py        # embedding API client, one function for corpus batch + query single (D5)
 │   │   ├── ingest/
-│   │   │   ├── extract_pdfs.py      # pdfs/ → corpus/extracted/*.json + skiplist.json (PyMuPDF4LLM, D6)
+│   │   │   ├── kaggle_seed.py       # streaming reader for corpus/archive.zip — one member name, two consumers
+│   │   │   ├── extract_citations.py # corpus/text/**/*.txt → citations.tsv (the landing page's every number)
+│   │   │   ├── resolve_cited_works.py # citations.tsv + archive.zip → cited_works.jsonl (works we cite but do not hold)
+│   │   │   ├── select_frontier.py   # THE MANIFEST: citations.tsv → frontier.json; also `--verify` (D16 amendment)
+│   │   │   ├── extract_pdfs.py      # pdfs/ → corpus/extracted/*.json + skiplist.json (PyMuPDF4LLM, D6); `--frontier` scopes to the manifest
 │   │   │   ├── chunk_papers.py      # extracted/ → section-aware ~1k-token page-anchored chunks (D7)
 │   │   │   ├── embed_chunks.py      # chunks → vectors/<model_slug>.parquet, local (default) or Voyage backend, batched, resumable (D5)
 │   │   │   ├── build_indexes.py     # chunks + vectors → corpus.db (FTS5) + chroma/, shared chunk ids (D4)
@@ -997,9 +1080,15 @@ rags/
 │   ├── tsconfig.json                # strict
 │   ├── app/                         # Next.js App Router — one shell, no dynamic routes (decision 2 above)
 │   │   ├── layout.tsx               # root layout: fonts, theme, providers (TanStack QueryClient)
-│   │   ├── page.tsx                 # the app: explorer + viewer + agent panel composition
+│   │   ├── page.tsx                 # THE LANDING PAGE: counted citations, no input box in the critical path
+│   │   ├── app/page.tsx             # the app: explorer + viewer + agent panel composition
 │   │   └── globals.css              # Tailwind v4 entry + design tokens
 │   ├── components/
+│   │   ├── landing/
+│   │   │   ├── hero-stats.tsx       # the four counted facts + the window, derived from the graph
+│   │   │   ├── foundations-table.tsx # the ranking that survives a rerun — counts, no clustering
+│   │   │   ├── foundation-detail.tsx # the evidence: co-cited works + the INDEXED citers ("8 of 1,174", D16)
+│   │   │   └── methods-note.tsx     # how the numbers are made, and what they are not
 │   │   ├── explorer/
 │   │   │   ├── paper-table.tsx      # TanStack Table + Virtual over /api/papers; row click → viewer store
 │   │   │   ├── facet-filters.tsx    # category/year/facet controls; writes viewer store filter state
@@ -1024,6 +1113,7 @@ rags/
 │   │   ├── api-types.gen.ts         # openapi-typescript output — GENERATED, never hand-edited
 │   │   ├── sse.ts                   # fetch-event-source wrapper; discriminated union mirroring sse_events.py
 │   │   ├── breakpoints.ts           # the md/lg thresholds JS needs, paired with the Tailwind classes (#83)
+│   │   ├── arxiv-links.ts           # the ONE place arxiv.org URLs are built — version-pinned (D9/§6b)
 │   │   └── utils.ts                 # cn() only (see naming rules)
 │   ├── stores/
 │   │   ├── agent-session-store.ts   # zustand: messages, timeline events, budget/replay state

@@ -67,10 +67,48 @@ frontend-check:
 # Full-repo gate — CI runs exactly this, so local green == CI green
 check: backend-check frontend-check
 
+# --- ingest -----------------------------------------------------------------
+
+# Order matters — resolve reads extract's output. Both are inputs to
+# build_indexes, so run this BEFORE rebuilding corpus.db. ~3.5 min today.
+# Rebuild the citation graph the landing page ranks
+citations:
+    cd backend && uv run python -m askrag.ingest.extract_citations
+    cd backend && uv run python -m askrag.ingest.resolve_cited_works
+
+# Run AFTER `just citations`, BEFORE `just index`. Fetches from the GCS mirror,
+# so it needs network; the extract step is the long one (~45 min for 285).
+# Derive the index manifest and get its papers to extracted text
+frontier:
+    cd backend && uv run python -m askrag.ingest.select_frontier
+    cd collector && uv run python fetch_ids.py ../corpus/frontier.json
+    cd backend && uv run python -m askrag.ingest.extract_pdfs --frontier
+
+# The embed step is hours on a CPU box and is resumable — rerun it and it picks
+# up where it stopped. ASKRAG_EMBED_LOCAL_DTYPE=float32 is NOT optional here:
+# the default (float16) is right on the ingest Mac but is emulated per-op on a
+# CPU, measured 30x slower (DECISIONS.md 2026-08-28). build_indexes is
+# drop-and-rebuild, so it must run last, after `just citations` and
+# `just frontier`.
+# Chunk, embed, and rebuild corpus.db + chroma
+index:
+    cd backend && uv run python -m askrag.ingest.chunk_papers
+    cd backend && ASKRAG_EMBED_LOCAL_DTYPE=float32 uv run python -m askrag.ingest.embed_chunks
+    cd backend && uv run python -m askrag.ingest.build_indexes
+    cd backend && uv run python -m askrag.ingest.select_frontier --verify
+
 # Dev server (#30): uvicorn serving the FastAPI chat API with autoreload.
 # Extra args pass through to uvicorn, e.g. `just serve --port 8001`.
 serve *ARGS:
     cd backend && uv run uvicorn askrag.api.app:app --reload --host 127.0.0.1 --port 8000 {{ARGS}}
+
+# Refresh frontend/openapi.json from the app, then regenerate the TS types.
+# `just check` fails on type drift but CANNOT see schema drift — openapi.json
+# is an input to typegen, not an output of the app, so a route change that is
+# never dumped here passes the gate while the frontend types stay wrong.
+gen-openapi:
+    cd backend && uv run python -c "import json, pathlib; from askrag.api.app import app; pathlib.Path('../frontend/openapi.json').write_text(json.dumps(app.openapi(), indent=4) + chr(10))"
+    cd frontend && pnpm gen:api
 
 # Spine checkpoint (#16): hybrid retrieval over the real corpus.
 # Both call forms work: `just ask q="chain of thought"` / `just ask "chain of thought"`

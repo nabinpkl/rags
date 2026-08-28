@@ -93,6 +93,20 @@ class Settings(BaseSettings):
     # next sample rebuild; the current working corpus is NOT regenerated.
     sample_max_pages: int = 0
 
+    # --- ingest: the landing page's index frontier (select_frontier.py) ----
+    # These two numbers ARE the page's scope. Raising either widens what the
+    # page claims and what must therefore be chunked and embedded — the cost
+    # is roughly linear: 50 x 8 is ~272 papers and ~11k chunks, and every one
+    # of them has to be readable or a link on the page dead-ends.
+    frontier_top_cited: int = 50
+    frontier_citers_per_work: int = 8
+    # Author lists on frontier-model reports run to a thousand names — Llama 3
+    # alone is 60 KB of them, and 94% of an untrimmed /api/landing payload was
+    # authors the UI never shows. Trimmed SERVER-side so the wire carries what
+    # is displayed, not what the catalog happens to hold. Measured 2026-08-28
+    # over the real graph: 133,044 -> 10,893 bytes for the top-40 page.
+    landing_max_authors: int = 6
+
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000
     chunk_overlap_ratio: float = 0.15
@@ -134,6 +148,12 @@ class Settings(BaseSettings):
     # working-corpus chunks with the nomic tokenizer: p99=1,290 model
     # tokens, only 3 chunks exceed 1,536 (max 3,747; their tails truncate,
     # acceptable for retrieval) vs the 8192 model default.
+    # float16 is right on the ingest Mac (MPS runs it natively and it halves
+    # the resident set). On a CPU-only box it is a TRAP: torch has no native
+    # fp16 kernels there and emulates per-op, measured 2026-08-28 on the ARM
+    # VPS at >30x SLOWER than float32 (fp32 0.35 chunks/s vs fp16 ~0.01).
+    # Override with ASKRAG_EMBED_LOCAL_DTYPE=float32 wherever embedding runs on
+    # CPU — same per-box shape as `embed_device` below.
     embed_local_dtype: Literal["float16", "float32"] = "float16"
     embed_max_seq_tokens: int = 1536
     # "" = library auto-pick (MPS on this Mac); "cpu" is the measured
@@ -304,6 +324,32 @@ class Settings(BaseSettings):
         # Kaggle arxiv-metadata snapshot zip: the only source that carries
         # per-paper license (§6b metadata duty; build_indexes reads it).
         return self.corpus_dir / "archive.zip"
+
+    @property
+    def text_dir(self) -> Path:
+        # The collector's {YYMM}/{arxiv_id}.txt plain-text tree. Distinct from
+        # extracted_dir, which holds the richer per-paper JSON (markdown,
+        # sections, page map) the chunker needs; this tree is flat text and is
+        # what the citation graph is read from.
+        return self.corpus_dir / "text"
+
+    @property
+    def citations_path(self) -> Path:
+        # (citing_id, cited_id) edge list — extract_citations' output, an input
+        # to resolve_cited_works and build_indexes.
+        return self.corpus_dir / "citations.tsv"
+
+    @property
+    def frontier_path(self) -> Path:
+        # The index manifest: the papers the landing page names, and therefore
+        # the papers the agent must be able to read (select_frontier.py).
+        return self.corpus_dir / "frontier.json"
+
+    @property
+    def cited_works_path(self) -> Path:
+        # Catalog metadata for cited works we may never hold text for —
+        # resolve_cited_works' output, an input to build_indexes.
+        return self.corpus_dir / "cited_works.jsonl"
 
 
 @lru_cache
