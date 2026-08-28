@@ -14,6 +14,110 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-08-28 — float16 embedding is a Mac setting, not a default; CPU boxes must override
+
+**Context:** the frontier embed run did under 1,024 chunks in 105 minutes at
+300% CPU. The obvious suspect (a `llama` server competing for a 4-core box) was
+real but minor — pausing it moved load 8.4 -> 4.5 and changed the rate barely at
+all.
+
+**Measured 2026-08-28** on the ARM VPS, box otherwise idle, 12-64 chunks of mean
+~500 tokens:
+
+| dtype | rate |
+|---|---|
+| float16 (`config.embed_local_dtype` default) | ~0.01 chunks/s |
+| **float32** | **0.35 chunks/s, ~165 tok/s** |
+
+`embed_encode_batch_size` 16 vs 32 vs 64 changed nothing (0.36 / 0.34 / —), so
+~165 tok/s is this box's ceiling for nomic-embed-text-v1.5 and the dtype was the
+entire gap.
+
+**Decision:** keep `float16` as the default — it is correct on the ingest Mac,
+where MPS runs it natively and it halves the resident set (the reason it was
+chosen, DECISIONS.md 2026-07-05). Treat it as a PER-BOX setting, exactly like
+`embed_device`, and set `ASKRAG_EMBED_LOCAL_DTYPE=float32` wherever embedding
+runs on CPU. The config comment now says so at the definition.
+
+**Alternatives rejected:** *flip the default to float32* (would silently
+pessimise the Mac path D5 actually specifies); *auto-detect the device and pick
+a dtype* (config is settings, not logic — the codebase resolves this shape with
+a documented env override, and `embed_device`'s own comment sets that
+precedent).
+
+**Consequence:** the frontier embed went from days to ~12 hours. More
+importantly the trap is now written down at the setting, so the next person who
+runs ingest somewhere without a GPU does not spend an afternoon blaming the
+hardware. Note what the number is NOT: 165 tok/s is slow for a 137M model, so
+the box, not the dtype, is the remaining ceiling.
+
+Spec updated: no (D5's local-backend amendment already frames dtype/device as
+operating points, not architecture)
+
+---
+
+## 2026-08-27 — The landing page defines the index frontier; three layout calls recorded
+
+**Context:** the landing page ranks what our recent cohort cites (162,792
+extracted citations over 18,844 papers), but D16 scopes the app to papers with
+`chunks` rows, and only 200 had them. Every foundation the page names — Qwen3,
+Llama 3, PPO — had none. A page whose every link dead-ends in the agent
+advertises a capability and withholds it.
+
+**Decision:** invert the dependency. `ingest/select_frontier.py` derives the
+index manifest FROM the page's claims (top 50 cited works + up to 8 newest
+citers each = 285 papers), and exactly those are fetched, extracted, chunked
+and embedded. Three layout calls were made without owner input, each recorded
+here with its reversal cost:
+
+| # | Call | Reversal cost |
+|---|---|---|
+| A1 | Landing at `/`, app shell moved unchanged to `/app` | Low — one `git mv` and the `?paper=` deep links; the deploy healthcheck hits `/api/facets` and is unaffected |
+| A2 | Union: `corpus.db` carries every `arxiv.db` paper (56,391), not a curated subset | Low — `INDEXED_PREDICATE` already hides the chunk-less ones from browse, facets, and every agent tool |
+| A3 | Frontier = 50 x 8 (`config.frontier_top_cited` / `frontier_citers_per_work`) | Medium — widening either number means a re-embed, roughly linear |
+
+**Alternatives rejected:** *index everything we hold text for* (18,844 papers,
+737k chunks, ~13 days of CPU embedding for coverage no card points at); *an
+`is_indexed` flag with a two-tier UI* (the exact bug D16 was written to close);
+*keep the citation graph in its own database* (two universes diverging again).
+
+**Consequence:** "every link on the page is answerable" is a property of
+construction, asserted in `test_select_frontier.py`, not a coverage statistic.
+The frontier is recomputed when the page is regenerated, so it tracks the story
+rather than accumulating. Raising `frontier_top_cited` is now the single knob
+that widens what the page claims — and it is a knob with a stated embedding
+cost, which is the point.
+
+Spec updated: D16 amendment, D12 amendment, new D17 (transient PDFs), §4c
+decision 2 (a second STATIC route is compatible with the no-dynamic-routes rule)
+
+---
+
+## 2026-08-27 — Corpus text may spell control tokens; tokenizing must not raise
+
+**Context:** chunking the frontier died on a paper containing a literal
+`<|endofprompt|>`. tiktoken refuses special-token spellings by default. The
+same call shape sits in `agent/context_window.estimate_tokens`, which runs over
+messages carrying TOOL RESULTS — i.e. retrieved paper text.
+
+**Decision:** every tokenization of corpus-derived text passes
+`disallowed_special=()`, so a control-token spelling is ordinary characters.
+Regression tests in `test_chunk_papers.py` and `test_context_window.py`.
+
+**Alternatives rejected:** *strip the strings before tokenizing* (mangles the
+text of any paper ABOUT language models — exactly the papers we hold most of);
+*catch and skip the paper* (silently drops real papers from the graph).
+
+**Consequence:** a paper quoting a control token can no longer take down a live
+turn from inside the budget estimate. This is §6's untrusted-content posture
+reaching one layer further down than the fence: corpus text must never be able
+to mint a control token, and must never be able to raise inside our own
+accounting.
+
+Spec updated: no (implements §6's existing untrusted-content posture)
+
+---
+
 ## 2026-08-13 — Theming lives in CSS variables, not `dark:` variants; next-themes owns the choice (#85, owner directive)
 
 **Context:** owner directive — light/dark/system with an icon-button menu. The
@@ -1814,3 +1918,91 @@ design. If a future issue adds a stream event carrying retrieved ids (e.g.
 for richer citations), revisit (2).
 
 **Spec updated:** no — implementation contract for #31; §6c/§5 unchanged.
+
+---
+
+## 2026-08-28 — corpus.db carries planner stats, not a speculative index
+
+**Context:** the cited-year histogram on the landing page joins every citation
+edge (162,792 today) to `cited_works` to bucket it by the cited work's year. A
+covering index `cited_works(arxiv_id, year)` was added with the schema on the
+reasoning that it would make the join index-only. That reasoning was never
+measured — the first attempt ran on a box saturated by an embedding job, and
+the comment in `build_indexes.py` said so.
+
+**Measured 2026-08-28** on a quiet box, against the real 162,792-edge graph,
+median of 9 runs after a warm-up, on a throwaway copy of `corpus.db`:
+
+| | median |
+|---|---|
+| with the index, no `ANALYZE` | 110.3 ms |
+| without the index, no `ANALYZE` | 108.4 ms |
+| with the index, after `ANALYZE` | 91.3 ms |
+| without the index, after `ANALYZE` | 91.4 ms |
+
+**Decision:** drop `cited_works_year`; run `ANALYZE` at the end of
+`_write_corpus_db`.
+
+Without statistics the planner ignores the index entirely — `EXPLAIN QUERY
+PLAN` drives the join from `citations` and never names it, so the first two
+rows are the same plan and differ only by noise. With statistics the planner
+does choose it (`SCAN cited_works USING COVERING INDEX cited_works_year`) and
+it still buys nothing: 91.3 against 91.4 ms. The entire 17% is the join order
+`ANALYZE` unlocks, which is available without any extra index.
+
+The snapshot is frozen (D12), so stats written at build time never drift —
+this is the one situation where a one-shot `ANALYZE` is unambiguously correct.
+
+**Alternatives rejected:** keeping the index "because it might help later"
+(it is measured not to, and an unused index is build time, disk, and a false
+signal to the next reader); `PRAGMA optimize` at connection time (the serving
+connections are read-only, and a frozen snapshot needs stats computed once,
+not re-derived per process).
+
+**Consequence:** `/api/landing` measured at 270 ms end to end and
+`/api/foundations/{id}` at 75 ms on the deploy-class box. If the cohort grows
+by an order of magnitude, re-measure before assuming either still holds — and
+re-measure any index before adding it back.
+
+**Spec updated:** no — implementation detail below the D16 decision boundary.
+
+---
+
+## 2026-08-28 — the model-facing tool schema is not the security boundary
+
+**Context:** the first live agent turn ever run against a real Messages API
+failed twice on tool schemas, in ways no test could catch — every test scripts
+the model client (house rule), so nothing offline ever posts `tools` to a real
+endpoint.
+
+1. `tools.1.custom.input_schema.type: Field required`
+2. `input_schema does not support oneOf, allOf, or anyOf at the top level`
+
+Both come from `query_metadata` and `drive_ui` being `RootModel`s over a
+`Field(discriminator=...)` union, which pydantic emits as a top-level `oneOf`.
+
+**Decision:** `ToolSpec.json_schema` flattens a top-level union into one object
+schema — the union of every variant's properties, only the discriminator
+required, its enum listing the permitted ops, and each optional property
+labelled with the ops it belongs to.
+
+The flattened schema is strictly looser than the union: it does not stop a
+model from pairing `op="corpus_stats"` with `paper_id`. That is acceptable
+because **the schema is what the model is told, not what is accepted**.
+`dispatch` validates `raw_args` against `args_model` — the discriminated union
+itself — so §5/§6 hold exactly as before: enum'd ops only, no model-authored
+SQL, no URLs or HTML. Loosening the advertisement costs guidance, not safety.
+Flattening the union in `args_model` WOULD be a security change, and is
+therefore forbidden; `test_registry.py` asserts both tools keep their `oneOf`.
+
+**Alternatives rejected:** nesting the union one level down (`{"request": {...}}`
+is legal, since only TOP-level `oneOf` is refused) — it changes the argument
+contract the model writes and the handler unwraps, to buy advertisement
+precision that dispatch already enforces; hand-writing flat schemas per tool
+(duplicates the args models, and drifts the first time a variant changes).
+
+**Consequence:** a live turn is now the only thing that exercises the real
+tool-schema shape. Re-run the smoke after ANY change to a tool's args model.
+
+**Spec updated:** no — §5 tool contracts and §6 threat model are unchanged;
+this is how the same contract is expressed on the wire.

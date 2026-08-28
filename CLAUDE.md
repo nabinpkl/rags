@@ -17,7 +17,9 @@ work is broken into GitHub issues.
   engineering principles (§4d). If code and spec disagree, the spec wins;
   if the spec is wrong, change the spec first (it's a numbered decision).
 - **Map**: `docs/architecture.html`. **Look & feel**: `docs/mockup.html`
-  (the PDF.js continuous-scroll viewer there is the reference behavior).
+  (the PDF.js continuous-scroll viewer there is the reference behavior) and
+  `docs/landing-mockup.html` (the front door, rendered from real citation
+  data — its copy, not just its layout, is the reference).
 - **Work**: issues #9–#39 on nabinpkl/rags, board
   https://github.com/users/nabinpkl/projects/2
 
@@ -82,7 +84,15 @@ work is broken into GitHub issues.
 - Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`,
   `just eval`. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
-  `POST /api/chat`). Frontend (after #26): `pnpm build`, `pnpm gen:api`.
+  `POST /api/chat`). Frontend (after #26): `pnpm build`. After ANY route or
+  response-model change run `just gen-openapi` — `just check` catches type
+  drift but not schema drift, because `openapi.json` is typegen's input.
+- Landing pipeline, in order: `just citations` (extract + resolve the citation
+  graph) → `just frontier` (derive the index manifest, fetch and extract its
+  papers) → `just index` (chunk, embed, rebuild corpus.db + chroma). The
+  manifest in `corpus/frontier.json` IS the page's scope — widen it via
+  `frontier_top_cited`/`frontier_citers_per_work` in `config.py`, and expect a
+  re-embed. Frontend routes: landing at `/`, app shell at `/app`.
 - Deploy (#81): `just deploy` (compose up; ingress on loopback), `just
   deploy-tailnet` (publish via the host's tailscaled), plus `deploy-logs`,
   `deploy-down`, `deploy-reseed`. Runbook: `deploy/README.md`.

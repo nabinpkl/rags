@@ -67,6 +67,13 @@ docker builder prune -f && docker image prune -f
 Neither touches the running containers or the tagged images they use; the next
 build is just slower.
 
+The corpus itself does not need to live inside the checkout. Point
+`ASKRAG_CORPUS_HOST_DIR` in `deploy/.env` at wherever the snapshot is (a
+dedicated data volume, say) and leave `corpus/` as a symlink to the same place
+so the collector and the ingest recipes, which resolve paths relative to the
+repo, keep working. Compose bind-mounts the real path; it never reads the
+symlink.
+
 ## Host reboots
 
 The host runs `netfilter-persistent`, which replays `/etc/iptables/rules.v4` at
@@ -90,10 +97,25 @@ If it ever happens anyway, the tell is `DOCKER-*` chain counters at zero while
 one rule in `sudo iptables -t raw -S PREROUTING` names a bridge that is not in
 `/sys/class/net/`. Delete it and purge its lines from `rules.v4`.
 
-## Refreshing the corpus (D12)
+## Refreshing the corpus (D12, as amended)
 
-Ingest locally, copy the new `corpus.db` / `chroma/` into place on the host, then
-`just deploy-reseed`. Prod never runs the ingest chain.
+Prod never runs the ingest chain. Run it where the corpus lives, in this order —
+each stage reads the previous one's output, and `build_indexes` is
+drop-and-rebuild so it must be last:
+
+```
+just citations   # extract the citation graph, resolve what it points at
+just frontier    # derive the index manifest, fetch + extract its papers
+just index       # chunk, embed, rebuild corpus.db + chroma, then VERIFY
+```
+
+`just index` ends with `select_frontier --verify`, which fails if any paper the
+landing page names lacks chunks. That check is the deploy gate: a green verify
+means every link on the page opens; a red one means visitors would hit dead
+ends, so do not ship the snapshot.
+
+Then copy the new `corpus.db` / `chroma/` into place on the host and
+`just deploy-reseed`.
 
 ## Agent provider
 
