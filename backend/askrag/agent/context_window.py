@@ -64,13 +64,24 @@ def estimate_tokens(messages: list[Any], *, settings: Settings | None = None) ->
     for message in messages:
         content = _message_content(message)
         if isinstance(content, str):
-            total += len(encoding.encode(content))
+            total += len(_encode(encoding, content))
         elif isinstance(content, list):
             for block in content:
                 text = _block_token_text(block)
                 if text:
-                    total += len(encoding.encode(text))
+                    total += len(_encode(encoding, text))
     return total
+
+
+def _encode(encoding: tiktoken.Encoding, text: str) -> list[int]:
+    """Tokenize, treating control-token spellings as ordinary text.
+
+    Messages here carry TOOL RESULTS, i.e. retrieved paper text (§6: untrusted).
+    A paper quoting "<|endofprompt|>" would otherwise raise inside the budget
+    estimate and kill a live turn mid-answer — a corpus string taking down a
+    request is exactly the class of thing the fence exists to prevent.
+    """
+    return encoding.encode(text, disallowed_special=())
 
 
 def _tool_use_names(messages: list[Any]) -> dict[str, str]:
