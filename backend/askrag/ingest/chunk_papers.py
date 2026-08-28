@@ -80,7 +80,20 @@ def _encoding(name: str) -> tiktoken.Encoding:
 def count_tokens(text: str, encoding: str) -> int:
     # `encoding` is required (no default): the encoding name lives once, in
     # config.tokenizer_encoding, so callers pass it rather than duplicate it.
-    return len(_encoding(encoding).encode(text))
+    return len(encode_corpus_text(text, encoding))
+
+
+def encode_corpus_text(text: str, encoding: str) -> list[int]:
+    """Tokenize paper text, treating control-token spellings as ordinary text.
+
+    tiktoken raises on a literal "<|endofprompt|>" by default, and papers ABOUT
+    language models quote those strings — one frontier paper killed a whole
+    chunking run this way. `disallowed_special=()` makes them plain characters,
+    which is both the correct reading of a paper quoting a token and the safe
+    one: corpus text is untrusted (§6), so it must never be able to mint a
+    control token in anything downstream.
+    """
+    return _encoding(encoding).encode(text, disallowed_special=())
 
 
 @dataclass(frozen=True)
@@ -180,7 +193,7 @@ def _chunk_section(
     section_text = markdown[span.char_start : span.char_end]
     if not section_text.strip():
         return
-    tokens = enc.encode(section_text)
+    tokens = enc.encode(section_text, disallowed_special=())
     for i, j in _windows(len(tokens), size, overlap_ratio):
         # Prefix decode is exact for cl100k, so token boundaries map to char
         # offsets within the section; shift by char_start for absolute offsets.
@@ -220,7 +233,7 @@ def chunk_paper(
         page_start=1,
         page_end=1,
         text=meta_text,
-        n_tokens=len(enc.encode(meta_text)),
+        n_tokens=len(enc.encode(meta_text, disallowed_special=())),
     )
     seq += 1
 

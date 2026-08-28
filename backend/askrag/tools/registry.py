@@ -42,11 +42,90 @@ class ToolSpec:
     # bare BaseModel), which a contravariant parameter type would reject
     # here. The return side is `ToolResult`, not `Any` — dispatch() below no
     # longer hands its caller an unfenceable heterogeneous value.
-    handler: Callable[[Any], ToolResult]
+    handler: Callable[..., ToolResult]
+    # Whether this tool reads paper content, and must therefore honor a
+    # conversation scope. `query_metadata` and `drive_ui` are unscoped: the
+    # first returns counts over the already-D16-scoped corpus, the second
+    # only moves the UI. Scoping is opt-IN per tool so a new content-reading
+    # tool has to state that it read this comment.
+    scoped: bool = False
 
     @property
     def json_schema(self) -> dict[str, Any]:
-        return self.args_model.model_json_schema()
+        """The model-facing schema, in the one shape the Messages API accepts.
+
+        `query_metadata` and `drive_ui` are RootModels over a discriminated
+        union, and pydantic emits that as a top-level `oneOf`. The API refuses
+        it outright: "input_schema does not support oneOf, allOf, or anyOf at
+        the top level". So the union is flattened to one object schema here.
+
+        This does NOT loosen either tool. `dispatch` validates raw_args against
+        `args_model` — the union itself — so an op/field combination the union
+        forbids is still rejected server-side. The schema is what the model is
+        TOLD; the union is what is ACCEPTED, and only the latter is a security
+        boundary (§5/§6: enum'd ops, no model-authored SQL, no URLs or HTML).
+
+        Both facts were found by the live smoke, one API error at a time; every
+        test scripts the model client, so nothing offline exercises this shape.
+        """
+        return _anthropic_input_schema(self.args_model.model_json_schema())
+
+
+def _resolve(node: Any, defs: dict[str, Any]) -> Any:
+    """Inline every `$ref` against `$defs` so the emitted schema stands alone."""
+    if isinstance(node, dict):
+        if "$ref" in node:
+            name = node["$ref"].rsplit("/", 1)[-1]
+            return _resolve({k: v for k, v in defs.get(name, {}).items()}, defs)
+        return {k: _resolve(v, defs) for k, v in node.items() if k != "$defs"}
+    if isinstance(node, list):
+        return [_resolve(v, defs) for v in node]
+    return node
+
+
+def _anthropic_input_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """A pydantic JSON schema as an Anthropic `input_schema`.
+
+    A top-level discriminated union becomes a single object: the union of every
+    variant's properties, with only the discriminator required and its enum
+    listing the permitted ops. Each optional property names the ops it belongs
+    to, so the flattening costs the model guidance, not correctness — the union
+    still gates what `dispatch` accepts.
+    """
+    defs = schema.get("$defs", {})
+    branches = schema.get("oneOf") or schema.get("anyOf")
+    if not branches:
+        flat = _resolve(schema, defs)
+        flat.setdefault("type", "object")
+        return flat
+
+    key = schema.get("discriminator", {}).get("propertyName", "op")
+    properties: dict[str, Any] = {}
+    ops: list[str] = []
+    owners: dict[str, list[str]] = {}
+    for branch in branches:
+        resolved = _resolve(branch, defs)
+        op = resolved.get("properties", {}).get(key, {}).get("const")
+        if op is not None:
+            ops.append(op)
+        for prop, spec in resolved.get("properties", {}).items():
+            if prop == key:
+                continue
+            properties.setdefault(prop, dict(spec))
+            if op is not None:
+                owners.setdefault(prop, []).append(op)
+
+    for prop, used_by in owners.items():
+        note = f"Used with {key}=" + " or ".join(repr(o) for o in used_by) + "."
+        existing = properties[prop].get("description")
+        properties[prop]["description"] = f"{existing} {note}".strip() if existing else note
+
+    return {
+        "type": "object",
+        "description": schema.get("description", ""),
+        "properties": {key: {"type": "string", "enum": ops}, **properties},
+        "required": [key],
+    }
 
 
 class UnknownToolError(Exception):
@@ -63,6 +142,7 @@ TOOLS: dict[str, ToolSpec] = {
         ),
         args_model=search_corpus.SearchCorpusArgs,
         handler=search_corpus.run,
+        scoped=True,
     ),
     "query_metadata": ToolSpec(
         name="query_metadata",
@@ -87,6 +167,7 @@ TOOLS: dict[str, ToolSpec] = {
         ),
         args_model=read_paper.ReadPaperArgs,
         handler=read_paper.run,
+        scoped=True,
     ),
     "drive_ui": ToolSpec(
         name="drive_ui",
@@ -101,12 +182,19 @@ TOOLS: dict[str, ToolSpec] = {
 }
 
 
-def dispatch(name: str, raw_args: dict[str, Any]) -> ToolResult:
+def dispatch(
+    name: str, raw_args: dict[str, Any], *, scope: tuple[str, ...] | None = None
+) -> ToolResult:
     """Validate `raw_args` against the named tool's schema, then call its
     handler. Raises `UnknownToolError` for anything not in `TOOLS` — this
-    file never falls back to open dispatch by name."""
+    file never falls back to open dispatch by name.
+
+    `scope` is the conversation's paper-id restriction, resolved server-side
+    from a landing-page claim (routes_landing.scope_paper_ids). It reaches
+    content-reading tools as a keyword the model cannot author, so no argument
+    the model writes can widen it."""
     if name not in TOOLS:
         raise UnknownToolError(f"no such tool: {name!r}")
     spec = TOOLS[name]
     args = spec.args_model.model_validate(raw_args)
-    return spec.handler(args)
+    return spec.handler(args, scope=scope) if spec.scoped else spec.handler(args)

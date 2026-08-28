@@ -148,3 +148,15 @@ def test_evict_oldest_handles_a_single_message_list():
 def test_evict_oldest_handles_an_empty_message_list():
     s = settings()
     assert cw.evict_oldest([], ceiling_tokens=1, settings=s) == []
+
+
+def test_a_paper_quoting_a_control_token_does_not_kill_the_estimate():
+    """Tool results carry retrieved paper text, which is untrusted (§6).
+
+    tiktoken raises on a literal "<|endofprompt|>" by default; a paper ABOUT
+    language models quotes those strings, and one of them must not be able to
+    take down a live turn from inside the budget estimate.
+    """
+    messages = [{"role": "user", "content": "the model emits <|endofprompt|> at the end"}]
+
+    assert cw.estimate_tokens(messages) > 0
