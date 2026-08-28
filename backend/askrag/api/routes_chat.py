@@ -9,6 +9,7 @@ nothing itself — that division of labor is unchanged from #21/#23.
 
 import json
 import logging
+import sqlite3
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
@@ -33,7 +34,7 @@ from askrag.agent.loop import (
     anthropic_client_from_settings,
     run_turn,
 )
-from askrag.api import sse_events
+from askrag.api import answer_guard, sse_events
 from askrag.api.replay import replay_events
 from askrag.api.routes_landing import find_foundation, scope_paper_ids
 from askrag.api.session_store import SessionStore
@@ -97,6 +98,44 @@ class _TurnOutcome:
     error: BaseException | None = None
 
 
+def _harden_text_event(event: AgentEvent, settings: Settings) -> AgentEvent:
+    """Apply `answer_guard` to one TEXT event, returning the event to emit.
+
+    On a corpus read failure this degrades to verified-but-UNCAPPED, and says
+    so in the log — citation verification needs no db, quote caps do. That is a
+    deliberate partial-open, not a fail-closed: dropping the answer would turn a
+    transient db error into a broken turn, and §6c row 4 is a display cap on
+    text the model was already entitled to read (row 1), not a containment
+    boundary like scope. If that trade ever stops being acceptable, the fix is
+    to fail the turn here, and the log line is what would justify it.
+    """
+    tool_calls = event.data.get("tool_calls", ())
+    sources: dict[str, list[str]] = {}
+    try:
+        conn = db.connect_corpus(settings.corpus_db_path)
+        try:
+            sources = answer_guard.fetch_sources(conn, tool_calls)
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        _logger.exception("askrag.api.chat: answer_guard sources unavailable; caps not applied")
+
+    hardened = answer_guard.harden(
+        event.data["text"], tool_calls=tool_calls, sources=sources, settings=settings
+    )
+    if not hardened.changed:
+        return event
+    _logger.warning(
+        "askrag.api.chat: answer hardened before send",
+        extra={
+            "askrag.stripped_ids": list(hardened.stripped_ids),
+            "askrag.capped_quotes": hardened.capped_quotes,
+            "askrag.dropped_quotes": hardened.dropped_quotes,
+        },
+    )
+    return AgentEvent(event.kind, {**event.data, "text": hardened.text})
+
+
 async def _stream_live_turn(
     *,
     messages: list[Any],
@@ -128,6 +167,13 @@ async def _stream_live_turn(
             # counterpart at all) — forwarding the loop's own internal DONE
             # here too would double-emit it out of order (before `cost`).
             return
+        if event.kind is EventKind.TEXT:
+            # §6c row 4 + citation verification, server-side, before any answer
+            # text leaves (issue #36). Done HERE rather than in the loop: the
+            # loop supplies what it alone knows (the turn's tool calls), the
+            # route owns the corpus handle. An answer never reaches the wire
+            # unhardened, including on the intermediate assistant messages.
+            event = _harden_text_event(event, settings)
         sse = sse_events.translate(event)
         if sse is None:
             return

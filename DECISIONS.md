@@ -2006,3 +2006,54 @@ tool-schema shape. Re-run the smoke after ANY change to a tool's args model.
 
 **Spec updated:** no — §5 tool contracts and §6 threat model are unchanged;
 this is how the same contract is expressed on the wire.
+
+---
+
+## 2026-08-28 — what counts as a quote (§6c row 4's missing floor)
+
+**Context:** issue #36 enforces §6c row 4 server-side at the answer boundary
+(`askrag/api/answer_guard.py`). The rule fixes two numbers — ≤50 words per
+quote, ≤3 quotes per paper per answer — but never defines the floor: how long a
+verbatim run must be before it counts as one of the three.
+
+The first implementation used a 6-word floor. On a live turn it removed NINE
+quotes from a faithful Qwen3 answer, tripping on ordinary technical phrasing
+("increasing the proportion of STEM, coding, reasoning") and leaving prose like
+"High-quality long context training [quote removed: §6c per-paper limit]," with
+specific composition: "[quote removed]". The guard was enforcing the letter of
+the rule and destroying the product.
+
+**Decision:** `config.quote_min_words = 15`, and elide with "[…]".
+
+Verified against the real corpus and a real recorded answer (375 words, 5
+papers, 76 chunks):
+
+| floor | quotes dropped from a genuine answer |
+|---|---|
+| 6 | 3 |
+| 10, 15, 20 | 0 — byte-identical to the model's own output |
+
+And the cap still bites, against real chunk text:
+
+| attack | outcome |
+|---|---|
+| 200/120/60-word verbatim dump | truncated to exactly 50 words |
+| the same dump uppercased and re-wrapped | truncated — normalization defeats laundering |
+| 40-word quote | passes, correctly: it is under the 50-word cap |
+| paraphrase | untouched |
+
+**Alternatives rejected:** keeping the 6-word floor (spec-literal, but it makes
+faithful answers incoherent, and a guard that mangles real output gets switched
+off — the worst possible end state for a §6 control); capping total verbatim
+VOLUME per paper instead of counting quotes (defensible, arguably better, but
+it is not what row 4 says and inventing a different rule needs its own
+decision); a bracketed policy sentence as the elision marker (it was the actual
+cause of the incoherence, and an audit reads the log, not the paragraph).
+
+**Consequence:** the floor is a tunable, so tightening it is a config change,
+not a rewrite. If quoting behavior changes materially — a different model, or a
+prompt that encourages heavy quoting — re-measure against a real answer before
+trusting the number.
+
+**Spec updated:** yes — §6c gains a 2026-08-28 clarification defining the floor
+and the elision marker.

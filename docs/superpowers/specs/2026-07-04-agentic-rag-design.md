@@ -1309,6 +1309,19 @@ text). Risk management, not legal advice; each rule tagged by its basis.
 | Per-paper `license` field carried from the Kaggle seed into `corpus.db` at ingest; CC0/CC-BY papers *may* show fuller text with attribution (v2 option, not v1 scope); the "vast majority" default-license papers get the caps above | Conservative choice; the metadata provides the field for exactly this |
 | Takedown path: a contact link, and removal of a paper's summaries/excerpts from the index on author objection | Conservative choice mirroring Semantic Scholar et al. |
 
+**Clarification (2026-08-28, DECISIONS.md; issue #36):** row 4 caps quotes at
+50 words and 3 per paper, but never said what COUNTS as a quote, and the floor
+decides whether the rule is usable. It is `config.quote_min_words` (15): a
+verbatim run shorter than that is shared terminology, not an excerpt. Measured
+on a live turn — at a 6-word floor a faithful Qwen3 answer tripped the 3-quote
+limit nine times on phrases like "increasing the proportion of STEM, coding,
+reasoning", and the remediation shredded the paragraph. Row 4's stated targets
+are substantial verbatim quotes and sequential-excerpt section reconstruction;
+neither is reachable in runs that short, so enforcing there costs faithfulness
+and buys no protection. Enforcement lives in `askrag/api/answer_guard.py`, and
+over-budget or over-length runs are elided with "[…]" rather than a policy
+sentence, so the surviving prose still reads.
+
 **Clarification (2026-07-06, DECISIONS.md; issue #58):** row 1 and row 4 are
 two different enforcement points, not one. `read_paper` (row 1) is the
 MODEL's read tool — it returns page-bounded extracted text up to

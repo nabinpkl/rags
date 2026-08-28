@@ -252,6 +252,15 @@ class Settings(BaseSettings):
     # --- content display caps (§6c; server-enforced, legal posture) --------
     quote_max_words: int = 50
     max_quotes_per_paper: int = 3
+    # What counts AS a quote for the ≤3 rule. §6c fixes the 50-word cap and the
+    # 3-quote limit but never defines the floor, and the floor decides whether
+    # the rule is usable: at 6 words a live Qwen3 answer tripped it 9 times on
+    # ordinary technical phrasing ("increasing the proportion of STEM, coding,
+    # reasoning"), which is shared terminology, not an excerpt. Row 4's stated
+    # target is substantial verbatim quotes and sequential-excerpt section
+    # reconstruction; neither is reachable in runs this short. Measured
+    # 2026-08-28, DECISIONS.md.
+    quote_min_words: int = 15
 
     # --- chat API (#30; D11/D13) --------------------------------------------
     # Ephemeral, server-side, in-memory session lifetime — a session's LIVE

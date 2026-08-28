@@ -287,7 +287,13 @@ def run_turn(
         text = _text_of(response)
         if text is not None:
             final_text = text
-            on_event(AgentEvent(EventKind.TEXT, {"text": final_text}))
+            # `tool_calls` rides along so the API boundary can enforce §6c row 4
+            # and verify citations (answer_guard, issue #36): only the loop knows
+            # what this turn actually retrieved. It is INTERNAL — sse_events'
+            # `translate` reads `text` alone, so it never reaches the wire.
+            on_event(
+                AgentEvent(EventKind.TEXT, {"text": final_text, "tool_calls": tuple(tool_records)})
+            )
 
         if response.stop_reason != "tool_use":
             break  # StopReason.END_TURN, the default
