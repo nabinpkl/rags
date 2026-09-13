@@ -435,6 +435,68 @@
                     }
                 }
             }
+        },
+        "/api/latest": {
+            "get": {
+                "summary": "Get Latest",
+                "description": "The dashboard's \"what just landed\" list \u2014 newest indexed papers.",
+                "operationId": "get_latest_api_latest_get",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 50,
+                            "minimum": 1,
+                            "default": 8,
+                            "title": "Limit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LatestResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/trends": {
+            "get": {
+                "summary": "Get Trends",
+                "description": "The dashboard's growth chart \u2014 papers and references per month.",
+                "operationId": "get_trends_api_trends_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TrendsResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -899,6 +961,111 @@
                 ],
                 "title": "LandingResponse"
             },
+            "LatestPaper": {
+                "properties": {
+                    "arxiv_id": {
+                        "type": "string",
+                        "title": "Arxiv Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "authors": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Authors"
+                    },
+                    "primary_category": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Primary Category"
+                    },
+                    "published": {
+                        "type": "string",
+                        "title": "Published"
+                    },
+                    "version": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Version"
+                    },
+                    "ref_count": {
+                        "type": "integer",
+                        "title": "Ref Count"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "arxiv_id",
+                    "title",
+                    "authors",
+                    "primary_category",
+                    "published",
+                    "version",
+                    "ref_count"
+                ],
+                "title": "LatestPaper",
+                "description": "A paper we hold and have indexed, newest first. Indexed-only (D16):\nthe dashboard links every row to the reader, so nothing listed may\ndead-end. Fresh-but-unindexed papers appear here on their own once the\nindex run covers them \u2014 no second code path."
+            },
+            "LatestResponse": {
+                "properties": {
+                    "papers": {
+                        "items": {
+                            "$ref": "#/components/schemas/LatestPaper"
+                        },
+                        "type": "array",
+                        "title": "Papers"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "papers"
+                ],
+                "title": "LatestResponse"
+            },
+            "MonthBucket": {
+                "properties": {
+                    "month": {
+                        "type": "string",
+                        "title": "Month"
+                    },
+                    "papers_added": {
+                        "type": "integer",
+                        "title": "Papers Added"
+                    },
+                    "refs_made": {
+                        "type": "integer",
+                        "title": "Refs Made"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "month",
+                    "papers_added",
+                    "refs_made"
+                ],
+                "title": "MonthBucket",
+                "description": "One calendar month of corpus growth. Counts, not lists, so no\nindexed restriction (same posture as CohortStats): papers_added counts\nevery catalog row, refs_made every extracted edge."
+            },
             "PaperDetailResponse": {
                 "properties": {
                     "arxiv_id": {
@@ -1168,6 +1335,22 @@
                     "total"
                 ],
                 "title": "PapersResponse"
+            },
+            "TrendsResponse": {
+                "properties": {
+                    "months": {
+                        "items": {
+                            "$ref": "#/components/schemas/MonthBucket"
+                        },
+                        "type": "array",
+                        "title": "Months"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "months"
+                ],
+                "title": "TrendsResponse"
             },
             "ValidationError": {
                 "properties": {

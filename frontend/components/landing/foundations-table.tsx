@@ -28,7 +28,7 @@ export function FoundationsTable({
   const max = foundations[0]?.cited_by ?? 1;
 
   return (
-    <section className="mx-auto max-w-5xl px-6 py-8">
+    <section id="ranking" className="mx-auto max-w-5xl scroll-mt-16 px-6 py-8">
       <div className="mb-1.5 flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
         <h2 className="font-serif text-ink text-2xl font-semibold">The foundations</h2>
         <span className="text-muted font-mono text-[11.5px]">

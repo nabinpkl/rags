@@ -8,9 +8,11 @@ import { ChatPanel } from "@/components/agent-panel/chat-panel";
 import { FoundationDetail } from "@/components/landing/foundation-detail";
 import { FoundationsTable } from "@/components/landing/foundations-table";
 import { HeroStats } from "@/components/landing/hero-stats";
+import { LatestPapers } from "@/components/landing/latest-papers";
 import { MethodsNote } from "@/components/landing/methods-note";
+import { TrendsChart } from "@/components/landing/trends-chart";
 import { SiteFooter } from "@/components/site-footer";
-import { type Foundation, fetchLanding } from "@/lib/api-client";
+import { type Foundation, fetchLanding, fetchLatest, fetchTrends } from "@/lib/api-client";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 
 /** The front door (§4c decision 2 amendment: a second STATIC route, still no
@@ -41,6 +43,13 @@ export default function LandingPage() {
     queryKey: ["landing"],
     queryFn: () => fetchLanding({ limit: 40 }),
   });
+  // Dashboard sections fetch independently: a slow chart must not hold up
+  // the ranking, and a failed chart must not take the page down with it.
+  const { data: latest } = useQuery({
+    queryKey: ["latest"],
+    queryFn: () => fetchLatest({ limit: 8 }),
+  });
+  const { data: trends } = useQuery({ queryKey: ["trends"], queryFn: fetchTrends });
 
   return (
     <div className="bg-paper text-ink flex min-h-dvh flex-col">
@@ -54,6 +63,25 @@ export default function LandingPage() {
               arXiv cs · rolling window
             </span>
           </span>
+          {!selected && data && (
+            <nav
+              aria-label="Dashboard sections"
+              className="text-muted hidden items-center gap-4 font-mono text-[11px] sm:flex"
+            >
+              <a href="#ranking" className="hover:text-ink">
+                ranking
+              </a>
+              <a href="#trends" className="hover:text-ink">
+                trends
+              </a>
+              <a href="#latest" className="hover:text-ink">
+                latest
+              </a>
+              <a href="#methods" className="hover:text-ink">
+                methods
+              </a>
+            </nav>
+          )}
           <Link
             href="/app"
             className="border-line text-muted hover:text-ink focus-visible:outline-teal ml-auto rounded-[3px] border px-2.5 py-1 font-mono text-[11px] focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -119,6 +147,22 @@ export default function LandingPage() {
               </section>
             )}
 
+            {!selected && (trends || latest) && (
+              <section aria-label="Overview" className="border-line border-t px-6 py-8">
+                <div className="mx-auto grid max-w-5xl items-start gap-6 lg:grid-cols-5">
+                  {trends && (
+                    <div className="lg:col-span-3">
+                      <TrendsChart months={trends.months} />
+                    </div>
+                  )}
+                  {latest && (
+                    <div className="lg:col-span-2">
+                      <LatestPapers papers={latest.papers} />
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
             {!selected && <MethodsNote stats={data.stats} citedYears={data.cited_years} />}
           </>
         )}

@@ -807,6 +807,15 @@ is why the scope is affordable and how counts relate to lists.
   row means "the Kaggle catalog describes it". Merging them would let a work
   nothing can read surface wherever a readable paper can.
 
+**Amendment (2026-09-13, home-as-dashboard).** The front door keeps its
+composition and gains two sections, both fed by `routes_landing.py` under the
+same rule: `GET /api/trends` (papers and references per calendar month —
+counts, so honest totals with no indexed restriction) and `GET /api/latest`
+(newest papers — a list, so `INDEXED_PREDICATE`-restricted; fresh but
+unindexed papers appear on their own once the index run covers them). No new
+route: the dashboard IS `/`, which is why the amendment lives here and not
+in §4c.
+
 **Revisit when.** A breadth tier lands (abstract-level index over all cs
 history). A paper matched at abstract level *cannot be quoted* — we hold no
 text for it — so the tool contracts would then have to distinguish "found"

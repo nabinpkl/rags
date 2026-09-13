@@ -101,6 +101,39 @@ class FoundationDetailResponse(BaseModel):
     scope_size: int
 
 
+class LatestPaper(BaseModel):
+    """A paper we hold and have indexed, newest first. Indexed-only (D16):
+    the dashboard links every row to the reader, so nothing listed may
+    dead-end. Fresh-but-unindexed papers appear here on their own once the
+    index run covers them — no second code path."""
+
+    arxiv_id: str
+    title: str
+    authors: str | None
+    primary_category: str | None
+    published: str
+    version: str | None
+    ref_count: int
+
+
+class LatestResponse(BaseModel):
+    papers: list[LatestPaper]
+
+
+class MonthBucket(BaseModel):
+    """One calendar month of corpus growth. Counts, not lists, so no
+    indexed restriction (same posture as CohortStats): papers_added counts
+    every catalog row, refs_made every extracted edge."""
+
+    month: str  # "2026-09", from papers.published
+    papers_added: int
+    refs_made: int
+
+
+class TrendsResponse(BaseModel):
+    months: list[MonthBucket]
+
+
 def trim_authors(authors: str | None, max_names: int) -> str | None:
     """Cap a catalog author list to what the page shows, plus the overflow count.
 
@@ -315,5 +348,72 @@ def get_foundation(
             scope_size=len(scope_paper_ids(conn, arxiv_id)),
             total_citers=foundation.cited_by,
         )
+    finally:
+        conn.close()
+
+
+def _latest(conn: sqlite3.Connection, limit: int, max_authors: int) -> list[LatestPaper]:
+    # Newest INDEXED papers only (D16 — every row links to the reader).
+    # The inner query picks the N newest, the outer counts their references;
+    # counting before the limit would scan the whole citations table.
+    rows = conn.execute(
+        "SELECT p.arxiv_id, p.title, p.authors, p.primary_category, p.published,"
+        "       p.version, count(cit.cited_id) AS ref_count"
+        "  FROM (SELECT * FROM papers"
+        f"         WHERE {INDEXED_PREDICATE}"
+        "         ORDER BY published DESC, arxiv_id DESC"
+        "         LIMIT ?) p"
+        "  LEFT JOIN citations cit ON cit.citing_id = p.arxiv_id"
+        " GROUP BY p.arxiv_id"
+        " ORDER BY p.published DESC, p.arxiv_id DESC",
+        (limit,),
+    ).fetchall()
+    papers = []
+    for row in rows:
+        fields = dict(row)
+        fields["authors"] = trim_authors(fields["authors"], max_authors)
+        papers.append(LatestPaper(**fields))
+    return papers
+
+
+def _trends(conn: sqlite3.Connection) -> list[MonthBucket]:
+    # Whole-table growth series: papers by catalog month, references by the
+    # citing paper's month. Counts are honest totals (CohortStats posture),
+    # so no indexed restriction — the chart shows what arrived, not what
+    # is answerable yet.
+    rows = conn.execute(
+        "SELECT substr(p.published, 1, 7) AS month,"
+        "       count(DISTINCT p.arxiv_id) AS papers_added,"
+        "       count(cit.cited_id) AS refs_made"
+        "  FROM papers p"
+        "  LEFT JOIN citations cit ON cit.citing_id = p.arxiv_id"
+        # Undated catalog rows (a handful of legacy seeds) belong in the
+        # totals but not in a time series — a month bucket needs a month.
+        " WHERE p.published IS NOT NULL AND p.published != ''"
+        " GROUP BY month"
+        " ORDER BY month"
+    ).fetchall()
+    return [MonthBucket(**dict(row)) for row in rows]
+
+
+@router.get("/api/latest", response_model=LatestResponse)
+def get_latest(
+    limit: int = Query(default=8, ge=1, le=50),
+    settings: Settings = Depends(get_settings),
+) -> LatestResponse:
+    """The dashboard's "what just landed" list — newest indexed papers."""
+    conn = db.connect_corpus(settings.corpus_db_path)
+    try:
+        return LatestResponse(papers=_latest(conn, limit, settings.landing_max_authors))
+    finally:
+        conn.close()
+
+
+@router.get("/api/trends", response_model=TrendsResponse)
+def get_trends(settings: Settings = Depends(get_settings)) -> TrendsResponse:
+    """The dashboard's growth chart — papers and references per month."""
+    conn = db.connect_corpus(settings.corpus_db_path)
+    try:
+        return TrendsResponse(months=_trends(conn))
     finally:
         conn.close()

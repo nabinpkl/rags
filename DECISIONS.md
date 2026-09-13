@@ -14,6 +14,19 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-13 — home page is the dashboard: trends + latest sections, no new route
+
+**Context:** with the Sep-03 refresh the graph is the freshest thing on the
+page, but the page showed only the ranking — no growth story, no arrivals.
+**Decision:** `/` gains `GET /api/trends` (monthly counts, honest totals) and
+`GET /api/latest` (newest INDEXED papers, D16 list rule), rendered as two
+sections under the foundations table; hand-rolled div bars, no chart
+dependency. **Alternatives rejected:** a separate `/dashboard` route (a second
+front door splits the product argument); recharts/visx (a new dependency for
+two bar rows fails the sdlc gate's worth-it test). **Consequence:** the deploy
+needs an api image rebuild (new routes), then the usual reseed.
+Spec updated: D16 amendment (2026-09-13, home-as-dashboard).
+
 ## 2026-09-13 — no code path touches export.arxiv.org (D18); versions backfill from the seed
 
 **Context:** a routine `build_indexes` rebuild failed three times in a row —

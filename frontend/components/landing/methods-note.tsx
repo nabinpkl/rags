@@ -55,7 +55,7 @@ export function MethodsNote({
   ];
 
   return (
-    <section className="border-line border-t px-6 py-8">
+    <section id="methods" className="border-line scroll-mt-16 border-t px-6 py-8">
       <div className="mx-auto max-w-5xl">
         <h2 className="font-serif text-ink mb-3 text-xl font-semibold">How far back it reaches</h2>
         <div className="mb-2 flex items-end gap-1.5" aria-hidden>
