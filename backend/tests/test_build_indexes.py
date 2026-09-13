@@ -4,7 +4,6 @@ import json
 import sqlite3
 import zipfile
 
-import httpx
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
@@ -90,8 +89,18 @@ def paths(tmp_path):
 
     seed = tmp_path / "archive.zip"
     seed_records = [
-        {"id": "2401.00001", "license": "http://creativecommons.org/licenses/by/4.0/"},
-        {"id": "2401.00002", "license": None},  # seed has no license for this one
+        {
+            "id": "2401.00001",
+            "license": "http://creativecommons.org/licenses/by/4.0/",
+            # Seed knows v5, but the row already pins v2 — the build must
+            # never let the backfill override a version it already holds.
+            "versions": [{"version": "v1"}, {"version": "v5"}],
+        },
+        {
+            "id": "2401.00002",
+            "license": None,  # seed has no license for this one
+            "versions": [{"version": "v1"}, {"version": "v2"}, {"version": "v3"}],
+        },
         {"id": "9999.99999", "license": "http://example.com/other"},  # not ours
     ]
     with zipfile.ZipFile(seed, "w") as zf:
@@ -121,18 +130,20 @@ def write_parquet(path, chunk_ids):
     pq.write_table(table, path)
 
 
-ATOM_OK = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <entry><id>http://arxiv.org/abs/2401.00002v3</id></entry>
-</feed>"""
-
-
-def atom_transport(requests, body=ATOM_OK):
-    def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
-        return httpx.Response(200, text=body)
-
-    return httpx.MockTransport(handler)
+def run(paths, **kwargs):
+    # No transport seam: the build is fully offline (D18), so there is no
+    # network to mock — versions backfill from the seed snapshot.
+    kwargs.setdefault("add_batch_size", 2)  # exercises batching with 3 chunks
+    return build_indexes.run(
+        arxiv_db=paths["arxiv_db"],
+        chunks_path=paths["chunks"],
+        vectors_parquet=paths["parquet"],
+        seed_zip=paths["seed"],
+        corpus_db=paths["corpus_db"],
+        chroma_dir=paths["chroma"],
+        collection_name=SLUG,
+        **kwargs,
+    )
 
 
 def chroma_client(path):
@@ -146,29 +157,11 @@ def chroma_client(path):
     )
 
 
-def run(paths, transport=None, **kwargs):
-    requests: list[httpx.Request] = []
-    kwargs.setdefault("add_batch_size", 2)  # exercises batching with 3 chunks
-    kwargs.setdefault("backfill_timeout_seconds", 5.0)
-    stats = build_indexes.run(
-        arxiv_db=paths["arxiv_db"],
-        chunks_path=paths["chunks"],
-        vectors_parquet=paths["parquet"],
-        seed_zip=paths["seed"],
-        corpus_db=paths["corpus_db"],
-        chroma_dir=paths["chroma"],
-        collection_name=SLUG,
-        backfill_transport=transport if transport is not None else atom_transport(requests),
-        **kwargs,
-    )
-    return stats, requests
-
-
 # --- the three acceptance checks (issue #14) --------------------------------
 
 
 def test_chunk_count_matches_chroma_count(paths):
-    stats, _ = run(paths)
+    stats = run(paths)
     conn = sqlite3.connect(paths["corpus_db"])
     assert conn.execute("SELECT count(*) FROM chunks").fetchone()[0] == 3
     conn.close()
@@ -202,26 +195,25 @@ def test_vector_sample_query_returns_nearest_chunk(paths):
 
 
 def test_versions_and_licenses_land_in_papers(paths):
-    stats, requests = run(paths)
+    stats = run(paths)
     conn = sqlite3.connect(paths["corpus_db"])
     rows = dict(conn.execute("SELECT arxiv_id, version FROM papers").fetchall())
     licenses = dict(conn.execute("SELECT arxiv_id, license FROM papers").fetchall())
     conn.close()
+    # 2401.00002's version comes from the seed snapshot (D18), not the network;
+    # 2401.00001 already held v2, which the seed's v5 must not override.
     assert rows == {"2401.00001": "v2", "2401.00002": "v3", "0704.0217": "v1"}
     assert stats.versions_backfilled == 1 and stats.versions_missing == 0
     assert licenses["2401.00001"] == "http://creativecommons.org/licenses/by/4.0/"
     assert licenses["2401.00002"] is None  # seed had none — stays NULL, not fabricated
-    # ONE batched call (D9): all NULL-version ids in a single id_list.
-    assert len(requests) == 1
-    assert requests[0].url.params["id_list"] == "2401.00002"
 
 
 # --- rebuild + failure modes --------------------------------------------------
 
 
 def test_rebuild_is_idempotent(paths):
-    first, _ = run(paths)
-    second, _ = run(paths)
+    first = run(paths)
+    second = run(paths)
     assert (first.papers, first.chunks, first.chroma_count) == (
         second.papers,
         second.chunks,
@@ -233,9 +225,19 @@ def test_rebuild_is_idempotent(paths):
 
 
 def test_backfill_gap_warns_but_builds(paths):
-    empty_feed = '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>'
-    requests: list[httpx.Request] = []
-    stats, _ = run(paths, transport=atom_transport(requests, body=empty_feed))
+    """An id the snapshot itself lacks keeps a NULL version (D9 fallback)."""
+    with zipfile.ZipFile(paths["seed"]) as zf:
+        records = [
+            json.loads(raw)
+            for raw in zf.read("arxiv-metadata-oai-snapshot.json").splitlines()
+            if json.loads(raw)["id"] != "2401.00002"
+        ]
+    with zipfile.ZipFile(paths["seed"], "w") as zf:
+        zf.writestr(
+            "arxiv-metadata-oai-snapshot.json",
+            "\n".join(json.dumps(r) for r in records),
+        )
+    stats = run(paths)
     assert stats.versions_missing == 1
     conn = sqlite3.connect(paths["corpus_db"])
     version = conn.execute("SELECT version FROM papers WHERE arxiv_id='2401.00002'").fetchone()[0]
@@ -243,17 +245,18 @@ def test_backfill_gap_warns_but_builds(paths):
     assert version is None  # D9 fallback: unpinned URL until a later backfill
 
 
-def test_no_null_versions_means_no_network_call(paths):
+def test_no_null_versions_means_no_seed_lookup(paths):
+    """Rows that already hold versions never consult the snapshot for them."""
     conn = sqlite3.connect(paths["arxiv_db"])
-    conn.execute("UPDATE papers SET version='v1' WHERE version IS NULL")
+    conn.execute("UPDATE papers SET version='v9' WHERE version IS NULL")
     conn.commit()
     conn.close()
-
-    def explode(request: httpx.Request) -> httpx.Response:
-        raise AssertionError("no backfill call expected")
-
-    stats, _ = run(paths, transport=httpx.MockTransport(explode))
+    stats = run(paths)
     assert stats.versions_backfilled == 0
+    conn = sqlite3.connect(paths["corpus_db"])
+    rows = dict(conn.execute("SELECT arxiv_id, version FROM papers").fetchall())
+    conn.close()
+    assert rows["2401.00002"] == "v9"
 
 
 def test_parquet_chunk_missing_from_chunks_fails_loudly(paths):
@@ -275,7 +278,7 @@ def test_orphan_chunk_paper_id_fails_before_any_write(paths):
     # from arxiv.db must fail validation BEFORE corpus.db is replaced —
     # a failed build leaves the previous artifact generation untouched.
 
-    first, _ = run(paths)  # a good previous generation exists on disk
+    first = run(paths)  # a good previous generation exists on disk
     old_bytes = paths["corpus_db"].read_bytes()
 
     orphan = {
@@ -355,13 +358,6 @@ def test_other_models_parquet_is_refused(paths):
         run(paths)
 
 
-def test_dtd_in_backfill_response_is_refused(paths):
-    dtd = '<?xml version="1.0"?><!DOCTYPE feed [<!ENTITY a "b">]><feed/>'
-    requests: list[httpx.Request] = []
-    with pytest.raises(IndexBuildError, match="DTD"):
-        run(paths, transport=atom_transport(requests, body=dtd))
-
-
 # --- the citation graph (landing page) --------------------------------------
 
 
@@ -395,7 +391,7 @@ def test_citations_and_cited_works_land_in_corpus_db(paths, tmp_path):
         [_work("1707.06347", "Proximal Policy Optimization Algorithms")],
     )
 
-    stats, _ = run(paths, **inputs)
+    stats = run(paths, **inputs)
 
     assert (stats.citations, stats.cited_works) == (2, 1)
     conn = sqlite3.connect(paths["corpus_db"])
@@ -440,7 +436,7 @@ def test_a_cited_work_we_never_hold_is_not_a_paper(paths, tmp_path):
 
 def test_build_without_citation_inputs_still_succeeds(paths):
     """A corpus built before extract_citations ran is a valid artifact."""
-    stats, _ = run(paths)
+    stats = run(paths)
 
     assert (stats.citations, stats.cited_works) == (0, 0)
     conn = sqlite3.connect(paths["corpus_db"])

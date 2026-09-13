@@ -12,10 +12,11 @@ indexes are derived artifacts — corpus.db is written to a tmp file and
 renamed, the Chroma collection is deleted and recreated. No incremental
 machinery.
 
-Network: exactly ONE batched export.arxiv.org query call backfilling the
-NULL-version paper rows (D9 sanctions this — metadata only; version-pinned
-PDF URLs need it). Ids the API does not return keep a NULL version and fall
-back to the unpinned URL (D9); the build never fails on backfill gaps.
+Network: none. The build is fully offline: NULL-version paper rows backfill
+from the Kaggle snapshot's `versions` array (D9 pinning without the former
+batched export.arxiv.org query, retired under D18). Ids the snapshot does not
+carry keep a NULL version and fall back to the unpinned URL (D9); the build
+never fails on backfill gaps.
 
 Telemetry (D15): askrag.ingest.build_indexes run span with per-stage counts.
 """
@@ -25,7 +26,6 @@ import json
 import logging
 import sqlite3
 import sys
-import xml.etree.ElementTree as ET
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -35,7 +35,6 @@ from typing import cast
 import chromadb
 import chromadb.config
 import chromadb.errors
-import httpx
 
 from askrag import telemetry
 from askrag.config import get_settings
@@ -45,10 +44,6 @@ from askrag.ingest.extract_citations import read_citations
 from askrag.ingest.resolve_cited_works import CitedWorkRow, read_cited_works
 
 _log = logging.getLogger("askrag.ingest.build_indexes")
-
-# Protocol facts, not tunables.
-_EXPORT_ARXIV_QUERY_URL = "https://export.arxiv.org/api/query"
-_ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 
 class IndexBuildError(Exception):
@@ -180,39 +175,17 @@ def read_seed_licenses(seed_zip: Path, wanted_ids: set[str]) -> dict[str, str]:
     }
 
 
-def fetch_versions(
-    ids: list[str],
-    timeout_seconds: float,
-    transport: httpx.BaseTransport | None = None,
-) -> dict[str, str]:
-    """ONE batched export.arxiv.org query -> {arxiv_id: latest version} (D9).
+def read_seed_versions(seed_zip: Path, wanted_ids: set[str]) -> dict[str, str]:
+    """{arxiv_id: latest version} for NULL-version rows, from the snapshot (D18).
 
-    `transport` is the test seam (httpx.MockTransport) — tests never touch
-    the network.
+    Local early-exit lookup: seconds for a handful of ids, no network, so a
+    throttled arXiv can never gate a local build again.
     """
-    if not ids:
-        return {}
-    with httpx.Client(transport=transport, timeout=timeout_seconds) as client:
-        response = client.get(
-            _EXPORT_ARXIV_QUERY_URL,
-            params={"id_list": ",".join(ids), "max_results": len(ids)},
-        )
-        response.raise_for_status()
     versions: dict[str, str] = {}
-    # Entity-expansion (billion-laughs) and XXE both require a DTD; Atom
-    # never carries one, so a DTD here is an attack or a broken response —
-    # refuse it instead of pulling in defusedxml for one offline call to a
-    # pinned trusted host.
-    if "<!DOCTYPE" in response.text:
-        raise IndexBuildError("version backfill response contains a DTD — refusing to parse")
-    root = ET.fromstring(response.text)  # noqa: S314 — DTD rejected above
-    for entry in root.findall("atom:entry", _ATOM_NS):
-        entry_id = entry.findtext("atom:id", "", _ATOM_NS)
-        # Entry id ends ".../abs/<arxiv_id>v<N>"; the suffix is the latest version.
-        tail = entry_id.rsplit("/", 1)[-1]
-        arxiv_id, sep, version = tail.rpartition("v")
-        if sep and arxiv_id in ids and version.isdigit():
-            versions[arxiv_id] = f"v{version}"
+    for record in kaggle_seed.iter_records(seed_zip, wanted_ids):
+        version = kaggle_seed.latest_version(record)
+        if version:
+            versions[record["id"]] = version
     return versions
 
 
@@ -477,8 +450,6 @@ def run(
     # rather than a caller mistake.
     citations_path: Path | None = None,
     cited_works_path: Path | None = None,
-    backfill_timeout_seconds: float,
-    backfill_transport: httpx.BaseTransport | None = None,
 ) -> BuildStats:
     """Rebuild corpus.db + the per-model Chroma collection from ingest artifacts."""
     tracer = telemetry.get_tracer("askrag.ingest")
@@ -504,7 +475,7 @@ def run(
         stats.papers, stats.chunks = len(papers), len(chunks)
         stats.citations, stats.cited_works = len(citations), len(cited_works)
 
-        # ALL validation precedes any write or network/seed stage: a failed
+        # ALL validation precedes any write or seed stage: a failed
         # build leaves the previous artifact generation untouched, and bad
         # inputs fail before the 5.4 GB seed pass (review finding #55-1).
         table = read_vectors(vectors_parquet, expected_slug=collection_name)
@@ -516,10 +487,8 @@ def run(
         licenses = read_seed_licenses(seed_zip, {p.arxiv_id for p in papers})
         stats.licenses_found = len(licenses)
 
-        null_version_ids = [p.arxiv_id for p in papers if not p.version]
-        backfilled = fetch_versions(
-            null_version_ids, backfill_timeout_seconds, transport=backfill_transport
-        )
+        null_version_ids = {p.arxiv_id for p in papers if not p.version}
+        backfilled = read_seed_versions(seed_zip, null_version_ids)
         stats.versions_backfilled = len(backfilled)
         stats.versions_missing = len(null_version_ids) - len(backfilled)
         if stats.versions_missing:
@@ -593,7 +562,6 @@ def main(argv: list[str] | None = None) -> int:
             chroma_dir=settings.chroma_dir,
             collection_name=settings.embedding_model_slug,
             add_batch_size=settings.chroma_add_batch_size,
-            backfill_timeout_seconds=settings.version_backfill_timeout_seconds,
         )
         return 0
     finally:

@@ -14,6 +14,39 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-13 — no code path touches export.arxiv.org (D18); versions backfill from the seed
+
+**Context:** a routine `build_indexes` rebuild failed three times in a row —
+429, read-timeout, 503 — on the version-backfill stage: one batched
+`export.arxiv.org/api/query` for 31 NULL-version legacy rows. Direct probes
+showed instant 429s 15+ minutes apart (no `Retry-After`): the whole IP was
+throttled, almost certainly fallout from the day's paced OAI harvest. A local
+build must never be hostage to one throttled host for a 31-id metadata lookup.
+
+**Decision:** ban all three live `export.arxiv.org` consumers — the OAI-PMH
+harvest, the arXiv PDF scraper (including the GCS-miss fallback), and the
+backfill query — stubbed as not-implemented, not deleted, so the ban is
+visible at the call site. NULL-version rows backfill from the Kaggle
+snapshot's `versions` array via the existing early-exit reader (seconds for
+31 ids, zero network). The `update`/`oai-*` recipes die with the OAI lane;
+monthly freshness is manual snapshot + GCS pull, which already covers the
+landing page's monthly cadence.
+
+**Alternatives rejected:** keep OAI for metadata only (keeps the throttle
+dependency for the smallest gain); retry/backoff on the backfill (next
+throttle lands mid-build again); leave NULLs unpinned (weakens D9 pinning to
+save a seed pass that costs seconds).
+
+**Consequence:** `build_indexes` is now fully offline (seed zip + local
+artifacts only). The 31 legacy rows resolve from the September snapshot on
+the next build; any id the snapshot itself lacks keeps the D9 unpinned-URL
+fallback, unchanged.
+
+**Spec updated:** yes — new D18, plus D9 (seed backfill), D12 (`update`
+retired), §6b rule 7 (pacing moot).
+
+---
+
 ## 2026-08-28 — float16 embedding is a Mac setting, not a default; CPU boxes must override
 
 **Context:** the frontier embed run did under 1,024 chunks in 105 minutes at

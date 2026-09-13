@@ -387,7 +387,8 @@ when authors revise. **Validated 2026-07-04**: pinned URLs serve 200/pdf
 with no redirects, superseded old versions remain permanently retrievable,
 and withdrawn papers still serve PDFs at pinned URLs (no stub/404 to handle).
 99.5% of corpus rows have a version; the 31 NULL rows fall back to the
-unpinned URL until backfilled via one batched arXiv API call during ingest.
+unpinned URL until backfilled from the Kaggle snapshot's `versions` array
+during ingest (D18 — local, no network).
 Alongside it, a **cited-excerpts pane** (our extraction, display-capped per
 §6c — not a full-text mirror) shows the chunks the agent cited with
 highlights and page anchors. The 11.6 GB corpus never deploys; prod ships
@@ -506,8 +507,9 @@ free tier → Turnstile everywhere.
 ### D12. Frozen corpus snapshot in prod; the update pipeline stays offline
 
 **Decision.** Prod serves a build-stamped snapshot (`corpus 2026-07`,
-shown in the footer). The existing `update` recipe keeps working locally;
-refreshing prod = re-run ingest → upload new SQLite file → restart.
+shown in the footer). The OAI-based `update` recipe is retired under D18
+(no code path may touch export.arxiv.org); refreshing prod = re-run ingest
+→ upload new SQLite file → restart.
 
 **Why.** Live updates would drag the whole ingest chain (download → extract →
 chunk → embed → index) onto the VPS, force concurrent writes (breaking D4's
@@ -846,6 +848,39 @@ PyMuPDF4LLM improves, we re-fetch rather than re-run over local bytes.
 **Revisit when.** Re-extraction becomes routine (more than ~quarterly), or the
 mirror stops carrying a month we need — either would make the bytes worth
 their disk again.
+
+---
+
+### D18. No code path touches export.arxiv.org; versions backfill from the seed
+
+**Decision (2026-09-13).** Ingest reads only the Kaggle snapshot (ids +
+metadata) and the GCS mirror (PDF bytes). Three former `export.arxiv.org`
+consumers are gone: the OAI-PMH harvest, the arXiv PDF scraper (including the
+GCS-miss fallback), and the index build's version-backfill query. NULL-version
+rows backfill from the snapshot's own `versions` array instead — same pinning,
+no network. The `update`/`oai-*` collector recipes are dead with them; monthly
+freshness is a manual Kaggle snapshot + GCS-mirror pull (the D12 amendment's
+cadence, unchanged).
+
+**Why.** A routine index rebuild was 429/503-gated by a single 31-id metadata
+query — arXiv throttles the whole IP, and one throttled host should never hold
+a local build hostage. The scraper lanes were already vestigial (every pull
+since August has been seed + GCS), and the OAI lane's one unique value,
+incremental freshness, is not worth a second network master: the snapshot
+lands monthly and the mirror syncs weekly, which covers the page's monthly
+cadence with room to spare.
+
+**Alternatives rejected.** *Keep OAI for metadata only* (preserves incremental
+pulls, but keeps the throttle dependency alive for the smallest gain — the
+monthly snapshot already carries the same fields); *retry/backoff on the
+backfill query* (treats the symptom; the next throttle lands mid-build
+again); *leave NULL versions unpinned* (weakens D9's pinning guarantee for 31
+rows to save a seed pass that costs seconds via early-exit).
+
+**Revisit when.** The Kaggle snapshot stops shipping (then freshness needs a
+new source anyway), or arXiv publishes a bulk metadata endpoint with stated
+limits — a documented allowance is a different fact from today's best-effort
+tolerance.
 
 ---
 
@@ -1285,10 +1320,10 @@ and license pages. These are adopted constraints, not optional:
    bulk full text for download does not. Display posture (summaries,
    snippet limits) is specified in §6c.
 7. **Ingest-side rate limits** (visitors' organic PDF traffic has no stated
-   limit — "interactive use by human users" is arXiv's stated first
-   priority): legacy API/OAI ≤ 1 request per 3 s single-connection;
-   harvesting only via export.arxiv.org, bursts ≤ 4 req/s with 1 s sleep.
-   The collector already complies.
+    limit — "interactive use by human users" is arXiv's stated first
+    priority): moot since D18 — no code path requests anything from
+    export.arxiv.org, so there is nothing left to pace. (Historical note: the
+    legacy API/OAI allowance was ≤ 1 request per 3 s single-connection.)
 8. **Courtesy:** arXiv asks to be told when products launch — do that at
    deploy (milestone 6 checklist).
 

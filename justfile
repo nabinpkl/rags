@@ -36,10 +36,6 @@ diverse *ARGS:
 backfill *ARGS:
     @just --justfile {{collector}} {{ARGS}} seeded-backfill
 
-# Collector Part 2 — incremental pull via OAI-PMH
-update *ARGS:
-    @just --justfile {{collector}} {{ARGS}} oai-update
-
 # Show collector store stats and the incremental watermark
 status *ARGS:
     @just --justfile {{collector}} {{ARGS}} status
