@@ -168,9 +168,6 @@ class Settings(BaseSettings):
     # One Chroma .add() per batch; 1.x rejects batches in the several-
     # thousands, and index build is offline so throughput tuning is moot.
     chroma_add_batch_size: int = 1000
-    # The one sanctioned network call of the index build (D9): a single
-    # batched export.arxiv.org query backfilling NULL-version rows.
-    version_backfill_timeout_seconds: float = 30.0
 
     # --- retrieval (D8; defaults until measured) --------------------------
     rrf_k: int = 60

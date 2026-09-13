@@ -54,10 +54,12 @@
 		# connect-src/frame-src name arxiv.org because the viewer's PDF
 		# bytes go browser -> arxiv.org DIRECTLY and never through us
 		# (D9/§6b); if this policy ever needs a PDF host of our own, that
-		# is a compliance bug, not a CSP fix. 'unsafe-inline' on scripts is
+		# is a compliance bug, not a CSP fix. export.arxiv.org appears
+		# nowhere here by D18: no code path may touch it, client-side
+		# included. 'unsafe-inline' on scripts is
 		# forced by the static export's inline bootstrap — a nonce needs a
 		# server that renders HTML, which D13 deliberately does not run.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' https://arxiv.org https://export.arxiv.org; frame-src https://arxiv.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' https://arxiv.org; frame-src https://arxiv.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 	}
 
 	# Immutable build assets; everything else stays revalidated so a redeploy

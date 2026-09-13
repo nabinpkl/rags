@@ -64,6 +64,9 @@ work is broken into GitHub issues.
 
 ## Hard constraints (violating these is a security/legal bug)
 
+- **Never touch export.arxiv.org from any code path** (D18): no OAI
+  harvests, no arXiv PDF scraping, no version-backfill queries. Ingest reads
+  only the Kaggle snapshot + the GCS mirror; versions backfill from the seed.
 - **Never serve, proxy, or cache arXiv PDFs or bulk full text from our
   infrastructure** (§6b). PDFs reach users only via their browser fetching
   arxiv.org, always **version-pinned** (`…/pdf/<id>v<N>`).

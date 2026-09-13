@@ -1,11 +1,12 @@
 # arXiv full-text corpus collector
 
-Free, no accounts. Discovers papers (Kaggle metadata seed or arXiv's OAI-PMH
-feed) and downloads the full-text PDFs (free Google-hosted `arxiv-dataset`
-mirror, or the `export.arxiv.org` scraper) into nested `corpus/pdfs/{YYYY}/{MM}/`
+Free, no accounts. Discovers papers from the Kaggle metadata seed and
+downloads the full-text PDFs from the free Google-hosted `arxiv-dataset`
+mirror into nested `corpus/pdfs/{YYYY}/{MM}/`
 year/month folders (e.g. `corpus/pdfs/2026/06/2606.27347.pdf`), recording one
 metadata row per paper in a local SQLite index (`corpus/arxiv.db`) keyed by
-`arxiv_id`.
+`arxiv_id`. Under D18 no code path touches export.arxiv.org — there is no
+OAI harvest and no arXiv scraper.
 
 Code lives in `collector/`; every data artifact (PDFs, `arxiv.db`, caches, the
 Kaggle seed `archive.zip`) lives in the repo-level `corpus/` directory
@@ -15,11 +16,12 @@ commands work from `collector/` or via the root justfile.
 **The corpus is the PDF files; the DB is just an index.** No text extraction or
 chunking — if you want RAG later, run it over the collected PDFs then.
 
-Two jobs share one pipeline:
+One job shares one pipeline:
 
-- **Part 1 — backfill:** bulk historical pull, capped by a size budget.
-- **Part 2 — update:** incremental pull of everything with a datestamp since the
-  last run, upserting by id (idempotent).
+- **Part 1 — backfill:** bulk pull from a date, capped by a size budget.
+- **Part 2 — update:** RETIRED under D18 (it harvested OAI-PMH from
+  export.arxiv.org). Refresh by re-running backfill with a newer snapshot:
+  `backfill --seed-file <new-archive.zip> --source gcs-only --from <date>`.
 
 ## Quick start (just recipes)
 
@@ -33,12 +35,10 @@ just latest            # Part 1: newest papers up to 4 GB, exact (recommended)
 just sample            # Part 1: a few papers per month across all years (trends)
 just diverse           # Part 1: diverse spread across the impact/topic distribution
 just seeded-backfill   # Part 1 alt: oldest-first from a start date
-just oai-backfill      # Part 1 fallback: OAI crawl + arXiv scraper (rate-limited)
-just oai-update        # Part 2: incremental pull via OAI-PMH
 just status            # store stats + watermark
 ```
 
-`backfill` aliases `seeded-backfill` and `update` aliases `oai-update`.
+`backfill` aliases `seeded-backfill`.
 Override any default inline, e.g. `just max_gb=8 category=cs.LG seeded-backfill`.
 The raw CLI is documented below.
 
@@ -72,12 +72,11 @@ uv run arxiv_ingest.py latest --seed-file ../corpus/archive.zip --category-prefi
 - **cs-only, no waste** — only the selected `cs.*` PDFs are fetched.
 - **Parallel** — `--concurrency 8` (default) downloads 8 PDFs at once from GCS
   (workers fetch, one thread does all SQLite writes). GCS handles ~5000 reads/s,
-  so you're bounded by your own bandwidth, not the mirror. Only the arXiv scraper
-  path stays single-connection (its rate limit requires it).
+  so you're bounded by your own bandwidth, not the mirror.
 - Needs `--seed-file` (category lives only in metadata). Discovery scans the seed
   twice (~2 min of local parsing); the download phase dominates a real run.
 - The mirror lags ~1 month, so "latest" means up to its newest month (currently
-  ~late June 2026); the truly-current week is `update`'s job.
+  ~late June 2026); newer weeks arrive with the next snapshot + mirror sync.
 
 ### `sample`: a few papers per month across all years (see trends)
 
@@ -100,7 +99,7 @@ sqlite3 ../corpus/arxiv.db \
      FROM papers WHERE published != '' ORDER BY published;"
 ```
 
-`sample` doesn't touch the `update` watermark (it's a spread, not a forward front).
+`sample` doesn't touch the backfill watermark (it's a spread, not a forward front).
 
 ### `diverse`: a diverse cs sample (blended-facet score)
 
@@ -144,14 +143,12 @@ Two honest limits, both documented in the design spec:
   in metadata (declining over time), so absence means "undetected", never
   "unpublished". The run prints a `venue_rigor` histogram of the selection.
 
-`diverse` doesn't touch the `update` watermark either.
+`diverse` doesn't touch the backfill watermark either.
 
 ### Alternative — `backfill`: oldest-first from a start date
 
 Same GCS mirror, but fills the budget from `--from` **forward** (earliest first).
 Use when you want a specific historical window rather than the newest papers.
-Two independent choices: **id discovery** (Kaggle seed vs. OAI crawl) and
-**PDF source** (`--source gcs` vs. `--source arxiv`).
 
 #### Kaggle seed + GCS mirror (fast, free, unthrottled)
 
@@ -174,41 +171,32 @@ uv run arxiv_ingest.py backfill --seed-file ../corpus/archive.zip --source gcs \
   Both dates are stored (`published` vs `datestamp`), as is the fetched `version`.
 - Only new-style ids (`2401.00003`) map to the mirror; pre-2007 ids
   (`hep-th/9901001`) are logged and skipped. If a very recent paper isn't
-  mirrored yet, it falls back to the arXiv scraper for that one file.
+  mirrored yet, it is skipped — it lands with the next mirror sync.
 
-#### arXiv scraper fallback (`--source arxiv`, rate-limited)
+#### OAI / arXiv scraper lanes (RETIRED under D18)
 
-For when you can't get the Kaggle file, or want live OAI discovery:
+The `--source arxiv` scraper fallback and the seedless OAI-crawl discovery are
+retired: no code path may touch export.arxiv.org. The stubs raise
+`NotImplementedError` naming the ban. Refresh cadence is a new Kaggle snapshot
+plus a mirror pull, not an incremental crawl.
 
-```bash
-# no seed: crawl OAI-PMH for ids, scrape PDFs from export.arxiv.org
-uv run arxiv_ingest.py backfill --set cs --source arxiv \
-    --category-prefix cs.CL --from 2024-01-01 --max-gb 4
-```
-
-arXiv asks for **1 request / 3s, single connection**, and actively throttles
-bulk PDF scraping (2026: frequent `429`s and mid-stream connection resets). So
-this path paces every request (3s min + jitter) and uses exponential backoff
-(`3→6→12→24→48s`) on `429`/`503`/connection errors. It works, but it's slow and
-against arXiv's guidance for bulk — prefer the GCS mirror.
-
-Re-running resumes cheaply on either path: papers already in the store are
+Re-running resumes cheaply: papers already in the store are
 skipped entirely (no re-download). Pass `--reprocess` to force re-download.
 
-## Part 2: incremental updates
+## Part 2: incremental updates (RETIRED under D18)
+
+`update` harvested OAI-PMH from export.arxiv.org and is retired with it —
+the command raises `NotImplementedError`. To refresh, pull a newer Kaggle
+snapshot and re-run backfill from the last covered date (already-stored
+papers skip, so it acts as the forward front):
 
 ```bash
-# Fetch everything arXiv touched since the last run's watermark, upsert by id.
-uv run arxiv_ingest.py update --set cs
-
-# Run it daily (cron / launchd):
-# 0 6 * * *  cd /Users/nabin/projects/rags/collector && ~/.local/bin/uv run arxiv_ingest.py update --set cs
+uv run arxiv_ingest.py backfill --seed-file ../corpus/archive.zip --source gcs-only \
+    --category-prefix cs.CL --from 2026-08-23 --max-gb 4
 ```
 
-The watermark (`last_until`) is stored in the DB, so `update` is idempotent and
-picks up where the last run left off. Note: the OAI datestamp reflects when
-arXiv last touched a record, so *newly submitted* papers flow in, but this demo
-does not re-fetch historical papers whose content changed long ago — by design.
+The `last_until` watermark is still written by backfill runs and shown by
+`status`, as a record of the covered window.
 
 ## Inspect
 
