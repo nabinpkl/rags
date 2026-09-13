@@ -41,16 +41,16 @@ export function HeroStats({ stats }: { stats: LandingResponse["stats"] }) {
   );
 }
 
-/** "July and August 2026" from the id-months the API derived from the data.
- * An arXiv id-month is YYMM, so this needs no date parsing and cannot
- * disagree with the corpus it describes. */
+/** "November 2007 and September 2026" from the id-months the API derived
+ * from the data. An arXiv id-month is YYMM, so this needs no date parsing
+ * and cannot disagree with the corpus it describes. Each side carries its
+ * OWN year: the window spans decades (oldest cohorts reach 2007), and
+ * pinning the start month to the end year once printed "November 2026"
+ * for a window that began in November 2007. */
 function formatWindow(stats: LandingResponse["stats"]): string {
   const { window_start: start, window_end: end } = stats;
   if (!start || !end) return "the indexed window";
-  const name = (yymm: string) =>
-    new Date(
-      Date.UTC(2000 + Number(yymm.slice(0, 2)), Number(yymm.slice(2)) - 1, 1),
-    ).toLocaleString("en-US", { month: "long", timeZone: "UTC" });
-  const year = `20${end.slice(0, 2)}`;
-  return start === end ? `${name(end)} ${year}` : `${name(start)} and ${name(end)} ${year}`;
+  const fmt = (yymm: string) =>
+    `${new Date(Date.UTC(2000 + Number(yymm.slice(0, 2)), Number(yymm.slice(2)) - 1, 1)).toLocaleString("en-US", { month: "long", timeZone: "UTC" })} 20${yymm.slice(0, 2)}`;
+  return start === end ? fmt(end) : `${fmt(start)} and ${fmt(end)}`;
 }

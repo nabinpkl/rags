@@ -84,3 +84,24 @@ export function fetchFoundation(
 ): Promise<FoundationDetailResponse> {
   return getJson(`/api/foundations/${encodeURIComponent(arxivId)}`, query);
 }
+
+type LatestQuery = NonNullable<paths["/api/latest"]["get"]["parameters"]["query"]>;
+export type LatestResponse =
+  paths["/api/latest"]["get"]["responses"][200]["content"]["application/json"];
+export type LatestPaper = LatestResponse["papers"][number];
+export type TrendsResponse =
+  paths["/api/trends"]["get"]["responses"][200]["content"]["application/json"];
+
+/** GET /api/latest — the dashboard's "what just landed" list. Newest
+ * INDEXED papers only (D16): every row links to the reader, so an
+ * unindexed paper must not appear no matter how fresh it is. */
+export function fetchLatest(query: LatestQuery = {}): Promise<LatestResponse> {
+  return getJson("/api/latest", query);
+}
+
+/** GET /api/trends — papers and references per month for the growth chart.
+ * Counts, not lists: the series shows what arrived, including papers the
+ * index run has not covered yet. */
+export function fetchTrends(): Promise<TrendsResponse> {
+  return getJson("/api/trends", {});
+}

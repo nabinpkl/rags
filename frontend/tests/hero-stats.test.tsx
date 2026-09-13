@@ -29,7 +29,14 @@ describe("HeroStats", () => {
   it("names the window from the id-months the API derived, not a hardcoded date", () => {
     render(<HeroStats stats={stats()} />);
 
-    expect(screen.getByText(/July and August 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/July 2026 and August 2026/)).toBeInTheDocument();
+  });
+
+  it("gives each side its own year — the window spans decades", () => {
+    render(<HeroStats stats={stats({ window_start: "0711", window_end: "2609" })} />);
+
+    expect(screen.getByText(/November 2007 and September 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/November and September 2026/)).not.toBeInTheDocument();
   });
 
   it("says one month when the window is one month", () => {

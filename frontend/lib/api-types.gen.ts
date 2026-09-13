@@ -114,6 +114,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Latest
+         * @description The dashboard's "what just landed" list — newest indexed papers.
+         */
+        get: operations["get_latest_api_latest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Trends
+         * @description The dashboard's growth chart — papers and references per month.
+         */
+        get: operations["get_trends_api_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -258,6 +298,48 @@ export interface components {
             /** Cited Years */
             cited_years: components["schemas"]["CitedYearBucket"][];
         };
+        /**
+         * LatestPaper
+         * @description A paper we hold and have indexed, newest first. Indexed-only (D16):
+         *     the dashboard links every row to the reader, so nothing listed may
+         *     dead-end. Fresh-but-unindexed papers appear here on their own once the
+         *     index run covers them — no second code path.
+         */
+        LatestPaper: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string;
+            /** Authors */
+            authors: string | null;
+            /** Primary Category */
+            primary_category: string | null;
+            /** Published */
+            published: string;
+            /** Version */
+            version: string | null;
+            /** Ref Count */
+            ref_count: number;
+        };
+        /** LatestResponse */
+        LatestResponse: {
+            /** Papers */
+            papers: components["schemas"]["LatestPaper"][];
+        };
+        /**
+         * MonthBucket
+         * @description One calendar month of corpus growth. Counts, not lists, so no
+         *     indexed restriction (same posture as CohortStats): papers_added counts
+         *     every catalog row, refs_made every extracted edge.
+         */
+        MonthBucket: {
+            /** Month */
+            month: string;
+            /** Papers Added */
+            papers_added: number;
+            /** Refs Made */
+            refs_made: number;
+        };
         /** PaperDetailResponse */
         PaperDetailResponse: {
             /** Arxiv Id */
@@ -328,6 +410,11 @@ export interface components {
             next_cursor: string | null;
             /** Total */
             total: number | null;
+        };
+        /** TrendsResponse */
+        TrendsResponse: {
+            /** Months */
+            months: components["schemas"]["MonthBucket"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -549,6 +636,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_latest_api_latest_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LatestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trends_api_trends_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrendsResponse"];
                 };
             };
         };
