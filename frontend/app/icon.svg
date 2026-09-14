@@ -3,9 +3,14 @@
        signature (the foundations ranking, the corpus chart), and vertical
        bars read as a chart at 16px where descending horizontal rules would
        read as a sort or menu glyph. Ink ground so the mark holds in a light
-       and a dark tab strip alike. Colours are the palette literals from
-       app/globals.css (--ink, --color-teal); an SVG served as an image
-       cannot reference the stylesheet's custom properties.
+       and a dark tab strip alike.
+
+       The fills are the ink and teal palette literals from app/globals.css:
+       an SVG served as an image cannot reference the stylesheet's custom
+       properties. Do not name those properties here either. A doubled hyphen
+       is illegal inside an XML comment, so writing the token names out makes
+       this file unparseable and browsers silently refuse to draw it (which
+       is what happened the first time, hidden by the .ico fallback).
 
        favicon.ico (16/32/48) and apple-icon.png (180) are rasterisations of
        this same geometry, for the clients that ask for /favicon.ico by
