@@ -41,6 +41,7 @@ from askrag.config import get_settings
 from askrag.ingest import kaggle_seed
 from askrag.ingest.embed_chunks import read_vectors
 from askrag.ingest.extract_citations import read_citations
+from askrag.ingest.latex_text import latex_to_text
 from askrag.ingest.resolve_cited_works import CitedWorkRow, read_cited_works
 
 _log = logging.getLogger("askrag.ingest.build_indexes")
@@ -124,9 +125,12 @@ def _read_papers(arxiv_db: Path) -> list[PaperRow]:
     return [
         PaperRow(
             arxiv_id=r["arxiv_id"],
-            title=r["title"] or "",
-            authors=r["authors"] or "",
-            abstract=r["abstract"] or "",
+            # The catalog is LaTeX (latex_text.py); corpus.db is what the UI
+            # and the agent read, so the conversion happens at THIS boundary
+            # and arxiv.db keeps its source bytes.
+            title=latex_to_text(r["title"] or ""),
+            authors=latex_to_text(r["authors"] or ""),
+            abstract=latex_to_text(r["abstract"] or ""),
             categories=r["categories"] or "",
             published=r["published"] or "",
             version=r["version"] or None,

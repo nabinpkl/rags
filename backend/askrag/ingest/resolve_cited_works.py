@@ -29,6 +29,7 @@ from askrag import telemetry
 from askrag.config import get_settings
 from askrag.ingest import kaggle_seed
 from askrag.ingest.extract_citations import read_citations
+from askrag.ingest.latex_text import latex_to_text
 
 _log = logging.getLogger("askrag.ingest.resolve_cited_works")
 
@@ -132,6 +133,10 @@ def run(citations_path: Path, seed_zip: Path, cited_works_path: Path) -> Resolve
     return stats
 
 
+def _clean(value: str | None) -> str | None:
+    return latex_to_text(value) if value else value
+
+
 def read_cited_works(cited_works_path: Path) -> list[CitedWorkRow]:
     """The resolved catalog rows — the reader build_indexes uses."""
     rows: list[CitedWorkRow] = []
@@ -140,8 +145,11 @@ def read_cited_works(cited_works_path: Path) -> list[CitedWorkRow]:
         rows.append(
             CitedWorkRow(
                 arxiv_id=record["arxiv_id"],
-                title=record["title"],
-                authors=record["authors"],
+                # Same boundary as papers (build_indexes._read_papers): the
+                # resolved jsonl keeps the catalog's own LaTeX, corpus.db
+                # gets the text a reader sees.
+                title=_clean(record["title"]),
+                authors=_clean(record["authors"]),
                 primary_category=record["primary_category"],
                 year=record["year"],
                 version=record["version"],
