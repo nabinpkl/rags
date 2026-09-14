@@ -31,6 +31,14 @@
      Such a control can't use the unselected hover (`--paper`): stepping
      toward the resting background reads as a step back toward unselected. */
   --teal-soft-strong: #cfe5e0;
+
+  /* Chart series (landing dashboard). Two INTENSITIES of the corpus accent,
+     not two hues: papers arrived and references extracted are the same kind
+     of fact counted twice, and a second hue would claim a second meaning.
+     Amber and rust are spoken for (busy state, error) and must never be
+     borrowed for a series. */
+  --chart-1: #12a38f;
+  --chart-2: #0e5f56;
 }
 
 .dark {
@@ -47,6 +55,11 @@
   --teal-soft: #12332e;
   --teal-ink: #57d4bd;
   --teal-soft-strong: #1b463f;
+
+  /* Both series lift off the dark panel; the light values are too dark to
+     read as bars against #1e242a. */
+  --chart-1: #2fbfa8;
+  --chart-2: #17796c;
 }
 
 @theme inline {
@@ -82,6 +95,8 @@
   --color-teal-soft: var(--teal-soft);
   --color-teal-soft-strong: var(--teal-soft-strong);
   --color-teal-ink: var(--teal-ink);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
 }
 
 /* Interactive affordances, ported from docs/mockup.html (its `button` and

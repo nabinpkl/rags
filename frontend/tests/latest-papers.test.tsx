@@ -39,8 +39,8 @@ describe("LatestPapers", () => {
     expect(screen.getByText(/13 Aug 2026/)).toBeInTheDocument();
     expect(screen.getByText(/12 Aug 2026/)).toBeInTheDocument();
     expect(screen.getByText(/cs\.CL/)).toBeInTheDocument();
-    expect(screen.getByText(/30 references/)).toBeInTheDocument();
-    expect(screen.getByText(/1 reference/)).toBeInTheDocument();
+    expect(screen.getByText(/30 refs/)).toBeInTheDocument();
+    expect(screen.getByText(/1 ref/)).toBeInTheDocument();
     expect(screen.getByText(/uncategorized/)).toBeInTheDocument();
   });
 
