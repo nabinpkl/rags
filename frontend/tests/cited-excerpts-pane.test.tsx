@@ -30,7 +30,7 @@ const EXCERPTS: CitedExcerpt[] = [
 describe("CitedExcerptsPane", () => {
   it("renders nothing beyond the capped excerpts it's handed", () => {
     render(
-      <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={false} onJumpToPage={vi.fn()} />,
+      <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={false} indexed onJumpToPage={vi.fn()} />,
     );
     EXCERPTS.forEach((e) => expect(screen.getByText(new RegExp(e.text))).toBeInTheDocument());
     // §6c cap note is always visible — the pane's own stated posture.
@@ -38,8 +38,26 @@ describe("CitedExcerptsPane", () => {
   });
 
   it("shows an empty state, not an error, before any citation exists", () => {
-    render(<CitedExcerptsPane excerpts={[]} excerptsTruncated={false} onJumpToPage={vi.fn()} />);
+    render(<CitedExcerptsPane excerpts={[]} excerptsTruncated={false} indexed onJumpToPage={vi.fn()} />);
     expect(screen.getByText(/no cited excerpts yet/i)).toBeInTheDocument();
+  });
+
+  it("says the agent cannot read a paper whose text we never indexed", () => {
+    // "No cited excerpts yet - ask the agent" is true only for an indexed
+    // paper. The viewer opens co-cited works too, and asking about one of
+    // those returns nothing, now or ever.
+    render(
+      <CitedExcerptsPane
+        excerpts={[]}
+        excerptsTruncated={false}
+        indexed={false}
+        onJumpToPage={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/its text is not indexed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ask the agent about this paper/i)).not.toBeInTheDocument();
+    // The 50-word cap describes quoting, and there is nothing here to quote.
+    expect(screen.queryByText(/50 words/i)).not.toBeInTheDocument();
   });
 
   it("a 'PDF p.N' anchor calls onJumpToPage with page_start, never page_end or a full-text fetch", () => {
@@ -48,6 +66,7 @@ describe("CitedExcerptsPane", () => {
       <CitedExcerptsPane
         excerpts={EXCERPTS}
         excerptsTruncated={false}
+        indexed
         onJumpToPage={onJumpToPage}
       />,
     );
@@ -58,7 +77,7 @@ describe("CitedExcerptsPane", () => {
 
   it("builds section nav from the distinct sections actually present, first-seen order", () => {
     render(
-      <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={false} onJumpToPage={vi.fn()} />,
+      <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={false} indexed onJumpToPage={vi.fn()} />,
     );
     const nav = screen.getByText("§4 Evaluation", { selector: "button" });
     const nav2 = screen.getByText("§3 Recipe", { selector: "button" });
@@ -68,12 +87,12 @@ describe("CitedExcerptsPane", () => {
 
   it("surfaces the truncated notice only when the server flagged more citations than shown", () => {
     const { rerender } = render(
-      <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={true} onJumpToPage={vi.fn()} />,
+      <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={true} indexed onJumpToPage={vi.fn()} />,
     );
     expect(screen.getByText(/quoted more of this paper/i)).toBeInTheDocument();
 
     rerender(
-      <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={false} onJumpToPage={vi.fn()} />,
+      <CitedExcerptsPane excerpts={EXCERPTS} excerptsTruncated={false} indexed onJumpToPage={vi.fn()} />,
     );
     expect(screen.queryByText(/quoted more of this paper/i)).not.toBeInTheDocument();
   });

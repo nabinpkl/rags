@@ -90,6 +90,47 @@ describe("FoundationDetail", () => {
     expect(link).toHaveAttribute("href", "https://arxiv.org/abs/1707.06347v2");
   });
 
+  it("opens the foundation itself in the reader, not on arxiv.org", async () => {
+    // The heading is the paper. Sending it off-site was the one paper on this
+    // view with no way to read it here.
+    fetchFoundationMock.mockResolvedValue({
+      foundation: PPO,
+      total_citers: 536,
+      scope_size: 2,
+      co_cited: [],
+      indexed_citers: [],
+    });
+
+    renderDetail();
+
+    const heading = await screen.findByRole("link", {
+      name: "Proximal Policy Optimization Algorithms",
+    });
+    expect(heading).toHaveAttribute("href", "/app?paper=1707.06347");
+    expect(screen.getByRole("link", { name: /read the paper/i })).toHaveAttribute(
+      "href",
+      "/app?paper=1707.06347",
+    );
+  });
+
+  it("opens a co-cited work in the reader even though we may hold no text for it", async () => {
+    // Most co-cited works are outside the frontier manifest. The reader still
+    // shows their PDF (arxiv-pdf-frame.tsx fetches arxiv.org from the
+    // browser), so one link shape covers both lists on this view.
+    fetchFoundationMock.mockResolvedValue({
+      foundation: PPO,
+      total_citers: 536,
+      scope_size: 2,
+      co_cited: [{ arxiv_id: "1409.1556", title: "Very Deep ConvNets", version: "v6", cite_both: 9 }],
+      indexed_citers: [],
+    });
+
+    renderDetail();
+
+    const link = await screen.findByRole("link", { name: "Very Deep ConvNets" });
+    expect(link).toHaveAttribute("href", "/app?paper=1409.1556");
+  });
+
   it("labels co-citation as counted, not clustered", async () => {
     fetchFoundationMock.mockResolvedValue({
       foundation: PPO,

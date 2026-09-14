@@ -2103,3 +2103,50 @@ trusting the number.
 
 **Spec updated:** yes — §6c gains a 2026-08-28 clarification defining the floor
 and the elision marker.
+
+---
+
+## 2026-09-14 — the reader opens any paper we can name, not only indexed ones
+
+**Context:** a foundation's detail view lists two kinds of paper. Indexed
+citers opened in our own reader (`/app?paper=`); co-cited works — Llama 3,
+VGG, layer norm — were sent off to arxiv.org, because the viewer could only
+render a paper the corpus held a row for. Both are papers, both sit in
+identically-framed panels a hand's width apart, and nothing on screen
+explained why one opened here and the other left the site. Measured on the
+deployed corpus: all 40 foundations are indexed (they are the frontier
+manifest), but 28 of the 70 co-cited works shown across them are not.
+
+**Decision:** the viewer resolves an arxiv id against `GET /api/papers/{id}`
+first and `GET /api/foundations/{id}` second (`hooks/use-viewer-paper.ts`);
+every paper link on the landing surface points at `/app?paper=<id>`.
+
+This is not a D16 widening. D16 forbids surfacing a paper the app cannot
+retrieve, and nothing here changes retrieval: `scope_paper_ids`,
+`INDEXED_PREDICATE`, the explorer's lists and the agent's tools are untouched.
+What the reader gets is the PDF, and §6b already routes those bytes from
+arxiv.org to their browser, version-pinned, never through us — `arxiv-pdf-
+frame.tsx` needs the id and the version and nothing else. The version comes
+from `cited_works.version`, so a fallback-resolved paper is pinned exactly as
+a corpus one is.
+
+The difference the reader cannot see is that the agent has no text for such a
+paper, so the excerpts pane says so instead of offering "ask the agent about
+this paper" — an offer that would return nothing, now or ever. `indexed` is
+derived from WHICH of our records answered, never read off a response field:
+no `readable` flag reaches the wire, which is the part of D16's posture this
+change had to keep.
+
+**Alternatives rejected:** restricting `_co_cited` to indexed works (it would
+turn a claim about the literature into a claim about our index — those works
+really are cited alongside these papers, whether or not we hold them); a
+`readable` flag on the wire so the UI could sort papers into ours and theirs
+on screen (the two-tier UI D16 exists to avoid).
+
+**Consequence:** `/api/foundations/{id}` now serves viewer metadata for any
+cited work, not only one high enough in the ranking to be a card. If that
+route is ever narrowed to the top N, the viewer's fallback narrows with it and
+those papers go back to erroring.
+
+**Spec updated:** no — §6b already requires this PDF path, and D16's retrieval
+scope is unchanged.

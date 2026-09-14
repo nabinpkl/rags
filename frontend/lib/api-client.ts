@@ -25,12 +25,25 @@ function buildQueryString(query: Record<string, string | number | null | undefin
   return qs ? `?${qs}` : "";
 }
 
+/** A non-2xx response, carrying the status so callers can tell "this does not
+ * exist" from "the request failed". A 404 is an answer; retrying it only
+ * delays the caller's fallback. */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(path: string, status: number) {
+    super(`askrag: GET ${path} failed with ${status}`);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function getJson<T>(
   path: string,
   query: Record<string, string | number | null | undefined>,
 ): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}${buildQueryString(query)}`);
-  if (!res.ok) throw new Error(`askrag: GET ${path} failed with ${res.status}`);
+  if (!res.ok) throw new ApiError(path, res.status);
   return (await res.json()) as T;
 }
 
