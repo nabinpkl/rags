@@ -1,14 +1,20 @@
+import { Library, Link2, Network, ScrollText } from "lucide-react";
+
 import type { LandingResponse } from "@/lib/api-client";
 
 /** The four numbers the front door opens with, and the sentence that says what
  * they are. Every one is counted from the citation graph — none is configured,
- * so none can drift from what the page below it shows. */
+ * so none can drift from what the page below it shows.
+ *
+ * Each icon names the KIND of thing being counted (documents, parsed lists,
+ * edges, nodes), which is what tells four adjacent six-figure numbers apart at
+ * a glance. */
 export function HeroStats({ stats }: { stats: LandingResponse["stats"] }) {
   const facts = [
-    { value: stats.papers_in_window, label: "cs papers in the window" },
-    { value: stats.papers_with_references, label: "with a parsed reference list" },
-    { value: stats.citations, label: "arXiv citations extracted" },
-    { value: stats.cited_works, label: "distinct works cited" },
+    { value: stats.papers_in_window, label: "cs papers in the window", icon: Library },
+    { value: stats.papers_with_references, label: "with a parsed reference list", icon: ScrollText },
+    { value: stats.citations, label: "arXiv citations extracted", icon: Link2 },
+    { value: stats.cited_works, label: "distinct works cited", icon: Network },
   ];
 
   return (
@@ -29,10 +35,13 @@ export function HeroStats({ stats }: { stats: LandingResponse["stats"] }) {
               key={fact.label}
               className={`border-line px-4 py-3 ${i % 2 === 0 ? "border-r" : ""} ${i < 2 ? "border-b md:border-b-0" : ""} md:border-r md:last:border-r-0`}
             >
-              <dd className="font-mono text-ink text-xl font-semibold tabular-nums">
+              <dt className="text-muted flex items-center gap-1.5 text-[11.5px]">
+                <fact.icon className="text-chart-1 size-[13px] shrink-0" aria-hidden />
+                {fact.label}
+              </dt>
+              <dd className="font-mono text-ink mt-1.5 text-2xl font-semibold tabular-nums">
                 {fact.value.toLocaleString()}
               </dd>
-              <dt className="text-muted text-[11.5px]">{fact.label}</dt>
             </div>
           ))}
         </dl>

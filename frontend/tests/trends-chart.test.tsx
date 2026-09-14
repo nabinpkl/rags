@@ -29,6 +29,23 @@ describe("TrendsChart", () => {
     expect(screen.getByTitle(/2025-07: 118 papers arrived/)).toBeInTheDocument();
   });
 
+  it("states each row's own peak — two scales in one card, both named", () => {
+    render(<TrendsChart months={months(30)} />);
+
+    // Trailing 12 of 100..129 papers and 1000..1290 refs: 129 and 1,290.
+    expect(screen.getByText("peak 129")).toBeInTheDocument();
+    expect(screen.getByText("peak 1,290")).toBeInTheDocument();
+  });
+
+  it("draws nothing above the baseline for a zero month", () => {
+    const series = months(12);
+    series[series.length - 1] = { ...series[series.length - 1], refs_made: 0 };
+    const { container } = render(<TrendsChart months={series} />);
+
+    const zero = container.querySelector('[title$=": 0 references extracted"] > div');
+    expect(zero).toHaveStyle({ height: "0px" });
+  });
+
   it("renders nothing with no months", () => {
     const { container } = render(<TrendsChart months={[]} />);
 

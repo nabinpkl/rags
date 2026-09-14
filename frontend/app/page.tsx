@@ -47,7 +47,7 @@ export default function LandingPage() {
   // the ranking, and a failed chart must not take the page down with it.
   const { data: latest } = useQuery({
     queryKey: ["latest"],
-    queryFn: () => fetchLatest({ limit: 8 }),
+    queryFn: () => fetchLatest({ limit: 6 }),
   });
   const { data: trends } = useQuery({ queryKey: ["trends"], queryFn: fetchTrends });
 
@@ -149,7 +149,7 @@ export default function LandingPage() {
 
             {!selected && (trends || latest) && (
               <section aria-label="Overview" className="border-line border-t px-6 py-8">
-                <div className="mx-auto grid max-w-5xl items-start gap-6 lg:grid-cols-5">
+                <div className="mx-auto grid max-w-5xl items-stretch gap-6 lg:grid-cols-5">
                   {trends && (
                     <div className="lg:col-span-3">
                       <TrendsChart months={trends.months} />
