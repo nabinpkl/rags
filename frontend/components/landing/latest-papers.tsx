@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import type { LatestResponse } from "@/lib/api-client";
 
 /** The glyph encodes the paper's FIELD, so the column can be scanned by shape
@@ -48,21 +49,12 @@ export function LatestPapers({ papers }: { papers: LatestResponse["papers"] }) {
   if (papers.length === 0) return null;
 
   return (
-    <section
-      id="latest"
-      className="bg-panel border-line scroll-mt-20 flex h-full flex-col rounded border p-5"
+    <DashboardPanel
+      icon={FileText}
+      title="What just landed"
+      meta={`${papers.length} newest`}
+      description="This week's arrivals appear here once the index run covers them: freshness follows the corpus, not the clock."
     >
-      <div className="mb-1 flex items-center gap-2">
-        <FileText className="text-chart-1 size-[18px] shrink-0" aria-hidden />
-        <h2 className="font-serif text-ink text-xl font-semibold">What just landed</h2>
-        <span className="text-muted ml-auto shrink-0 font-mono text-[10.5px] tracking-[0.08em] uppercase">
-          {papers.length} newest
-        </span>
-      </div>
-      <p className="text-muted mb-5 max-w-[62ch] text-[13px] leading-relaxed">
-        This week&apos;s arrivals appear here once the index run covers them — freshness follows
-        the corpus, not the clock.
-      </p>
       {/* No `overflow-hidden`: it would clip the base-layer focus ring
           (globals.css) on the first and last rows, and that ring is not a
           component's to re-spell. The rows carry the container's corner
@@ -120,7 +112,7 @@ export function LatestPapers({ papers }: { papers: LatestResponse["papers"] }) {
           );
         })}
       </ol>
-    </section>
+    </DashboardPanel>
   );
 }
 

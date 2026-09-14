@@ -1,7 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Layers, Quote } from "lucide-react";
 
+import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import { type Foundation, fetchFoundation } from "@/lib/api-client";
 import { arxivAbsUrl } from "@/lib/arxiv-links";
 
@@ -28,13 +30,14 @@ export function FoundationDetail({
   });
 
   return (
-    <section className="mx-auto max-w-5xl px-6 py-8">
+    <div>
       <button
         type="button"
         onClick={onBack}
-        className="border-line bg-panel text-muted hover:text-ink focus-visible:outline-teal mb-4 rounded-[3px] border px-2.5 py-1 font-mono text-[11px] focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="border-line bg-panel text-muted hover:text-ink mb-4 flex items-center gap-1.5 rounded border px-2.5 py-1.5 font-mono text-[11px] transition-colors motion-reduce:transition-none"
       >
-        ← all foundations
+        <ArrowLeft className="size-3.5" aria-hidden />
+        all foundations
       </button>
 
       <h2 className="font-serif text-ink max-w-[34ch] text-[26px] leading-tight font-semibold">
@@ -84,11 +87,13 @@ export function FoundationDetail({
       {isPending && <p className="text-muted text-sm">Loading…</p>}
 
       {data && (
-        <div className="grid gap-8 md:grid-cols-2">
-          <div>
-            <h3 className="border-line text-muted mb-2.5 border-b pb-1.5 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase">
-              Cited alongside
-            </h3>
+        <div className="grid items-start gap-4 md:grid-cols-2">
+          <DashboardPanel
+            icon={Layers}
+            title="Cited alongside"
+            meta="co-citation"
+            footer="Counted, not clustered: how many of our papers cite both."
+          >
             <ol className="m-0 list-none p-0">
               {data.co_cited.map((work, i) => (
                 <li key={work.arxiv_id} className="border-line relative border-b py-2 pl-6.5">
@@ -109,15 +114,21 @@ export function FoundationDetail({
                 </li>
               ))}
             </ol>
-            <p className="text-muted mt-2.5 text-[11.5px]">
-              Counted, not clustered: how many of our papers cite both.
-            </p>
-          </div>
+          </DashboardPanel>
 
-          <div>
-            <h3 className="border-line text-muted mb-2.5 border-b pb-1.5 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase">
-              Recent papers citing it
-            </h3>
+          <DashboardPanel
+            icon={Quote}
+            title="Recent papers citing it"
+            meta="indexed"
+            footer={
+              // Three honest numbers: shown, indexed, and the real total.
+              // Collapsing any two of them overstates what the agent read.
+              <>
+                Showing {data.indexed_citers.length} of the {data.scope_size} papers we indexed;{" "}
+                {data.total_citers.toLocaleString()} cite it in all. Each opens in the explorer.
+              </>
+            }
+          >
             <ol className="m-0 list-none p-0">
               {data.indexed_citers.map((citer, i) => (
                 <li key={citer.arxiv_id} className="border-line relative border-b py-2 pl-6.5">
@@ -136,15 +147,9 @@ export function FoundationDetail({
                 </li>
               ))}
             </ol>
-            <p className="text-muted mt-2.5 text-[11.5px]">
-              {/* Three honest numbers: shown, indexed, and the real total.
-                  Collapsing any two of them overstates what the agent read. */}
-              Showing {data.indexed_citers.length} of the {data.scope_size} papers we indexed;{" "}
-              {data.total_citers.toLocaleString()} cite it in all. Each opens in the explorer.
-            </p>
-          </div>
+          </DashboardPanel>
         </div>
       )}
-    </section>
+    </div>
   );
 }
