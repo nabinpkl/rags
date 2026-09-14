@@ -1,11 +1,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Layers, Quote } from "lucide-react";
+import { ArrowLeft, BookOpen, Layers, Quote } from "lucide-react";
+import Link from "next/link";
 
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import { type Foundation, fetchFoundation } from "@/lib/api-client";
 import { arxivAbsUrl } from "@/lib/arxiv-links";
+
+/** Every paper on this page opens in OUR reader, not on arxiv.org.
+ *
+ * The viewer resolves an id against the corpus and then against the citation
+ * graph (`hooks/use-viewer-paper.ts`), so a co-cited work we never held text
+ * for still opens — its PDF was always arXiv's to serve, fetched by the
+ * reader's browser (§6b). That is what lets one link shape cover both lists
+ * here instead of sorting papers into ours and theirs on screen. */
+function readerHref(arxivId: string): string {
+  return `/app?paper=${encodeURIComponent(arxivId)}`;
+}
 
 /** The evidence behind one number on the page.
  *
@@ -40,8 +52,13 @@ export function FoundationDetail({
         all foundations
       </button>
 
-      <h2 className="font-serif text-ink max-w-[34ch] text-[26px] leading-tight font-semibold">
-        {foundation.title ?? foundation.arxiv_id}
+      <h2 className="max-w-[34ch] text-[26px] leading-tight font-semibold">
+        <Link
+          href={readerHref(foundation.arxiv_id)}
+          className="font-serif text-ink hover:text-teal-ink hover:underline"
+        >
+          {foundation.title ?? foundation.arxiv_id}
+        </Link>
       </h2>
       <p className="text-muted mt-1 mb-3.5 text-[12.5px]">
         {foundation.authors ?? "authors unknown"}
@@ -62,7 +79,7 @@ export function FoundationDetail({
         this window cite it.
       </p>
 
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => onAsk(foundation)}
@@ -71,7 +88,16 @@ export function FoundationDetail({
         >
           Ask about these papers
         </button>
-        <span className="text-muted ml-3 text-xs">
+        {/* The heading links here too; this states the affordance for a
+            reader who does not try clicking a heading. */}
+        <Link
+          href={readerHref(foundation.arxiv_id)}
+          className="border-line bg-panel text-ink hover:bg-paper flex items-center gap-1.5 rounded border px-3.5 py-2 text-sm font-medium transition-colors motion-reduce:transition-none"
+        >
+          <BookOpen className="size-4" aria-hidden />
+          Read the paper
+        </Link>
+        <span className="text-muted text-xs">
           {/* scope_size, NOT indexed_citers.length: the list below is capped
               for layout, the scope is every indexed paper citing this work.
               Saying "the 8 papers" here was false for every foundation. */}
@@ -100,14 +126,12 @@ export function FoundationDetail({
                   <span className="text-muted absolute top-2.5 left-0 font-mono text-[11px]">
                     {i + 1}
                   </span>
-                  <a
-                    href={arxivAbsUrl(work.arxiv_id, work.version)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href={readerHref(work.arxiv_id)}
                     className="font-serif text-teal-ink block text-[14.5px] hover:underline"
                   >
                     {work.title ?? work.arxiv_id}
-                  </a>
+                  </Link>
                   <span className="text-muted mt-0.5 block font-mono text-[10.5px]">
                     {work.cite_both} papers cite both
                   </span>
@@ -125,7 +149,7 @@ export function FoundationDetail({
               // Collapsing any two of them overstates what the agent read.
               <>
                 Showing {data.indexed_citers.length} of the {data.scope_size} papers we indexed;{" "}
-                {data.total_citers.toLocaleString()} cite it in all. Each opens in the explorer.
+                {data.total_citers.toLocaleString()} cite it in all. Each opens in the reader.
               </>
             }
           >
@@ -135,12 +159,12 @@ export function FoundationDetail({
                   <span className="text-muted absolute top-2.5 left-0 font-mono text-[11px]">
                     {i + 1}
                   </span>
-                  <a
-                    href={`/app?paper=${encodeURIComponent(citer.arxiv_id)}`}
+                  <Link
+                    href={readerHref(citer.arxiv_id)}
                     className="font-serif text-teal-ink block text-[14.5px] hover:underline"
                   >
                     {citer.title}
-                  </a>
+                  </Link>
                   <span className="text-muted mt-0.5 block font-mono text-[10.5px]">
                     {citer.primary_category} · arXiv:{citer.arxiv_id}
                   </span>

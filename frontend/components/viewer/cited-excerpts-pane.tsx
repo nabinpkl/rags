@@ -6,6 +6,10 @@ type CitedExcerpt = components["schemas"]["CitedExcerpt"];
 interface CitedExcerptsPaneProps {
   excerpts: CitedExcerpt[];
   excerptsTruncated: boolean;
+  /** Whether we hold this paper's text (use-viewer-paper.ts). The viewer can
+   * open any arXiv paper's PDF; only an indexed one can be asked about, and
+   * this pane is where that difference is visible. */
+  indexed: boolean;
   onJumpToPage: (page: number) => void;
 }
 
@@ -25,6 +29,7 @@ function sectionAnchorId(chunkId: string): string {
 export function CitedExcerptsPane({
   excerpts,
   excerptsTruncated,
+  indexed,
   onJumpToPage,
 }: CitedExcerptsPaneProps) {
   const sections = useMemo(() => {
@@ -62,11 +67,15 @@ export function CitedExcerptsPane({
       {/* The two numbers stay (§6c is the reason this pane is capped at all,
           and saying so is the honest thing) — but as a sentence, not as the
           spec's inequality notation. "In the PDF viewer", not "on the left":
-          on a phone the viewer is above this pane. */}
-      <p className="text-muted mb-3.5 text-[11px] leading-relaxed">
-        Quotes are limited to 50 words, and 3 per paper per answer. Read the full paper in the PDF
-        viewer — this panel shows only the passages the agent quoted.
-      </p>
+          on a phone the viewer is above this pane. Not shown for a paper we
+          hold no text for: there is nothing to quote, so a quota reads as a
+          promise. */}
+      {indexed && (
+        <p className="text-muted mb-3.5 text-[11px] leading-relaxed">
+          Quotes are limited to 50 words, and 3 per paper per answer. Read the full paper in the PDF
+          viewer — this panel shows only the passages the agent quoted.
+        </p>
+      )}
 
       {sections.length > 0 && (
         <div className="mb-3.5 flex flex-wrap gap-1.5">
@@ -84,8 +93,12 @@ export function CitedExcerptsPane({
       )}
 
       {excerpts.length === 0 ? (
-        <p className="text-muted text-[12px]">
-          No cited excerpts yet — ask the agent about this paper.
+        // Not-indexed is not "nothing yet": asking would return nothing, now
+        // or ever, and the reader cannot tell the two states apart by looking.
+        <p className="text-muted text-[12px] leading-relaxed">
+          {indexed
+            ? "No cited excerpts yet — ask the agent about this paper."
+            : "This paper is cited by the corpus but its text is not indexed, so the agent cannot read or quote it. The PDF is arXiv's, fetched by your browser."}
         </p>
       ) : (
         <div>

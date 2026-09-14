@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 import { useViewerStore } from "@/stores/viewer-store";
-import { usePaperDetail } from "@/hooks/use-paper-detail";
+import { useViewerPaper } from "@/hooks/use-viewer-paper";
 import { ArxivPdfFrame } from "@/components/viewer/arxiv-pdf-frame";
 import { CitedExcerptsPane } from "@/components/viewer/cited-excerpts-pane";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,11 @@ export function PaperSplitView() {
     paper ? (state.citationsByPaper.get(paper) ?? EMPTY_CHUNK_IDS) : EMPTY_CHUNK_IDS,
   );
 
-  const { data, isPending, isError } = usePaperDetail(paper, chunkIds);
+  // Corpus first, citation graph second (use-viewer-paper.ts): the
+  // dashboard links works we cite but never held, and their PDFs are
+  // arXiv's to serve either way. `isError` now means neither record
+  // exists, which is the only case with nothing to render.
+  const { data, isPending, isError } = useViewerPaper(paper, chunkIds);
   // Stacked layout only (the region narrower than `@3xl`): the pane is a
   // bottom disclosure there, collapsed by default so the PDF — the reading
   // surface (D9) — keeps the screen. Side by side, it is the docked right
@@ -64,21 +68,28 @@ export function PaperSplitView() {
           </span>
         </div>
         <h2 className="text-ink font-serif text-[18px] leading-tight font-semibold">
-          {isPending ? "Loading…" : isError ? `Paper ${paper}` : data?.title}
+          {isPending ? "Loading…" : (data?.title ?? `Paper ${paper}`)}
         </h2>
         {/* Clamped: on a phone the header is what the PDF has to fit under,
             and a full affiliation list pushed the first page below the
             fold. The full string is a hover away. */}
-        {data && (
+        {data?.authors && (
           <p className="text-muted line-clamp-1 text-[12px] sm:line-clamp-2" title={data.authors}>
             {data.authors}
           </p>
         )}
         <div className="text-muted flex flex-wrap items-center gap-x-1.5 text-[12px]">
-          {data && (
+          {/* Each field guards itself: a cited work we never held can be
+              missing a year or a category, and an unguarded separator would
+              leave a stray "·" where the value should be. */}
+          {data?.year && (
             <>
               <span>{data.year}</span>
               <span>·</span>
+            </>
+          )}
+          {data?.primary_category && (
+            <>
               <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 font-mono text-[10.5px]">
                 {data.primary_category}
               </span>
@@ -124,7 +135,7 @@ export function PaperSplitView() {
           </div>
         ) : isError ? (
           <div className="text-machine-text flex h-full items-center justify-center bg-[#3c4650] p-6 text-center font-mono text-[11px]">
-            Couldn&apos;t load this paper. It may not be in the corpus.
+            Couldn&apos;t load this paper. We hold no record of arXiv:{paper}.
           </div>
         ) : (
           // `key={paper}`: a fresh mount per paper resets ALL local rung/scroll
@@ -166,6 +177,7 @@ export function PaperSplitView() {
             <CitedExcerptsPane
               excerpts={data?.excerpts ?? []}
               excerptsTruncated={data?.excerpts_truncated ?? false}
+              indexed={data?.indexed ?? true}
               onJumpToPage={(target) => setPage(target)}
             />
           </div>
