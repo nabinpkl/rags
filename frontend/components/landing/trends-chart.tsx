@@ -1,5 +1,6 @@
 import { ChartColumn } from "lucide-react";
 
+import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import type { TrendsResponse } from "@/lib/api-client";
 
 const CHART_MONTHS = 12;
@@ -30,23 +31,12 @@ export function TrendsChart({ months }: { months: TrendsResponse["months"] }) {
   const last = trailing[trailing.length - 1];
 
   return (
-    <section
-      id="trends"
-      className="bg-panel border-line scroll-mt-20 flex h-full flex-col rounded border p-5"
+    <DashboardPanel
+      icon={ChartColumn}
+      title="The corpus, month by month"
+      meta={`${shortMonth(trailing[0].month)} – ${shortMonth(last.month)}`}
+      description={`${totalPapers.toLocaleString()} papers, ${totalRefs.toLocaleString()} references extracted, ${formatMonth(months[0].month)} to ${formatMonth(last.month)}. The recent spike is the ingest window; the quiet months before it are the older work that window cites, held to be read but never parsed for references of their own.`}
     >
-      <div className="mb-1 flex items-center gap-2">
-        <ChartColumn className="text-chart-1 size-[18px] shrink-0" aria-hidden />
-        <h2 className="font-serif text-ink text-xl font-semibold">The corpus, month by month</h2>
-        <span className="text-muted ml-auto shrink-0 font-mono text-[10.5px] tracking-[0.08em] uppercase">
-          {shortMonth(trailing[0].month)} – {shortMonth(last.month)}
-        </span>
-      </div>
-      <p className="text-muted mb-5 max-w-[62ch] text-[13px] leading-relaxed">
-        {totalPapers.toLocaleString()} papers, {totalRefs.toLocaleString()} references extracted,{" "}
-        {formatMonth(months[0].month)} to {formatMonth(last.month)}. The recent spike is the
-        ingest window; the quiet months before it are the older work that window cites, held to
-        be read but never parsed for references of their own.
-      </p>
       <div className="flex min-h-0 flex-1 flex-col gap-6">
         <BarRow
           label="papers arrived"
@@ -61,7 +51,7 @@ export function TrendsChart({ months }: { months: TrendsResponse["months"] }) {
           colorClass="bg-chart-2"
         />
       </div>
-    </section>
+    </DashboardPanel>
   );
 }
 
