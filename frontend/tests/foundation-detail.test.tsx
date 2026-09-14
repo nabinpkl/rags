@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,14 @@ const { fetchFoundationMock } = vi.hoisted(() => ({ fetchFoundationMock: vi.fn()
 vi.mock("@/lib/api-client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api-client")>()),
   fetchFoundation: fetchFoundationMock,
+}));
+
+// The reading surface is mocked down to the id it was handed: its own
+// behaviour (metadata resolution, the §6b link-back, the PDF frame) is
+// covered by tests/paper-reader-panel.test.tsx. What matters here is WHICH
+// paper each control opens.
+vi.mock("@/components/landing/paper-reader-panel", () => ({
+  PaperReaderPanel: ({ arxivId }: { arxivId: string }) => <div data-testid="reader">{arxivId}</div>,
 }));
 
 const PPO: Foundation = {
@@ -58,7 +66,7 @@ describe("FoundationDetail", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
-  it("links each indexed citer into the app shell, where it actually opens", async () => {
+  it("opens an indexed citer in the reader beside the lists, not on another page", async () => {
     fetchFoundationMock.mockResolvedValue({
       foundation: PPO,
       total_citers: 1,
@@ -71,8 +79,10 @@ describe("FoundationDetail", () => {
 
     renderDetail();
 
-    const link = await screen.findByRole("link", { name: "First" });
-    expect(link).toHaveAttribute("href", "/app?paper=2608.00001");
+    fireEvent.click(await screen.findByRole("button", { name: "First" }));
+
+    expect(screen.getByTestId("reader")).toHaveTextContent("2608.00001");
+    expect(screen.getByRole("listitem")).toHaveAttribute("aria-current", "true");
   });
 
   it("version-pins the arXiv link for the foundation itself (D9)", async () => {
@@ -90,9 +100,9 @@ describe("FoundationDetail", () => {
     expect(link).toHaveAttribute("href", "https://arxiv.org/abs/1707.06347v2");
   });
 
-  it("opens the foundation itself in the reader, not on arxiv.org", async () => {
-    // The heading is the paper. Sending it off-site was the one paper on this
-    // view with no way to read it here.
+  it("has the foundation open in the reader before anything is clicked", async () => {
+    // The view is about this paper, so reading it is not a second
+    // destination to go find.
     fetchFoundationMock.mockResolvedValue({
       foundation: PPO,
       total_citers: 536,
@@ -103,32 +113,51 @@ describe("FoundationDetail", () => {
 
     renderDetail();
 
-    const heading = await screen.findByRole("link", {
-      name: "Proximal Policy Optimization Algorithms",
-    });
-    expect(heading).toHaveAttribute("href", "/app?paper=1707.06347");
-    expect(screen.getByRole("link", { name: /read the paper/i })).toHaveAttribute(
-      "href",
-      "/app?paper=1707.06347",
-    );
+    expect(screen.getByTestId("reader")).toHaveTextContent("1707.06347");
+    expect(screen.queryByRole("link", { name: /read the paper/i })).not.toBeInTheDocument();
+    await screen.findByText(/536 cite it in all/);
   });
 
   it("opens a co-cited work in the reader even though we may hold no text for it", async () => {
     // Most co-cited works are outside the frontier manifest. The reader still
     // shows their PDF (arxiv-pdf-frame.tsx fetches arxiv.org from the
-    // browser), so one link shape covers both lists on this view.
+    // browser), so one control covers both lists on this view.
     fetchFoundationMock.mockResolvedValue({
       foundation: PPO,
       total_citers: 536,
       scope_size: 2,
-      co_cited: [{ arxiv_id: "1409.1556", title: "Very Deep ConvNets", version: "v6", cite_both: 9 }],
+      co_cited: [
+        { arxiv_id: "1409.1556", title: "Very Deep ConvNets", version: "v6", cite_both: 9 },
+      ],
       indexed_citers: [],
     });
 
     renderDetail();
 
-    const link = await screen.findByRole("link", { name: "Very Deep ConvNets" });
-    expect(link).toHaveAttribute("href", "/app?paper=1409.1556");
+    fireEvent.click(await screen.findByRole("button", { name: "Very Deep ConvNets" }));
+
+    expect(screen.getByTestId("reader")).toHaveTextContent("1409.1556");
+  });
+
+  it("returns the reader to the foundation from its heading", async () => {
+    fetchFoundationMock.mockResolvedValue({
+      foundation: PPO,
+      total_citers: 536,
+      scope_size: 2,
+      co_cited: [
+        { arxiv_id: "1409.1556", title: "Very Deep ConvNets", version: "v6", cite_both: 9 },
+      ],
+      indexed_citers: [],
+    });
+
+    renderDetail();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Very Deep ConvNets" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Proximal Policy Optimization Algorithms" }),
+    );
+
+    expect(screen.getByTestId("reader")).toHaveTextContent("1707.06347");
   });
 
   it("labels co-citation as counted, not clustered", async () => {

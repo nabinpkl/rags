@@ -37,6 +37,7 @@ function fakeLoadingTask(numPages = 3) {
 beforeEach(() => {
   getDocumentMock.mockReset();
   Element.prototype.scrollIntoView = vi.fn();
+  Element.prototype.scrollTo = vi.fn();
 });
 
 afterEach(() => {
@@ -119,5 +120,21 @@ describe("ArxivPdfFrame — unmount teardown", () => {
     unmount();
     expect(disconnectSpy).toHaveBeenCalled();
     expect(loadingTask.destroy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ArxivPdfFrame — a page jump scrolls this pane and nothing above it", () => {
+  it("scrolls its own scrollport rather than walking the ancestor chain", async () => {
+    // The bug: `scrollIntoView` scrolls EVERY scrollport between the page and
+    // the document, so opening a paper inside the dashboard's detail view
+    // (components/landing/paper-reader-panel.tsx) also scrolled the canvas
+    // and took the paper's heading and citation panels off screen.
+    getDocumentMock.mockReturnValue(fakeLoadingTask());
+    render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={2} />);
+
+    const pane = await screen.findByLabelText("Rendered PDF, continuous scroll");
+    await waitFor(() => expect(pane.scrollTo).toHaveBeenCalled());
+    expect(vi.mocked(pane.scrollTo).mock.contexts[0]).toBe(pane);
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
   });
 });

@@ -82,8 +82,15 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
   const gotoPage = useCallback((n: number, instant: boolean) => {
     const clamped = Math.min(Math.max(1, n), numPagesRef.current);
     const div = pagesRef.current?.querySelector<HTMLDivElement>(`[data-page="${clamped}"]`);
-    if (div) {
-      div.scrollIntoView({ block: "start", behavior: instant ? "auto" : "smooth" });
+    const wrap = wrapRef.current;
+    if (div && wrap) {
+      // Scrolls THIS pane, not every scrollport above it: `scrollIntoView`
+      // walks the ancestor chain, so opening page 1 inside the dashboard's
+      // detail view scrolled the canvas too and took the paper's heading and
+      // citation panels off screen. `wrap` is the page divs' offsetParent
+      // (it is the only positioned box between them), so offsetTop is
+      // already this scroller's coordinate space.
+      wrap.scrollTo({ top: div.offsetTop, behavior: instant ? "auto" : "smooth" });
       div.classList.remove("jumpflash");
       void div.offsetWidth; // restart the CSS animation on repeat jumps to the same page
       div.classList.add("jumpflash");
