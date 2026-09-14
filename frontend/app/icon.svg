@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="askRAG">
+  <!-- Three bars on a shared baseline: the count bar is the page's own
+       signature (the foundations ranking, the corpus chart), and vertical
+       bars read as a chart at 16px where descending horizontal rules would
+       read as a sort or menu glyph. Ink ground so the mark holds in a light
+       and a dark tab strip alike. Colours are the palette literals from
+       app/globals.css (--ink, --color-teal); an SVG served as an image
+       cannot reference the stylesheet's custom properties.
+
+       favicon.ico (16/32/48) and apple-icon.png (180) are rasterisations of
+       this same geometry, for the clients that ask for /favicon.ico by
+       default or pin to a home screen. Change the mark here and they must be
+       regenerated, or the tab and the home screen disagree. -->
+  <rect width="32" height="32" rx="7" fill="#1a2128"/>
+  <rect x="6" y="17" width="5" height="9" rx="1.5" fill="#12a38f"/>
+  <rect x="14" y="8" width="5" height="18" rx="1.5" fill="#12a38f"/>
+  <rect x="22" y="13" width="5" height="13" rx="1.5" fill="#12a38f"/>
+</svg>
