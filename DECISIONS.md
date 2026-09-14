@@ -2118,8 +2118,12 @@ deployed corpus: all 40 foundations are indexed (they are the frontier
 manifest), but 28 of the 70 co-cited works shown across them are not.
 
 **Decision:** the viewer resolves an arxiv id against `GET /api/papers/{id}`
-first and `GET /api/foundations/{id}` second (`hooks/use-viewer-paper.ts`);
-every paper link on the landing surface points at `/app?paper=<id>`.
+first and `GET /api/foundations/{id}` second (`hooks/use-viewer-paper.ts`),
+and every paper on the landing surface opens in it. Reading is not a second
+destination: the detail view mounts with the foundation already open beside
+its citation panels (`components/landing/paper-reader-panel.tsx`, same
+`arxiv-pdf-frame.tsx` as the app shell), and clicking any paper in either
+list swaps the reader to it without leaving the page.
 
 This is not a D16 widening. D16 forbids surfacing a paper the app cannot
 retrieve, and nothing here changes retrieval: `scope_paper_ids`,

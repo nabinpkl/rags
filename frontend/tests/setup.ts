@@ -18,3 +18,11 @@ class IntersectionObserverStub {
 }
 globalThis.IntersectionObserver ??=
   IntersectionObserverStub as unknown as typeof IntersectionObserver;
+
+// jsdom implements no layout, so it ships neither `scrollIntoView` (used by
+// components/landing/foundation-detail.tsx to keep a swapped panel in view)
+// nor `Element.scrollTo` (used by components/viewer/arxiv-pdf-frame.tsx to
+// scroll its own pane to a page). Both would throw. Nothing here asserts on
+// scrolling; a no-op is the whole contract.
+Element.prototype.scrollIntoView ??= function scrollIntoView() {};
+Element.prototype.scrollTo ??= function scrollTo() {};
