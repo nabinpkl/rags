@@ -1102,6 +1102,7 @@ rags/
 │   │   │   └── embeddings.py        # embedding API client, one function for corpus batch + query single (D5)
 │   │   ├── ingest/
 │   │   │   ├── kaggle_seed.py       # streaming reader for corpus/archive.zip — one member name; targeted lookups + the per-month cs census
+│   │   │   ├── extract_text.py      # pdfs/ → corpus/text/{YYMM}/*.txt (PyMuPDF page text); `--months` scopes a top-up
 │   │   │   ├── extract_citations.py # corpus/text/**/*.txt → citations.tsv (the landing page's every number)
 │   │   │   ├── resolve_cited_works.py # citations.tsv + archive.zip → cited_works.jsonl (works we cite but do not hold)
 │   │   │   ├── select_frontier.py   # THE MANIFEST: citations.tsv → frontier.json; also `--verify` (D16 amendment)
