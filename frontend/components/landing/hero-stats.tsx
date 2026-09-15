@@ -1,4 +1,4 @@
-import { Library, Link2, Network, ScrollText } from "lucide-react";
+import { BookOpen, Library, Link2, Network } from "lucide-react";
 
 import type { LandingResponse } from "@/lib/api-client";
 import { formatIdMonth } from "@/lib/id-month";
@@ -16,15 +16,17 @@ import { formatIdMonth } from "@/lib/id-month";
  * nodes) — that is what tells four adjacent six-figure numbers apart.
  */
 export function HeroStats({ stats }: { stats: LandingResponse["stats"] }) {
+  // Four numbers a reader can use: how much of arXiv this counted, what came
+  // out of it, and what they can ask about. "Papers with a parsed reference
+  // list" used to sit in slot two, which is a stage count of our pipeline —
+  // true, and of no use to anyone reading the page. Its one reader-facing
+  // consequence, that the counts undercount, is a rate, and lives in the
+  // methods note as one.
   const facts = [
     { value: stats.cohort_papers, label: cohortLabel(stats), icon: Library },
-    {
-      value: stats.papers_with_references,
-      label: "with a parsed reference list",
-      icon: ScrollText,
-    },
-    { value: stats.citations, label: "arXiv citations extracted", icon: Link2 },
-    { value: stats.cited_works, label: "distinct works cited", icon: Network },
+    { value: stats.citations, label: "arXiv citations counted in them", icon: Link2 },
+    { value: stats.cited_works, label: "distinct works they cite", icon: Network },
+    { value: stats.readable_papers, label: "papers the agent reads and quotes", icon: BookOpen },
   ];
 
   return (
@@ -92,9 +94,12 @@ function sample(stats: LandingResponse["stats"]): string {
 }
 
 /** The KPI label carries the same denominator the sentence does, because a
- * six-figure number under "cs papers" is read as the field's output. */
+ * six-figure number under "cs papers" is read as the field's output. The
+ * share is spelled out rather than left to be divided: "of 32,519" is a
+ * denominator, "60% of what arXiv posted" is the fact taken away from it. */
 function cohortLabel(stats: LandingResponse["stats"]): string {
   const total = stats.cohort_catalog_papers;
   if (!total) return "cs papers in the cohort months";
-  return `of ${total.toLocaleString()} cs papers arXiv posted then`;
+  const share = Math.round((stats.cohort_papers / total) * 100);
+  return `${share}% of the ${total.toLocaleString()} cs papers arXiv posted then`;
 }

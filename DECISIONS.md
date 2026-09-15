@@ -53,6 +53,17 @@ papers for 2608 where the current one lists 14,491, and had no 2609 at all.
 The agent prompt gained one line for the same reason the page did: the corpus
 is a sample, and its totals are ours, never coverage of a field.
 
+**Follow-up the same day, same idea applied one step further:** a number
+being true is not a reason to print it. "16,893 papers with a parsed
+reference list" and "20,733 PDFs extracted" are stage counts of our pipeline,
+and no reader has a use for either; the parse rate's one reader-facing
+consequence is that the counts undercount, which is a percentage, so the
+methods note states the percentage and the two counts behind it stay off the
+page. The freed hero slot went to `readable_papers` (the D16 indexed set),
+which answers "what can I ask about here" rather than "what did they
+process", and `corpus_papers` left the wire entirely: 57,206 catalog rows is
+a storage fact that reads as "they have 57,206 papers".
+
 **Alternatives rejected:** keeping "every" and narrowing the window to the
 months where it is true (August is 49%, so there is no such window); deleting
 the month panel (the shape of the corpus is worth showing, it was the missing

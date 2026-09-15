@@ -45,11 +45,13 @@ export function MethodsNote({
   const steps = [
     {
       title: "1 · collect",
-      body: `cs papers from the cohort's id-months, mirrored from Google's arXiv bucket: a large sample of those months, not all of them. ${stats.papers_parsed.toLocaleString()} PDFs fetched and text-extracted in all, older works the cohort cites included; the PDFs are then discarded.`,
+      body: `cs papers from the cohort's id-months, mirrored from Google's arXiv bucket: ${stats.cohort_papers.toLocaleString()} of them, plus the older works they cite. Text is extracted locally and the PDFs are discarded.`,
     },
     {
+      // A rate, not the two counts behind it: how many PDFs we processed is
+      // our business, how much the page's counts undercount is the reader's.
       title: "2 · parse",
-      body: `arXiv ids pulled out of each reference list by pattern. ${stats.papers_with_references.toLocaleString()} of the ${stats.papers_parsed.toLocaleString()} papers we extracted text from yielded a usable list — ${parseRate}%.`,
+      body: `arXiv ids pulled out of each reference list by pattern. ${parseRate}% of the papers yielded a usable list; the rest carry no citations into any count here.`,
     },
     {
       title: "3 · count",
@@ -121,13 +123,12 @@ export function MethodsNote({
         <div className="bg-paper border-l-rust mt-auto border-l-[3px] px-3.5 py-2.5 text-[13px] leading-relaxed">
           <b className="text-rust">What this is not.</b> It is not a citation count, and it is not a
           census: it is a count over a sample of recent arXiv cs, so it measures what{" "}
-          <i>these</i> papers build on, not what is important overall. Of the papers we did collect,
-          the {100 - parseRate}% whose reference lists did not parse are missing entirely, and the
-          wider corpus ({stats.corpus_papers.toLocaleString()} papers) is thin outside the cohort:
-          a few per month from an earlier sample, plus the older works this cohort cites. Grouping
-          papers into named themes is deliberately absent: on this data, two runs of the same
-          clustering agree on only 43–61% of pairs, so any theme label would be a claim about our
-          code rather than about the literature.
+          <i>these</i> papers build on, not what is important overall. The {100 - parseRate}% of
+          collected papers whose reference lists did not parse are missing entirely, and outside
+          the cohort months the corpus thins to a few papers a month, so nothing here should be
+          read as a trend over time. Grouping papers into named themes is deliberately absent: on
+          this data, two runs of the same clustering agree on only 43–61% of pairs, so any theme
+          label would be a claim about our code rather than about the literature.
         </div>
       </DashboardPanel>
     </div>

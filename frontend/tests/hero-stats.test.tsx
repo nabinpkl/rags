@@ -10,7 +10,7 @@ function stats(overrides: Partial<LandingResponse["stats"]> = {}): LandingRespon
     cohort_end: "2608",
     cohort_papers: 19380,
     cohort_catalog_papers: 27507,
-    corpus_papers: 57206,
+    readable_papers: 667,
     papers_parsed: 20733,
     papers_with_references: 16893,
     citations: 172404,
@@ -20,13 +20,20 @@ function stats(overrides: Partial<LandingResponse["stats"]> = {}): LandingRespon
 }
 
 describe("HeroStats", () => {
-  it("shows the four counted facts, grouped for readability", () => {
+  it("shows four facts a reader can use, and no stage counts", () => {
+    // "Papers with a parsed reference list" was one of these four. It is a
+    // count of our pipeline's second stage: true, and useless to a reader,
+    // who wants to know how much of arXiv this is and what they can ask
+    // about. The last card is that: the papers the agent can actually read.
     render(<HeroStats stats={stats()} />);
 
     expect(screen.getByText("19,380")).toBeInTheDocument();
-    expect(screen.getByText("16,893")).toBeInTheDocument();
     expect(screen.getByText("172,404")).toBeInTheDocument();
     expect(screen.getByText("65,694")).toBeInTheDocument();
+    expect(screen.getByText("667")).toBeInTheDocument();
+    expect(screen.getByText(/papers the agent reads and quotes/)).toBeInTheDocument();
+    expect(screen.queryByText("16,893")).not.toBeInTheDocument();
+    expect(screen.queryByText(/parsed reference list/)).not.toBeInTheDocument();
   });
 
   it("claims a measured share of arXiv, never 'every paper'", () => {
@@ -38,7 +45,7 @@ describe("HeroStats", () => {
     expect(screen.queryByText(/every cs paper/)).not.toBeInTheDocument();
     // The same denominator rides on the KPI label, since a six-figure number
     // under a bare "cs papers" reads as the field's output.
-    expect(screen.getByText(/of 27,507 cs papers arXiv posted then/)).toBeInTheDocument();
+    expect(screen.getByText(/70% of the 27,507 cs papers arXiv posted then/)).toBeInTheDocument();
   });
 
   it("drops the share rather than the honesty when the catalog cannot answer", () => {

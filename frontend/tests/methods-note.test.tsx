@@ -9,7 +9,7 @@ const STATS: LandingResponse["stats"] = {
   cohort_end: "2608",
   cohort_papers: 19380,
   cohort_catalog_papers: 27507,
-  corpus_papers: 57206,
+  readable_papers: 667,
   papers_parsed: 18844,
   papers_with_references: 15905,
   citations: 162792,
@@ -25,26 +25,23 @@ const CITED_YEARS: LandingResponse["cited_years"] = [
 ];
 
 describe("MethodsNote", () => {
-  it("counts the parse rate over papers that reached the parser, not every catalog row", () => {
-    // THE bug: 15,905 over the whole corpus (57,206) printed a 30% parse rate
-    // for a parser that yields 84%, and then blamed the missing 70% on
-    // reference lists that "did not parse" when those papers were never
-    // collected at all.
+  it("states the parse rate as a rate, over the papers that reached the parser", () => {
+    // Two bugs in one line, both fixed here. The rate was counted over every
+    // catalog row (57,206), printing 30% for a parser that yields 84%; and it
+    // was spelled as two stage counts ("15,905 of 18,844 papers we extracted
+    // text from"), which is our pipeline described at a reader.
     render(<MethodsNote stats={STATS} citedYears={CITED_YEARS} />);
 
-    expect(
-      screen.getByText(
-        /15,905 of the 18,844 papers we extracted text from yielded a usable list — 84%/,
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/84% of the papers yielded a usable list/)).toBeInTheDocument();
+    expect(screen.queryByText(/18,844 papers we extracted text from/)).not.toBeInTheDocument();
     expect(screen.getByText(/did not parse are missing entirely/)).toHaveTextContent("16%");
   });
 
-  it("names the wider corpus instead of letting the cohort stand for all of it", () => {
+  it("says the corpus thins outside the cohort without quoting a storage total", () => {
     render(<MethodsNote stats={STATS} citedYears={CITED_YEARS} />);
 
-    expect(screen.getByText(/57,206 papers/)).toBeInTheDocument();
     expect(screen.getByText(/it is not a census/)).toBeInTheDocument();
+    expect(screen.getByText(/thins to a few papers a month/)).toBeInTheDocument();
   });
 
   it("keeps the clustering-stability finding on the page", () => {

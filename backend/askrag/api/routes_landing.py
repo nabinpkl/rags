@@ -57,23 +57,32 @@ class CohortStats(BaseModel):
     So the cohort is stated as what it is, with its own denominator beside it:
     `cohort_catalog_papers` is what the catalog lists for those same months
     (`catalog_months`), and it is None when the snapshot is older than the
-    cohort and therefore cannot answer. `corpus_papers` is every paper we
-    hold, so the page can say what the rest of the corpus is instead of
-    implying the cohort is all of it.
+    cohort and therefore cannot answer.
+
+    Every field here is one a reader has a use for: how much of arXiv this
+    counted, what came out of it, and how much of it the agent can actually
+    read. Stage counts that only describe our pipeline do not belong on the
+    wire — `papers_parsed` is the sole survivor of that kind, and only
+    because the parse rate the methods note states is a percentage of it.
     """
 
     cohort_start: str | None  # id-month, e.g. "2607"
     cohort_end: str | None
     cohort_papers: int
     cohort_catalog_papers: int | None
-    corpus_papers: int
-    # Papers whose text reached the reference parser (`papers.has_text`). THE
-    # parse-rate denominator: `papers_with_references` over `corpus_papers`
-    # read as a 30% failure rate for a parser that yields 81%.
+    # Papers whose text reached the reference parser (`papers.has_text`), the
+    # parse rate's denominator. Never printed as a count: "20,733 PDFs
+    # extracted" tells a reader nothing they can use, while "81% of them
+    # yielded a usable reference list" tells them how much this page's counts
+    # undercount.
     papers_parsed: int
     papers_with_references: int
     citations: int
     cited_works: int
+    # What the agent can search and quote (D16's indexed set). The one number
+    # here that answers "what can I do on this page", as against "what did
+    # they process".
+    readable_papers: int
 
 
 class CitedYearBucket(BaseModel):
@@ -239,17 +248,17 @@ def _cohort_stats(conn: sqlite3.Connection, min_share: float) -> CohortStats:
     (with_refs,) = conn.execute("SELECT count(DISTINCT citing_id) FROM citations").fetchone()
     (edges,) = conn.execute("SELECT count(*) FROM citations").fetchone()
     (works,) = conn.execute("SELECT count(DISTINCT cited_id) FROM citations").fetchone()
-    (corpus_papers,) = conn.execute("SELECT count(*) FROM papers").fetchone()
+    (readable,) = conn.execute(f"SELECT count(*) FROM papers WHERE {INDEXED_PREDICATE}").fetchone()
     return CohortStats(
         cohort_start=start,
         cohort_end=end,
         cohort_papers=cohort_papers,
         cohort_catalog_papers=catalog_papers,
-        corpus_papers=corpus_papers,
         papers_parsed=parsed,
         papers_with_references=with_refs,
         citations=edges,
         cited_works=works,
+        readable_papers=readable,
     )
 
 

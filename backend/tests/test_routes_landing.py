@@ -94,13 +94,16 @@ def test_landing_stats_are_derived_from_the_graph(client):
     assert (stats["cohort_start"], stats["cohort_end"]) == ("2608", "2608")
     assert stats["cohort_papers"] == 3
     assert stats["cohort_catalog_papers"] == 10
-    # The rest of the corpus is stated separately, not folded into the cohort.
-    assert stats["corpus_papers"] == 4
     # THE parse-rate denominator: 3 papers reached the parser, not 4.
     assert stats["papers_parsed"] == 3
     assert stats["papers_with_references"] == 3
     assert stats["citations"] == 6
     assert stats["cited_works"] == 3
+    # What the reader can act on: 2 of the 4 papers have chunks, so 2 are
+    # searchable and quotable (D16). A count of catalog rows we hold is not
+    # here at all — it describes our storage, not anything a reader can use.
+    assert stats["readable_papers"] == 2
+    assert "corpus_papers" not in stats
 
 
 def test_foundations_rank_by_citation_count(client):

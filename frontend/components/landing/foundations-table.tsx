@@ -35,7 +35,7 @@ export function FoundationsTable({
       icon={ListOrdered}
       title="The foundations"
       meta="ranked by citations"
-      description={`Ranked by how many of the ${stats.papers_with_references.toLocaleString()} papers we parsed cite them, nearly all of them from the cohort months and a couple of hundred from an older sample. Add a month of papers and the numbers move because the literature moved, not because an algorithm re-drew a boundary.`}
+      description={`Ranked by how many of the ${stats.papers_with_references.toLocaleString()} recent papers we counted cite them. Add a month of papers and the numbers move because the literature moved, not because an algorithm re-drew a boundary.`}
       footer={`Showing the top ${foundations.length} of ${stats.cited_works.toLocaleString()} cited works.`}
       bodyClassName="p-0"
     >
