@@ -10,7 +10,7 @@ import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import { SECTIONS, SECTION_IDS, DashboardSidebar } from "@/components/landing/dashboard-sidebar";
 import { FoundationDetail } from "@/components/landing/foundation-detail";
 import { FoundationsTable } from "@/components/landing/foundations-table";
-import { HeroStats } from "@/components/landing/hero-stats";
+import { Hero } from "@/components/landing/hero";
 import { HoldingsChart } from "@/components/landing/holdings-chart";
 import { LatestPapers } from "@/components/landing/latest-papers";
 import { MethodsNote } from "@/components/landing/methods-note";
@@ -225,7 +225,7 @@ export default function LandingPage() {
               {data && selected === null && (
                 <>
                   <section id="overview" className="scroll-mt-5">
-                    <HeroStats stats={data.stats} />
+                    <Hero stats={data.stats} />
                   </section>
 
                   <section id="foundations" className="scroll-mt-5">
