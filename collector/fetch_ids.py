@@ -19,6 +19,7 @@ import argparse
 import concurrent.futures as cf
 import json
 import sys
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,6 +32,31 @@ def read_ids(path: Path) -> list[str]:
     if path.suffix == ".json":
         return list(json.loads(text)["paper_ids"])
     return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+_month_versions: dict[str, dict[str, int]] = {}
+_month_lock = threading.Lock()
+
+
+def _newest_mirrored_version(arxiv_id: str) -> str | None:
+    """The newest version of `arxiv_id` the mirror actually carries, or None.
+
+    Answered from one listing of the id's month folder, cached, and taken
+    ONLY after a download has already missed: a month is tens of thousands of
+    objects to list, and in the common case every pinned version is there.
+    The lock serialises the listing on purpose -- eight threads missing in the
+    same month should wait for one listing, not start eight.
+    """
+    yymm = arxiv_id.split(".")[0]
+    with _month_lock:
+        versions = _month_versions.get(yymm)
+        if versions is None:
+            versions = {}
+            for other, version, _size in ai.gcs_month_objects(ai.thread_session(), yymm):
+                versions[other] = max(version, versions.get(other, 0))
+            _month_versions[yymm] = versions
+    version = versions.get(arxiv_id)
+    return f"v{version}" if version else None
 
 
 def fetch(ids: list[str], *, concurrency: int, dry_run: bool) -> int:
@@ -67,9 +93,22 @@ def fetch(ids: list[str], *, concurrency: int, dry_run: bool) -> int:
         def _fetch(aid: str):
             version = meta[aid]["version"]
             url = ai.gcs_pdf_url(aid, version)
-            if url is None:
-                return aid, version, None
-            return aid, version, ai.download_pdf(ai.thread_session(), aid, url)
+            path = ai.download_pdf(ai.thread_session(), aid, url) if url else None
+            if path is None:
+                # The snapshot names the paper's LATEST version; the mirror
+                # carries whatever it had when it last synced, which for a
+                # recently revised paper is an earlier one. 262 of 1,355 July
+                # and August papers missed on exactly this (205 of them v2).
+                mirrored = _newest_mirrored_version(aid)
+                if mirrored and mirrored != version:
+                    url = ai.gcs_pdf_url(aid, mirrored)
+                    path = ai.download_pdf(ai.thread_session(), aid, url) if url else None
+                    if path is not None:
+                        # The stored version is the one we actually hold, never
+                        # the one we wanted: the UI version-pins its arxiv.org
+                        # links (§6b), so a link must point at the text we read.
+                        version = mirrored
+            return aid, version, path
 
         stored = 0
         todo = [aid for aid in wanted if aid in meta]
