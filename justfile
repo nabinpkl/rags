@@ -74,6 +74,12 @@ check: backend-check frontend-check
 
 # --- ingest -----------------------------------------------------------------
 
+# PDFs -> the flat text tree the citation graph is read from. The FIRST step
+# after a collector run, before `just citations`. Incremental: a paper whose
+# text is current is skipped, so a month top-up costs only the new papers.
+text *ARGS:
+    cd backend && uv run python -m askrag.ingest.extract_text {{ARGS}}
+
 # Order matters — resolve reads extract's output. Both are inputs to
 # build_indexes, so run this BEFORE rebuilding corpus.db. ~3.5 min today.
 # Rebuild the citation graph the landing page ranks

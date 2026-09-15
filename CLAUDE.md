@@ -92,7 +92,9 @@ work is broken into GitHub issues.
   (#52 — `tsc` is not `next build` in export mode). After ANY route or
   response-model change run `just gen-openapi` — `just check` catches type
   drift but not schema drift, because `openapi.json` is typegen's input.
-- Landing pipeline, in order: `just citations` (extract + resolve the citation
+- Landing pipeline, in order: `just text --months <YYMM>…` (PDFs → the flat
+  text tree; scope it, an unscoped run pulls the pre-2026 facet sample into
+  the citation graph) → `just citations` (extract + resolve the citation
   graph) → `just frontier` (derive the index manifest, fetch and extract its
   papers) → `just index` (chunk, embed, rebuild corpus.db + chroma). The
   manifest in `corpus/frontier.json` IS the page's scope — widen it via
