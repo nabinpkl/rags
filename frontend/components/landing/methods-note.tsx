@@ -44,8 +44,10 @@ export function MethodsNote({
 
   const steps = [
     {
+      // Provenance, not plumbing: where the papers came from is a reason to
+      // trust the counts, how their PDFs are stored on our disk is not.
       title: "1 · collect",
-      body: `cs papers from the cohort's id-months, mirrored from Google's arXiv bucket: ${stats.cohort_papers.toLocaleString()} of them, plus the older works they cite. Text is extracted locally and the PDFs are discarded.`,
+      body: `cs papers from the cohort's id-months, mirrored from Google's arXiv bucket: ${stats.cohort_papers.toLocaleString()} of them, plus the older works they cite.`,
     },
     {
       // A rate, not the two counts behind it: how many PDFs we processed is
