@@ -69,7 +69,7 @@ def fetch(ids: list[str], *, concurrency: int, dry_run: bool) -> int:
             url = ai.gcs_pdf_url(aid, version)
             if url is None:
                 return aid, version, None
-            return aid, version, ai.download_pdf(ai.thread_session(), aid, url, pace=False)
+            return aid, version, ai.download_pdf(ai.thread_session(), aid, url)
 
         stored = 0
         todo = [aid for aid in wanted if aid in meta]
