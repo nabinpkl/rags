@@ -5,6 +5,7 @@ run      := "uv run"          # uv-managed env (pyproject.toml); auto-syncs on f
 seed     := "../corpus/archive.zip"   # Kaggle arXiv snapshot (.zip)
 category := "cs.CL"         # primary-category prefix filter
 since    := "2024-01-01"    # backfill start (submission date)
+until    := `date -u +%F`   # backfill end (submission date), today by default
 max_gb   := "4"             # backfill size budget
 conc     := "8"             # parallel GCS downloads
 permonth := "3"             # papers per month for the temporal sample
@@ -61,8 +62,9 @@ diverse:
         --max-gb {{max_gb}} \
         --concurrency {{conc}}
 
-# Oldest-first from a start date: seed ids from archive.zip, PDFs from the GCS
-# mirror. Unthrottled and fast. Use when you want a specific historical window.
+# Oldest-first over a submission-date window: seed ids from archive.zip, PDFs
+# from the GCS mirror. Unthrottled and fast. `until` bounds the far end, which
+# is what keeps a month top-up from running on into the months after it.
 #
 # Part 1 — bulk backfill from a date (Kaggle seed + GCS mirror)
 seeded-backfill:
@@ -72,6 +74,7 @@ seeded-backfill:
         --category-prefix {{category}} \
         --date-field submitted \
         --from {{since}} \
+        --until {{until}} \
         --max-gb {{max_gb}} \
         --concurrency {{conc}}
 
