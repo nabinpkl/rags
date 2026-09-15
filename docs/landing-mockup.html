@@ -140,10 +140,13 @@
      no LLM judgement, just what recent work actually cites. Every number below opens the papers
      behind it.</p>
   <div class="facts">
-    <div class="fact"><b>18,844</b><span>of 27,507 cs papers arXiv posted then</span></div>
-    <div class="fact"><b>15,905</b><span>with a parsed reference list</span></div>
-    <div class="fact"><b>162,792</b><span>arXiv citations extracted</span></div>
-    <div class="fact"><b>63,457</b><span>distinct works cited</span></div>
+    <!-- Four numbers a reader can use. "Papers with a parsed reference list"
+         sat in slot two and was a stage count of the pipeline; the shipped
+         page replaced it with what the agent can actually read, which this
+         prototype had no figure for. -->
+    <div class="fact"><b>18,844</b><span>69% of the 27,507 cs papers arXiv posted then</span></div>
+    <div class="fact"><b>162,792</b><span>arXiv citations counted in them</span></div>
+    <div class="fact"><b>63,457</b><span>distinct works they cite</span></div>
   </div>
 </div></div>
 
@@ -1345,10 +1348,10 @@
     <h2>How these numbers are made</h2>
     <div class="steps">
       <div class="step"><b>1 · collect</b><p>cs papers from the July–August id-months, mirrored from
-        Google's arXiv bucket — a large sample of those months, not all of them. 18,844 PDFs,
-        text extracted locally, PDFs discarded.</p></div>
+        Google's arXiv bucket: 18,844 of them, plus the older works they cite. Text is extracted
+        locally and the PDFs are discarded.</p></div>
       <div class="step"><b>2 · parse</b><p>arXiv ids pulled out of each reference list by pattern.
-        15,905 of the 18,844 papers we extracted text from yielded a usable list — 84%.</p></div>
+        84% of the papers yielded a usable list; the rest carry no citations into any count here.</p></div>
       <div class="step"><b>3 · count</b><p>One citation per (paper, target) pair. Self-citations dropped.
         The rank is a count; there is nothing else in it.</p></div>
       <div class="step"><b>4 · index</b><p>The works on this page are the ones the agent can read.

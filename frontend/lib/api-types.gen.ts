@@ -212,9 +212,13 @@ export interface components {
          *     So the cohort is stated as what it is, with its own denominator beside it:
          *     `cohort_catalog_papers` is what the catalog lists for those same months
          *     (`catalog_months`), and it is None when the snapshot is older than the
-         *     cohort and therefore cannot answer. `corpus_papers` is every paper we
-         *     hold, so the page can say what the rest of the corpus is instead of
-         *     implying the cohort is all of it.
+         *     cohort and therefore cannot answer.
+         *
+         *     Every field here is one a reader has a use for: how much of arXiv this
+         *     counted, what came out of it, and how much of it the agent can actually
+         *     read. Stage counts that only describe our pipeline do not belong on the
+         *     wire — `papers_parsed` is the sole survivor of that kind, and only
+         *     because the parse rate the methods note states is a percentage of it.
          */
         CohortStats: {
             /** Cohort Start */
@@ -225,8 +229,6 @@ export interface components {
             cohort_papers: number;
             /** Cohort Catalog Papers */
             cohort_catalog_papers: number | null;
-            /** Corpus Papers */
-            corpus_papers: number;
             /** Papers Parsed */
             papers_parsed: number;
             /** Papers With References */
@@ -235,6 +237,8 @@ export interface components {
             citations: number;
             /** Cited Works */
             cited_works: number;
+            /** Readable Papers */
+            readable_papers: number;
         };
         /** CoverageResponse */
         CoverageResponse: {
