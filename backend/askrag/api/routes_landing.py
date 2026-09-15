@@ -17,6 +17,15 @@ Alias discipline: `citations` is aliased `cit` throughout, because
 `facets.INDEXED_PREDICATE` uses `c` for its own `chunks` subquery and a silent
 alias collision would scope the wrong table.
 
+**Our numbers are ours, and a claim about arXiv carries its denominator.**
+Every count here is over papers WE hold. That is honest as long as it is not
+spoken as a claim about the literature, and for one release it was: the page
+said "every cs paper arXiv posted in the window", which measured 94% for July
+2026, 49% for August and 5% for September. So `catalog_months` (the Kaggle
+census, `ingest/kaggle_seed.count_cs_papers_by_id_month`) travels with the
+cohort and with every month bucket, and a month whose denominator is unknown
+says so instead of borrowing a wrong one.
+
 §6c: nothing here returns `chunks.text`. The landing surface is metadata and
 counts only; paper text reaches the wire solely through routes_explorer's capped
 cited-excerpt path.
@@ -36,11 +45,32 @@ router = APIRouter()
 
 
 class CohortStats(BaseModel):
-    """The four numbers the page opens with, each derived, none configured."""
+    """What the page opens with: the cohort it counted, and how complete it is.
 
-    window_start: str | None  # id-month, e.g. "2607"
-    window_end: str | None
-    papers_in_window: int
+    There is no "window" here any more, and that is the point. The window was
+    `min/max(citing id-month)`, which 261 old seed papers (1.5% of the citing
+    side) stretched from two months to nineteen years, and every sentence
+    hanging off it then claimed we hold "every cs paper arXiv posted" across
+    that span. We hold 94% of July 2026, 49% of August, 5% of September and
+    under 2% of everything else.
+
+    So the cohort is stated as what it is, with its own denominator beside it:
+    `cohort_catalog_papers` is what the catalog lists for those same months
+    (`catalog_months`), and it is None when the snapshot is older than the
+    cohort and therefore cannot answer. `corpus_papers` is every paper we
+    hold, so the page can say what the rest of the corpus is instead of
+    implying the cohort is all of it.
+    """
+
+    cohort_start: str | None  # id-month, e.g. "2607"
+    cohort_end: str | None
+    cohort_papers: int
+    cohort_catalog_papers: int | None
+    corpus_papers: int
+    # Papers whose text reached the reference parser (`papers.has_text`). THE
+    # parse-rate denominator: `papers_with_references` over `corpus_papers`
+    # read as a 30% failure rate for a parser that yields 81%.
+    papers_parsed: int
     papers_with_references: int
     citations: int
     cited_works: int
@@ -121,16 +151,30 @@ class LatestResponse(BaseModel):
 
 
 class MonthBucket(BaseModel):
-    """One calendar month of corpus growth. Counts, not lists, so no
-    indexed restriction (same posture as CohortStats): papers_added counts
-    every catalog row, refs_made every extracted edge."""
+    """One id-month of the corpus, against what arXiv posted that month.
 
-    month: str  # "2026-09", from papers.published
-    papers_added: int
+    `catalog_papers` is the whole reason this shape exists. Bar heights of
+    what we hold, with no denominator, said "19 papers in October 2025" on a
+    page about what CS is building on, and a reader takes that as a fact about
+    October rather than about our download schedule. It is None when the
+    catalog snapshot cannot answer for that month (it lists fewer papers than
+    we hold, i.e. the snapshot predates the month) — unknown is printable,
+    a wrong denominator is not.
+
+    Keyed by ID-MONTH, not by `published`: the census counts id-months, and
+    the two disagree by 383 papers for July 2026 alone (arXiv announces a
+    late-June submission with a 2607 id), which would put the numerator and
+    denominator of the same bar on different axes.
+    """
+
+    month: str  # id-month, e.g. "2607"
+    papers_held: int
+    papers_parsed: int
     refs_made: int
+    catalog_papers: int | None
 
 
-class TrendsResponse(BaseModel):
+class CoverageResponse(BaseModel):
     months: list[MonthBucket]
 
 
@@ -149,26 +193,60 @@ def trim_authors(authors: str | None, max_names: int) -> str | None:
     return f"{', '.join(names[:max_names])} +{len(names) - max_names}"
 
 
-def _cohort_stats(conn: sqlite3.Connection) -> CohortStats:
-    # The window is the id-month span of the CITING side: the cohort is defined
-    # by what we extracted references from, not by a date written down anywhere.
-    window = conn.execute(
-        "SELECT min(substr(citing_id, 1, 4)), max(substr(citing_id, 1, 4)) FROM citations"
-    ).fetchone()
-    start, end = window if window else (None, None)
-    papers_in_window = 0
-    if start is not None:
-        (papers_in_window,) = conn.execute(
-            "SELECT count(*) FROM papers WHERE substr(arxiv_id, 1, 4) BETWEEN ? AND ?",
-            (start, end),
+def _cohort_months(conn: sqlite3.Connection, min_share: float) -> list[str]:
+    """The id-months the cohort actually came from, by a stated rule.
+
+    Rule: an id-month is in the cohort when it contributed at least
+    `min_share` of the papers we parsed references from. Measured
+    2026-09-15 over 16,893 parsed papers: 2607 gave 61%, 2608 36%, 2609 1.3%,
+    and the next month down gave 0.24% — so any threshold between 0.3% and
+    1.3% selects the same three months. The boundary is not delicate, which
+    is the only reason a threshold is acceptable here.
+
+    The alternative (min/max of the citing id-month) is what this replaces:
+    261 stray seed papers put `0711` at one end and made the page claim
+    nineteen years of complete coverage.
+    """
+    rows = conn.execute(
+        "SELECT substr(citing_id, 1, 4) AS month, count(DISTINCT citing_id) AS papers"
+        "  FROM citations GROUP BY month"
+    ).fetchall()
+    total = sum(row["papers"] for row in rows)
+    if not total:
+        return []
+    return sorted(row["month"] for row in rows if row["papers"] / total >= min_share)
+
+
+def _cohort_stats(conn: sqlite3.Connection, min_share: float) -> CohortStats:
+    months = _cohort_months(conn, min_share)
+    start, end = (months[0], months[-1]) if months else (None, None)
+    cohort_papers = 0
+    catalog_papers: int | None = None
+    if months:
+        placeholders = ",".join("?" * len(months))
+        (cohort_papers,) = conn.execute(
+            f"SELECT count(*) FROM papers WHERE substr(arxiv_id, 1, 4) IN ({placeholders})",
+            months,
         ).fetchone()
+        (census,) = conn.execute(
+            f"SELECT sum(cs_papers) FROM catalog_months WHERE month IN ({placeholders})",
+            months,
+        ).fetchone()
+        # A census smaller than our own holdings means the snapshot predates
+        # part of the cohort; report unknown rather than a share over 100%.
+        catalog_papers = census if census and census >= cohort_papers else None
+    (parsed,) = conn.execute("SELECT count(*) FROM papers WHERE has_text").fetchone()
     (with_refs,) = conn.execute("SELECT count(DISTINCT citing_id) FROM citations").fetchone()
     (edges,) = conn.execute("SELECT count(*) FROM citations").fetchone()
     (works,) = conn.execute("SELECT count(DISTINCT cited_id) FROM citations").fetchone()
+    (corpus_papers,) = conn.execute("SELECT count(*) FROM papers").fetchone()
     return CohortStats(
-        window_start=start,
-        window_end=end,
-        papers_in_window=papers_in_window,
+        cohort_start=start,
+        cohort_end=end,
+        cohort_papers=cohort_papers,
+        cohort_catalog_papers=catalog_papers,
+        corpus_papers=corpus_papers,
+        papers_parsed=parsed,
         papers_with_references=with_refs,
         citations=edges,
         cited_works=works,
@@ -311,7 +389,7 @@ def get_landing(
     conn = db.connect_corpus(settings.corpus_db_path)
     try:
         return LandingResponse(
-            stats=_cohort_stats(conn),
+            stats=_cohort_stats(conn, settings.landing_cohort_min_share),
             foundations=_foundations(
                 conn,
                 limit if limit is not None else settings.frontier_top_cited,
@@ -376,24 +454,45 @@ def _latest(conn: sqlite3.Connection, limit: int, max_authors: int) -> list[Late
     return papers
 
 
-def _trends(conn: sqlite3.Connection) -> list[MonthBucket]:
-    # Whole-table growth series: papers by catalog month, references by the
-    # citing paper's month. Counts are honest totals (CohortStats posture),
-    # so no indexed restriction — the chart shows what arrived, not what
-    # is answerable yet.
+def _coverage(conn: sqlite3.Connection) -> list[MonthBucket]:
+    """What we hold per id-month, beside what the catalog lists for it.
+
+    Counts are honest totals (CohortStats posture), so no indexed
+    restriction: this describes the corpus we collected, not the part the
+    agent can answer from.
+
+    LEFT JOIN on the census, not an inner one: a month we hold papers for but
+    the snapshot does not cover still belongs in the series, with an unknown
+    denominator (see MonthBucket).
+    """
     rows = conn.execute(
-        "SELECT substr(p.published, 1, 7) AS month,"
-        "       count(DISTINCT p.arxiv_id) AS papers_added,"
-        "       count(cit.cited_id) AS refs_made"
+        "SELECT substr(p.arxiv_id, 1, 4) AS month,"
+        "       count(DISTINCT p.arxiv_id) AS papers_held,"
+        "       count(DISTINCT CASE WHEN p.has_text THEN p.arxiv_id END) AS papers_parsed,"
+        "       count(cit.cited_id) AS refs_made,"
+        "       cm.cs_papers AS catalog_papers"
         "  FROM papers p"
         "  LEFT JOIN citations cit ON cit.citing_id = p.arxiv_id"
-        # Undated catalog rows (a handful of legacy seeds) belong in the
-        # totals but not in a time series — a month bucket needs a month.
-        " WHERE p.published IS NOT NULL AND p.published != ''"
+        "  LEFT JOIN catalog_months cm ON cm.month = substr(p.arxiv_id, 1, 4)"
         " GROUP BY month"
         " ORDER BY month"
     ).fetchall()
-    return [MonthBucket(**dict(row)) for row in rows]
+    return [
+        MonthBucket(
+            month=row["month"],
+            papers_held=row["papers_held"],
+            papers_parsed=row["papers_parsed"],
+            refs_made=row["refs_made"],
+            # Same guard as the cohort's: a census below our own holdings is
+            # a stale snapshot, not a coverage above 100%.
+            catalog_papers=(
+                row["catalog_papers"]
+                if row["catalog_papers"] and row["catalog_papers"] >= row["papers_held"]
+                else None
+            ),
+        )
+        for row in rows
+    ]
 
 
 @router.get("/api/latest", response_model=LatestResponse)
@@ -409,11 +508,11 @@ def get_latest(
         conn.close()
 
 
-@router.get("/api/trends", response_model=TrendsResponse)
-def get_trends(settings: Settings = Depends(get_settings)) -> TrendsResponse:
-    """The dashboard's growth chart — papers and references per month."""
+@router.get("/api/coverage", response_model=CoverageResponse)
+def get_coverage(settings: Settings = Depends(get_settings)) -> CoverageResponse:
+    """How much of each month we hold — the provenance panel's whole input."""
     conn = db.connect_corpus(settings.corpus_db_path)
     try:
-        return TrendsResponse(months=_trends(conn))
+        return CoverageResponse(months=_coverage(conn))
     finally:
         conn.close()

@@ -17,7 +17,7 @@ import { formatIdMonth } from "@/lib/id-month";
  */
 export function HeroStats({ stats }: { stats: LandingResponse["stats"] }) {
   const facts = [
-    { value: stats.papers_in_window, label: "cs papers in the window", icon: Library },
+    { value: stats.cohort_papers, label: cohortLabel(stats), icon: Library },
     {
       value: stats.papers_with_references,
       label: "with a parsed reference list",
@@ -33,10 +33,10 @@ export function HeroStats({ stats }: { stats: LandingResponse["stats"] }) {
         What is computer science building on right now?
       </h1>
       <p className="text-muted mt-3 max-w-[68ch] text-[14.5px] leading-relaxed">
-        We pulled every cs paper arXiv posted in {formatWindow(stats)}, extracted the reference list
-        from each one, and counted. No topic modelling, no clustering, no LLM judgement —{" "}
-        <b className="text-ink font-semibold">just what recent work actually cites</b>. Every number
-        below opens the papers behind it.
+        We pulled <b className="text-ink font-semibold">{sample(stats)}</b> arXiv posted{" "}
+        {formatCohort(stats)}, extracted the reference list from each one, and counted. No topic
+        modelling, no clustering, no LLM judgement, just what recent work actually cites. Every
+        number below opens the papers behind it.
       </p>
 
       <dl className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -61,12 +61,40 @@ export function HeroStats({ stats }: { stats: LandingResponse["stats"] }) {
   );
 }
 
-/** "November 2007 and September 2026" from the id-months the API derived from
- * the data. Each side carries its OWN year: the window spans decades (oldest
- * cohorts reach 2007), and pinning the start month to the end year once
- * printed "November 2026" for a window that began in November 2007. */
-function formatWindow(stats: LandingResponse["stats"]): string {
-  const { window_start: start, window_end: end } = stats;
-  if (!start || !end) return "the indexed window";
-  return start === end ? formatIdMonth(end) : `${formatIdMonth(start)} and ${formatIdMonth(end)}`;
+/** The whole prepositional phrase, because the preposition depends on the
+ * span: "in August 2026" for one month, "between July 2026 and September
+ * 2026" for several. A fixed "in" in the sentence read "in between".
+ *
+ * Each side carries its OWN year: pinning the start month to the end year
+ * once printed "November 2026" for a span beginning in November 2007. And
+ * "between", not "and": the cohort spans three months today, where "July and
+ * September" would name two and skip the largest one. */
+function formatCohort(stats: LandingResponse["stats"]): string {
+  const { cohort_start: start, cohort_end: end } = stats;
+  if (!start || !end) return "in the indexed months";
+  if (start === end) return `in ${formatIdMonth(end)}`;
+  return `between ${formatIdMonth(start)} and ${formatIdMonth(end)}`;
+}
+
+/** The sentence's subject, and the page's central claim about itself.
+ *
+ * It said "every cs paper arXiv posted in ...", which was measured false:
+ * 94% of July 2026, 49% of August, 5% of September. So the claim is now the
+ * measured one, with the catalog's own count in it, and it degrades to the
+ * bare number when the snapshot is too old to supply a denominator rather
+ * than falling back to the word it cannot support.
+ */
+function sample(stats: LandingResponse["stats"]): string {
+  const held = stats.cohort_papers.toLocaleString();
+  const total = stats.cohort_catalog_papers;
+  if (!total) return `${held} cs papers`;
+  return `${held} of the ${total.toLocaleString()} cs papers`;
+}
+
+/** The KPI label carries the same denominator the sentence does, because a
+ * six-figure number under "cs papers" is read as the field's output. */
+function cohortLabel(stats: LandingResponse["stats"]): string {
+  const total = stats.cohort_catalog_papers;
+  if (!total) return "cs papers in the cohort months";
+  return `of ${total.toLocaleString()} cs papers arXiv posted then`;
 }

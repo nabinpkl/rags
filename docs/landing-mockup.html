@@ -135,11 +135,12 @@
 
 <div class="hero" id="hero"><div class="wrap">
   <h1>What is computer science building on right now?</h1>
-  <p>We pulled every cs paper arXiv posted in July and August 2026, extracted the reference list
-     from each one, and counted. No topic modelling, no clustering, no LLM judgement —
-     <b>just what recent work actually cites</b>. Every number below opens the papers behind it.</p>
+  <p>We pulled <b>18,844 of the 27,507 cs papers</b> arXiv posted between July and August 2026,
+     extracted the reference list from each one, and counted. No topic modelling, no clustering,
+     no LLM judgement, just what recent work actually cites. Every number below opens the papers
+     behind it.</p>
   <div class="facts">
-    <div class="fact"><b>18,844</b><span>cs papers in the window</span></div>
+    <div class="fact"><b>18,844</b><span>of 27,507 cs papers arXiv posted then</span></div>
     <div class="fact"><b>15,905</b><span>with a parsed reference list</span></div>
     <div class="fact"><b>162,792</b><span>arXiv citations extracted</span></div>
     <div class="fact"><b>63,457</b><span>distinct works cited</span></div>
@@ -1343,18 +1344,20 @@
   <section class="methods">
     <h2>How these numbers are made</h2>
     <div class="steps">
-      <div class="step"><b>1 · collect</b><p>Every cs paper in the July–August id-months, mirrored from
-        Google's arXiv bucket. 18,844 PDFs, text extracted locally, PDFs discarded.</p></div>
+      <div class="step"><b>1 · collect</b><p>cs papers from the July–August id-months, mirrored from
+        Google's arXiv bucket — a large sample of those months, not all of them. 18,844 PDFs,
+        text extracted locally, PDFs discarded.</p></div>
       <div class="step"><b>2 · parse</b><p>arXiv ids pulled out of each reference list by pattern.
-        15,905 of 18,844 papers yielded a usable list — 84%.</p></div>
+        15,905 of the 18,844 papers we extracted text from yielded a usable list — 84%.</p></div>
       <div class="step"><b>3 · count</b><p>One citation per (paper, target) pair. Self-citations dropped.
         The rank is a count; there is nothing else in it.</p></div>
       <div class="step"><b>4 · index</b><p>The works on this page are the ones the agent can read.
         The page defines what is indexed, not the other way round.</p></div>
     </div>
-    <div class="caveat"><b>What this is not.</b> It is not a citation count — it is a count within
-      one two-month window of arXiv cs, so it measures what is being built on <i>now</i>, not what
-      is important overall. Papers whose reference lists did not parse (16%) are missing entirely.
+    <div class="caveat"><b>What this is not.</b> It is not a citation count, and it is not a census:
+      it is a count over a sample of two months of arXiv cs, so it measures what <i>these</i>
+      papers build on, not what is important overall. Of the papers we did collect, the 16% whose
+      reference lists did not parse are missing entirely.
       Grouping papers into named themes is deliberately absent: on this data, two runs of the same
       clustering agree on only 43–61% of pairs, so any theme label would be a claim about our code
       rather than about the literature.</div>

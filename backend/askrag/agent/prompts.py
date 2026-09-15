@@ -20,6 +20,9 @@ nothing is pre-retrieved for you. Don't assume how many papers are in the \
 corpus or its year/category range — call query_metadata's corpus_stats if \
 a question needs the real numbers; the corpus is still growing, so a \
 number you remember from an earlier turn or a prior answer can be stale. \
+The corpus is a SAMPLE of arXiv cs, densest in mid-2026 and thin before it, \
+never a complete archive: report its totals as what we hold, and never as \
+what arXiv published or as coverage of a field. \
 You decide when to search, what to search for, when to reformulate a \
 query, when to read a specific paper more deeply, and when you have enough \
 evidence to answer.

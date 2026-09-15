@@ -134,7 +134,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/trends": {
+    "/api/coverage": {
         parameters: {
             query?: never;
             header?: never;
@@ -142,10 +142,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Trends
-         * @description The dashboard's growth chart — papers and references per month.
+         * Get Coverage
+         * @description How much of each month we hold — the provenance panel's whole input.
          */
-        get: operations["get_trends_api_trends_get"];
+        get: operations["get_coverage_api_coverage_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -200,21 +200,46 @@ export interface components {
         };
         /**
          * CohortStats
-         * @description The four numbers the page opens with, each derived, none configured.
+         * @description What the page opens with: the cohort it counted, and how complete it is.
+         *
+         *     There is no "window" here any more, and that is the point. The window was
+         *     `min/max(citing id-month)`, which 261 old seed papers (1.5% of the citing
+         *     side) stretched from two months to nineteen years, and every sentence
+         *     hanging off it then claimed we hold "every cs paper arXiv posted" across
+         *     that span. We hold 94% of July 2026, 49% of August, 5% of September and
+         *     under 2% of everything else.
+         *
+         *     So the cohort is stated as what it is, with its own denominator beside it:
+         *     `cohort_catalog_papers` is what the catalog lists for those same months
+         *     (`catalog_months`), and it is None when the snapshot is older than the
+         *     cohort and therefore cannot answer. `corpus_papers` is every paper we
+         *     hold, so the page can say what the rest of the corpus is instead of
+         *     implying the cohort is all of it.
          */
         CohortStats: {
-            /** Window Start */
-            window_start: string | null;
-            /** Window End */
-            window_end: string | null;
-            /** Papers In Window */
-            papers_in_window: number;
+            /** Cohort Start */
+            cohort_start: string | null;
+            /** Cohort End */
+            cohort_end: string | null;
+            /** Cohort Papers */
+            cohort_papers: number;
+            /** Cohort Catalog Papers */
+            cohort_catalog_papers: number | null;
+            /** Corpus Papers */
+            corpus_papers: number;
+            /** Papers Parsed */
+            papers_parsed: number;
             /** Papers With References */
             papers_with_references: number;
             /** Citations */
             citations: number;
             /** Cited Works */
             cited_works: number;
+        };
+        /** CoverageResponse */
+        CoverageResponse: {
+            /** Months */
+            months: components["schemas"]["MonthBucket"][];
         };
         /** FacetBucketOut */
         FacetBucketOut: {
@@ -328,17 +353,32 @@ export interface components {
         };
         /**
          * MonthBucket
-         * @description One calendar month of corpus growth. Counts, not lists, so no
-         *     indexed restriction (same posture as CohortStats): papers_added counts
-         *     every catalog row, refs_made every extracted edge.
+         * @description One id-month of the corpus, against what arXiv posted that month.
+         *
+         *     `catalog_papers` is the whole reason this shape exists. Bar heights of
+         *     what we hold, with no denominator, said "19 papers in October 2025" on a
+         *     page about what CS is building on, and a reader takes that as a fact about
+         *     October rather than about our download schedule. It is None when the
+         *     catalog snapshot cannot answer for that month (it lists fewer papers than
+         *     we hold, i.e. the snapshot predates the month) — unknown is printable,
+         *     a wrong denominator is not.
+         *
+         *     Keyed by ID-MONTH, not by `published`: the census counts id-months, and
+         *     the two disagree by 383 papers for July 2026 alone (arXiv announces a
+         *     late-June submission with a 2607 id), which would put the numerator and
+         *     denominator of the same bar on different axes.
          */
         MonthBucket: {
             /** Month */
             month: string;
-            /** Papers Added */
-            papers_added: number;
+            /** Papers Held */
+            papers_held: number;
+            /** Papers Parsed */
+            papers_parsed: number;
             /** Refs Made */
             refs_made: number;
+            /** Catalog Papers */
+            catalog_papers: number | null;
         };
         /** PaperDetailResponse */
         PaperDetailResponse: {
@@ -410,11 +450,6 @@ export interface components {
             next_cursor: string | null;
             /** Total */
             total: number | null;
-        };
-        /** TrendsResponse */
-        TrendsResponse: {
-            /** Months */
-            months: components["schemas"]["MonthBucket"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -671,7 +706,7 @@ export interface operations {
             };
         };
     };
-    get_trends_api_trends_get: {
+    get_coverage_api_coverage_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -686,7 +721,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TrendsResponse"];
+                    "application/json": components["schemas"]["CoverageResponse"];
                 };
             };
         };

@@ -809,12 +809,25 @@ is why the scope is affordable and how counts relate to lists.
 
 **Amendment (2026-09-13, home-as-dashboard).** The front door keeps its
 composition and gains two sections, both fed by `routes_landing.py` under the
-same rule: `GET /api/trends` (papers and references per calendar month —
-counts, so honest totals with no indexed restriction) and `GET /api/latest`
-(newest papers — a list, so `INDEXED_PREDICATE`-restricted; fresh but
-unindexed papers appear on their own once the index run covers them). No new
-route: the dashboard IS `/`, which is why the amendment lives here and not
-in §4c.
+same rule: `GET /api/coverage` (per id-month holdings — counts, so honest
+totals with no indexed restriction) and `GET /api/latest` (newest papers — a
+list, so `INDEXED_PREDICATE`-restricted; fresh but unindexed papers appear on
+their own once the index run covers them). No new route: the dashboard IS `/`,
+which is why the amendment lives here and not in §4c.
+
+**Amendment (2026-09-15, count-vs-claim rule).** The count-vs-list rule above
+governs what the API may OFFER. It says nothing about what the page may
+CLAIM, and the page overclaimed: "we pulled every cs paper arXiv posted in
+the window", where the window was `min/max(citing id-month)` and the real
+coverage was 94% of July 2026, 49% of August, 5% of September. So the rule
+gains a second half: **every count is a count of what we hold, and any
+sentence that turns one into a claim about the literature carries the
+catalog's own denominator beside it.** `catalog_months` (from
+`ingest/kaggle_seed.count_cs_papers_by_id_month`) is that denominator;
+`papers.has_text` is the parse rate's; the "window" becomes a cohort derived
+by a stated rule (`landing_cohort_min_share`). A denominator the snapshot
+cannot supply is reported as unknown, never borrowed. See DECISIONS.md
+2026-09-15.
 
 **Revisit when.** A breadth tier lands (abstract-level index over all cs
 history). A paper matched at abstract level *cannot be quoted* — we hold no
@@ -1065,7 +1078,7 @@ rags/
 │   │   ├── api/
 │   │   │   ├── app.py               # FastAPI assembly: routers, CORS, lifespan (opens stores once), static admin
 │   │   │   ├── routes_explorer.py   # GET /api/papers, /api/papers/{id}, /api/facets — browse/filter/search
-│   │   │   ├── routes_landing.py    # GET /api/landing, /api/foundations/{id} — the citation graph the front door ranks (D16 amendment)
+│   │   │   ├── routes_landing.py    # GET /api/landing, /api/foundations/{id}, /api/latest, /api/coverage — the citation graph the front door ranks (D16 amendment)
 │   │   │   ├── routes_chat.py       # POST /api/chat — budget gate → agent loop → SSE stream; replay mode when capped
 │   │   │   ├── routes_admin.py      # GET /admin — basic-auth spend/trace dashboard (D13)
 │   │   │   └── sse_events.py        # the SSE event vocabulary: thinking|tool_call|tool_result_summary|ui_action|text|cost|done — single source, mirrored by frontend lib/sse.ts
@@ -1088,7 +1101,7 @@ rags/
 │   │   │   ├── fts.py               # FTS5/BM25 query construction and escaping
 │   │   │   └── embeddings.py        # embedding API client, one function for corpus batch + query single (D5)
 │   │   ├── ingest/
-│   │   │   ├── kaggle_seed.py       # streaming reader for corpus/archive.zip — one member name, two consumers
+│   │   │   ├── kaggle_seed.py       # streaming reader for corpus/archive.zip — one member name; targeted lookups + the per-month cs census
 │   │   │   ├── extract_citations.py # corpus/text/**/*.txt → citations.tsv (the landing page's every number)
 │   │   │   ├── resolve_cited_works.py # citations.tsv + archive.zip → cited_works.jsonl (works we cite but do not hold)
 │   │   │   ├── select_frontier.py   # THE MANIFEST: citations.tsv → frontier.json; also `--verify` (D16 amendment)
@@ -1129,10 +1142,11 @@ rags/
 │   │   └── globals.css              # Tailwind v4 entry + design tokens
 │   ├── components/
 │   │   ├── landing/
-│   │   │   ├── hero-stats.tsx       # the four counted facts + the window, derived from the graph
+│   │   │   ├── hero-stats.tsx       # the four counted facts + the cohort and its catalog share, derived from the graph
 │   │   │   ├── foundations-table.tsx # the ranking that survives a rerun — counts, no clustering
 │   │   │   ├── foundation-detail.tsx # the evidence: co-cited works + the INDEXED citers ("8 of 1,174", D16)
-│   │   │   └── methods-note.tsx     # how the numbers are made, and what they are not
+│   │   │   ├── methods-note.tsx     # how the numbers are made, and what they are not
+│   │   │   └── holdings-chart.tsx   # how much of each month we hold, against the catalog's own count (D16 amendment 2026-09-15)
 │   │   ├── explorer/
 │   │   │   ├── paper-table.tsx      # TanStack Table + Virtual over /api/papers; row click → viewer store
 │   │   │   ├── facet-filters.tsx    # category/year/facet controls; writes viewer store filter state

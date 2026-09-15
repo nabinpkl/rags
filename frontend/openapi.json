@@ -479,18 +479,18 @@
                 }
             }
         },
-        "/api/trends": {
+        "/api/coverage": {
             "get": {
-                "summary": "Get Trends",
-                "description": "The dashboard's growth chart \u2014 papers and references per month.",
-                "operationId": "get_trends_api_trends_get",
+                "summary": "Get Coverage",
+                "description": "How much of each month we hold \u2014 the provenance panel's whole input.",
+                "operationId": "get_coverage_api_coverage_get",
                 "responses": {
                     "200": {
                         "description": "Successful Response",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/TrendsResponse"
+                                    "$ref": "#/components/schemas/CoverageResponse"
                                 }
                             }
                         }
@@ -638,7 +638,7 @@
             },
             "CohortStats": {
                 "properties": {
-                    "window_start": {
+                    "cohort_start": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -647,9 +647,9 @@
                                 "type": "null"
                             }
                         ],
-                        "title": "Window Start"
+                        "title": "Cohort Start"
                     },
-                    "window_end": {
+                    "cohort_end": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -658,11 +658,30 @@
                                 "type": "null"
                             }
                         ],
-                        "title": "Window End"
+                        "title": "Cohort End"
                     },
-                    "papers_in_window": {
+                    "cohort_papers": {
                         "type": "integer",
-                        "title": "Papers In Window"
+                        "title": "Cohort Papers"
+                    },
+                    "cohort_catalog_papers": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Cohort Catalog Papers"
+                    },
+                    "corpus_papers": {
+                        "type": "integer",
+                        "title": "Corpus Papers"
+                    },
+                    "papers_parsed": {
+                        "type": "integer",
+                        "title": "Papers Parsed"
                     },
                     "papers_with_references": {
                         "type": "integer",
@@ -679,15 +698,34 @@
                 },
                 "type": "object",
                 "required": [
-                    "window_start",
-                    "window_end",
-                    "papers_in_window",
+                    "cohort_start",
+                    "cohort_end",
+                    "cohort_papers",
+                    "cohort_catalog_papers",
+                    "corpus_papers",
+                    "papers_parsed",
                     "papers_with_references",
                     "citations",
                     "cited_works"
                 ],
                 "title": "CohortStats",
-                "description": "The four numbers the page opens with, each derived, none configured."
+                "description": "What the page opens with: the cohort it counted, and how complete it is.\n\nThere is no \"window\" here any more, and that is the point. The window was\n`min/max(citing id-month)`, which 261 old seed papers (1.5% of the citing\nside) stretched from two months to nineteen years, and every sentence\nhanging off it then claimed we hold \"every cs paper arXiv posted\" across\nthat span. We hold 94% of July 2026, 49% of August, 5% of September and\nunder 2% of everything else.\n\nSo the cohort is stated as what it is, with its own denominator beside it:\n`cohort_catalog_papers` is what the catalog lists for those same months\n(`catalog_months`), and it is None when the snapshot is older than the\ncohort and therefore cannot answer. `corpus_papers` is every paper we\nhold, so the page can say what the rest of the corpus is instead of\nimplying the cohort is all of it."
+            },
+            "CoverageResponse": {
+                "properties": {
+                    "months": {
+                        "items": {
+                            "$ref": "#/components/schemas/MonthBucket"
+                        },
+                        "type": "array",
+                        "title": "Months"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "months"
+                ],
+                "title": "CoverageResponse"
             },
             "FacetBucketOut": {
                 "properties": {
@@ -1048,23 +1086,40 @@
                         "type": "string",
                         "title": "Month"
                     },
-                    "papers_added": {
+                    "papers_held": {
                         "type": "integer",
-                        "title": "Papers Added"
+                        "title": "Papers Held"
+                    },
+                    "papers_parsed": {
+                        "type": "integer",
+                        "title": "Papers Parsed"
                     },
                     "refs_made": {
                         "type": "integer",
                         "title": "Refs Made"
+                    },
+                    "catalog_papers": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Catalog Papers"
                     }
                 },
                 "type": "object",
                 "required": [
                     "month",
-                    "papers_added",
-                    "refs_made"
+                    "papers_held",
+                    "papers_parsed",
+                    "refs_made",
+                    "catalog_papers"
                 ],
                 "title": "MonthBucket",
-                "description": "One calendar month of corpus growth. Counts, not lists, so no\nindexed restriction (same posture as CohortStats): papers_added counts\nevery catalog row, refs_made every extracted edge."
+                "description": "One id-month of the corpus, against what arXiv posted that month.\n\n`catalog_papers` is the whole reason this shape exists. Bar heights of\nwhat we hold, with no denominator, said \"19 papers in October 2025\" on a\npage about what CS is building on, and a reader takes that as a fact about\nOctober rather than about our download schedule. It is None when the\ncatalog snapshot cannot answer for that month (it lists fewer papers than\nwe hold, i.e. the snapshot predates the month) \u2014 unknown is printable,\na wrong denominator is not.\n\nKeyed by ID-MONTH, not by `published`: the census counts id-months, and\nthe two disagree by 383 papers for July 2026 alone (arXiv announces a\nlate-June submission with a 2607 id), which would put the numerator and\ndenominator of the same bar on different axes."
             },
             "PaperDetailResponse": {
                 "properties": {
@@ -1335,22 +1390,6 @@
                     "total"
                 ],
                 "title": "PapersResponse"
-            },
-            "TrendsResponse": {
-                "properties": {
-                    "months": {
-                        "items": {
-                            "$ref": "#/components/schemas/MonthBucket"
-                        },
-                        "type": "array",
-                        "title": "Months"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "months"
-                ],
-                "title": "TrendsResponse"
             },
             "ValidationError": {
                 "properties": {

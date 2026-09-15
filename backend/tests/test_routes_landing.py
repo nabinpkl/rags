@@ -11,7 +11,7 @@ from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
 from askrag.ingest.resolve_cited_works import CitedWorkRow
 
 
-def _paper(arxiv_id: str, title: str, cats: str = "cs.CL") -> PaperRow:
+def _paper(arxiv_id: str, title: str, cats: str = "cs.CL", *, has_text: bool = True) -> PaperRow:
     return PaperRow(
         arxiv_id=arxiv_id,
         title=title,
@@ -27,16 +27,24 @@ def _paper(arxiv_id: str, title: str, cats: str = "cs.CL") -> PaperRow:
         author_novelty=None,
         revisions=None,
         venue_rigor=None,
+        has_text=has_text,
     )
 
 
-# Three citers in the window. 2608.00003 is deliberately NOT indexed: it has no
-# chunks row, so it must be counted and never listed.
+# Three citers in the cohort month. 2608.00003 is deliberately NOT indexed: it
+# has no chunks row, so it must be counted and never listed. 1506.00001 is the
+# rest of the corpus: a paper from the collector's older sample that we never
+# extracted text from, so it was never offered to the reference parser.
 PAPERS = [
     _paper("2608.00001", "Indexed citer one"),
     _paper("2608.00002", "Indexed citer two"),
     _paper("2608.00003", "Unindexed citer"),
+    _paper("1506.00001", "Older sampled paper", has_text=False),
 ]
+# The catalog census: how many cs papers arXiv posted in those id-months. We
+# hold 3 of the 10 in 2608 and 1 of the 900 in 1506, which is the whole point
+# of the table — neither number is stateable without it.
+CATALOG_MONTHS = {"2608": 10, "1506": 900}
 CHUNKS = [
     ChunkRow("2608.00001#0", "2608.00001", "__paper__", 1, 1, "reinforcement learning", 3),
     ChunkRow("2608.00002#0", "2608.00002", "__paper__", 1, 1, "policy optimization", 3),
@@ -56,14 +64,13 @@ CITATIONS = [
 ]
 
 
-@pytest.fixture
-def client(tmp_path):
-    corpus_db = tmp_path / "corpus.db"
-    _write_corpus_db(corpus_db, PAPERS, CHUNKS, CITED_WORKS, CITATIONS)
+def _client_for(tmp_path, **overrides) -> TestClient:
+    """A client over the corpus.db already written into `tmp_path`."""
     settings = Settings(
         traces_db_path=tmp_path / "traces.db",
         corpus_dir=tmp_path,
         _env_file=None,  # ty: ignore[unknown-argument]
+        **overrides,
     )
     app = FastAPI()
     app.include_router(routes_landing.router)
@@ -71,13 +78,26 @@ def client(tmp_path):
     return TestClient(app)
 
 
+@pytest.fixture
+def client(tmp_path):
+    corpus_db = tmp_path / "corpus.db"
+    _write_corpus_db(corpus_db, PAPERS, CHUNKS, CITED_WORKS, CITATIONS, CATALOG_MONTHS)
+    return _client_for(tmp_path)
+
+
 def test_landing_stats_are_derived_from_the_graph(client):
     stats = client.get("/api/landing").json()["stats"]
 
-    # The window is the id-month span of the CITING side — not a date written
-    # down anywhere, so it cannot disagree with the data.
-    assert (stats["window_start"], stats["window_end"]) == ("2608", "2608")
-    assert stats["papers_in_window"] == 3
+    # The cohort is the id-months the parsed papers actually came from, and it
+    # carries the catalog's own count for those months: the page can say "3 of
+    # 10", never "every cs paper arXiv posted".
+    assert (stats["cohort_start"], stats["cohort_end"]) == ("2608", "2608")
+    assert stats["cohort_papers"] == 3
+    assert stats["cohort_catalog_papers"] == 10
+    # The rest of the corpus is stated separately, not folded into the cohort.
+    assert stats["corpus_papers"] == 4
+    # THE parse-rate denominator: 3 papers reached the parser, not 4.
+    assert stats["papers_parsed"] == 3
     assert stats["papers_with_references"] == 3
     assert stats["citations"] == 6
     assert stats["cited_works"] == 3
@@ -153,7 +173,7 @@ def test_unknown_foundation_is_404(client):
 def test_scope_is_the_indexed_citers_plus_the_work_itself(tmp_path):
     """The ask surface's scope: server-resolved, never model-authored."""
     corpus_db = tmp_path / "corpus.db"
-    _write_corpus_db(corpus_db, PAPERS, CHUNKS, CITED_WORKS, CITATIONS)
+    _write_corpus_db(corpus_db, PAPERS, CHUNKS, CITED_WORKS, CITATIONS, CATALOG_MONTHS)
     conn = db.connect_corpus(corpus_db)
     try:
         scope = routes_landing.scope_paper_ids(conn, "1707.06347")
@@ -225,7 +245,7 @@ def test_landing_limit_defaults_to_the_frontier_manifest(tmp_path):
     disagreed would hide foundations whose papers were fetched and embedded.
     """
     corpus_db = tmp_path / "corpus.db"
-    _write_corpus_db(corpus_db, PAPERS, CHUNKS, CITED_WORKS, CITATIONS)
+    _write_corpus_db(corpus_db, PAPERS, CHUNKS, CITED_WORKS, CITATIONS, CATALOG_MONTHS)
     settings = Settings(
         traces_db_path=tmp_path / "traces.db",
         corpus_dir=tmp_path,
@@ -299,10 +319,57 @@ def test_latest_limit_caps_the_list(client):
     assert [p["arxiv_id"] for p in papers] == ["2608.00002"]
 
 
-def test_trends_counts_every_paper_and_edge_by_month(client):
-    """Growth chart data. Counts are honest totals (CohortStats posture):
-    all three papers and all six edges land in the one fixture month,
-    indexed or not."""
-    months = client.get("/api/trends").json()["months"]
+def test_coverage_states_what_we_hold_against_what_arxiv_posted(client):
+    """The provenance panel's input. Counts are honest totals (CohortStats
+    posture): every paper and edge lands in its id-month, indexed or not, and
+    each month carries the catalog's own total so a bar cannot be read as a
+    fact about the month rather than about our collection."""
+    months = client.get("/api/coverage").json()["months"]
 
-    assert months == [{"month": "2026-01", "papers_added": 3, "refs_made": 6}]
+    assert months == [
+        {
+            "month": "1506",
+            "papers_held": 1,
+            "papers_parsed": 0,
+            "refs_made": 0,
+            "catalog_papers": 900,
+        },
+        {
+            "month": "2608",
+            "papers_held": 3,
+            "papers_parsed": 3,
+            "refs_made": 6,
+            "catalog_papers": 10,
+        },
+    ]
+
+
+def test_a_census_below_our_holdings_reports_unknown_not_over_100_percent(tmp_path):
+    """A snapshot older than the month it is asked about cannot be its
+    denominator. Unknown is printable; 233 of 0 is not."""
+    corpus_db = tmp_path / "corpus.db"
+    _write_corpus_db(corpus_db, PAPERS, CHUNKS, CITED_WORKS, CITATIONS, {"2608": 2})
+    client = _client_for(tmp_path)
+
+    (month,) = [m for m in client.get("/api/coverage").json()["months"] if m["month"] == "2608"]
+    assert month["papers_held"] == 3
+    assert month["catalog_papers"] is None
+    assert client.get("/api/landing").json()["stats"]["cohort_catalog_papers"] is None
+
+
+def test_a_stray_older_citer_does_not_widen_the_cohort(tmp_path):
+    """THE bug the cohort rule replaces: the window was min/max of the citing
+    id-month, so 261 stray seed papers (1.5% of the citing side) stretched the
+    page's claim from two months to nineteen years."""
+    corpus_db = tmp_path / "corpus.db"
+    papers = [*PAPERS, _paper("1206.00001", "A stray old citer")]
+    citations = [*CITATIONS, ("1206.00001", "1707.06347")]
+    _write_corpus_db(corpus_db, papers, CHUNKS, CITED_WORKS, citations, CATALOG_MONTHS)
+    # 1 stray of 4 parsed papers is 25%, so the threshold has to exclude it
+    # explicitly here; against the real graph the same stray months sit at
+    # 0.24% and below against a 1% floor.
+    client = _client_for(tmp_path, landing_cohort_min_share=0.3)
+
+    stats = client.get("/api/landing").json()["stats"]
+    assert (stats["cohort_start"], stats["cohort_end"]) == ("2608", "2608")
+    assert stats["papers_with_references"] == 4  # the stray is still counted

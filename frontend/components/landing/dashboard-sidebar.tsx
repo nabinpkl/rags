@@ -31,12 +31,12 @@ export const SECTION_IDS: readonly string[] = SECTIONS.map((section) => section.
  */
 export function DashboardSidebar({
   active,
-  windowLabel,
+  cohortLabel,
   onNavigate,
 }: {
   /** Section id the reader is currently looking at, from scroll position. */
   active: string | null;
-  windowLabel: string | null;
+  cohortLabel: string | null;
   onNavigate: (id: string) => void;
 }) {
   return (
@@ -98,14 +98,18 @@ export function DashboardSidebar({
           is the top bar's one button — spelling it here too would make the
           rail and the bar compete for the same click. */}
       <dl className="border-line shrink-0 border-t px-4 py-3.5">
-        <dt className="text-muted font-mono text-[9.5px] tracking-[0.14em] uppercase">Window</dt>
+        {/* "Cohort", not "Window": the months the counted papers came from.
+            Labelled Window, and derived as the min/max citing id-month, it
+            read Nov 2007 - Sep 2026 because 261 stray seed papers had parsed
+            references, and the page then claimed all of it. */}
+        <dt className="text-muted font-mono text-[9.5px] tracking-[0.14em] uppercase">Cohort</dt>
         <dd className="text-ink mt-1 font-mono text-[11.5px] tabular-nums">
-          {windowLabel ?? "not yet counted"}
+          {cohortLabel ?? "not yet counted"}
         </dd>
         <dt className="text-muted mt-3 font-mono text-[9.5px] tracking-[0.14em] uppercase">
           Source
         </dt>
-        <dd className="text-ink mt-1 font-mono text-[11.5px]">arXiv cs, parsed references</dd>
+        <dd className="text-ink mt-1 font-mono text-[11.5px]">arXiv cs sample, parsed references</dd>
       </dl>
     </div>
   );

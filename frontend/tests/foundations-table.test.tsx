@@ -5,9 +5,12 @@ import { FoundationsTable } from "@/components/landing/foundations-table";
 import type { Foundation, LandingResponse } from "@/lib/api-client";
 
 const STATS: LandingResponse["stats"] = {
-  window_start: "2607",
-  window_end: "2608",
-  papers_in_window: 18844,
+  cohort_start: "2607",
+  cohort_end: "2608",
+  cohort_papers: 19380,
+  cohort_catalog_papers: 27507,
+  corpus_papers: 57206,
+  papers_parsed: 18844,
   papers_with_references: 15905,
   citations: 162792,
   cited_works: 63457,
@@ -89,7 +92,7 @@ describe("FoundationsTable", () => {
   it("names the denominator the ranking is against", () => {
     render(<FoundationsTable stats={STATS} foundations={FOUNDATIONS} onSelect={vi.fn()} />);
 
-    expect(screen.getByText(/15,905 recent papers cite them/)).toBeInTheDocument();
+    expect(screen.getByText(/15,905 papers we parsed cite them/)).toBeInTheDocument();
     expect(screen.getByText(/top 3 of 63,457 cited works/)).toBeInTheDocument();
   });
 });

@@ -16,8 +16,12 @@ export function MethodsNote({
   stats: LandingResponse["stats"];
   citedYears: LandingResponse["cited_years"];
 }) {
-  const parseRate = stats.papers_in_window
-    ? Math.round((stats.papers_with_references / stats.papers_in_window) * 100)
+  // Over papers whose text reached the parser, NEVER over every catalog row:
+  // the second denominator printed a 30% parse rate for a parser that yields
+  // 81%, and then blamed the missing 70% on reference lists that "did not
+  // parse" when those papers had never been collected at all.
+  const parseRate = stats.papers_parsed
+    ? Math.round((stats.papers_with_references / stats.papers_parsed) * 100)
     : 0;
   // An empty graph is a real state (a corpus built before extract_citations
   // ran). Keep the raw total to detect it, and guard the divisor separately —
@@ -28,24 +32,24 @@ export function MethodsNote({
   // into the sentence below.
   const recent = citedYears.filter((bucket) => bucket.year !== null && bucket.year >= 2020);
   const max = Math.max(...recent.map((bucket) => bucket.citations), 1);
-  // The claim worth making is against the WINDOW's own year, not a round
+  // The claim worth making is against the COHORT's own year, not a round
   // number: 82% of this cohort's citations point at work published before the
   // year the cohort itself was written in. Undated works count as older.
-  const windowYear = stats.window_end ? 2000 + Number(stats.window_end.slice(0, 2)) : null;
-  const beforeWindowYear = windowYear
+  const cohortYear = stats.cohort_end ? 2000 + Number(stats.cohort_end.slice(0, 2)) : null;
+  const beforeCohortYear = cohortYear
     ? citedYears
-        .filter((bucket) => bucket.year === null || bucket.year < windowYear)
+        .filter((bucket) => bucket.year === null || bucket.year < cohortYear)
         .reduce((sum, bucket) => sum + bucket.citations, 0)
     : 0;
 
   const steps = [
     {
       title: "1 · collect",
-      body: `Every cs paper in the window's id-months, mirrored from Google's arXiv bucket. ${stats.papers_in_window.toLocaleString()} PDFs, text extracted locally, PDFs discarded.`,
+      body: `cs papers from the cohort's id-months, mirrored from Google's arXiv bucket: a large sample of those months, not all of them. ${stats.papers_parsed.toLocaleString()} PDFs fetched and text-extracted in all, older works the cohort cites included; the PDFs are then discarded.`,
     },
     {
       title: "2 · parse",
-      body: `arXiv ids pulled out of each reference list by pattern. ${stats.papers_with_references.toLocaleString()} of ${stats.papers_in_window.toLocaleString()} papers yielded a usable list — ${parseRate}%.`,
+      body: `arXiv ids pulled out of each reference list by pattern. ${stats.papers_with_references.toLocaleString()} of the ${stats.papers_parsed.toLocaleString()} papers we extracted text from yielded a usable list — ${parseRate}%.`,
     },
     {
       title: "3 · count",
@@ -85,11 +89,11 @@ export function MethodsNote({
           ))}
         </div>
         <p className="text-muted mt-3 text-[13px] leading-relaxed">
-          {windowYear && placeable ? (
+          {cohortYear && placeable ? (
             <>
-              {Math.round((beforeWindowYear / total) * 100)}% of these citations point at work
-              published before {windowYear}. The newest work is not built only on the newest work,
-              which is why a two-month window can say something about more than two months.
+              {Math.round((beforeCohortYear / total) * 100)}% of these citations point at work
+              published before {cohortYear}. The newest work is not built only on the newest work,
+              which is why a few months of papers can say something about more than a few months.
             </>
           ) : (
             "No citations to place in time yet."
@@ -115,12 +119,15 @@ export function MethodsNote({
         </div>
 
         <div className="bg-paper border-l-rust mt-auto border-l-[3px] px-3.5 py-2.5 text-[13px] leading-relaxed">
-          <b className="text-rust">What this is not.</b> It is not a citation count — it is a count
-          within one window of arXiv cs, so it measures what is being built on <i>now</i>, not what
-          is important overall. Papers whose reference lists did not parse ({100 - parseRate}%) are
-          missing entirely. Grouping papers into named themes is deliberately absent: on this data,
-          two runs of the same clustering agree on only 43–61% of pairs, so any theme label would be
-          a claim about our code rather than about the literature.
+          <b className="text-rust">What this is not.</b> It is not a citation count, and it is not a
+          census: it is a count over a sample of recent arXiv cs, so it measures what{" "}
+          <i>these</i> papers build on, not what is important overall. Of the papers we did collect,
+          the {100 - parseRate}% whose reference lists did not parse are missing entirely, and the
+          wider corpus ({stats.corpus_papers.toLocaleString()} papers) is thin outside the cohort:
+          a few per month from an earlier sample, plus the older works this cohort cites. Grouping
+          papers into named themes is deliberately absent: on this data, two runs of the same
+          clustering agree on only 43–61% of pairs, so any theme label would be a claim about our
+          code rather than about the literature.
         </div>
       </DashboardPanel>
     </div>
