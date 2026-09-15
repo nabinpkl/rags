@@ -53,3 +53,45 @@ def test_a_dry_run_touches_neither_network_nor_store(tmp_path, monkeypatch, caps
     report = capsys.readouterr().err
     assert "2 ids requested, 1 already ingested, 1 to fetch" in report
     assert FakeConn.closed
+
+
+def test_downloads_through_the_real_download_pdf_signature(tmp_path, monkeypatch, capsys):
+    """The fetch path calls arxiv_ingest.download_pdf, and drift there is silent.
+
+    D18 dropped its `pace` keyword and updated every call site inside
+    arxiv_ingest.py, but not this one; the dry-run test's stub took **kwargs,
+    so nothing failed until a frontier rebuild had a paper to fetch and died
+    on TypeError. The stub below carries the REAL signature for that reason.
+    """
+    pdf = tmp_path / "pdfs" / "2505.09388.pdf"
+    pdf.parent.mkdir(parents=True)
+    pdf.write_bytes(b"%PDF-1.7 fixture")
+    stored: list[dict] = []
+
+    class FakeConn:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(fetch_ids.ai, "CORPUS_DIR", tmp_path)
+    monkeypatch.setattr(fetch_ids.ai, "connect", lambda: FakeConn())
+    monkeypatch.setattr(fetch_ids.ai, "already_ingested", lambda conn, aid: False)
+    monkeypatch.setattr(
+        fetch_ids.ai,
+        "seed_records",
+        lambda path: iter(
+            [{"arxiv_id": "2505.09388", "title": "Qwen3 Technical Report", "version": "v1"}]
+        ),
+    )
+    monkeypatch.setattr(fetch_ids.ai, "thread_session", lambda: object())
+    monkeypatch.setattr(fetch_ids.ai, "upsert_paper", lambda conn, rec: stored.append(rec))
+
+    def download_pdf(session, arxiv_id, url):  # the real signature, positionally
+        assert url.endswith("2505.09388v1.pdf")
+        return pdf
+
+    monkeypatch.setattr(fetch_ids.ai, "download_pdf", download_pdf)
+
+    assert fetch_ids.fetch(["2505.09388"], concurrency=1, dry_run=False) == 0
+    assert [rec["arxiv_id"] for rec in stored] == ["2505.09388"]
+    assert stored[0]["pdf_path"] == "pdfs/2505.09388.pdf"
+    assert "stored 1 of 1" in capsys.readouterr().err
