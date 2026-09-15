@@ -95,3 +95,60 @@ def test_downloads_through_the_real_download_pdf_signature(tmp_path, monkeypatch
     assert [rec["arxiv_id"] for rec in stored] == ["2505.09388"]
     assert stored[0]["pdf_path"] == "pdfs/2505.09388.pdf"
     assert "stored 1 of 1" in capsys.readouterr().err
+
+
+def test_falls_back_to_the_newest_version_the_mirror_actually_carries(
+    tmp_path, monkeypatch, capsys
+):
+    """The snapshot pins the paper's latest version; the mirror lags it.
+
+    Measured on the July/August top-up: 262 of 1,355 ids had no PDF at the
+    pinned version, 205 of them at v2. The paper is on the mirror, one
+    version back, and the stored version has to be the one we hold because
+    the UI version-pins its arxiv.org links (§6b).
+    """
+    pdf = tmp_path / "pdfs" / "2608.31115.pdf"
+    pdf.parent.mkdir(parents=True)
+    pdf.write_bytes(b"%PDF-1.7 fixture")
+    stored: list[dict] = []
+    listings: list[str] = []
+
+    class FakeConn:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(fetch_ids, "_month_versions", {})
+    monkeypatch.setattr(fetch_ids.ai, "CORPUS_DIR", tmp_path)
+    monkeypatch.setattr(fetch_ids.ai, "connect", lambda: FakeConn())
+    monkeypatch.setattr(fetch_ids.ai, "already_ingested", lambda conn, aid: False)
+    monkeypatch.setattr(
+        fetch_ids.ai,
+        "seed_records",
+        lambda path, **kw: iter(
+            [
+                {"arxiv_id": "2608.31115", "title": "Revised twice", "version": "v2"},
+                {"arxiv_id": "2608.31116", "title": "Never mirrored", "version": "v1"},
+            ]
+        ),
+    )
+    monkeypatch.setattr(fetch_ids.ai, "thread_session", lambda: object())
+    monkeypatch.setattr(fetch_ids.ai, "upsert_paper", lambda conn, rec: stored.append(rec))
+
+    def month_objects(session, yymm):
+        listings.append(yymm)
+        return iter([("2608.31115", 1, 1024)])
+
+    monkeypatch.setattr(fetch_ids.ai, "gcs_month_objects", month_objects)
+
+    def download_pdf(session, arxiv_id, url):
+        return pdf if url.endswith("2608.31115v1.pdf") else None
+
+    monkeypatch.setattr(fetch_ids.ai, "download_pdf", download_pdf)
+
+    assert fetch_ids.fetch(["2608.31115", "2608.31116"], concurrency=2, dry_run=False) == 0
+
+    assert [(rec["arxiv_id"], rec["version"]) for rec in stored] == [("2608.31115", "v1")]
+    # One listing for the month, however many ids missed in it.
+    assert listings == ["2608"]
+    err = capsys.readouterr().err
+    assert "no PDF on the mirror for 2608.31116" in err
