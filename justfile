@@ -40,6 +40,10 @@ backfill *ARGS:
 status *ARGS:
     @just --justfile {{collector}} {{ARGS}} status
 
+# Has a new GCS mirror batch landed since our last run? (listing only)
+mirror-status *ARGS:
+    @just --justfile {{collector}} {{ARGS}} mirror-status
+
 # Backend gate before any handoff: lint, format, types (ty), fast tests
 backend-check:
     cd backend && uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest -q

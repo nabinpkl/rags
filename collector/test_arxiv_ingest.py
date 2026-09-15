@@ -74,3 +74,47 @@ def test_run_without_seed_file_is_retired(monkeypatch, tmp_path):
 def test_update_command_is_retired():
     with pytest.raises(NotImplementedError, match="D18"):
         ai.main(["update", "--set", "cs"])
+
+
+# --- mirror-status: did a new batch land? (listing stubbed, no network) -------
+
+
+def _stub_mirror(monkeypatch, tmp_path, *, written: str, watermark: str):
+    """One month folder holding two PDFs of one paper, both written together."""
+    monkeypatch.setattr(ai, "gcs_months", lambda session: ["2608", "2609"])
+    monkeypatch.setattr(
+        ai,
+        "gcs_month_entries",
+        lambda session, yymm: iter(
+            [("2609.04203", 1, 1024, written), ("2609.04203", 2, 2048, written)]
+        ),
+    )
+    connect, db = ai.connect, tmp_path / "arxiv.db"
+    conn = connect(db)
+    ai.set_state(conn, "last_until", watermark)
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(ai, "connect", lambda *a, **k: connect(db))
+
+
+def test_mirror_status_reports_a_batch_written_after_the_watermark(
+    monkeypatch, tmp_path, capsys
+):
+    _stub_mirror(monkeypatch, tmp_path, written="2026-09-20T10:04:12Z",
+                 watermark="2026-09-13")
+    ai.run_mirror_status()
+    out = capsys.readouterr().out
+    assert "newest 2609" in out
+    assert "1 ids / 2 pdfs" in out          # versions are PDFs, not papers
+    assert "NEW: written after our watermark 2026-09-13" in out
+
+
+def test_mirror_status_does_not_call_a_higher_top_id_new(monkeypatch, tmp_path, capsys):
+    """The timestamp is the signal. Our store is category-filtered, so the
+    mirror's top id sits above ours on every archive, batch or no batch."""
+    _stub_mirror(monkeypatch, tmp_path, written="2026-09-06T10:04:12Z",
+                 watermark="2026-09-13")
+    ai.run_mirror_status()
+    out = capsys.readouterr().out
+    assert "nothing since our watermark 2026-09-13" in out
+    assert "NEW" not in out

@@ -8,6 +8,7 @@ since    := "2024-01-01"    # backfill start (submission date)
 max_gb   := "4"             # backfill size budget
 conc     := "8"             # parallel GCS downloads
 permonth := "3"             # papers per month for the temporal sample
+months   := "1"             # newest month folders to check in mirror-status
 
 # Friendly alias for the default path
 alias backfill := seeded-backfill
@@ -77,3 +78,9 @@ seeded-backfill:
 # Show store stats and the incremental watermark
 status:
     {{run}} arxiv_ingest.py status
+
+# Did a new GCS mirror batch land? Bucket listing only, nothing is downloaded.
+# The mirror drops in batches every 7-14 days, so this is the signal for when
+# `just frontier` + `just index` have new papers to work with.
+mirror-status:
+    {{run}} arxiv_ingest.py mirror-status --months {{months}}

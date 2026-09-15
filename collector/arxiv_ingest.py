@@ -570,8 +570,12 @@ def gcs_months(session: requests.Session) -> list[str]:
             return months
 
 
-def gcs_month_objects(session: requests.Session, yymm: str):
-    """Yield (arxiv_id, version_int, size_bytes) for every PDF in a month."""
+def gcs_month_entries(session: requests.Session, yymm: str):
+    """Yield (arxiv_id, version_int, size_bytes, written_iso) for a month folder.
+
+    `written_iso` is the object's creation time, which only `mirror-status`
+    reads: it is how a batch we have already ingested is told from a new one.
+    """
     prefix, token = f"{GCS_PDF_PREFIX}{yymm}/", None
     while True:
         params = {"prefix": prefix, "maxResults": 1000}
@@ -581,10 +585,57 @@ def gcs_month_objects(session: requests.Session, yymm: str):
         for it in d.get("items", []):
             m = _OBJ_RE.search(it["name"])
             if m:
-                yield m.group(1), int(m.group(2)), int(it.get("size", 0))
+                yield (m.group(1), int(m.group(2)), int(it.get("size", 0)),
+                       it.get("timeCreated", ""))
         token = d.get("nextPageToken")
         if not token:
             return
+
+
+def gcs_month_objects(session: requests.Session, yymm: str):
+    """Yield (arxiv_id, version_int, size_bytes) for every PDF in a month."""
+    for arxiv_id, version, size, _written in gcs_month_entries(session, yymm):
+        yield arxiv_id, version, size
+
+
+def run_mirror_status(*, months: int = 1) -> None:
+    """Has a new mirror batch landed since our last run? Listing only.
+
+    The mirror publishes in batches, not a trickle: month 2609's 4,301 PDFs
+    were all written inside 14 minutes on 2026-09-06, and the same run
+    appended late version updates into older folders. So the newest write
+    time in a folder IS the last batch that touched it, and comparing that
+    against our watermark answers the question without downloading a byte.
+
+    What this deliberately does NOT claim: that ids above ours are ours to
+    fetch. The mirror carries every archive; our store is category-filtered,
+    so a higher top id is usually a paper we were never going to hold. The
+    timestamp is the signal; the ids are context.
+    """
+    session = requests.Session()
+    folders = sorted(gcs_months(session))
+    conn = connect()
+    try:
+        watermark = get_state(conn, "last_until")
+        print(f"mirror:    {len(folders)} month folders, newest {folders[-1]}")
+        for yymm in folders[-months:]:
+            ids, pdfs, written = set(), 0, ""
+            for arxiv_id, _version, _size, created in gcs_month_entries(session, yymm):
+                ids.add(arxiv_id)
+                pdfs += 1
+                written = max(written, created)
+            ours, top = conn.execute(
+                "SELECT COUNT(*), MAX(arxiv_id) FROM papers WHERE arxiv_id LIKE ?",
+                (f"{yymm}.%",),
+            ).fetchone()
+            print(f"  {yymm}:    {len(ids)} ids / {pdfs} pdfs, "
+                  f"top {max(ids, default='(empty)')}, "
+                  f"last written {written or '(none)'}")
+            print(f"           ours: {ours} papers, top {top or '(none)'}")
+            print(f"           -> {'NEW: written after' if written[:10] > (watermark or '') else 'nothing since'}"
+                  f" our watermark {watermark or '(never run)'}")
+    finally:
+        conn.close()
 
 
 def run_latest(*, seed_file: str, category_prefix: str | None,
@@ -1306,6 +1357,13 @@ def main(argv: list[str] | None = None) -> int:
 
     st = sub.add_parser("status", help="show store stats and the incremental watermark")
 
+    ms = sub.add_parser("mirror-status",
+                        help="has a new GCS mirror batch landed? (listing only, no downloads)")
+    ms.add_argument("--months", type=int, default=1,
+                    help="how many of the newest month folders to check; a batch also "
+                         "appends late version updates into older folders, and each "
+                         "older folder is ~35k objects to list (default 1)")
+
     sub.add_parser("reorganize",
                    help="move PDFs into pdfs/{YYYY}/{MM}/ year/month folders")
 
@@ -1337,6 +1395,10 @@ def main(argv: list[str] | None = None) -> int:
                     concurrency=args.concurrency, from_year=args.from_year,
                     to_year=args.to_year, citations_file=str(cit), core_file=core,
                     weights=parse_weights(args.weights))
+        return 0
+
+    if args.cmd == "mirror-status":
+        run_mirror_status(months=args.months)
         return 0
 
     if args.cmd == "status":
