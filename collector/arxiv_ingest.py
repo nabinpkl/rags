@@ -638,6 +638,54 @@ def run_mirror_status(*, months: int = 1) -> None:
         conn.close()
 
 
+def run_missing_ids(*, seed_file: str, months: list[str], category_prefix: str,
+                    out: str | None = None) -> None:
+    """Catalog ids of these id-months that our store does not hold. Listing only.
+
+    The gap this names is a unit mismatch, not a download failure: `backfill`
+    and `latest` select by SUBMISSION date, while an arXiv id's month is its
+    ANNOUNCEMENT month. A paper submitted in June and announced in August has
+    a 2608 id and sits outside any August window, so a month pulled by date is
+    short by however many papers arrived late -- measured 871 of August 2026's
+    14,491, of which 328 survived a full August backfill.
+
+    The output is an id list for fetch_ids.py, which is the one path that
+    downloads a named set. This command does not fetch: what is missing and
+    what to do about it are separate questions, and the first one is worth
+    being able to ask on its own.
+    """
+    conn = connect()
+    try:
+        wanted = [m for m in months if _MONTH_RE.match(m)]
+        if len(wanted) != len(months):
+            raise SystemExit(f"months must be YYMM: {sorted(set(months) - set(wanted))}")
+        held = {m: {r[0] for r in conn.execute(
+            "SELECT arxiv_id FROM papers WHERE arxiv_id LIKE ?", (f"{m}.%",))} for m in wanted}
+        missing: list[str] = []
+        counts = {m: [0, 0] for m in wanted}  # catalog, missing
+        for rec in seed_records(seed_file):
+            aid = rec["arxiv_id"]
+            m = aid[:4]
+            if m not in held or not rec["categories"].startswith(category_prefix):
+                continue
+            counts[m][0] += 1
+            if aid not in held[m]:
+                counts[m][1] += 1
+                missing.append(aid)
+        for m in wanted:
+            catalog, gone = counts[m]
+            print(f"  {m}: {catalog - gone:,} of {catalog:,} held, {gone:,} missing",
+                  file=sys.stderr)
+        text = "".join(f"{aid}\n" for aid in sorted(missing))
+        if out:
+            Path(out).write_text(text, encoding="utf-8")
+            print(f"{len(missing)} ids -> {out}", file=sys.stderr)
+        else:
+            sys.stdout.write(text)
+    finally:
+        conn.close()
+
+
 def run_latest(*, seed_file: str, category_prefix: str | None,
                max_gb: float, limit: int | None, concurrency: int = 8) -> None:
     """Newest-first pull of up to max_gb, exact via GCS per-object sizes.
@@ -1364,6 +1412,16 @@ def main(argv: list[str] | None = None) -> int:
                          "appends late version updates into older folders, and each "
                          "older folder is ~35k objects to list (default 1)")
 
+    mi = sub.add_parser("missing-ids",
+                        help="catalog ids of an id-month we do not hold (listing only)")
+    mi.add_argument("--months", nargs="+", required=True, metavar="YYMM",
+                    help="id-months to check, e.g. --months 2607 2608")
+    mi.add_argument("--seed-file", default=None,
+                    help="Kaggle snapshot .zip (default: ../corpus/archive.zip)")
+    mi.add_argument("--category-prefix", default="cs",
+                    help="primary-category prefix, matching how the papers were selected")
+    mi.add_argument("--out", default=None, help="write the ids here instead of stdout")
+
     sub.add_parser("reorganize",
                    help="move PDFs into pdfs/{YYYY}/{MM}/ year/month folders")
 
@@ -1395,6 +1453,12 @@ def main(argv: list[str] | None = None) -> int:
                     concurrency=args.concurrency, from_year=args.from_year,
                     to_year=args.to_year, citations_file=str(cit), core_file=core,
                     weights=parse_weights(args.weights))
+        return 0
+
+    if args.cmd == "missing-ids":
+        run_missing_ids(seed_file=args.seed_file or str(CORPUS_DIR / "archive.zip"),
+                        months=args.months, category_prefix=args.category_prefix,
+                        out=args.out)
         return 0
 
     if args.cmd == "mirror-status":

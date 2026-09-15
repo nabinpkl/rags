@@ -10,6 +10,8 @@ max_gb   := "4"             # backfill size budget
 conc     := "8"             # parallel GCS downloads
 permonth := "3"             # papers per month for the temporal sample
 months   := "1"             # newest month folders to check in mirror-status
+idmonths := "2607 2608"     # id-months (YYMM) for missing-ids
+idsfile  := "../corpus/missing-ids.txt"   # missing-ids output / fetch-ids input
 
 # Friendly alias for the default path
 alias backfill := seeded-backfill
@@ -77,6 +79,22 @@ seeded-backfill:
         --until {{until}} \
         --max-gb {{max_gb}} \
         --concurrency {{conc}}
+
+# Which cs papers of an id-month is the catalog holding that we are not?
+# Listing only. The gap it finds is a unit mismatch: `latest` and
+# `seeded-backfill` select by SUBMISSION date, an id's month is its
+# ANNOUNCEMENT month, so a paper submitted in June and announced in August is
+# outside every August window. Feed the output to `fetch-ids`.
+missing-ids:
+    {{run}} arxiv_ingest.py missing-ids \
+        --months {{idmonths}} \
+        --seed-file {{seed}} \
+        --category-prefix cs \
+        --out {{idsfile}}
+
+# Download a NAMED list of ids (one per line, or a frontier.json manifest).
+fetch-ids:
+    {{run}} fetch_ids.py {{idsfile}} --concurrency {{conc}}
 
 # Show store stats and the incremental watermark
 status:

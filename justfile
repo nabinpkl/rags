@@ -40,6 +40,14 @@ backfill *ARGS:
 status *ARGS:
     @just --justfile {{collector}} {{ARGS}} status
 
+# Catalog ids of an id-month we do not hold (listing only; writes an id file)
+missing-ids *ARGS:
+    @just --justfile {{collector}} {{ARGS}} missing-ids
+
+# Download a named id list from the mirror (the output of `missing-ids`)
+fetch-ids *ARGS:
+    @just --justfile {{collector}} {{ARGS}} fetch-ids
+
 # Has a new GCS mirror batch landed since our last run? (listing only)
 mirror-status *ARGS:
     @just --justfile {{collector}} {{ARGS}} mirror-status
