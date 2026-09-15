@@ -106,6 +106,12 @@ class Settings(BaseSettings):
     # is displayed, not what the catalog happens to hold. Measured 2026-08-28
     # over the real graph: 133,044 -> 10,893 bytes for the top-40 page.
     landing_max_authors: int = 6
+    # An id-month joins the stated cohort when it contributed at least this
+    # share of the papers we parsed references from (routes_landing.
+    # _cohort_months). Measured 2026-09-15: 2607 gave 61%, 2608 36%, 2609
+    # 1.3%, the next month 0.24% — any value between 0.003 and 0.013 selects
+    # the same three months, which is why a threshold is tolerable at all.
+    landing_cohort_min_share: float = 0.01
 
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000

@@ -26,10 +26,11 @@ import json
 import logging
 import sqlite3
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from types import MappingProxyType
 from typing import cast
 
 import chromadb
@@ -69,6 +70,12 @@ class PaperRow:
     author_novelty: float | None
     revisions: int | None
     venue_rigor: int | None
+    # Did this paper's text reach the reference parser? The landing page's
+    # parse rate is 16,893 of the 20,733 papers we EXTRACTED TEXT FROM (81%),
+    # not of the 57,206 catalog rows we hold metadata for — quoting the
+    # second denominator turned "never collected" into "failed to parse"
+    # and printed 30% against ourselves.
+    has_text: bool = False
 
     @property
     def primary_category(self) -> str:
@@ -107,6 +114,8 @@ class BuildStats:
     chroma_count: int = 0
     cited_works: int = 0
     citations: int = 0
+    papers_with_text: int = 0
+    catalog_months: int = 0
 
 
 def _read_papers(arxiv_db: Path) -> list[PaperRow]:
@@ -165,6 +174,21 @@ def _read_chunks(chunks_path: Path) -> list[ChunkRow]:
     return chunks
 
 
+def read_extracted_text_ids(text_dir: Path) -> set[str]:
+    """Which papers we hold extracted text for, from the tree the parser read.
+
+    `extract_citations` globs this same tree, so this set IS the parser's
+    input: every paper in it was offered to the reference parser, and every
+    paper outside it never was. The page's parse rate needs that distinction
+    (`PaperRow.has_text`) — 20,733 papers have text against 57,206 catalog
+    rows, and using the catalog as the denominator reported a 30% parse rate
+    for a parser that actually yields 81%.
+    """
+    if not text_dir.exists():
+        return set()
+    return {path.stem for path in text_dir.glob("*/*.txt")}
+
+
 def read_seed_licenses(seed_zip: Path, wanted_ids: set[str]) -> dict[str, str]:
     """One streaming pass over the Kaggle snapshot -> {arxiv_id: license URL}.
 
@@ -199,6 +223,7 @@ def _write_corpus_db(
     chunks: list[ChunkRow],
     cited_works: Sequence[CitedWorkRow] = (),
     citations: Sequence[tuple[str, str]] = (),
+    catalog_months: Mapping[str, int] = MappingProxyType({}),
 ) -> None:
     """Write the deployable corpus.db.
 
@@ -234,7 +259,11 @@ def _write_corpus_db(
                 niche_idf        REAL,
                 author_novelty   REAL,
                 revisions        INTEGER,
-                venue_rigor      INTEGER
+                venue_rigor      INTEGER,
+                -- 1 => we extracted this paper's text, so it reached the
+                -- reference parser. The parse rate on the landing page is
+                -- counted over these rows, never over every catalog row.
+                has_text         INTEGER NOT NULL
             );
             CREATE TABLE chunks (
                 chunk_id   TEXT PRIMARY KEY,
@@ -279,11 +308,22 @@ def _write_corpus_db(
             -- with ANALYZE it used it and still bought nothing (91.3 vs
             -- 91.4 ms). The 17% that ANALYZE below does buy comes from the
             -- join order, not from any index. Re-measure before adding one.
+
+            -- How many cs papers the Kaggle catalog lists per id-month: the
+            -- DENOMINATOR the landing page had no way to state. Without it
+            -- the page said "every cs paper arXiv posted", which measured
+            -- 94% for July 2026, 49% for August and 5% for September.
+            -- Catalog-wide, not scoped to what we hold, and cs-primary to
+            -- match how the collector selected papers.
+            CREATE TABLE catalog_months (
+                month     TEXT PRIMARY KEY,   -- id-month, e.g. "2607"
+                cs_papers INTEGER NOT NULL
+            );
             CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
         )
         conn.executemany(
-            "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 (
                     p.arxiv_id,
@@ -302,6 +342,7 @@ def _write_corpus_db(
                     p.author_novelty,
                     p.revisions,
                     p.venue_rigor,
+                    int(p.has_text),
                 )
                 for p in papers
             ],
@@ -324,6 +365,7 @@ def _write_corpus_db(
             ],
         )
         conn.executemany("INSERT INTO citations VALUES (?,?)", citations)
+        conn.executemany("INSERT INTO catalog_months VALUES (?,?)", sorted(catalog_months.items()))
         # Snapshot stamp (D12): the footer's "corpus YYYY-MM" and ingest_stats
         # read this instead of guessing from file mtimes.
         built_at = datetime.now(tz=UTC).isoformat(timespec="seconds")
@@ -349,12 +391,6 @@ def _validate_inputs(
     cited_works: Sequence[CitedWorkRow] = (),
     citations: Sequence[tuple[str, str]] = (),
 ) -> None:
-    """Write the deployable corpus.db.
-
-    The citation tables default to empty because a corpus built before
-    extract_citations ran is a legitimate (landing-page-less) artifact, not a
-    caller mistake — `run` always passes them explicitly.
-    """
     """Every input invariant, checked BEFORE any artifact is written.
 
     A failed build must leave the previous corpus.db + chroma generation
@@ -441,6 +477,7 @@ def _load_chroma(
 
 def run(
     arxiv_db: Path,
+    text_dir: Path,
     chunks_path: Path,
     vectors_parquet: Path,
     seed_zip: Path,
@@ -460,6 +497,9 @@ def run(
     stats = BuildStats()
     with tracer.start_as_current_span("askrag.ingest.build_indexes") as span:
         papers = _read_papers(arxiv_db)
+        with_text = read_extracted_text_ids(text_dir)
+        papers = [replace(p, has_text=p.arxiv_id in with_text) for p in papers]
+        stats.papers_with_text = sum(1 for p in papers if p.has_text)
         chunks = _read_chunks(chunks_path)
         # The citation graph is optional input: a corpus built before
         # extract_citations ran still produces a valid (landing-page-less)
@@ -511,7 +551,14 @@ def run(
         ]
         papers_by_id = {p.arxiv_id: p for p in papers}
 
-        _write_corpus_db(corpus_db, papers, chunks, cited_works, citations)
+        # A FULL pass over the snapshot (~85 s), unlike the two targeted
+        # lookups above: this is the catalog's own per-month total, so there
+        # is no id set to stop early on. It runs after validation with the
+        # other seed reads, never before them.
+        catalog_months = kaggle_seed.count_cs_papers_by_id_month(seed_zip)
+        stats.catalog_months = len(catalog_months)
+
+        _write_corpus_db(corpus_db, papers, chunks, cited_works, citations, catalog_months)
         stats.chroma_count = _load_chroma(
             chroma_dir,
             collection_name,
@@ -538,13 +585,17 @@ def run(
         span.set_attribute("askrag.licenses_found", stats.licenses_found)
         span.set_attribute("askrag.cited_works", stats.cited_works)
         span.set_attribute("askrag.citations", stats.citations)
+        span.set_attribute("askrag.papers_with_text", stats.papers_with_text)
+        span.set_attribute("askrag.catalog_months", stats.catalog_months)
 
     _log.info(
         f"build_indexes: {stats.papers} papers, {stats.chunks} chunks -> {corpus_db.name} "
         f"+ chroma '{collection_name}' ({stats.chroma_count}); "
         f"versions backfilled {stats.versions_backfilled} (missing {stats.versions_missing}), "
         f"licenses {stats.licenses_found}; "
-        f"{stats.citations} citations over {stats.cited_works} cited works"
+        f"{stats.citations} citations over {stats.cited_works} cited works; "
+        f"{stats.papers_with_text} papers with extracted text, "
+        f"catalog census over {stats.catalog_months} id-months"
     )
     return stats
 
@@ -557,6 +608,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         run(
             arxiv_db=settings.arxiv_db_path,
+            text_dir=settings.text_dir,
             chunks_path=settings.chunks_jsonl_path,
             vectors_parquet=settings.vectors_parquet_path,
             seed_zip=settings.kaggle_seed_path,

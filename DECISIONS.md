@@ -14,6 +14,60 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-15 — the page states a measured share of arXiv, never "every cs paper"
+
+**Context:** the landing copy claimed "we pulled every cs paper arXiv posted
+in November 2007 and September 2026". Three separate faults compounded into
+that sentence. (1) The window was `min/max(citing id-month)`, and 261 stray
+seed papers with parsed references (1.5% of the citing side) stretched it from
+two months to nineteen years. (2) Nothing in the corpus knew how many cs
+papers arXiv actually posted in a month, so no claim about coverage could be
+checked; measured against the catalog it is 94% for July 2026, **49%** for
+August and 5% for September. (3) The parse rate divided by every catalog row
+(57,206) rather than by the papers that reached the parser (20,733), printing
+"30%, and the other 70% did not parse" for a parser that yields 81% and for
+papers that were never collected at all. The month-by-month panel had the same
+shape as a picture: bars of papers-per-month with no denominator, sitting in
+the activity band as the widest panel on the row, so "19 papers in October
+2025" read as a fact about October rather than about our download schedule.
+
+**Decision:** four changes, one idea. (a) `kaggle_seed.count_cs_papers_by_id_month`
+censuses the catalog (cs-primary, per id-month) and `build_indexes` writes it
+to a new `catalog_months` table: our numbers now travel with arXiv's own.
+(b) `papers.has_text` records which papers reached the reference parser, and
+the parse rate is counted over those. (c) The window becomes a **cohort**,
+derived by a stated rule (`landing_cohort_min_share`: an id-month that
+contributed at least 1% of parsed papers; measured 61% / 36% / 1.3% against
+0.24% for the next month down, so any threshold in 0.3%-1.3% picks the same
+three). (d) `GET /api/trends` becomes `GET /api/coverage`, keyed by id-month
+with the catalog total per bucket, and its panel moves to the method band as
+"How much of each month we hold", saying outright that bar height is our
+collection and not arXiv's output. A month whose catalog total is below our
+own holdings reports **unknown** rather than a share over 100%, which is what
+a snapshot older than the month it is asked about deserves.
+
+`corpus/archive.zip` was promoted to the 2026-09-12 snapshot (the old one kept
+as `archive-2026-08-22.zip`) because the census is only true against a
+snapshot at least as new as our holdings: the August one listed 9,513 cs
+papers for 2608 where the current one lists 14,491, and had no 2609 at all.
+The agent prompt gained one line for the same reason the page did: the corpus
+is a sample, and its totals are ours, never coverage of a field.
+
+**Alternatives rejected:** keeping "every" and narrowing the window to the
+months where it is true (August is 49%, so there is no such window); deleting
+the month panel (the shape of the corpus is worth showing, it was the missing
+denominator that made it a lie); a coverage-share threshold for the cohort
+(August at 49.4% sits right on a 50% boundary, where the parsed-share rule has
+four times the margin); computing coverage in the route from the seed zip at
+request time (an 85-second full pass per request).
+
+**Consequence:** `/api/trends` is gone, so the deploy needs an api image
+rebuild and a corpus rebuild (new `papers.has_text` column and
+`catalog_months` table), then the usual reseed. The build gained ~85 s for the
+census pass. `just mirror-status` and the census now answer the same question
+from two ends: what arXiv has, and what we took of it.
+Spec updated: D16 amendment (2026-09-15, count-vs-claim rule).
+
 ## 2026-09-13 — home page is the dashboard: trends + latest sections, no new route
 
 **Context:** with the Sep-03 refresh the graph is the freshest thing on the

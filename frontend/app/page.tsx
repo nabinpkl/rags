@@ -11,13 +11,13 @@ import { SECTIONS, SECTION_IDS, DashboardSidebar } from "@/components/landing/da
 import { FoundationDetail } from "@/components/landing/foundation-detail";
 import { FoundationsTable } from "@/components/landing/foundations-table";
 import { HeroStats } from "@/components/landing/hero-stats";
+import { HoldingsChart } from "@/components/landing/holdings-chart";
 import { LatestPapers } from "@/components/landing/latest-papers";
 import { MethodsNote } from "@/components/landing/methods-note";
-import { TrendsChart } from "@/components/landing/trends-chart";
 import { DrawerPanel } from "@/components/shell/drawer-panel";
 import { SiteFooter } from "@/components/site-footer";
 import { useActiveSection } from "@/hooks/use-active-section";
-import { type Foundation, fetchLanding, fetchLatest, fetchTrends } from "@/lib/api-client";
+import { type Foundation, fetchCoverage, fetchLanding, fetchLatest } from "@/lib/api-client";
 import { formatIdMonthRange } from "@/lib/id-month";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 
@@ -65,7 +65,7 @@ export default function LandingPage() {
     queryKey: ["latest"],
     queryFn: () => fetchLatest({ limit: 6 }),
   });
-  const { data: trends } = useQuery({ queryKey: ["trends"], queryFn: fetchTrends });
+  const { data: coverage } = useQuery({ queryKey: ["coverage"], queryFn: fetchCoverage });
 
   const showingBands = Boolean(data) && selected === null;
   const active = useActiveSection(SECTION_IDS, canvasRef, showingBands);
@@ -93,8 +93,8 @@ export default function LandingPage() {
     scrollToSection(id);
   }, [showingBands]);
 
-  const windowLabel = data
-    ? formatIdMonthRange(data.stats.window_start, data.stats.window_end)
+  const cohortLabel = data
+    ? formatIdMonthRange(data.stats.cohort_start, data.stats.cohort_end)
     : null;
   const activeLabel = SECTIONS.find((section) => section.id === active)?.label ?? "Overview";
 
@@ -114,7 +114,7 @@ export default function LandingPage() {
               under a canvas that no longer shows it. */}
           <DashboardSidebar
             active={selected ? "foundations" : active}
-            windowLabel={windowLabel}
+            cohortLabel={cohortLabel}
             onNavigate={goToSection}
           />
         </DrawerPanel>
@@ -240,23 +240,21 @@ export default function LandingPage() {
                     />
                   </section>
 
-                  {(trends || latest) && (
-                    <section id="activity" className="grid scroll-mt-5 gap-5 lg:grid-cols-5">
-                      {trends && (
-                        <div className="lg:col-span-3">
-                          <TrendsChart months={trends.months} />
-                        </div>
-                      )}
-                      {latest && (
-                        <div className="lg:col-span-2">
-                          <LatestPapers papers={latest.papers} />
-                        </div>
-                      )}
+                  {latest && (
+                    <section id="activity" className="scroll-mt-5">
+                      <LatestPapers papers={latest.papers} />
                     </section>
                   )}
 
-                  <section id="methods" className="scroll-mt-5">
+                  {/* Provenance sits in the method band, last, deliberately.
+                      As the activity band's widest panel it read as a
+                      finding: bars of papers-per-month with no denominator,
+                      on a page about what CS is building on, invited "19
+                      papers in October 2025" as a fact about October rather
+                      than about our download schedule. */}
+                  <section id="methods" className="flex scroll-mt-5 flex-col gap-4">
                     <MethodsNote stats={data.stats} citedYears={data.cited_years} />
+                    {coverage && <HoldingsChart months={coverage.months} />}
                   </section>
                 </>
               )}

@@ -82,3 +82,32 @@ def test_latest_version_is_the_pin_for_arxiv_links() -> None:
     assert kaggle_seed.latest_version(_RECORDS[0]) == "v2"
     assert kaggle_seed.latest_version(_RECORDS[1]) == "v1"
     assert kaggle_seed.latest_version({"id": "x", "versions": []}) is None
+
+
+# --- the catalog census: the denominator the landing page had no way to state -
+
+
+def test_count_cs_papers_by_id_month_counts_cs_primary_per_month(tmp_path: Path) -> None:
+    counts = kaggle_seed.count_cs_papers_by_id_month(_seed_zip(tmp_path))
+
+    # hep-ph primary is not ours to count; the two cs records sit in
+    # different id-months.
+    assert counts == {"2505": 1, "2402": 1}
+
+
+def test_count_cs_papers_by_id_month_counts_a_cross_listed_paper_by_its_primary(
+    tmp_path: Path,
+) -> None:
+    """The collector filtered on the categories string's prefix, so the FIRST
+    category decides. A denominator built on any-category membership would
+    exceed the numerator it is divided into."""
+    path = tmp_path / "archive.zip"
+    records = [
+        {"id": "2607.00001", "categories": "cs.CL stat.ML"},  # ours
+        {"id": "2607.00002", "categories": "stat.ML cs.CL"},  # not ours
+        {"id": "cs/0701001", "categories": "cs.CL"},  # old-style: no id-month
+    ]
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(kaggle_seed.SEED_MEMBER, "".join(json.dumps(r) + "\n" for r in records))
+
+    assert kaggle_seed.count_cs_papers_by_id_month(path) == {"2607": 1}

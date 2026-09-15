@@ -5,9 +5,12 @@ import { MethodsNote } from "@/components/landing/methods-note";
 import type { LandingResponse } from "@/lib/api-client";
 
 const STATS: LandingResponse["stats"] = {
-  window_start: "2607",
-  window_end: "2608",
-  papers_in_window: 18844,
+  cohort_start: "2607",
+  cohort_end: "2608",
+  cohort_papers: 19380,
+  cohort_catalog_papers: 27507,
+  corpus_papers: 57206,
+  papers_parsed: 18844,
   papers_with_references: 15905,
   citations: 162792,
   cited_works: 63457,
@@ -22,13 +25,26 @@ const CITED_YEARS: LandingResponse["cited_years"] = [
 ];
 
 describe("MethodsNote", () => {
-  it("states the parse rate and its complement — the coverage gap is not hidden", () => {
+  it("counts the parse rate over papers that reached the parser, not every catalog row", () => {
+    // THE bug: 15,905 over the whole corpus (57,206) printed a 30% parse rate
+    // for a parser that yields 84%, and then blamed the missing 70% on
+    // reference lists that "did not parse" when those papers were never
+    // collected at all.
     render(<MethodsNote stats={STATS} citedYears={CITED_YEARS} />);
 
     expect(
-      screen.getByText(/15,905 of 18,844 papers yielded a usable list — 84%/),
+      screen.getByText(
+        /15,905 of the 18,844 papers we extracted text from yielded a usable list — 84%/,
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/did not parse \(/)).toHaveTextContent("16%");
+    expect(screen.getByText(/did not parse are missing entirely/)).toHaveTextContent("16%");
+  });
+
+  it("names the wider corpus instead of letting the cohort stand for all of it", () => {
+    render(<MethodsNote stats={STATS} citedYears={CITED_YEARS} />);
+
+    expect(screen.getByText(/57,206 papers/)).toBeInTheDocument();
+    expect(screen.getByText(/it is not a census/)).toBeInTheDocument();
   });
 
   it("keeps the clustering-stability finding on the page", () => {
@@ -41,8 +57,8 @@ describe("MethodsNote", () => {
     ).toBeInTheDocument();
   });
 
-  it("measures reach against the window's own year, not a round number", () => {
-    // The window ends in 2608, so the year is 2026: every bucket here (2018,
+  it("measures reach against the cohort's own year, not a round number", () => {
+    // The cohort ends in 2608, so the year is 2026: every bucket here (2018,
     // 2020, 2024, 2025, undated) is earlier, so 100% predates it.
     render(<MethodsNote stats={STATS} citedYears={CITED_YEARS} />);
 
@@ -66,7 +82,7 @@ describe("MethodsNote", () => {
   it("survives an empty graph without dividing by zero", () => {
     render(
       <MethodsNote
-        stats={{ ...STATS, papers_in_window: 0, papers_with_references: 0 }}
+        stats={{ ...STATS, papers_parsed: 0, papers_with_references: 0 }}
         citedYears={[]}
       />,
     );

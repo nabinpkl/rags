@@ -6,7 +6,7 @@ import { DashboardSidebar, SECTIONS } from "@/components/landing/dashboard-sideb
 describe("DashboardSidebar", () => {
   it("lists every band of the canvas, in canvas order", () => {
     render(
-      <DashboardSidebar active={null} windowLabel="Nov 2007 – Sep 2026" onNavigate={vi.fn()} />,
+      <DashboardSidebar active={null} cohortLabel="Jul 2026 – Sep 2026" onNavigate={vi.fn()} />,
     );
 
     const rows = screen.getAllByRole("button");
@@ -14,7 +14,7 @@ describe("DashboardSidebar", () => {
   });
 
   it("marks the band being read, and only that one", () => {
-    render(<DashboardSidebar active="activity" windowLabel={null} onNavigate={vi.fn()} />);
+    render(<DashboardSidebar active="activity" cohortLabel={null} onNavigate={vi.fn()} />);
 
     expect(screen.getByRole("button", { name: "Activity" })).toHaveAttribute(
       "aria-current",
@@ -25,15 +25,15 @@ describe("DashboardSidebar", () => {
 
   it("hands the band id back rather than navigating itself — the canvas may not be mounted", () => {
     const onNavigate = vi.fn();
-    render(<DashboardSidebar active="overview" windowLabel={null} onNavigate={onNavigate} />);
+    render(<DashboardSidebar active="overview" cohortLabel={null} onNavigate={onNavigate} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Foundations" }));
 
     expect(onNavigate).toHaveBeenCalledWith("foundations");
   });
 
-  it("says the window is not yet counted rather than printing an empty range", () => {
-    render(<DashboardSidebar active={null} windowLabel={null} onNavigate={vi.fn()} />);
+  it("says the cohort is not yet counted rather than printing an empty range", () => {
+    render(<DashboardSidebar active={null} cohortLabel={null} onNavigate={vi.fn()} />);
 
     expect(screen.getByText("not yet counted")).toBeInTheDocument();
   });

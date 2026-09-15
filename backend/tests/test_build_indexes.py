@@ -87,10 +87,19 @@ def paths(tmp_path):
     parquet = tmp_path / f"{SLUG}.parquet"
     write_parquet(parquet, [c[0] for c in CHUNKS])
 
+    text_dir = tmp_path / "text"
+    # extract_citations globs this tree, so a paper here is one that reached
+    # the reference parser. 2401.00002 is deliberately absent: we hold its
+    # metadata and never extracted its text, which is the distinction
+    # `papers.has_text` carries and the landing page's parse rate needs.
+    (text_dir / "2401").mkdir(parents=True)
+    (text_dir / "2401" / "2401.00001.txt").write_text("References: arXiv:1707.06347")
+
     seed = tmp_path / "archive.zip"
     seed_records = [
         {
             "id": "2401.00001",
+            "categories": "cs.CL cs.AI",
             "license": "http://creativecommons.org/licenses/by/4.0/",
             # Seed knows v5, but the row already pins v2 — the build must
             # never let the backfill override a version it already holds.
@@ -98,9 +107,14 @@ def paths(tmp_path):
         },
         {
             "id": "2401.00002",
+            "categories": "cs.LG",
             "license": None,  # seed has no license for this one
             "versions": [{"version": "v1"}, {"version": "v2"}, {"version": "v3"}],
         },
+        # Catalog rows we do NOT hold: the census counts them (it is arXiv's
+        # total for the month, not ours) and skips the non-cs one.
+        {"id": "2401.00003", "categories": "cs.CV", "license": None},
+        {"id": "2401.00004", "categories": "math.NA cs.CL", "license": None},
         {"id": "9999.99999", "license": "http://example.com/other"},  # not ours
     ]
     with zipfile.ZipFile(seed, "w") as zf:
@@ -111,6 +125,7 @@ def paths(tmp_path):
 
     return {
         "arxiv_db": arxiv_db,
+        "text": text_dir,
         "chunks": chunks_jsonl,
         "parquet": parquet,
         "seed": seed,
@@ -136,6 +151,7 @@ def run(paths, **kwargs):
     kwargs.setdefault("add_batch_size", 2)  # exercises batching with 3 chunks
     return build_indexes.run(
         arxiv_db=paths["arxiv_db"],
+        text_dir=paths["text"],
         chunks_path=paths["chunks"],
         vectors_parquet=paths["parquet"],
         seed_zip=paths["seed"],
@@ -382,6 +398,31 @@ def _work(arxiv_id, title="A cited work"):
         "year": 2017,
         "version": "v2",
     }
+
+
+def test_the_catalog_census_and_text_flags_land_in_corpus_db(paths):
+    """The denominator and the parse-rate numerator, both absent before.
+
+    Without `catalog_months` the landing page had no way to say what share of
+    a month it holds, so it claimed "every cs paper arXiv posted" (measured
+    94% / 49% / 5% for July, August and September 2026). Without `has_text`
+    it divided by every catalog row and reported a 30% parse rate for a
+    parser that yields 81%.
+    """
+    stats = run(paths)
+
+    assert stats.papers_with_text == 1
+    assert stats.catalog_months == 1
+    conn = sqlite3.connect(paths["corpus_db"])
+    try:
+        # 3 cs-primary catalog rows for 2401; the math.NA-primary one is not
+        # counted, matching how the collector selected papers. We hold 2.
+        assert conn.execute("SELECT * FROM catalog_months").fetchall() == [("2401", 3)]
+        assert conn.execute(
+            "SELECT arxiv_id, has_text FROM papers WHERE arxiv_id LIKE '2401.%' ORDER BY arxiv_id"
+        ).fetchall() == [("2401.00001", 1), ("2401.00002", 0)]
+    finally:
+        conn.close()
 
 
 def test_citations_and_cited_works_land_in_corpus_db(paths, tmp_path):
