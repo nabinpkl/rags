@@ -39,11 +39,6 @@
   .hero h1{font-family:var(--serif);font-size:40px;line-height:1.14;font-weight:700;margin:0 0 14px;max-width:19ch}
   .hero p{font-size:16.5px;color:var(--muted);max-width:62ch;margin:0 0 22px}
   .hero p b{color:var(--ink);font-weight:600}
-  .facts{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:4px;background:var(--panel);overflow:hidden}
-  .fact{flex:1;min-width:150px;padding:13px 16px;border-right:1px solid var(--line)}
-  .fact:last-child{border-right:0}
-  .fact b{display:block;font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
-  .fact span{font-size:11.5px;color:var(--muted)}
 
   /* ── foundations table ───────────────────── */
   .sec{padding:34px 0}
@@ -136,18 +131,13 @@
 <div class="hero" id="hero"><div class="wrap">
   <h1>What is computer science building on right now?</h1>
   <p>We pulled <b>18,844 of the 27,507 cs papers</b> arXiv posted between July and August 2026,
-     extracted the reference list from each one, and counted. No topic modelling, no clustering,
-     no LLM judgement, just what recent work actually cites. Every number below opens the papers
-     behind it.</p>
-  <div class="facts">
-    <!-- Four numbers a reader can use. "Papers with a parsed reference list"
-         sat in slot two and was a stage count of the pipeline; the shipped
-         page replaced it with what the agent can actually read, which this
-         prototype had no figure for. -->
-    <div class="fact"><b>18,844</b><span>69% of the 27,507 cs papers arXiv posted then</span></div>
-    <div class="fact"><b>162,792</b><span>arXiv citations counted in them</span></div>
-    <div class="fact"><b>63,457</b><span>distinct works they cite</span></div>
-  </div>
+     extracted the reference list from each one, and counted <b>162,792 citations to other arXiv
+     papers</b>. No topic modelling, no clustering, no LLM judgement, just what recent work
+     actually cites. Every number below opens the papers behind it.</p>
+  <!-- No KPI row. Four six-figure totals above the ranking read as the
+       finding, when the finding is the ranking: the totals only describe the
+       pile it was counted from. The two that size that pile are in the
+       sentence; the cited-works total is in the table's own footer. -->
 </div></div>
 
 <div class="wrap">

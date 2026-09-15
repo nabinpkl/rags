@@ -37,6 +37,16 @@ describe("MethodsNote", () => {
     expect(screen.getByText(/did not parse are missing entirely/)).toHaveTextContent("16%");
   });
 
+  it("puts the indexed count beside the rule that produced it", () => {
+    // It used to be a KPI card at the top of the page, where 667 beside
+    // 19,380 read as a shortfall instead of as the page's scope.
+    render(<MethodsNote stats={STATS} citedYears={CITED_YEARS} />);
+
+    expect(
+      screen.getByText(/The 667 works on this page are the ones the agent can read/),
+    ).toBeInTheDocument();
+  });
+
   it("says the corpus thins outside the cohort without quoting a storage total", () => {
     render(<MethodsNote stats={STATS} citedYears={CITED_YEARS} />);
 

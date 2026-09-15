@@ -58,8 +58,11 @@ export function MethodsNote({
       body: "One citation per (paper, target) pair. Self-citations dropped. The rank is a count; there is nothing else in it.",
     },
     {
+      // The one place the indexed count belongs: beside the rule that
+      // produced it. On its own, as a KPI card, 667 next to 19,613 read as a
+      // shortfall rather than as a scope.
       title: "4 · index",
-      body: "The works on this page are the ones the agent can read. The page defines what is indexed, not the other way round.",
+      body: `The ${stats.readable_papers.toLocaleString()} works on this page are the ones the agent can read and quote. The page defines what is indexed, not the other way round.`,
     },
   ];
 
@@ -122,13 +125,13 @@ export function MethodsNote({
 
         <div className="bg-paper border-l-rust mt-auto border-l-[3px] px-3.5 py-2.5 text-[13px] leading-relaxed">
           <b className="text-rust">What this is not.</b> It is not a citation count, and it is not a
-          census: it is a count over a sample of recent arXiv cs, so it measures what{" "}
-          <i>these</i> papers build on, not what is important overall. The {100 - parseRate}% of
-          collected papers whose reference lists did not parse are missing entirely, and outside
-          the cohort months the corpus thins to a few papers a month, so nothing here should be
-          read as a trend over time. Grouping papers into named themes is deliberately absent: on
-          this data, two runs of the same clustering agree on only 43–61% of pairs, so any theme
-          label would be a claim about our code rather than about the literature.
+          census: it is a count over a sample of recent arXiv cs, so it measures what <i>these</i>{" "}
+          papers build on, not what is important overall. The {100 - parseRate}% of collected papers
+          whose reference lists did not parse are missing entirely, and outside the cohort months
+          the corpus thins to a few papers a month, so nothing here should be read as a trend over
+          time. Grouping papers into named themes is deliberately absent: on this data, two runs of
+          the same clustering agree on only 43–61% of pairs, so any theme label would be a claim
+          about our code rather than about the literature.
         </div>
       </DashboardPanel>
     </div>
