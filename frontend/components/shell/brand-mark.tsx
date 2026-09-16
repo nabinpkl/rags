@@ -1,15 +1,16 @@
 import Image from "next/image";
 
-/** The product's name and mark, wherever a surface has to say what this is.
+/** The product's name and mark, at the head of the shell's rail.
  *
  * The geometry is REFERENCED, not redrawn: `app/icon.svg` is the one copy of
  * it and Next already serves it at /icon.svg by the metadata convention. A
  * second copy in JSX would drift the first time the tab icon changed.
  *
- * `tagline` is what the surface is showing, which differs by route — the
- * dashboard's rail says which corpus, the catalog says which table.
+ * The tagline used to be a prop because each route brought its own rail and
+ * said what that rail was showing. One rail serves both routes now, so the
+ * line says what the corpus is and the nav below it says which view.
  */
-export function BrandMark({ tagline }: { tagline: string }) {
+export function BrandMark() {
   return (
     <>
       <Image src="/icon.svg" alt="" width={26} height={26} className="rounded-[6px]" />
@@ -18,7 +19,7 @@ export function BrandMark({ tagline }: { tagline: string }) {
           ask<em className="text-teal-ink not-italic">RAG</em>
         </b>
         <span className="text-muted mt-1 block truncate font-mono text-[9.5px] tracking-[0.1em] uppercase">
-          {tagline}
+          arXiv cs corpus
         </span>
       </span>
     </>

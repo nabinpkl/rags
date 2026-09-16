@@ -14,6 +14,41 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-16 — one rail, addressing views rather than bands
+
+**Context:** Two routes had grown two rails. The dashboard's listed four
+scroll-spied bands of its own canvas plus, separated and captioned, one link
+out; the catalog's listed five filter controls under a different tagline and
+no way back except a button in the top bar. Same width, same position, two
+different vocabularies, and neither said what the other view was.
+
+**Decision:** one `components/shell/shell-sidebar.tsx` for both routes. It
+addresses the two VIEWS the app has — Overview at `/`, Explore at `/papers` —
+and takes a slot below the nav that the view fills; today only Explore does,
+with its filter. The dashboard's band rows and the scroll-spy that lit them
+(`hooks/use-active-section.ts`) are deleted, not hidden: the canvas is four
+panels tall, so scrolling reaches them faster than aiming at a row does, and
+the rows cost a reader the question of whether a rail row scrolls or
+navigates. The two duplicate route buttons in the top bars go with them.
+
+**Alternatives rejected:** keeping the band rows above the view rows (two
+kinds of target in one column is the problem, not the ordering); a second
+rail for the filter (two columns of chrome before any papers appear on a
+768px viewport); collapsing the filter into a dropdown in the top bar (five
+controls and 234 months is a rail, which is why it was one).
+
+**Consequence:** the shell docks at one breakpoint now, and it is `md`, the
+catalog's. The dashboard's rail used to dock at `lg`, so between 768 and
+1023px the foundations table gives up 264px it used to have and wraps titles
+to three or four lines. That is the price of the column not moving when the
+reader switches views, and it is the direction the merge has to go: a filter
+that is a drawer on a laptop is worse than a table that is narrower on one.
+
+Spec updated: no — §4c decision 2 still describes the routes, which are
+unchanged; this is shell composition inside them.
+
+---
+
 ## 2026-09-16 — card images rendered on demand, cached as files
 
 **Context:** `/papers` lists 65,503 rows of title, authors and two lines of

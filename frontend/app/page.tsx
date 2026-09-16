@@ -1,13 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Menu, MessagesSquare } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Menu, MessagesSquare } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { ChatPanel } from "@/components/agent-panel/chat-panel";
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
-import { SECTIONS, SECTION_IDS, DashboardSidebar } from "@/components/landing/dashboard-sidebar";
 import { FoundationDetail } from "@/components/landing/foundation-detail";
 import { CategoryCensus } from "@/components/landing/category-census";
 import { FoundationsTable } from "@/components/landing/foundations-table";
@@ -17,8 +15,8 @@ import { LatestPapers } from "@/components/landing/latest-papers";
 import { MethodsNote } from "@/components/landing/methods-note";
 import { RecentUptake } from "@/components/landing/recent-uptake";
 import { DrawerPanel } from "@/components/shell/drawer-panel";
+import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { SiteFooter } from "@/components/site-footer";
-import { useActiveSection } from "@/hooks/use-active-section";
 import {
   type Foundation,
   fetchCategoryCensus,
@@ -39,18 +37,16 @@ import { useAgentSessionStore } from "@/stores/agent-session-store";
  * ordering is the whole product argument — the page tells you *that* 1,174
  * papers cite Qwen3; only reading them tells you *what for*.
  *
- * Shape is an app shell, not a scrolling document: a rail that says where you
- * are, a bar that says what you are looking at, and a canvas of identically
- * framed panels. The rail's docking rule is the shell rule the rest of the
- * app already follows (`.claude/rules/frontend.md`) — viewport width decides
- * dock-vs-drawer, so this reuses `DrawerPanel` rather than growing a second
- * implementation of the same behaviour.
+ * Shape is an app shell, not a scrolling document: a rail that says which
+ * VIEW you are in, a bar that says what you are looking at, and a canvas of
+ * identically framed panels. The rail is `ShellSidebar`, shared with the
+ * catalog — the two views are one app, and this is the only place either of
+ * them is addressed from.
  */
 export default function LandingPage() {
   const [selected, setSelected] = useState<Foundation | null>(null);
   const [asking, setAsking] = useState<Foundation | null>(null);
   const [navOpen, setNavOpen] = useState(false);
-  const pendingScroll = useRef<string | null>(null);
   const canvasRef = useRef<HTMLElement>(null);
   const resetSession = useAgentSessionStore((state) => state.reset);
 
@@ -60,8 +56,8 @@ export default function LandingPage() {
   // match, so the panel never shows answers about one foundation under
   // another one's heading.
   // Two panels open a foundation now (the ranking and the uptake list), so
-  // the transition lives once: the detail replaces the bands, and a canvas
-  // still scrolled to the activity band would otherwise open it mid-page.
+  // the transition lives once: the detail replaces the overview, and a canvas
+  // still scrolled down its panels would otherwise open it mid-page.
   function openFoundation(foundation: Foundation) {
     setSelected(foundation);
     setAsking(null);
@@ -87,56 +83,31 @@ export default function LandingPage() {
   const { data: uptake } = useQuery({ queryKey: ["uptake"], queryFn: fetchUptake });
   const { data: census } = useQuery({ queryKey: ["census"], queryFn: fetchCategoryCensus });
 
-  const showingBands = Boolean(data) && selected === null;
-  const active = useActiveSection(SECTION_IDS, canvasRef, showingBands);
-
-  // A rail click while a foundation's detail is open has no target yet: the
-  // bands are unmounted, so `getElementById` in this handler would find
-  // nothing. The id is parked on a ref and the scroll runs on the commit that
-  // brings the bands back — a ref rather than state because the effect must
-  // not queue a render of its own (react-hooks/set-state-in-effect).
-  function goToSection(id: string) {
-    setNavOpen(false);
-    if (showingBands) {
-      scrollToSection(id);
-      return;
-    }
-    pendingScroll.current = id;
+  function backToOverview() {
     setSelected(null);
     setAsking(null);
+    canvasRef.current?.scrollTo({ top: 0 });
   }
-
-  useEffect(() => {
-    if (!showingBands || !pendingScroll.current) return;
-    const id = pendingScroll.current;
-    pendingScroll.current = null;
-    scrollToSection(id);
-  }, [showingBands]);
 
   const cohortLabel = data
     ? formatIdMonthRange(data.stats.cohort_start, data.stats.cohort_end)
     : null;
-  const activeLabel = SECTIONS.find((section) => section.id === active)?.label ?? "Overview";
 
   return (
     <div className="bg-paper text-ink flex h-dvh flex-col">
       <div className="flex min-h-0 flex-1">
+        {/* Same width and same breakpoint as the catalog's: one rail serving
+            both views, so a reader moving between them sees the column stay
+            put rather than resize under the pointer. */}
         <DrawerPanel
-          dockAt="lg"
+          dockAt="md"
           side="left"
-          label="Dashboard navigation"
+          label="Navigation"
           open={navOpen}
           onClose={() => setNavOpen(false)}
-          className="bg-panel border-line w-[248px] shrink-0 border-r"
+          className="bg-panel border-line w-[min(320px,86vw)] shrink-0 border-r md:w-[264px]"
         >
-          {/* A foundation's detail belongs to the Foundations band, so the
-              rail says so rather than leaving the last scrolled band lit
-              under a canvas that no longer shows it. */}
-          <DashboardSidebar
-            active={selected ? "foundations" : active}
-            cohortLabel={cohortLabel}
-            onNavigate={goToSection}
-          />
+          <ShellSidebar current="overview" cohort={cohortLabel} />
         </DrawerPanel>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -146,7 +117,7 @@ export default function LandingPage() {
               onClick={() => setNavOpen(true)}
               aria-label="Open navigation"
               aria-expanded={navOpen}
-              className="border-line text-ink hover:bg-paper -ml-1 flex size-9 shrink-0 items-center justify-center rounded border transition-colors motion-reduce:transition-none lg:hidden"
+              className="border-line text-ink hover:bg-paper -ml-1 flex size-9 shrink-0 items-center justify-center rounded border transition-colors motion-reduce:transition-none md:hidden"
             >
               <Menu className="size-4" aria-hidden />
             </button>
@@ -162,10 +133,10 @@ export default function LandingPage() {
                     <li>
                       <button
                         type="button"
-                        onClick={() => goToSection("foundations")}
+                        onClick={backToOverview}
                         className="text-muted hover:text-ink transition-colors motion-reduce:transition-none"
                       >
-                        Foundations
+                        Overview
                       </button>
                     </li>
                     <li aria-hidden className="text-line">
@@ -176,18 +147,10 @@ export default function LandingPage() {
                     </li>
                   </>
                 ) : (
-                  <li className="text-ink font-medium">{activeLabel}</li>
+                  <li className="text-ink font-medium">Overview</li>
                 )}
               </ol>
             </nav>
-
-            <Link
-              href="/app"
-              className="bg-teal-deep hover:bg-teal-deep-hover flex shrink-0 items-center gap-1.5 rounded px-3 py-1.5 text-[12.5px] font-medium text-white transition-colors motion-reduce:transition-none"
-            >
-              Browse the corpus
-              <ArrowRight className="size-3.5" aria-hidden />
-            </Link>
           </header>
 
           {/* `relative` is load-bearing, not decoration: `sr-only` is
@@ -196,12 +159,9 @@ export default function LandingPage() {
               something here is positioned — and an abspos box outside the
               scroller's containing block is not clipped by it. Two chart
               summaries were enough to give the document 580px of phantom
-              scroll, which the browser then used on every anchor jump,
-              scrolling the top bar and the rail out of view. */}
-          <main
-            ref={canvasRef}
-            className="relative min-h-0 flex-1 overflow-y-auto scroll-smooth motion-reduce:scroll-auto"
-          >
+              scroll, which the browser then used on every scroll-to-top,
+              taking the top bar and the rail out of view with it. */}
+          <main ref={canvasRef} className="relative min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto flex max-w-[1280px] flex-col gap-5 px-4 py-5 sm:px-6 sm:py-6">
               {isPending && <p className="text-muted py-16 text-center">Loading the corpus…</p>}
               {isError && (
@@ -212,14 +172,7 @@ export default function LandingPage() {
 
               {data && selected && (
                 <>
-                  <FoundationDetail
-                    foundation={selected}
-                    onBack={() => {
-                      setSelected(null);
-                      setAsking(null);
-                    }}
-                    onAsk={ask}
-                  />
+                  <FoundationDetail foundation={selected} onBack={backToOverview} onAsk={ask} />
                   {asking && (
                     <DashboardPanel
                       icon={MessagesSquare}
@@ -244,24 +197,20 @@ export default function LandingPage() {
 
               {data && selected === null && (
                 <>
-                  <section id="overview" className="scroll-mt-5">
-                    <Hero stats={data.stats} />
-                  </section>
+                  <Hero stats={data.stats} />
 
-                  <section id="foundations" className="scroll-mt-5">
-                    <FoundationsTable
-                      stats={data.stats}
-                      foundations={data.foundations}
-                      onSelect={openFoundation}
-                    />
-                  </section>
+                  <FoundationsTable
+                    stats={data.stats}
+                    foundations={data.foundations}
+                    onSelect={openFoundation}
+                  />
 
-                  {/* The activity band is the page's "right now": what
+                  {/* The activity group is the page's "right now": what
                       arrived, what the newest complete month picked up, and
                       what the field posted while that happened. All three
                       are counts over months we hold whole, which is what
                       separates them from a chart of our download schedule. */}
-                  <section id="activity" className="flex scroll-mt-5 flex-col gap-4">
+                  <section className="flex flex-col gap-4">
                     <div className="grid gap-4 xl:grid-cols-2">
                       {latest && <LatestPapers papers={latest.papers} />}
                       {uptake && <RecentUptake uptake={uptake} onSelect={openFoundation} />}
@@ -269,13 +218,13 @@ export default function LandingPage() {
                     {census && <CategoryCensus census={census} />}
                   </section>
 
-                  {/* Provenance sits in the method band, last, deliberately.
-                      As the activity band's widest panel it read as a
+                  {/* Provenance sits in the method group, last, deliberately.
+                      As the activity group's widest panel it read as a
                       finding: bars of papers-per-month with no denominator,
                       on a page about what CS is building on, invited "19
                       papers in October 2025" as a fact about October rather
                       than about our download schedule. */}
-                  <section id="methods" className="flex scroll-mt-5 flex-col gap-4">
+                  <section className="flex flex-col gap-4">
                     <MethodsNote stats={data.stats} citedYears={data.cited_years} />
                     {coverage && <HoldingsChart months={coverage.months} />}
                   </section>
@@ -303,13 +252,4 @@ function starterQuestions(foundation: Foundation): readonly string[] {
     `Do any of them report replacing or moving away from it?`,
     `What do they measure, and on which benchmarks?`,
   ];
-}
-
-/** Scrolls a band to the top of the canvas, honouring the reduced-motion
- * preference the base layer already honours everywhere else. */
-function scrollToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({
-    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-    block: "start",
-  });
 }
