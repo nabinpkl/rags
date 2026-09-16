@@ -20,7 +20,7 @@ function scroller() {
   const element = document.body.appendChild(document.createElement("main"));
   Object.defineProperty(element, "offsetHeight", { value: 800 });
   Object.defineProperty(element, "offsetWidth", { value: 900 });
-  return { current: element };
+  return element;
 }
 
 function paper(overrides: Partial<CatalogPaper> = {}): CatalogPaper {
@@ -54,7 +54,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={LAST_PAGE}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 
@@ -77,7 +77,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={LAST_PAGE}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 
@@ -92,7 +92,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={LAST_PAGE}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 
@@ -115,7 +115,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={LAST_PAGE}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 
@@ -137,7 +137,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={LAST_PAGE}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 
@@ -155,7 +155,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={{ ...LAST_PAGE, hasNextPage: true }}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 
@@ -174,7 +174,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={{ ...LAST_PAGE, hasNextPage: true, isFetchNextPageError: true, fetchNextPage }}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 
@@ -193,7 +193,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={{ ...LAST_PAGE, hasNextPage: true, fetchNextPage }}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 
@@ -208,7 +208,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={LAST_PAGE}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 
@@ -216,8 +216,8 @@ describe("CatalogResults", () => {
   });
 
   it("goes back to the top when the filter changes, before the new rows arrive", () => {
-    const scrollRef = scroller();
-    scrollRef.current.scrollTop = 14_000;
+    const canvas = scroller();
+    canvas.scrollTop = 14_000;
     const { rerender } = render(
       <CatalogResults
         papers={[paper()]}
@@ -225,10 +225,10 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={LAST_PAGE}
-        scrollRef={scrollRef}
+        scrollElement={canvas}
       />,
     );
-    expect(scrollRef.current.scrollTop).toBe(14_000);
+    expect(canvas.scrollTop).toBe(14_000);
 
     rerender(
       <CatalogResults
@@ -237,10 +237,10 @@ describe("CatalogResults", () => {
         state={{ ...EMPTY_FILTER, q: "diffusion" }}
         loading
         page={LAST_PAGE}
-        scrollRef={scrollRef}
+        scrollElement={canvas}
       />,
     );
-    expect(scrollRef.current.scrollTop).toBe(0);
+    expect(canvas.scrollTop).toBe(0);
   });
 
   it("explains an empty result instead of showing an empty box", () => {
@@ -251,7 +251,7 @@ describe("CatalogResults", () => {
         state={EMPTY_FILTER}
         loading={false}
         page={LAST_PAGE}
-        scrollRef={scroller()}
+        scrollElement={scroller()}
       />,
     );
 

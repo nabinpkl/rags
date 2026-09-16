@@ -60,9 +60,11 @@ function Catalog() {
   const router = useRouter();
   const params = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const canvasRef = useRef<HTMLElement>(null);
+  // State, not a ref: the results list windows against this node and can
+  // mount in the same commit (see `use-infinite-virtual-list.ts`).
+  const [canvas, setCanvas] = useState<HTMLElement | null>(null);
   const searchRestRef = useRef<HTMLDivElement>(null);
-  const searchStuck = useIsStuck(searchRestRef, canvasRef);
+  const searchStuck = useIsStuck(searchRestRef, canvas);
 
   const state: CatalogFilterState = useMemo(() => {
     const holding = params.get("holding");
@@ -185,7 +187,7 @@ function Catalog() {
             </nav>
           </header>
 
-          <main ref={canvasRef} className="min-h-0 flex-1 overflow-y-auto">
+          <main ref={setCanvas} className="min-h-0 flex-1 overflow-y-auto">
             {/* Narrower than the dashboard's 1280: this canvas is one column of
                   running prose, and the abstract's measure stops near 76
                   characters either way. A wider panel only adds empty space
@@ -240,7 +242,7 @@ function Catalog() {
                   state={state}
                   loading={papers.isPending}
                   page={papers}
-                  scrollRef={canvasRef}
+                  scrollElement={canvas}
                 />
               )}
             </div>

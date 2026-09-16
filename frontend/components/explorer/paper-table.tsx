@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useState } from "react";
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
 import { useInfiniteVirtualList } from "@/hooks/use-infinite-virtual-list";
 import { usePapersQuery, type PapersQueryFilters } from "@/hooks/use-papers-query";
@@ -189,10 +189,10 @@ export function PaperTable() {
   const rows = table.getRowModel().rows;
   const headerCells = table.getFlatHeaders();
 
-  const parentRef = useRef<HTMLDivElement>(null);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const { virtualizer, items: virtualRows } = useInfiniteVirtualList({
     count: rows.length,
-    scrollRef: parentRef,
+    scrollElement: scroller,
     estimateSize: ROW_HEIGHT_ESTIMATE_PX,
     overscan: OVERSCAN,
     fetchAhead: FETCH_NEXT_THRESHOLD,
@@ -271,7 +271,7 @@ export function PaperTable() {
             ))}
           </div>
         </div>
-        <div ref={parentRef} role="rowgroup" className="flex-1 overflow-y-auto">
+        <div ref={setScroller} role="rowgroup" className="flex-1 overflow-y-auto">
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
             {virtualRows.map((virtualRow) => {
               const row = rows[virtualRow.index];

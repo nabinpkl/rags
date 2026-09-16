@@ -18,13 +18,13 @@ function scroller(scrollTop = 0) {
   // The virtualizer scrolls on its own account; only the hook's reset is
   // under test, and that writes `scrollTop`.
   element.scrollTo = vi.fn();
-  return { current: element };
+  return element;
 }
 
 function props(overrides: Partial<Parameters<typeof useInfiniteVirtualList>[0]>) {
   return {
     count: 3,
-    scrollRef: scroller(),
+    scrollElement: scroller(),
     estimateSize: 50,
     overscan: 2,
     fetchAhead: 1,
@@ -41,6 +41,19 @@ describe("useInfiniteVirtualList", () => {
     // 600px of 50px rows is 12, plus the overscan: nowhere near 1,000.
     expect(result.current.items.length).toBeGreaterThan(0);
     expect(result.current.items.length).toBeLessThan(20);
+  });
+
+  it("draws rows once the scroller exists, when it did not on the first render", () => {
+    // Regression: Explore reopened with a cached first page mounts the list in
+    // the same commit as its scroller, so the first render has no scroller.
+    const canvas = scroller();
+    const { result, rerender } = renderHook((p) => useInfiniteVirtualList(p), {
+      initialProps: props({ scrollElement: null, count: 30 }),
+    });
+    expect(result.current.items).toHaveLength(0);
+
+    rerender(props({ scrollElement: canvas, count: 30 }));
+    expect(result.current.items.length).toBeGreaterThan(0);
   });
 
   it("does not ask for a page while one is loading, or after one failed", () => {
@@ -61,17 +74,17 @@ describe("useInfiniteVirtualList", () => {
   });
 
   it("sends the scroller back to the top when the query changes, not when rows arrive", () => {
-    const scrollRef = scroller(900);
+    const canvas = scroller(900);
     const { rerender } = renderHook((p) => useInfiniteVirtualList(p), {
-      initialProps: props({ scrollRef }),
+      initialProps: props({ scrollElement: canvas }),
     });
-    expect(scrollRef.current.scrollTop).toBe(900);
+    expect(canvas.scrollTop).toBe(900);
 
-    rerender(props({ scrollRef, count: 6 }));
-    expect(scrollRef.current.scrollTop).toBe(900);
+    rerender(props({ scrollElement: canvas, count: 6 }));
+    expect(canvas.scrollTop).toBe(900);
 
-    rerender(props({ scrollRef, count: 6, resetKey: "b" }));
-    expect(scrollRef.current.scrollTop).toBe(0);
+    rerender(props({ scrollElement: canvas, count: 6, resetKey: "b" }));
+    expect(canvas.scrollTop).toBe(0);
   });
 
   describe("keeping the reader's place", () => {
@@ -98,27 +111,27 @@ describe("useInfiniteVirtualList", () => {
 
     it("scrolls back to it when the rows are already there", () => {
       window.sessionStorage.setItem("virtual-list-place:catalog:q=a", place(3));
-      const scrollRef = scroller();
+      const canvas = scroller();
       const { result } = renderHook(() =>
-        useInfiniteVirtualList(props({ scrollRef, rememberAs: "catalog", resetKey: "q=a" })),
+        useInfiniteVirtualList(
+          props({ scrollElement: canvas, rememberAs: "catalog", resetKey: "q=a" }),
+        ),
       );
 
-      expect(scrollRef.current.scrollTo).toHaveBeenCalledWith(
-        expect.objectContaining({ top: 900 }),
-      );
+      expect(canvas.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 900 }));
       expect(result.current.scrollMargin).toBe(120);
     });
 
     it("starts at the top when the rows it describes have not loaded", () => {
       window.sessionStorage.setItem("virtual-list-place:catalog:q=a", place(90));
-      const scrollRef = scroller();
+      const canvas = scroller();
       renderHook(() =>
-        useInfiniteVirtualList(props({ scrollRef, rememberAs: "catalog", resetKey: "q=a" })),
+        useInfiniteVirtualList(
+          props({ scrollElement: canvas, rememberAs: "catalog", resetKey: "q=a" }),
+        ),
       );
 
-      expect(scrollRef.current.scrollTo).not.toHaveBeenCalledWith(
-        expect.objectContaining({ top: 900 }),
-      );
+      expect(canvas.scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ top: 900 }));
     });
 
     it("keeps no place for a list that did not ask for one", () => {

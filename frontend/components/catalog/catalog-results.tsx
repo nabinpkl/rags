@@ -78,14 +78,14 @@ export function CatalogResults({
   state,
   loading,
   page,
-  scrollRef,
+  scrollElement,
 }: {
   papers: CatalogPaper[];
   total: number;
   state: CatalogFilterState;
   loading: boolean;
   page: NextPage;
-  scrollRef: RefObject<HTMLElement | null>;
+  scrollElement: HTMLElement | null;
 }) {
   // Here rather than in the list: the list unmounts while a new filter's
   // first page loads, and the reset to the top has to happen then, not once
@@ -94,7 +94,7 @@ export function CatalogResults({
   const listRef = useRef<HTMLOListElement>(null);
   const windowed = useInfiniteVirtualList({
     count: papers.length,
-    scrollRef,
+    scrollElement,
     listRef,
     estimateSize: CARD_ESTIMATE_PX,
     overscan: OVERSCAN,
