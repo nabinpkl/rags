@@ -30,13 +30,16 @@ function destination(paper: CatalogPaper): { href: string; label: string; extern
 }
 
 /** The filter, said back in words. A reader who changed three things in the
- * rail confirms the query here rather than re-reading three lists. */
+ * rail confirms them here rather than re-reading three selects.
+ *
+ * The search text is deliberately absent: it sits in the field one line
+ * above, in the reader's own spelling, so repeating it here would be the page
+ * reading its own input back. */
 function describe(state: CatalogFilterState): string {
   const parts = [
     state.holding === "indexed" ? "Papers the agent can read" : "Papers",
     state.category,
     state.month ? `posted ${formatIdMonth(state.month)}` : null,
-    state.q.trim() ? `matching “${state.q.trim()}”` : null,
     state.holding === "text" ? "whose text we hold" : null,
   ].filter(Boolean);
   return parts.join(" · ");

@@ -1,13 +1,11 @@
 "use client";
 
-import { ChevronDown, Search, X } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useId } from "react";
 
 import type { CatalogBucket, CatalogFacetsResponse } from "@/lib/api-client";
 import { formatIdMonth } from "@/lib/id-month";
 import { cn } from "@/lib/utils";
-
-const DEBOUNCE_MS = 300;
 
 /** What we hold of a paper, as the three states the corpus actually has.
  * Every paper has a catalog row; some have extracted text; a few are chunked
@@ -51,6 +49,9 @@ export const EMPTY_FILTER: CatalogFilterState = {
  * neither that rail's scroll nor its header — a filter is a property of the
  * list on screen, not a second place to go.
  *
+ * Four selects and nothing else: the search field it used to sit above is on
+ * the canvas now, where the list it changes is (`catalog-search.tsx`).
+ *
  * Four selects rather than four lists of rows. The corpus has 40 fields and
  * 234 id-months, which as rows was a rail the reader scrolled past to reach
  * the next control, with the long tail parked behind a "224 more" expander
@@ -83,8 +84,6 @@ export function CatalogFilters({
 
   return (
     <div className="flex flex-col gap-4">
-      <SearchBox value={state.q} onCommit={(q) => onChange({ q })} />
-
       <FilterSelect
         label="Show"
         value={state.holding}
@@ -235,55 +234,5 @@ function BucketSelect({
       ]}
       onChange={(value) => onSelect(value === "" ? null : value)}
     />
-  );
-}
-
-/** The text box owns its own keystrokes and commits on a pause: the URL is
- * the filter's home, and writing it per character would refetch per letter. */
-function SearchBox({ value, onCommit }: { value: string; onCommit: (value: string) => void }) {
-  const [text, setText] = useState(value);
-  const [synced, setSynced] = useState(value);
-
-  // An external change (a pasted link, Clear) resyncs the input during render
-  // rather than in an effect, per the React docs' "adjusting state when a
-  // prop changes".
-  if (value !== synced) {
-    setSynced(value);
-    setText(value);
-  }
-
-  useEffect(() => {
-    if (text === value) return;
-    const timer = setTimeout(() => onCommit(text), DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [text, value, onCommit]);
-
-  return (
-    <div className="relative">
-      <Search
-        className="text-muted pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
-        aria-hidden
-      />
-      <input
-        type="search"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        placeholder="Title or abstract"
-        aria-label="Search titles and abstracts"
-        // 16px here: iOS Safari zooms the page when a focused input is under
-        // 16px and does not undo the zoom on blur.
-        className="border-line bg-paper text-ink placeholder:text-muted w-full rounded border py-2 pr-7 pl-8 text-[16px] outline-none md:text-[13px]"
-      />
-      {text !== "" && (
-        <button
-          type="button"
-          onClick={() => setText("")}
-          aria-label="Clear search"
-          className="text-muted hover:text-ink absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-1 transition-colors motion-reduce:transition-none"
-        >
-          <X className="size-3" aria-hidden />
-        </button>
-      )}
-    </div>
   );
 }
