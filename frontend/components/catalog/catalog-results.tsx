@@ -85,7 +85,11 @@ export function CatalogResults({
         )
       ) : (
         <>
-          <ol className="flex flex-col gap-2.5">
+          {/* The tile sizes off THIS width, not the viewport's: a docked rail
+              takes 264px, so a 1024px window leaves the list narrower than a
+              600px one with the rail closed. Container queries decide layout
+              inside a region (.claude/rules/frontend.md). */}
+          <ol className="@container flex flex-col gap-2.5">
             {papers.map((paper) => (
               <li key={paper.arxiv_id}>
                 <PaperCard paper={paper} />
@@ -132,14 +136,27 @@ export function CatalogResults({
  * 4:3, because both sources are landscape — a figure as it sits on the page,
  * or the top half of page one. Cropped square, a title block would lose a
  * third of its width off each side.
+ *
+ * It grows to 160x120 where the card is wide enough, and stops there for two
+ * reasons that happen to agree. 120px is the shortest card's inner height
+ * (measured 2026-09-16: 131px), so a taller tile would start setting card
+ * height instead of the text. And the JPEG is rendered 320px wide, so 160
+ * CSS px is exactly 2x — past that the image upscales, and re-rendering it
+ * larger is the knob D19 calls compliance-adjacent, not a layout tweak.
+ *
+ * It does NOT grow on a phone, where the text column is already down to
+ * 200px and titles wrap to five lines. Vertical room is not the constraint
+ * there; horizontal room is, and there is none.
  */
 function Tile({ paper, Icon }: { paper: CatalogPaper; Icon: LucideIcon }) {
   return (
     <span
-      className="bg-paper text-muted group-hover:bg-teal-soft group-hover:text-teal-ink relative mt-0.5 grid h-[60px] w-20 shrink-0 place-items-center overflow-hidden rounded transition-colors motion-reduce:transition-none"
+      className="bg-paper text-muted group-hover:bg-teal-soft group-hover:text-teal-ink relative mt-0.5 grid h-[60px] w-20 shrink-0 place-items-center overflow-hidden rounded @xl:h-[90px] @xl:w-[120px] @3xl:h-[120px] @3xl:w-40 transition-colors motion-reduce:transition-none"
       aria-hidden
     >
-      <Icon className="size-[18px]" />
+      {/* Grows with the tile, or a 160px box holds an 18px glyph adrift in
+          it — the resting state has to look composed, not empty. */}
+      <Icon className="size-[18px] @xl:size-6 @3xl:size-7" />
       {/* next/image optimizes nothing here: the export target runs no image
           server (images.unoptimized, D13) and the file is rendered at the one
           size this tile uses. */}
@@ -250,13 +267,15 @@ function PaperCard({ paper }: { paper: CatalogPaper }) {
 function SkeletonCards() {
   const widths = ["w-[62%]", "w-[45%]", "w-[71%]", "w-[54%]", "w-[66%]"];
   return (
-    <ol className="flex flex-col gap-2.5" aria-hidden>
+    // Same container as the real list, so the skeleton tile is the size the
+    // arriving one will be and the row does not resize under the reader.
+    <ol className="@container flex flex-col gap-2.5" aria-hidden>
       {widths.map((width) => (
         <li
           key={width}
           className="border-line bg-panel flex items-start gap-3.5 rounded-md border px-4 py-4"
         >
-          <span className="bg-line/40 mt-0.5 h-[60px] w-20 shrink-0 rounded" />
+          <span className="bg-line/40 mt-0.5 h-[60px] w-20 shrink-0 rounded @xl:h-[90px] @xl:w-[120px] @3xl:h-[120px] @3xl:w-40" />
           <span className="min-w-0 flex-1">
             <span className={`bg-line/40 block h-4 rounded ${width}`} />
             <span className="bg-line/25 mt-2.5 block h-2.5 w-[30%] rounded" />
