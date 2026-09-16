@@ -116,6 +116,9 @@ class BuildStats:
     citations: int = 0
     papers_with_text: int = 0
     catalog_months: int = 0
+    # Only a metadata-only build leaves this above zero: chunks written to
+    # corpus.db that the vector store does not carry yet.
+    chunks_without_vectors: int = 0
 
 
 def _read_papers(arxiv_db: Path) -> list[PaperRow]:
@@ -265,6 +268,16 @@ def _write_corpus_db(
                 -- counted over these rows, never over every catalog row.
                 has_text         INTEGER NOT NULL
             );
+            -- Title and abstract of EVERY paper, indexed or not: the catalog
+            -- filter (/api/catalog) searches the whole table, and the Kaggle
+            -- snapshot carries an abstract for every row, so this is the one
+            -- text surface that does not depend on having extracted a PDF.
+            -- Separate from chunks_fts, which indexes retrieved chunk text and
+            -- exists only for the 811 papers the agent can read (D16).
+            CREATE VIRTUAL TABLE papers_fts USING fts5(
+                title, abstract, content=papers, content_rowid=rowid,
+                tokenize='porter unicode61'
+            );
             CREATE TABLE chunks (
                 chunk_id   TEXT PRIMARY KEY,
                 paper_id   TEXT NOT NULL REFERENCES papers(arxiv_id),
@@ -354,6 +367,10 @@ def _write_corpus_db(
                 for c in chunks
             ],
         )
+        conn.execute(
+            "INSERT INTO papers_fts(rowid, title, abstract)"
+            " SELECT rowid, title, abstract FROM papers"
+        )
         conn.execute("INSERT INTO chunks_fts(rowid, text) SELECT rowid, text FROM chunks")
         # cited_works before citations: the FK on cited_id is enforced (PRAGMA
         # foreign_keys=ON above), so the referenced rows must already exist.
@@ -390,6 +407,8 @@ def _validate_inputs(
     papers_by_id: dict[str, PaperRow],
     cited_works: Sequence[CitedWorkRow] = (),
     citations: Sequence[tuple[str, str]] = (),
+    *,
+    require_every_chunk_embedded: bool = True,
 ) -> None:
     """Every input invariant, checked BEFORE any artifact is written.
 
@@ -423,7 +442,7 @@ def _validate_inputs(
             f"{len(missing)} embedded chunk_ids missing from chunks.jsonl "
             f"(first: {missing[0]}) — stale parquet or stale chunks?"
         )
-    if len(chunk_ids_embedded) != len(chunks):
+    if require_every_chunk_embedded and len(chunk_ids_embedded) != len(chunks):
         raise IndexBuildError(
             f"vectors parquet holds {len(chunk_ids_embedded)} vectors but chunks.jsonl "
             f"holds {len(chunks)} chunks — re-run embed_chunks before indexing"
@@ -491,8 +510,20 @@ def run(
     # rather than a caller mistake.
     citations_path: Path | None = None,
     cited_works_path: Path | None = None,
+    without_vectors: bool = False,
 ) -> BuildStats:
-    """Rebuild corpus.db + the per-model Chroma collection from ingest artifacts."""
+    """Rebuild corpus.db + the per-model Chroma collection from ingest artifacts.
+
+    `without_vectors` rebuilds corpus.db ALONE and leaves the Chroma
+    collection exactly as it is. It exists because the two artifacts age at
+    different speeds: the page's numbers are metadata (papers, citations, the
+    catalog census) and a month of new papers reaches them in minutes, while
+    embedding those same papers is hours of CPU on this box (measured
+    2026-09-16: ~1,000 chunks/hour). The cost is stated rather than hidden —
+    chunks written without a vector are counted, logged, and searchable by
+    keyword but not by vector until a full build runs. See DECISIONS.md
+    2026-09-16.
+    """
     tracer = telemetry.get_tracer("askrag.ingest")
     stats = BuildStats()
     with tracer.start_as_current_span("askrag.ingest.build_indexes") as span:
@@ -525,7 +556,12 @@ def run(
         table = read_vectors(vectors_parquet, expected_slug=collection_name)
         embedded_ids = table["chunk_id"].to_pylist()
         _validate_inputs(
-            embedded_ids, chunks, {p.arxiv_id: p for p in papers}, cited_works, citations
+            embedded_ids,
+            chunks,
+            {p.arxiv_id: p for p in papers},
+            cited_works,
+            citations,
+            require_every_chunk_embedded=not without_vectors,
         )
 
         licenses = read_seed_licenses(seed_zip, {p.arxiv_id for p in papers})
@@ -559,23 +595,35 @@ def run(
         stats.catalog_months = len(catalog_months)
 
         _write_corpus_db(corpus_db, papers, chunks, cited_works, citations, catalog_months)
-        stats.chroma_count = _load_chroma(
-            chroma_dir,
-            collection_name,
-            embedded_ids,
-            table["vector"].to_pylist(),
-            {c.chunk_id: c for c in chunks},
-            papers_by_id,
-            add_batch_size,
-        )
-
-        # THE acceptance invariant (issue #14): the two stores hold the same
-        # chunk set or the artifact pair is not shippable.
-        if stats.chroma_count != stats.chunks:
-            raise IndexBuildError(
-                f"chunks table has {stats.chunks} rows but chroma collection "
-                f"'{collection_name}' has {stats.chroma_count}"
+        if without_vectors:
+            stats.chunks_without_vectors = len(chunks) - len(set(embedded_ids))
+            # Loud, because this is the one build that ships the two stores
+            # out of step on purpose: a silent version of it would look like
+            # a vector index that had quietly stopped finding new papers.
+            _log.warning(
+                f"metadata-only build: {stats.chunks_without_vectors} of {len(chunks)} chunks "
+                f"have no vector yet. corpus.db is current; chroma '{collection_name}' is "
+                "untouched, so those papers answer to keyword search only until a full "
+                "build runs"
             )
+        else:
+            stats.chroma_count = _load_chroma(
+                chroma_dir,
+                collection_name,
+                embedded_ids,
+                table["vector"].to_pylist(),
+                {c.chunk_id: c for c in chunks},
+                papers_by_id,
+                add_batch_size,
+            )
+
+            # THE acceptance invariant (issue #14): the two stores hold the
+            # same chunk set or the artifact pair is not shippable.
+            if stats.chroma_count != stats.chunks:
+                raise IndexBuildError(
+                    f"chunks table has {stats.chunks} rows but chroma collection "
+                    f"'{collection_name}' has {stats.chroma_count}"
+                )
 
         span.set_attribute("askrag.model_slug", collection_name)
         span.set_attribute("askrag.papers", stats.papers)
@@ -604,7 +652,12 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     telemetry.init(settings)
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    parser.parse_args(argv)
+    parser.add_argument(
+        "--without-vectors",
+        action="store_true",
+        help="rebuild corpus.db alone, leaving the vector store as it is (see the run docstring)",
+    )
+    args = parser.parse_args(argv)
     try:
         run(
             arxiv_db=settings.arxiv_db_path,
@@ -618,6 +671,7 @@ def main(argv: list[str] | None = None) -> int:
             chroma_dir=settings.chroma_dir,
             collection_name=settings.embedding_model_slug,
             add_batch_size=settings.chroma_add_batch_size,
+            without_vectors=args.without_vectors,
         )
         return 0
     finally:

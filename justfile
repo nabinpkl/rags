@@ -116,6 +116,13 @@ index:
     cd backend && uv run python -m askrag.ingest.build_indexes
     cd backend && uv run python -m askrag.ingest.select_frontier --verify
 
+# Rebuild corpus.db alone: the page's numbers (papers, citations, the catalog
+# census) without waiting on the embedder, which runs at ~1,000 chunks/hour on
+# this box. The vector store is left exactly as it is, so chunks embedded since
+# the last full `just index` answer to keyword search only until one runs.
+index-metadata:
+    cd backend && uv run python -m askrag.ingest.build_indexes --without-vectors
+
 # Dev server (#30): uvicorn serving the FastAPI chat API with autoreload.
 # Extra args pass through to uvicorn, e.g. `just serve --port 8001`.
 serve *ARGS:
@@ -174,6 +181,17 @@ deploy *ARGS:
         exit 1
     fi
     docker compose -f deploy/compose.yml up -d --build {{ARGS}}
+    # corpus.db is bind-mounted as a FILE, so the mount pins the inode it
+    # resolved at container start; build_indexes writes a new file and renames
+    # over it. Without this check a rebuilt corpus is invisible to a running
+    # container and the deploy reports healthy while serving last week's counts.
+    set -a; . deploy/.env; set +a
+    host_inode=$(stat -Lc %i "${ASKRAG_CORPUS_HOST_DIR:-corpus}/corpus.db")
+    mounted_inode=$(docker compose -f deploy/compose.yml exec -T api stat -c %i /data/corpus/corpus.db)
+    if [ "$host_inode" != "$mounted_inode" ]; then
+        echo "corpus.db was replaced under the running container — recreating api" >&2
+        docker compose -f deploy/compose.yml up -d --force-recreate api
+    fi
     docker compose -f deploy/compose.yml ps
 
 # Stop the stack (volumes survive: traces.db and the chroma copy)

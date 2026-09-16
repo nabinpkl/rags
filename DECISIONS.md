@@ -14,6 +14,77 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-16 — a route that lists papers the app cannot retrieve
+
+**Context:** The dashboard counts 65,503 papers and can offer 811. Every
+number on it opens a list, and every list is `INDEXED_PREDICATE`-scoped
+(D16), so the other 64,692 papers are visible as arithmetic and unreachable
+as papers. The reader who asks "what else is in there" has nowhere to go.
+
+**Decision:** A third static route, `/papers`, backed by
+`api/routes_catalog.py`, lists and filters the whole `papers` table. Rows
+carry an `indexed` boolean; an indexed row opens the reader, every other row
+opens arxiv.org at the recorded version (§6b). Filtering is SQL plus BM25
+over a new `papers_fts` (title + abstract) built in `_write_corpus_db` — no
+embedding model, no LLM, and no dependence on having fetched a PDF, since the
+Kaggle snapshot carries a title and abstract for every row.
+
+**Alternatives rejected:** Widening `/api/papers` instead (it is the agent's
+own browse surface — widening it widens what the model can reason about, which
+is the bug D16 closed); a section on the dashboard rather than a route (a
+filter with five controls and 65,503 rows is a destination, not a band in a
+scrolling canvas, and the dashboard's rail addresses bands); `LIKE '%q%'`
+instead of FTS (153ms per query against 3-7ms, and substring matching returns
+"diffusionally" for "diffusion"); indexing chunk text for the whole corpus so
+the existing surface could serve this (that is the breadth tier, ~56h of
+embedding, and it is out of scope).
+
+**Consequence:** `corpus.db` grows ~48MB (281 -> 329MB) for `papers_fts`, and
+a rebuild is required before the route answers. The `indexed` field now
+reaches the wire, which D16 refused; the amendment says why that is sound here
+and confirms no agent-reachable surface widened.
+
+Spec updated: yes — D16 amendment (2026-09-16, the catalog route), §4c layout
+tree.
+
+---
+
+## 2026-09-16 — corpus.db may be rebuilt without the vector store
+
+**Context:** July and August 2026 were backfilled to 99.95% and 99.99% of the
+catalog (6,947 + 1,347 papers), which moved every number the landing page
+prints. The page's numbers are metadata — `papers`, `citations`,
+`catalog_months` — and are ready minutes after a collector run. The same
+papers' embeddings are not: measured on this box, `embed_chunks` sustains
+~1,000 chunks/hour, so the 5,161 chunks the new frontier added are five hours
+of CPU. `build_indexes` refused to write corpus.db at all until every chunk
+had a vector, so a dashboard number could not move until the embedder caught
+up.
+
+**Decision:** `build_indexes --without-vectors` (recipe: `just
+index-metadata`) writes corpus.db and its FTS index and leaves the Chroma
+collection untouched. The equality check between the parquet and
+chunks.jsonl is skipped ONLY in that mode; the check that every embedded
+chunk_id still exists in chunks.jsonl (the stale-parquet guard) is not. The
+build logs how many chunks have no vector, and `BuildStats` carries the
+count, because this is the one build that ships the two stores out of step on
+purpose.
+
+**Cost, stated:** papers chunked since the last full build are findable by
+keyword and invisible to vector search until `just index` runs. They still
+count as indexed (D16's predicate is a `chunks` row, and quotes come from
+corpus.db), so nothing on the page dead-ends.
+
+**Revisit when:** embedding stops being the slow leg — a GPU, a hosted
+embedder (D5's Voyage seam), or a corpus that grows more slowly than it
+embeds. Then the mode is dead weight and should be deleted rather than kept
+"just in case".
+
+Spec updated: no (build-mode only; D4's two-store invariant is unchanged for
+every full build, which is the only kind the gate and the deploy run).
+
+---
+
 ## 2026-09-15 — the page states a measured share of arXiv, never "every cs paper"
 
 **Context:** the landing copy claimed "we pulled every cs paper arXiv posted

@@ -19,6 +19,13 @@
   --paper: #f2f3ef;
   --panel: #fbfbf9;
   --ink: #1a2128;
+  /* The middle text tier. Running prose that a reader is meant to READ but
+     that must sit under a heading — an abstract preview, a panel's lead
+     paragraph — belongs here. Before it existed those paragraphs took
+     `--muted` and rendered in the same grey as a timestamp, which is what
+     made them skimmable rather than readable. Three tiers, no more: a fourth
+     grey means a text role went unnamed. */
+  --ink-2: #3f4a53;
   --muted: #66727b;
   --line: #dcdfd9;
   --teal-soft: #e2efec;
@@ -50,6 +57,7 @@
   --paper: #171c20;
   --panel: #1e242a;
   --ink: #e8ebe8;
+  --ink-2: #bcc5cb;
   --muted: #98a3aa;
   --line: #2c343a;
   --teal-soft: #12332e;
@@ -90,6 +98,7 @@
   --color-paper: var(--paper);
   --color-panel: var(--panel);
   --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-teal-soft: var(--teal-soft);

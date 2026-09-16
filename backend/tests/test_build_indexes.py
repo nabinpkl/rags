@@ -545,3 +545,33 @@ def test_the_build_leaves_planner_stats_behind(tmp_path):
     # The (arxiv_id, year) covering index was measured to buy nothing; if it
     # comes back, it needs a measurement, not an intuition.
     assert "cited_works_year" not in indexes
+
+
+def test_a_metadata_only_build_writes_corpus_db_and_leaves_the_vector_store_alone(paths):
+    """corpus.db and the vector store age at different speeds.
+
+    A month of new papers reaches the page's numbers in minutes and the
+    embedder in hours (measured 2026-09-16: ~1,000 chunks/hour on this box),
+    so a metadata-only rebuild ships the first without waiting for the
+    second. What it must never do is pretend the two agree.
+    """
+    run(paths)  # a full build first, so there is a chroma generation to leave alone
+    write_parquet(paths["parquet"], [c[0] for c in CHUNKS[:2]])  # the third chunk loses its vector
+
+    stats = run(paths, without_vectors=True)
+
+    conn = sqlite3.connect(paths["corpus_db"])
+    assert conn.execute("SELECT count(*) FROM chunks").fetchone()[0] == 3
+    conn.close()
+    assert stats.chunks_without_vectors == 1
+    # Untouched, not rebuilt short: the previous generation still answers.
+    collection = chroma_client(paths["chroma"]).get_collection(SLUG)
+    assert collection.count() == 3
+    assert stats.chroma_count == 0
+
+
+def test_a_full_build_still_refuses_a_chunk_without_a_vector(paths):
+    write_parquet(paths["parquet"], [c[0] for c in CHUNKS[:2]])
+
+    with pytest.raises(build_indexes.IndexBuildError, match="re-run embed_chunks"):
+        run(paths)

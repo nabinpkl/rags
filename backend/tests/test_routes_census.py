@@ -179,3 +179,35 @@ def test_the_coverage_floor_is_configurable_and_actually_gates(tmp_path):
 def test_next_month_rolls_the_year_over():
     assert routes_census.next_month("2612") == "2701"
     assert routes_census.next_month("2607") == "2608"
+
+
+def _census_scan_counts(tmp_path, papers, catalog_months) -> tuple[int, int]:
+    """How many full catalog passes one /api/census/categories request makes."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    _write_corpus_db(tmp_path / "corpus.db", papers, CHUNKS, CITED_WORKS, CITATIONS, catalog_months)
+    calls = {"coverage": 0, "cohort": 0}
+    with pytest.MonkeyPatch.context() as patch:
+        for name, key in (("month_coverage", "coverage"), ("cohort_months", "cohort")):
+            real = getattr(routes_census, name)
+
+            def counted(*args, _real=real, _key=key, **kwargs):
+                calls[_key] += 1
+                return _real(*args, **kwargs)
+
+            patch.setattr(routes_census, name, counted)
+        assert _client(tmp_path).get("/api/census/categories").status_code == 200
+    return calls["coverage"], calls["cohort"]
+
+
+def test_the_catalog_is_scanned_a_fixed_number_of_times_whatever_the_month_count(tmp_path):
+    """Regression: both sets were built inside the `excluded` comprehension, so
+    every catalog month cost another full pass. 234 real months turned a 0.5s
+    request into 55s, which the browser simply never waited for."""
+    thin = [_paper(f"{year}{month:02d}.00001", "Older") for year in (24, 25) for month in (3, 9)]
+    few = _census_scan_counts(tmp_path / "few", PAPERS, CATALOG_MONTHS)
+    many = _census_scan_counts(
+        tmp_path / "many",
+        PAPERS + thin,
+        CATALOG_MONTHS | {paper.arxiv_id[:4]: 400 for paper in thin},
+    )
+    assert few == many

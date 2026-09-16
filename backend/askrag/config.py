@@ -123,6 +123,11 @@ class Settings(BaseSettings):
     # panel states how many works and citations the pair of months holds.
     landing_uptake_limit: int = 8
 
+    # The catalog filter pages over all 65,503 papers, so the page size is a
+    # scroll-length decision rather than a cost one: every filter is an index
+    # lookup or a 65k-row scan under 150ms.
+    catalog_page_size: int = 30
+
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000
     chunk_overlap_ratio: float = 0.15

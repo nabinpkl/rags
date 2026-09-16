@@ -559,10 +559,405 @@
                     }
                 }
             }
+        },
+        "/api/catalog/papers": {
+            "get": {
+                "summary": "List Catalog Papers",
+                "description": "Every paper the catalog knows, filtered. Indexed and not, together.",
+                "operationId": "list_catalog_papers_api_catalog_papers_get",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "maxLength": 200
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Q"
+                        }
+                    },
+                    {
+                        "name": "category",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "maxLength": 32
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Category"
+                        }
+                    },
+                    {
+                        "name": "month",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "id-month, e.g. 2608",
+                            "title": "Month"
+                        },
+                        "description": "id-month, e.g. 2608"
+                    },
+                    {
+                        "name": "holding",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "enum": [
+                                "all",
+                                "text",
+                                "indexed"
+                            ],
+                            "type": "string",
+                            "default": "all",
+                            "title": "Holding"
+                        }
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "enum": [
+                                "relevance",
+                                "newest",
+                                "oldest",
+                                "cited"
+                            ],
+                            "type": "string",
+                            "default": "newest",
+                            "title": "Sort"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Offset"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CatalogPapersResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/catalog/facets": {
+            "get": {
+                "summary": "Get Catalog Facets",
+                "description": "How many papers each category and each month would give under this filter.",
+                "operationId": "get_catalog_facets_api_catalog_facets_get",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "maxLength": 200
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Q"
+                        }
+                    },
+                    {
+                        "name": "category",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "maxLength": 32
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Category"
+                        }
+                    },
+                    {
+                        "name": "month",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Month"
+                        }
+                    },
+                    {
+                        "name": "holding",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "enum": [
+                                "all",
+                                "text",
+                                "indexed"
+                            ],
+                            "type": "string",
+                            "default": "all",
+                            "title": "Holding"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CatalogFacetsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
         "schemas": {
+            "CatalogBucket": {
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "title": "Value"
+                    },
+                    "papers": {
+                        "type": "integer",
+                        "title": "Papers"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "value",
+                    "papers"
+                ],
+                "title": "CatalogBucket"
+            },
+            "CatalogFacetsResponse": {
+                "properties": {
+                    "holdings": {
+                        "items": {
+                            "$ref": "#/components/schemas/CatalogBucket"
+                        },
+                        "type": "array",
+                        "title": "Holdings"
+                    },
+                    "categories": {
+                        "items": {
+                            "$ref": "#/components/schemas/CatalogBucket"
+                        },
+                        "type": "array",
+                        "title": "Categories"
+                    },
+                    "months": {
+                        "items": {
+                            "$ref": "#/components/schemas/CatalogBucket"
+                        },
+                        "type": "array",
+                        "title": "Months"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "title": "Total"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "holdings",
+                    "categories",
+                    "months",
+                    "total"
+                ],
+                "title": "CatalogFacetsResponse",
+                "description": "Counts for the three dimensions the filter offers as lists.\n\nEach dimension is counted with every OTHER filter applied but not its own,\nso the numbers answer \"what would I get if I picked this instead\", which\nis the question a reader is asking when they look at the list."
+            },
+            "CatalogPaper": {
+                "properties": {
+                    "arxiv_id": {
+                        "type": "string",
+                        "title": "Arxiv Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "authors": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Authors"
+                    },
+                    "abstract": {
+                        "type": "string",
+                        "title": "Abstract"
+                    },
+                    "primary_category": {
+                        "type": "string",
+                        "title": "Primary Category"
+                    },
+                    "published": {
+                        "type": "string",
+                        "title": "Published"
+                    },
+                    "version": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Version"
+                    },
+                    "has_text": {
+                        "type": "boolean",
+                        "title": "Has Text"
+                    },
+                    "indexed": {
+                        "type": "boolean",
+                        "title": "Indexed"
+                    },
+                    "cited_by": {
+                        "type": "integer",
+                        "title": "Cited By"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "arxiv_id",
+                    "title",
+                    "authors",
+                    "abstract",
+                    "primary_category",
+                    "published",
+                    "version",
+                    "has_text",
+                    "indexed",
+                    "cited_by"
+                ],
+                "title": "CatalogPaper",
+                "description": "One paper as the catalog knows it, plus what we hold of it.\n\n`indexed` is what decides where a row can send the reader, so it is a\nfield rather than something the client infers from a count."
+            },
+            "CatalogPapersResponse": {
+                "properties": {
+                    "papers": {
+                        "items": {
+                            "$ref": "#/components/schemas/CatalogPaper"
+                        },
+                        "type": "array",
+                        "title": "Papers"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "title": "Total"
+                    },
+                    "next_offset": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Next Offset"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "papers",
+                    "total",
+                    "next_offset"
+                ],
+                "title": "CatalogPapersResponse"
+            },
             "CategoryCensusResponse": {
                 "properties": {
                     "categories": {

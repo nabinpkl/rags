@@ -842,6 +842,36 @@ month today — the mirror's folder for it stops at 2609.04203. The
 count-vs-list rule is untouched: these are counts, and a row opens the same
 foundation detail whose citer list stays indexed-only.
 
+**Amendment (2026-09-16, the catalog route).** This one relaxes the rule, and
+says exactly where. `GET /api/catalog/papers` (route `/papers`) lists the WHOLE
+`papers` table, indexed or not, and each row carries an `indexed` boolean on
+the wire — the field the original decision refused.
+
+What made the refusal right was that the app had one promise, retrieval, and
+a two-tier UI would have let a reader reason about papers it could never
+serve. The catalog page makes a different and smaller promise: what arXiv
+posted and what we hold of it. That promise is true of all 65,503 rows, and
+it is the only surface where the 64,692 unreadable ones stop being a number
+on the dashboard and become papers a reader can reach. So:
+
+- The scope widens and the affordance narrows TOGETHER. An indexed row opens
+  the reader; every other row opens arxiv.org, version-pinned (§6b). The
+  boolean exists to route the row, not to rank it, and there is no badge, no
+  second tier of styling, no "upgrade" path.
+- **The agent's surface is untouched.** `facets.INDEXED_PREDICATE` still
+  scopes browse, `GET /api/facets`, `GET /api/papers`, `GET /api/papers/{id}`
+  and every `query_metadata` op. `routes_catalog.py` builds its own WHERE and
+  never calls `facets.where_clause`, so nothing the model can reach widened.
+- Nothing on this path loads a model. The filter is SQL over `papers` plus
+  BM25 over `papers_fts` (title + abstract), a new external-content FTS5 table
+  in `_write_corpus_db`. Titles and abstracts come from the Kaggle snapshot
+  and exist for every row, which is why this surface can cover the table when
+  retrieval cannot. §6c is unaffected: no chunk text is read here.
+
+This is the "found" versus "readable" distinction the revisit trigger below
+anticipated, arriving one tier early and only for human-facing lists. The tool
+contracts still do not have to make it. See DECISIONS.md 2026-09-16.
+
 **Revisit when.** A breadth tier lands (abstract-level index over all cs
 history). A paper matched at abstract level *cannot be quoted* — we hold no
 text for it — so the tool contracts would then have to distinguish "found"
@@ -1091,6 +1121,7 @@ rags/
 │   │   ├── api/
 │   │   │   ├── app.py               # FastAPI assembly: routers, CORS, lifespan (opens stores once), static admin
 │   │   │   ├── routes_explorer.py   # GET /api/papers, /api/papers/{id}, /api/facets — browse/filter/search
+│   │   │   ├── routes_catalog.py    # GET /api/catalog/papers, /api/catalog/facets — the whole papers table, filtered (D16 amendment 2026-09-16)
 │   │   │   ├── routes_landing.py    # GET /api/landing, /api/foundations/{id}, /api/latest, /api/coverage — the citation graph the front door ranks (D16 amendment)
 │   │   │   ├── routes_census.py     # GET /api/census/categories, /api/census/uptake — what arXiv posted, for months held above `landing_census_min_coverage`
 │   │   │   ├── routes_chat.py       # POST /api/chat — budget gate → agent loop → SSE stream; replay mode when capped

@@ -55,12 +55,14 @@ export function DashboardPanel({
           <Icon className="size-[15px]" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-3">
-            <h2 className="font-serif text-ink min-w-0 flex-1 truncate text-[17px] leading-tight font-semibold">
+          {/* Wraps rather than truncates: the title names the panel, and a
+              clipped name is worse than a meta line that drops below it. */}
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <h2 className="font-serif text-ink min-w-0 text-[17px] leading-tight font-semibold text-balance">
               {title}
             </h2>
             {meta && (
-              <span className="text-muted shrink-0 font-mono text-[10.5px] tracking-[0.08em] whitespace-nowrap uppercase">
+              <span className="text-muted ml-auto shrink-0 font-mono text-[10.5px] tracking-[0.08em] whitespace-nowrap uppercase">
                 {meta}
               </span>
             )}
