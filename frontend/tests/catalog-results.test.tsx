@@ -1,9 +1,27 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { EMPTY_FILTER } from "@/components/catalog/catalog-filters";
 import { CatalogResults } from "@/components/catalog/catalog-results";
+import type { NextPage } from "@/hooks/use-infinite-virtual-list";
 import type { CatalogPaper } from "@/lib/api-client";
+
+const LAST_PAGE: NextPage = {
+  hasNextPage: false,
+  isFetchingNextPage: false,
+  isFetchNextPageError: false,
+  fetchNextPage: () => {},
+};
+
+// The list windows against a scroller, so it needs a real element with a
+// height. jsdom lays nothing out and reports 0, which would leave the window
+// empty; the virtualizer reads `offsetHeight`, so that is what is given.
+function scroller() {
+  const element = document.body.appendChild(document.createElement("main"));
+  Object.defineProperty(element, "offsetHeight", { value: 800 });
+  Object.defineProperty(element, "offsetWidth", { value: 900 });
+  return { current: element };
+}
 
 function paper(overrides: Partial<CatalogPaper> = {}): CatalogPaper {
   return {
@@ -35,7 +53,8 @@ describe("CatalogResults", () => {
         total={1}
         state={EMPTY_FILTER}
         loading={false}
-        onLoadMore={null}
+        page={LAST_PAGE}
+        scrollRef={scroller()}
       />,
     );
 
@@ -57,7 +76,8 @@ describe("CatalogResults", () => {
         total={1}
         state={EMPTY_FILTER}
         loading={false}
-        onLoadMore={null}
+        page={LAST_PAGE}
+        scrollRef={scroller()}
       />,
     );
 
@@ -71,7 +91,8 @@ describe("CatalogResults", () => {
         total={1}
         state={EMPTY_FILTER}
         loading={false}
-        onLoadMore={null}
+        page={LAST_PAGE}
+        scrollRef={scroller()}
       />,
     );
 
@@ -93,7 +114,8 @@ describe("CatalogResults", () => {
         total={2}
         state={EMPTY_FILTER}
         loading={false}
-        onLoadMore={null}
+        page={LAST_PAGE}
+        scrollRef={scroller()}
       />,
     );
 
@@ -114,7 +136,8 @@ describe("CatalogResults", () => {
         total={1}
         state={EMPTY_FILTER}
         loading={false}
-        onLoadMore={null}
+        page={LAST_PAGE}
+        scrollRef={scroller()}
       />,
     );
 
@@ -124,18 +147,100 @@ describe("CatalogResults", () => {
     );
   });
 
-  it("counts what is left rather than what has loaded", () => {
+  it("says where each card sits in the whole result, since most are not in the DOM", () => {
     render(
       <CatalogResults
         papers={[paper()]}
         total={12_345}
         state={EMPTY_FILTER}
         loading={false}
-        onLoadMore={() => {}}
+        page={{ ...LAST_PAGE, hasNextPage: true }}
+        scrollRef={scroller()}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Show more (12,344 left)" })).toBeInTheDocument();
+    const item = screen.getByRole("listitem");
+    expect(item).toHaveAttribute("aria-setsize", "12345");
+    expect(item).toHaveAttribute("aria-posinset", "1");
+    expect(screen.getByText("1 of 12,345")).toBeInTheDocument();
+  });
+
+  it("stops at a failed page and offers the retry, rather than asking again by itself", () => {
+    const fetchNextPage = vi.fn();
+    render(
+      <CatalogResults
+        papers={[paper()]}
+        total={40}
+        state={EMPTY_FILTER}
+        loading={false}
+        page={{ ...LAST_PAGE, hasNextPage: true, isFetchNextPageError: true, fetchNextPage }}
+        scrollRef={scroller()}
+      />,
+    );
+
+    expect(fetchNextPage).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("after 1 of 40 did not load");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for the next page once the reader is near the end of what loaded", () => {
+    const fetchNextPage = vi.fn();
+    render(
+      <CatalogResults
+        papers={[paper()]}
+        total={40}
+        state={EMPTY_FILTER}
+        loading={false}
+        page={{ ...LAST_PAGE, hasNextPage: true, fetchNextPage }}
+        scrollRef={scroller()}
+      />,
+    );
+
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the end is the end", () => {
+    render(
+      <CatalogResults
+        papers={[paper()]}
+        total={1}
+        state={EMPTY_FILTER}
+        loading={false}
+        page={LAST_PAGE}
+        scrollRef={scroller()}
+      />,
+    );
+
+    expect(screen.getByText("All 1 shown")).toBeInTheDocument();
+  });
+
+  it("goes back to the top when the filter changes, before the new rows arrive", () => {
+    const scrollRef = scroller();
+    scrollRef.current.scrollTop = 14_000;
+    const { rerender } = render(
+      <CatalogResults
+        papers={[paper()]}
+        total={40}
+        state={EMPTY_FILTER}
+        loading={false}
+        page={LAST_PAGE}
+        scrollRef={scrollRef}
+      />,
+    );
+    expect(scrollRef.current.scrollTop).toBe(14_000);
+
+    rerender(
+      <CatalogResults
+        papers={[]}
+        total={0}
+        state={{ ...EMPTY_FILTER, q: "diffusion" }}
+        loading
+        page={LAST_PAGE}
+        scrollRef={scrollRef}
+      />,
+    );
+    expect(scrollRef.current.scrollTop).toBe(0);
   });
 
   it("explains an empty result instead of showing an empty box", () => {
@@ -145,7 +250,8 @@ describe("CatalogResults", () => {
         total={0}
         state={EMPTY_FILTER}
         loading={false}
-        onLoadMore={null}
+        page={LAST_PAGE}
+        scrollRef={scroller()}
       />,
     );
 
