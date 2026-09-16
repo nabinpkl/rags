@@ -3,7 +3,6 @@
 import { ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
-import { BrandMark } from "@/components/shell/brand-mark";
 import type { CatalogBucket, CatalogFacetsResponse } from "@/lib/api-client";
 import { formatIdMonth } from "@/lib/id-month";
 import { cn } from "@/lib/utils";
@@ -46,7 +45,11 @@ export const EMPTY_FILTER: CatalogFilterState = {
   sort: "newest",
 };
 
-/** The catalog's rail: the query, in the order a reader builds one.
+/** The query, in the order a reader builds one.
+ *
+ * It sits in the shell's one rail, under the view it filters, and owns
+ * neither that rail's scroll nor its header — a filter is a property of the
+ * list on screen, not a second place to go.
  *
  * Four selects rather than four lists of rows. The corpus has 40 fields and
  * 234 id-months, which as rows was a rail the reader scrolled past to reach
@@ -79,67 +82,59 @@ export function CatalogFilters({
   );
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-line flex h-[57px] shrink-0 items-center gap-2.5 border-b px-4">
-        <BrandMark tagline="every paper we know of" />
-      </div>
+    <div className="flex flex-col gap-4">
+      <SearchBox value={state.q} onCommit={(q) => onChange({ q })} />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
-        <SearchBox value={state.q} onCommit={(q) => onChange({ q })} />
+      <FilterSelect
+        label="Show"
+        value={state.holding}
+        resting={state.holding === EMPTY_FILTER.holding}
+        options={HOLDINGS.map((holding) => ({
+          value: holding.value,
+          label: withCount(holding.label, holdings.get(holding.value)),
+        }))}
+        onChange={(holding) => onChange({ holding: holding as Holding })}
+      />
 
-        <FilterSelect
-          label="Show"
-          value={state.holding}
-          resting={state.holding === EMPTY_FILTER.holding}
-          options={HOLDINGS.map((holding) => ({
-            value: holding.value,
-            label: withCount(holding.label, holdings.get(holding.value)),
-          }))}
-          onChange={(holding) => onChange({ holding: holding as Holding })}
-        />
+      <FilterSelect
+        label="Order"
+        value={state.sort}
+        resting={state.sort === EMPTY_FILTER.sort}
+        options={SORTS.map((sort) => ({
+          value: sort.value,
+          label: sort.label,
+          // Ranking by match needs something to match against, and the API
+          // refuses the pair outright rather than reorder silently.
+          disabled: sort.value === "relevance" && state.q.trim() === "",
+        }))}
+        onChange={(sort) => onChange({ sort: sort as Sort })}
+      />
 
-        <FilterSelect
-          label="Order"
-          value={state.sort}
-          resting={state.sort === EMPTY_FILTER.sort}
-          options={SORTS.map((sort) => ({
-            value: sort.value,
-            label: sort.label,
-            // Ranking by match needs something to match against, and the API
-            // refuses the pair outright rather than reorder silently.
-            disabled: sort.value === "relevance" && state.q.trim() === "",
-          }))}
-          onChange={(sort) => onChange({ sort: sort as Sort })}
-        />
-
-        <BucketSelect
-          label="Field"
-          anyLabel="Any field"
-          buckets={facets?.categories}
-          selected={state.category}
-          format={(value) => value}
-          onSelect={(category) => onChange({ category })}
-        />
-        <BucketSelect
-          label="Month posted"
-          anyLabel="Any month"
-          buckets={facets?.months}
-          selected={state.month}
-          format={(value) => formatIdMonth(value, "short")}
-          onSelect={(month) => onChange({ month })}
-        />
-      </div>
+      <BucketSelect
+        label="Field"
+        anyLabel="Any field"
+        buckets={facets?.categories}
+        selected={state.category}
+        format={(value) => value}
+        onSelect={(category) => onChange({ category })}
+      />
+      <BucketSelect
+        label="Month posted"
+        anyLabel="Any month"
+        buckets={facets?.months}
+        selected={state.month}
+        format={(value) => formatIdMonth(value, "short")}
+        onSelect={(month) => onChange({ month })}
+      />
 
       {filtered && (
-        <div className="border-line shrink-0 border-t p-3">
-          <button
-            type="button"
-            onClick={() => onChange(EMPTY_FILTER)}
-            className="border-line text-ink hover:bg-paper w-full rounded border px-3 py-2 text-[13px] transition-colors motion-reduce:transition-none"
-          >
-            Clear the filter
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => onChange(EMPTY_FILTER)}
+          className="border-line text-ink hover:bg-paper mt-1 w-full rounded border px-3 py-2 text-[13px] transition-colors motion-reduce:transition-none"
+        >
+          Clear the filter
+        </button>
       )}
     </div>
   );

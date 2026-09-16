@@ -1,8 +1,7 @@
 "use client";
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { LayoutDashboard, SlidersHorizontal } from "lucide-react";
-import Link from "next/link";
+import { SlidersHorizontal } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useMemo, useState } from "react";
 
@@ -17,6 +16,7 @@ import {
 } from "@/components/catalog/catalog-filters";
 import { CatalogResults } from "@/components/catalog/catalog-results";
 import { DrawerPanel } from "@/components/shell/drawer-panel";
+import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { SiteFooter } from "@/components/site-footer";
 import { fetchCatalogFacets, fetchCatalogPapers } from "@/lib/api-client";
 
@@ -33,11 +33,10 @@ import { fetchCatalogFacets, fetchCatalogPapers } from "@/lib/api-client";
  * abstracts, which exist for every catalog row, so it works on papers whose
  * PDF was never fetched — which is most of them.
  *
- * Shape is the dashboard's shell, deliberately: a rail that holds the query,
- * a bar that says what you are looking at, a canvas of the same framed panel.
- * The rail's docking rule is the shell rule the rest of the app follows
- * (`.claude/rules/frontend.md`) — viewport width decides dock-vs-drawer, so
- * this reuses `DrawerPanel` rather than growing a second implementation.
+ * Shape is the dashboard's shell because it IS the dashboard's shell: the
+ * same `ShellSidebar`, with this view's filter mounted under the nav rather
+ * than in a rail of its own. Explore and Overview are two views of one app,
+ * and the rail is where you switch between them.
  *
  * The URL is the filter's only home: no store mirrors it, so there is no
  * store-versus-URL race to resolve, and every view is a link someone can
@@ -136,7 +135,7 @@ function Catalog() {
         <DrawerPanel
           dockAt="md"
           side="left"
-          label="Filter the catalog"
+          label="Navigation and filters"
           open={filtersOpen}
           onClose={() => setFiltersOpen(false)}
           // Wider as a drawer than as a docked rail: the phone control is 16px
@@ -145,14 +144,16 @@ function Catalog() {
           // no ellipsis, which a native select truncates silently.
           className="bg-panel border-line w-[min(320px,86vw)] shrink-0 border-r md:w-[264px]"
         >
-          <CatalogFilters
-            state={state}
-            facets={facets}
-            onChange={(next) => {
-              change(next);
-              setFiltersOpen(false);
-            }}
-          />
+          <ShellSidebar current="explore">
+            <CatalogFilters
+              state={state}
+              facets={facets}
+              onChange={(next) => {
+                change(next);
+                setFiltersOpen(false);
+              }}
+            />
+          </ShellSidebar>
         </DrawerPanel>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -160,7 +161,7 @@ function Catalog() {
             <button
               type="button"
               onClick={() => setFiltersOpen(true)}
-              aria-label="Open the filter"
+              aria-label="Open navigation and filters"
               aria-expanded={filtersOpen}
               className="border-line text-ink hover:bg-paper -ml-1 flex size-9 shrink-0 items-center justify-center rounded border transition-colors motion-reduce:transition-none md:hidden"
             >
@@ -173,21 +174,9 @@ function Catalog() {
                 <li aria-hidden className="text-line hidden sm:block">
                   /
                 </li>
-                <li className="text-ink font-medium">All papers</li>
+                <li className="text-ink font-medium">Explore</li>
               </ol>
             </nav>
-
-            {/* The word drops below `sm` but the name does not: the glyph is
-                aria-hidden, so without this the link has no accessible name
-                at exactly the width where it is the only way back. */}
-            <Link
-              href="/"
-              aria-label="Dashboard"
-              className="border-line text-ink hover:bg-paper flex shrink-0 items-center gap-1.5 rounded border px-2.5 py-1.5 text-[12.5px] transition-colors motion-reduce:transition-none"
-            >
-              <LayoutDashboard className="size-3.5" aria-hidden />
-              <span className="hidden sm:inline">Dashboard</span>
-            </Link>
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto">
