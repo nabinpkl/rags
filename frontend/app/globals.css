@@ -71,9 +71,9 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-instrument-sans);
-  --font-serif: var(--font-stix-two-text);
-  --font-mono: var(--font-spline-sans-mono);
+  --font-sans: var(--font-sans-face);
+  --font-serif: var(--font-serif-face);
+  --font-mono: var(--font-mono-face);
 
   /* Agent panel "machine-room" palette (docs/mockup.html) — deliberately NOT
      themed: the machine room is dark in both themes. It is the app's one

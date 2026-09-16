@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Instrument_Sans, STIX_Two_Text, Spline_Sans_Mono } from "next/font/google";
+import { Atkinson_Hyperlegible_Next, JetBrains_Mono, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/app/providers";
 
@@ -7,20 +7,21 @@ import { Providers } from "@/app/providers";
 // `next build` and served from our own origin, so the deployed static export
 // makes NO runtime request to a font CDN (§4b: "the app must not" use Google
 // Fonts at runtime; the mockup's CDN <link> is reference-only).
-const sans = Instrument_Sans({
+// Chosen for stroke weight at small sizes: the catalog is read at 12-15px,
+// where the previous narrow sans and hairline serif read as thin (see
+// DECISIONS.md 2026-09-16). Variable axes, so any weight the UI asks for is
+// real rather than synthesised.
+const sans = Atkinson_Hyperlegible_Next({
   subsets: ["latin"],
-  variable: "--font-instrument-sans",
-  weight: ["400", "500", "600"],
+  variable: "--font-sans-face",
 });
-const serif = STIX_Two_Text({
+const serif = Source_Serif_4({
   subsets: ["latin"],
-  variable: "--font-stix-two-text",
-  weight: ["400", "600", "700"],
+  variable: "--font-serif-face",
 });
-const mono = Spline_Sans_Mono({
+const mono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-spline-sans-mono",
-  weight: ["400", "500", "600"],
+  variable: "--font-mono-face",
 });
 
 export const metadata: Metadata = {
