@@ -65,7 +65,7 @@ export function CatalogResults({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-4">
-        <h1 className="font-serif text-ink min-w-0 text-[18px] leading-tight font-semibold text-balance">
+        <h1 className="font-serif text-ink min-w-0 text-[22px] leading-[1.2] font-semibold text-balance">
           {describe(state)}
         </h1>
         <p className="text-muted shrink-0 font-mono text-[11px] tracking-[0.08em] tabular-nums uppercase">
@@ -136,7 +136,7 @@ function PaperCard({ paper }: { paper: CatalogPaper }) {
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="text-ink block text-[15.5px] leading-[1.35] font-semibold group-hover:underline">
+        <span className="text-ink block text-[17px] leading-[1.3] font-semibold group-hover:underline">
           {paper.title}
         </span>
         {paper.authors && (
@@ -146,20 +146,20 @@ function PaperCard({ paper }: { paper: CatalogPaper }) {
         )}
         {/* The one block of running prose on this page, so it takes the
             middle ink tier rather than the metadata grey, and a measure that
-            stops near 76 characters. No `block`: `line-clamp` works by
-            setting display to -webkit-box, and a display utility after it
-            wins and silently un-clamps the abstract. */}
-        <span className="text-ink-2 mt-2 line-clamp-3 max-w-[76ch] text-[13.5px] leading-[1.6]">
+            stops near 76 characters. Two lines: the abstract is here to say
+            whether the title is worth opening, and a third line pushes the
+            next paper's title off a phone screen without answering that any
+            better. No `block`: `line-clamp` works by setting display to
+            -webkit-box, and a display utility after it wins and silently
+            un-clamps the abstract. */}
+        <span className="text-ink-2 mt-2 line-clamp-2 max-w-[76ch] text-[13.5px] leading-[1.6]">
           {paper.abstract}
         </span>
         <span className="text-muted mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[11.5px]">
           <span className="bg-teal-soft text-teal-ink shrink-0 rounded px-1.5 py-0.5">
             {paper.primary_category}
           </span>
-          <span className="tabular-nums">
-            {paper.arxiv_id}
-            {paper.version ?? ""} · {formatDate(paper.published)}
-          </span>
+          <span className="tabular-nums">{formatDate(paper.published)}</span>
           {paper.cited_by > 0 && (
             <span className="tabular-nums">cited by {paper.cited_by.toLocaleString()} here</span>
           )}

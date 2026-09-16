@@ -1,7 +1,7 @@
 "use client";
 
-import { Search, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, Search, X } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 
 import { BrandMark } from "@/components/shell/brand-mark";
 import type { CatalogBucket, CatalogFacetsResponse } from "@/lib/api-client";
@@ -9,11 +9,6 @@ import { formatIdMonth } from "@/lib/id-month";
 import { cn } from "@/lib/utils";
 
 const DEBOUNCE_MS = 300;
-
-// Fields and months both have a long tail of one-paper buckets from an older
-// facet sample. The rail lists the largest and keeps the rest one click away
-// rather than dropping them: the API filters by any of them.
-const ROWS_SHOWN = 10;
 
 /** What we hold of a paper, as the three states the corpus actually has.
  * Every paper has a catalog row; some have extracted text; a few are chunked
@@ -53,15 +48,21 @@ export const EMPTY_FILTER: CatalogFilterState = {
 
 /** The catalog's rail: the query, in the order a reader builds one.
  *
- * Counted lists rather than wrapping chips. The corpus has 40 fields and 234
- * id-months; drawn as chips they were a wall the results sat below, and drawn
- * as rows with the count right-aligned they are scannable. The count is the
- * point — it says what picking this instead would give, which is why the API
- * drops a dimension's own filter before counting it.
+ * Four selects rather than four lists of rows. The corpus has 40 fields and
+ * 234 id-months, which as rows was a rail the reader scrolled past to reach
+ * the next control, with the long tail parked behind a "224 more" expander
+ * that existed only because a flat list could not hold them. A select holds
+ * all 234, so every month is one control away, and the whole query fits
+ * above the fold with no scrolling at all.
  *
- * Same trim as the dashboard's rail (`dashboard-sidebar.tsx`): one brand
- * block, mono section labels, a bordered footer. Two rails that differed in
- * their trim would read as two products.
+ * Native `<select>`, not a built menu: the rail's own scroll container
+ * clips an absolutely-positioned popup, and the platform's list already
+ * handles placement, keyboard, type-ahead and 234 options. Only the closed
+ * trigger is ours to style.
+ *
+ * The count rides in each option's label. It is the point of the facet: it
+ * says what picking this instead would give, which is why the API drops a
+ * dimension's own filter before counting it.
  */
 export function CatalogFilters({
   state,
@@ -83,67 +84,45 @@ export function CatalogFilters({
         <BrandMark tagline="every paper we know of" />
       </div>
 
-      {/* The last section drops its own rule: the footer already draws one,
-          and two hairlines with a gap of empty rail between them read as a
-          section that failed to load. */}
-      <div className="min-h-0 flex-1 overflow-y-auto [&>section:last-child]:border-b-0">
-        <div className="border-line border-b p-3">
-          <SearchBox value={state.q} onCommit={(q) => onChange({ q })} />
-        </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
+        <SearchBox value={state.q} onCommit={(q) => onChange({ q })} />
 
-        <Section label="Show">
-          {HOLDINGS.map((holding) => (
-            <Row
-              key={holding.value}
-              active={state.holding === holding.value}
-              resting={holding.value === EMPTY_FILTER.holding}
-              count={holdings.get(holding.value)}
-              onClick={() => onChange({ holding: holding.value })}
-            >
-              {holding.label}
-            </Row>
-          ))}
-        </Section>
+        <FilterSelect
+          label="Show"
+          value={state.holding}
+          resting={state.holding === EMPTY_FILTER.holding}
+          options={HOLDINGS.map((holding) => ({
+            value: holding.value,
+            label: withCount(holding.label, holdings.get(holding.value)),
+          }))}
+          onChange={(holding) => onChange({ holding: holding as Holding })}
+        />
 
-        <Section label="Order">
-          <div className="grid grid-cols-2 gap-1">
-            {SORTS.map((sort) => {
-              const current = state.sort === sort.value;
-              // Ranking by match needs something to match against, and the
-              // API refuses the pair outright rather than reorder silently.
-              const off = sort.value === "relevance" && state.q.trim() === "";
-              return (
-                <button
-                  key={sort.value}
-                  type="button"
-                  disabled={off}
-                  aria-pressed={current}
-                  onClick={() => onChange({ sort: sort.value })}
-                  className={cn(
-                    "rounded px-2 py-1.5 text-left text-[13px] transition-colors motion-reduce:transition-none",
-                    off && "text-line cursor-not-allowed",
-                    !off &&
-                      current &&
-                      "bg-teal-soft text-teal-ink hover:bg-teal-soft-strong font-medium",
-                    !off && !current && "text-ink hover:bg-paper",
-                  )}
-                >
-                  {sort.label}
-                </button>
-              );
-            })}
-          </div>
-        </Section>
+        <FilterSelect
+          label="Order"
+          value={state.sort}
+          resting={state.sort === EMPTY_FILTER.sort}
+          options={SORTS.map((sort) => ({
+            value: sort.value,
+            label: sort.label,
+            // Ranking by match needs something to match against, and the API
+            // refuses the pair outright rather than reorder silently.
+            disabled: sort.value === "relevance" && state.q.trim() === "",
+          }))}
+          onChange={(sort) => onChange({ sort: sort as Sort })}
+        />
 
-        <BucketSection
+        <BucketSelect
           label="Field"
+          anyLabel="Any field"
           buckets={facets?.categories}
           selected={state.category}
           format={(value) => value}
           onSelect={(category) => onChange({ category })}
         />
-        <BucketSection
+        <BucketSelect
           label="Month posted"
+          anyLabel="Any month"
           buckets={facets?.months}
           selected={state.month}
           format={(value) => formatIdMonth(value, "short")}
@@ -166,126 +145,101 @@ export function CatalogFilters({
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+/** "cs.CV" and 12,430 as one option label, because a native option is one
+ * text node: there is no second column to right-align a count into. */
+function withCount(label: string, count: number | undefined): string {
+  return count === undefined ? label : `${label} · ${count.toLocaleString()}`;
+}
+
+type Option = { value: string; label: string; disabled?: boolean };
+
+function FilterSelect({
+  label,
+  value,
+  resting,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  /** This value is the section's default, so being on it is not a choice the
+   * reader made. Teal on a trigger means "you narrowed something". */
+  resting?: boolean;
+  options: Option[];
+  onChange: (value: string) => void;
+}) {
+  const id = useId();
   return (
-    <section className="border-line border-b p-2">
-      <h2 className="text-muted px-2 pt-1 pb-2 font-mono text-[10px] tracking-[0.14em] uppercase">
+    <div className="flex flex-col gap-1.5">
+      <label
+        htmlFor={id}
+        className="text-muted px-0.5 font-mono text-[10px] tracking-[0.14em] uppercase"
+      >
         {label}
-      </h2>
-      {children}
-    </section>
+      </label>
+      <div className="relative">
+        <select
+          id={id}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            // 16px until `md`: iOS Safari zooms the page when a focused
+            // control is under 16px and does not undo the zoom on blur.
+            "w-full appearance-none rounded border py-2 pr-7 pl-2.5 text-[16px] transition-colors outline-none md:text-[13px] motion-reduce:transition-none",
+            resting
+              ? "border-line bg-paper text-ink hover:border-ink/30"
+              : "border-teal-ink/30 bg-teal-soft text-teal-ink hover:bg-teal-soft-strong font-medium",
+          )}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value} disabled={option.disabled}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          className={cn(
+            "pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2",
+            resting ? "text-muted" : "text-teal-ink",
+          )}
+          aria-hidden
+        />
+      </div>
+    </div>
   );
 }
 
-function BucketSection({
+/** A facet dimension as a select, with "Any" as its resting value. */
+function BucketSelect({
   label,
+  anyLabel,
   buckets,
   selected,
   format,
   onSelect,
 }: {
   label: string;
+  anyLabel: string;
   buckets: CatalogBucket[] | undefined;
   selected: string | null;
   format: (value: string) => string;
   onSelect: (value: string | null) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-
   if (!buckets || buckets.length === 0) return null;
-  const head = buckets.slice(0, ROWS_SHOWN);
-  const chosen = buckets.find((bucket) => bucket.value === selected);
-  // A chosen value stays visible even when it ranks below the cut, or the
-  // rail would look untouched while the results say otherwise.
-  const shown = expanded ? buckets : chosen && !head.includes(chosen) ? [chosen, ...head] : head;
-  const hidden = buckets.length - shown.length;
-
   return (
-    <Section label={label}>
-      <Row active={selected === null} resting onClick={() => onSelect(null)}>
-        Any
-      </Row>
-      {shown.map((bucket) => (
-        <Row
-          key={bucket.value}
-          active={selected === bucket.value}
-          count={bucket.papers}
-          mono
-          onClick={() => onSelect(selected === bucket.value ? null : bucket.value)}
-        >
-          {format(bucket.value)}
-        </Row>
-      ))}
-      {(hidden > 0 || expanded) && (
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="text-muted hover:text-ink w-full rounded px-2 py-1.5 text-left text-[12px] underline underline-offset-2 transition-colors motion-reduce:transition-none"
-        >
-          {expanded ? "Show fewer" : `${hidden.toLocaleString()} more`}
-        </button>
-      )}
-    </Section>
-  );
-}
-
-/** One value and its count. The value is content and takes full ink; the
- * count is metadata bound to it, so it is muted. */
-function Row({
-  active,
-  resting,
-  count,
-  mono,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  /** This value is the section's default, so being on it is not a choice the
-   * reader made. It still reads as current, but it does not spend the accent:
-   * teal in this rail means "you narrowed something". */
-  resting?: boolean;
-  count?: number;
-  mono?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  const accent = active && !resting;
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      // Spelled out rather than left to the two spans: a flex row has no text
-      // node between them, so the computed name would run together as
-      // "cs.CV12,430".
-      aria-label={count === undefined ? undefined : `${children} ${count.toLocaleString()}`}
-      onClick={onClick}
-      className={cn(
-        "flex w-full items-baseline gap-2 rounded px-2 py-1.5 text-left transition-colors motion-reduce:transition-none",
-        // Both branches carry a hover: a selected row is still a target, and
-        // it steps away from its resting surface rather than toward it.
-        accent ? "bg-teal-soft text-teal-ink hover:bg-teal-soft-strong" : "text-ink hover:bg-paper",
-      )}
-    >
-      <span
-        className={cn(
-          "min-w-0 flex-1 truncate",
-          mono ? "font-mono text-[12px]" : "text-[13px]",
-          active && "font-medium",
-        )}
-      >
-        {children}
-      </span>
-      {count !== undefined && (
-        <span
-          className={cn(
-            "shrink-0 font-mono text-[11.5px] tabular-nums",
-            accent ? "text-teal-ink" : "text-muted",
-          )}
-        >
-          {count.toLocaleString()}
-        </span>
-      )}
-    </button>
+    <FilterSelect
+      label={label}
+      value={selected ?? ""}
+      resting={selected === null}
+      options={[
+        { value: "", label: anyLabel },
+        ...buckets.map((bucket) => ({
+          value: bucket.value,
+          label: withCount(format(bucket.value), bucket.papers),
+        })),
+      ]}
+      onChange={(value) => onSelect(value === "" ? null : value)}
+    />
   );
 }
 
