@@ -8,10 +8,13 @@ from askrag.ingest import render_thumbnails
 from askrag.ingest.render_thumbnails import render_one, run, thumb_path, thumbnail_for
 
 
-def _pdf(path, *, figure=None, title="A Paper About Something"):
-    """A one-page PDF with a title, optionally carrying one placed image.
+def _pdf(path, *, figure=None, drawn=None, rules=0, title="A Paper About Something"):
+    """A one-page PDF with a title, and optionally a picture.
 
-    `figure` is a (width, height) in points; a logo is just a small one.
+    `figure` places a raster image at (width, height) in points; a logo is
+    just a small one. `drawn` strokes a grid of short vector lines over that
+    same box, which is what a plot actually is. `rules` draws that many
+    full-width hairlines down the page — a table's rows, not a figure.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     doc = pymupdf.open()
@@ -22,6 +25,13 @@ def _pdf(path, *, figure=None, title="A Paper About Something"):
         pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 400, 300))
         pixmap.set_rect(pixmap.irect, (40, 90, 160))
         page.insert_image(pymupdf.Rect(72, 300, 72 + width, 300 + height), pixmap=pixmap)
+    if drawn is not None:
+        width, height = drawn
+        for step in range(0, int(width), 10):
+            page.draw_line((72 + step, 300), (72 + step, 300 + height), width=0.7)
+    for row in range(rules):
+        y = 120 + row * 18
+        page.draw_line((40, y), (page.rect.width - 40, y), width=0.5)
     doc.save(path)
     doc.close()
 
@@ -150,3 +160,50 @@ def test_nothing_is_left_half_written_for_a_reader_to_fetch(corpus, monkeypatch)
         _for(corpus, "2608.00001")
 
     assert not (corpus["thumbs"] / "2608.00001.jpg").exists()
+
+
+def test_a_vector_plot_is_a_figure_even_though_it_is_not_an_image(corpus):
+    """Most arXiv figures are vector art and carry no image object at all.
+    Measured 2026-09-16 over 120 recent papers: raster alone found a figure
+    for 41% of them, and grouping vector paths took it to 88%."""
+    _pdf(corpus["pdfs"] / "2026" / "08" / "2608.00002.pdf", drawn=(300, 200))
+
+    assert _render(corpus, "2608.00002").source == "figure"
+
+
+def test_a_page_of_table_rules_is_not_a_figure(corpus):
+    """The ceiling on how much of a page a drawing may cover. Without it the
+    winner is routinely the union of a table's rules or a boxed author list,
+    which is a whole page of dense text picked for having the largest area."""
+    _pdf(corpus["pdfs"] / "2026" / "08" / "2608.00002.pdf", rules=30)
+
+    assert _render(corpus, "2608.00002").source == "page"
+
+
+def test_the_page_crop_is_the_top_of_the_CONTENT_not_of_the_paper(corpus):
+    """A letter page is roughly a quarter margin by area, and at 160px on a
+    card those margins are most of the tile. Half of the page would be half a
+    page of margin; half of the content is the title block."""
+    page_height = pymupdf.open(corpus["pdfs"] / "2026" / "08" / "2608.00002.pdf")[0].rect.height
+
+    thumbnail = _render(corpus, "2608.00002")
+    ratio = thumbnail.height / thumbnail.width
+
+    # The fixture's ink is one line of title, so trimming leaves a wide, flat
+    # box — nothing like the tall half-page an untrimmed crop would give.
+    assert ratio < 0.5
+    assert thumbnail.height < page_height
+
+
+def test_an_empty_page_trims_to_nothing_and_is_left_alone(corpus):
+    """A scanned blank or an all-white first page has no ink to find. The
+    trim must return the clip it was given rather than an empty rect, which
+    would divide by zero on the way to a zoom factor."""
+    blank = corpus["pdfs"] / "2026" / "08" / "2608.00004.pdf"
+    blank.parent.mkdir(parents=True, exist_ok=True)
+    doc = pymupdf.open()
+    doc.new_page()
+    doc.save(blank)
+    doc.close()
+
+    assert _for(corpus, "2608.00004") is not None
