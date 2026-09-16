@@ -75,6 +75,14 @@ work is broken into GitHub issues.
 - **Never serve, proxy, or cache arXiv PDFs or bulk full text from our
   infrastructure** (§6b). PDFs reach users only via their browser fetching
   arxiv.org, always **version-pinned** (`…/pdf/<id>v<N>`).
+- **Nothing fans out to arxiv.org — the frontend included.** One reader
+  opening one paper is one request; a list, grid, hover-prefetch, poll, or
+  retry loop that touches arxiv.org is a scraper from arXiv's side, whoever
+  wrote it. A React effect with a wrong dep array turns thirty visible cards
+  into thirty requests per render, so treat any arxiv.org fetch outside the
+  viewer's single open paper as a bug to remove, not to rate-limit. Card
+  images are rendered from the PDFs we already hold (D19), never fetched or
+  screenshotted from arxiv.org at view time.
 - **No UI/API path returns full paper text** for default-license papers
   (§6c): quotes ≤50 words, ≤3 per paper per answer, server-enforced.
 - Agent tools are **read-only by construction**; `query_metadata` accepts
@@ -100,8 +108,9 @@ work is broken into GitHub issues.
   text tree; scope it, an unscoped run pulls the pre-2026 facet sample into
   the citation graph) → `just citations` (extract + resolve the citation
   graph) → `just frontier` (derive the index manifest, fetch and extract its
-  papers) → `just thumbnails` (render the licence-permitting card images,
-  D19) → `just index` (chunk, embed, rebuild corpus.db + chroma). The
+  papers) → `just index` (chunk, embed, rebuild corpus.db + chroma).
+  `just thumbnails` stands outside that order: card images render on first
+  request and cache as files (D19), so the recipe only warms the backlog. The
   manifest in `corpus/frontier.json` IS the page's scope — widen it via
   `frontier_top_cited`/`frontier_citers_per_work` in `config.py`, and expect a
   re-embed. Frontend routes: landing at `/`, the whole-catalog

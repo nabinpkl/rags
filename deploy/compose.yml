@@ -57,12 +57,22 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     volumes:
-      # The corpus snapshot is read-only by construction (D4/D12). pdfs/ is
-      # absent on purpose: nothing we serve may touch it (§6b).
+      # The corpus snapshot is read-only by construction (D4/D12).
       - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/corpus.db:/data/corpus/corpus.db:ro
       - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/models:/data/corpus/models:ro
       - chroma:/data/corpus/chroma
-      # traces.db is the ONLY writable store (D13).
+      # pdfs/ used to be absent here, and its absence was the guarantee that
+      # no serving path could reach an e-print. On-demand thumbnails (D19)
+      # need the bytes, so the guarantee moves from the mount to the code:
+      # routes_thumbnails.py is the only reader, it validates the id against
+      # a literal arXiv-id pattern before building a path, and it returns a
+      # rendered JPEG and never the source. Read-only, so nothing can write
+      # a PDF into the tree either.
+      - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/pdfs:/data/corpus/pdfs:ro
+      # The thumbnail cache, WRITABLE: the api renders into it on a miss and
+      # web serves it read-only thereafter. The one corpus path we write.
+      - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/thumbs:/data/corpus/thumbs
+      # traces.db is the only writable STORE (D13).
       - traces:/state
     tmpfs:
       - /tmp:size=256m,mode=1777
@@ -100,9 +110,10 @@ services:
       start_period: 30s
       retries: 3
     volumes:
-      # The ONE corpus path the web tier may read. pdfs/ stays absent: §6b
-      # forbids serving an e-print, and this tree holds only crops of papers
-      # whose licence permits redistribution (render_thumbnails, D19).
+      # The ONE corpus path the web tier may read: the thumbnail cache (D19).
+      # Read-only here — the api is what writes into it on a cache miss.
+      # pdfs/ stays absent from THIS container and that is the §6b line: we
+      # never serve the e-print, only a crop beside a link to arxiv.org.
       - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/thumbs:/srv/thumbs:ro
     restart: unless-stopped
 

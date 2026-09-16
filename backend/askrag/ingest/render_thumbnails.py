@@ -1,72 +1,64 @@
-"""corpus/pdfs/** -> corpus/thumbs/{YYYY}/{MM}/{arxiv_id}.jpg + corpus/thumbnails.jsonl.
+"""corpus/pdfs/** -> corpus/thumbs/{arxiv_id}.jpg — the card image for /papers.
 
-One small image per paper, for the card that names it on /papers. Two
-sources, in order: the first figure large enough to be a figure, else the
-top half of page one, which is the title block and reads as a paper even
-when it is not a picture.
+Two sources, in order: the first image placed large enough on a page to be a
+figure rather than a logo, else the top half of page one, which is the title
+block and still reads as a paper.
 
-WHO GETS ONE IS A LICENCE QUESTION, not a rendering one. §6b rule 3 is
-flat — never serve an e-print from our servers — and a crop of a page is a
-piece of one. arXiv's default licence (nonexclusive-distrib) grants arXiv
-the right to distribute the e-print and grants us nothing, so those papers
-get no thumbnail and keep the category glyph. Creative Commons BY, BY-SA,
-BY-NC-SA and the public-domain dedications do grant it, with attribution
-the card already carries (title, authors, a link to the version-pinned
-arXiv page). ND is excluded with the default licence: a crop is a
-derivative work, and "NoDerivatives" says no.
+THE CACHE IS THE FILE. There is no manifest and no database column: a
+thumbnail exists if its JPEG is on disk, and `thumbnail_for` renders one when
+it is not. `routes_thumbnails.py` calls that on a cache miss, so a paper's
+image appears the first time anyone looks at it and every later view is a
+static file. This module's `run()` is the warmer that renders the backlog in
+bulk; it is an optimisation, never a prerequisite. The consequence that made
+it worth doing this way: a new month of papers is visible with pictures the
+moment its PDFs land, with no reindex and no two-hour batch in between.
 
-The manifest is this stage's only output to the rest of the pipeline;
-build_indexes reads it into `papers.thumbnail` and nothing else looks at
-the files except Caddy, which serves them as static bytes.
+WE RENDER, WE NEVER FETCH. The image comes from the PDF we already hold.
+Nothing here or downstream may reach arxiv.org to build a card — thirty cards
+would be thirty requests per render, which is a scraper from arXiv's side.
+See CLAUDE.md's hard constraints.
+
+Fair use is what permits the image for the 36,560 papers under arXiv's
+default licence, and it is the LOW-RESOLUTION crop beside a link back to the
+source that qualifies — Kelly v. Arriba Soft (9th Cir. 2003), Perfect 10 v.
+Amazon.com (9th Cir. 2007). `thumbnail_width` is therefore a compliance
+setting as much as a layout one; raising it toward a readable page is the
+change that would break the argument. The CC licences grant the crop
+outright, on conditions the CARD carries rather than this file:
+
+  - The card links to arxiv.org for the paper itself, version-pinned, and we
+    never host the download (catalog-results.tsx).
+  - A CC paper's card names and links its licence beside the attribution it
+    already carries (lib/license-label.ts).
+  - askRAG is non-commercial. Roughly 5,200 papers are NC-licensed, and ads,
+    a paid tier or an enterprise plan would put their crops out of licence.
+    That is D19's first revisit trigger, not a thing this file can check.
 """
 
 import argparse
-import json
 import logging
+import os
 import sys
-from collections.abc import Iterable, Iterator
-from dataclasses import asdict, dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 import pymupdf
 
 from askrag import telemetry
 from askrag.config import Settings, get_settings
-from askrag.ingest import kaggle_seed
 
 _log = logging.getLogger("askrag.ingest.render_thumbnails")
-
-# Licence URLs whose terms allow us to redistribute a crop with attribution.
-# Matched as a prefix on the recorded URL so the 3.0 and 4.0 vintages of each
-# are covered by one entry; see the module docstring for what is deliberately
-# absent (nonexclusive-distrib, and every -nd- variant).
-REDISTRIBUTABLE = (
-    "http://creativecommons.org/licenses/by/",
-    "http://creativecommons.org/licenses/by-sa/",
-    "http://creativecommons.org/licenses/by-nc-sa/",
-    "http://creativecommons.org/publicdomain/zero/",
-    "http://creativecommons.org/licenses/publicdomain",
-)
-
-
-def may_redistribute(license_url: str | None) -> bool:
-    """Does this paper's licence let us serve a crop of it from our servers?"""
-    if not license_url:
-        return False
-    normalized = license_url.replace("https://", "http://")
-    return normalized.startswith(REDISTRIBUTABLE)
 
 
 @dataclass(frozen=True)
 class Thumbnail:
-    """One rendered image, as the manifest records it."""
+    """One rendered image and what it was cropped from."""
 
-    arxiv_id: str
-    # Relative to the thumbs dir, which is also the path Caddy serves it at.
-    path: str
-    # "figure" or "page". Kept because it is the one number that says whether
-    # the heuristic is finding real figures or quietly falling back for
-    # everything, which a coverage count alone would hide.
+    path: Path
+    # "figure" or "page". Reported because it is the one number that says
+    # whether the heuristic is finding real figures or quietly falling back
+    # for everything, which a coverage count alone would hide.
     source: str
     width: int
     height: int
@@ -75,8 +67,8 @@ class Thumbnail:
 @dataclass
 class RenderStats:
     considered: int = 0
-    skipped_licence: int = 0
-    skipped_missing_pdf: int = 0
+    cached: int = 0
+    missing_pdf: int = 0
     failed: int = 0
     from_figure: int = 0
     from_page: int = 0
@@ -86,12 +78,14 @@ class RenderStats:
         return self.from_figure + self.from_page
 
 
-def relative_path(arxiv_id: str) -> str:
-    """`2608.00380` -> `2026/08/2608.00380.jpg`, mirroring corpus/pdfs."""
-    return f"20{arxiv_id[:2]}/{arxiv_id[2:4]}/{arxiv_id}.jpg"
+def thumb_path(thumbs_dir: Path, arxiv_id: str) -> Path:
+    """Flat, one file per paper. The URL is `/thumbs/{arxiv_id}.jpg`, so no
+    caller anywhere has to know a sharding rule to build it."""
+    return thumbs_dir / f"{arxiv_id}.jpg"
 
 
 def pdf_path(pdfs_dir: Path, arxiv_id: str) -> Path:
+    """The collector's {YYYY}/{MM}/ tree, which this module only ever reads."""
     return pdfs_dir / f"20{arxiv_id[:2]}" / arxiv_id[2:4] / f"{arxiv_id}.pdf"
 
 
@@ -143,39 +137,44 @@ def render_one(pdf: Path, out: Path, settings: Settings) -> Thumbnail:
         zoom = settings.thumbnail_width / clip.width
         pixmap = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), clip=clip)
         out.parent.mkdir(parents=True, exist_ok=True)
-        # Written through a temp name: a half-written JPEG is a broken image
-        # on a card, and Caddy serves whatever is on disk with no validation.
-        staging = out.with_suffix(".jpg.part")
+        # Written through a temp name and renamed: the warmer and a request
+        # that missed the cache can render the same paper at the same moment,
+        # and a reader must never be handed a half-written JPEG. Rename is
+        # atomic within a filesystem, so the loser of that race overwrites
+        # identical bytes.
+        staging = out.with_suffix(f".{os.getpid()}.part")
         staging.write_bytes(pixmap.tobytes("jpeg", jpg_quality=settings.thumbnail_quality))
         staging.replace(out)
-        return Thumbnail(
-            arxiv_id=pdf.stem,
-            path=relative_path(pdf.stem),
-            source=source,
-            width=pixmap.width,
-            height=pixmap.height,
-        )
+        return Thumbnail(path=out, source=source, width=pixmap.width, height=pixmap.height)
 
 
-def _licensed_ids(seed_zip: Path, ids: set[str]) -> Iterator[str]:
-    """The subset of `ids` whose seed licence permits redistribution."""
-    for record in kaggle_seed.iter_records(seed_zip, ids):
-        if may_redistribute(record.get("license")):
-            yield record["id"]
+def thumbnail_for(
+    arxiv_id: str, *, pdfs_dir: Path, thumbs_dir: Path, settings: Settings
+) -> Path | None:
+    """The paper's image, rendering it on first use. None if we hold no PDF.
+
+    This is the whole cache protocol, shared by the request path and the
+    warmer: look for the file, render it if absent, hand back the path.
+    """
+    out = thumb_path(thumbs_dir, arxiv_id)
+    if out.exists():
+        return out
+    pdf = pdf_path(pdfs_dir, arxiv_id)
+    if not pdf.exists():
+        return None
+    return render_one(pdf, out, settings).path
 
 
 def run(
     *,
     pdfs_dir: Path,
-    seed_zip: Path,
     thumbs_dir: Path,
-    manifest_path: Path,
     settings: Settings,
     only: Iterable[str] | None = None,
     limit: int | None = None,
     force: bool = False,
 ) -> RenderStats:
-    """Render every missing thumbnail and rewrite the manifest."""
+    """Render the backlog, skipping papers whose image is already cached."""
     tracer = telemetry.get_tracer("askrag.ingest")
     stats = RenderStats()
     with tracer.start_as_current_span("askrag.ingest.render_thumbnails") as span:
@@ -183,25 +182,18 @@ def run(
         if only is not None:
             held &= set(only)
         stats.considered = len(held)
-        previous = read_manifest(manifest_path)
-        allowed = sorted(_licensed_ids(seed_zip, held))
-        stats.skipped_licence = len(held) - len(allowed)
+        wanted = sorted(held)
         if limit is not None:
-            allowed = allowed[:limit]
+            wanted = wanted[:limit]
 
-        thumbnails: list[Thumbnail] = []
-        for arxiv_id in allowed:
-            out = thumbs_dir / relative_path(arxiv_id)
+        for arxiv_id in wanted:
+            out = thumb_path(thumbs_dir, arxiv_id)
+            if out.exists() and not force:
+                stats.cached += 1
+                continue
             pdf = pdf_path(pdfs_dir, arxiv_id)
             if not pdf.exists():
-                stats.skipped_missing_pdf += 1
-                continue
-            done = previous.get(arxiv_id)
-            if done is not None and out.exists() and not force:
-                # Already rendered, and the previous manifest knows what it
-                # was cropped from. Carrying the entry forward keeps a rerun
-                # cheap without inventing a figure/page split it cannot see.
-                thumbnails.append(done)
+                stats.missing_pdf += 1
                 continue
             try:
                 thumbnail = render_one(pdf, out, settings)
@@ -209,39 +201,20 @@ def run(
                 stats.failed += 1
                 _log.warning("thumbnail failed for %s: %s", arxiv_id, error)
                 continue
-            thumbnails.append(thumbnail)
-
-        for thumbnail in thumbnails:
             if thumbnail.source == "figure":
                 stats.from_figure += 1
             else:
                 stats.from_page += 1
 
-        manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        staging = manifest_path.with_suffix(".jsonl.part")
-        staging.write_text(
-            "".join(json.dumps(asdict(thumbnail)) + "\n" for thumbnail in thumbnails)
-        )
-        staging.replace(manifest_path)
-
         span.set_attribute("askrag.thumbnails", stats.rendered)
         span.set_attribute("askrag.thumbnails_from_figure", stats.from_figure)
     _log.info(
-        f"thumbnails: {stats.rendered} of {stats.considered} papers "
+        f"thumbnails: rendered {stats.rendered} of {stats.considered} papers "
         f"({stats.from_figure} figure, {stats.from_page} page top); "
-        f"{stats.skipped_licence} skipped on licence, {stats.failed} failed"
+        f"{stats.cached} already cached, {stats.missing_pdf} without a PDF, "
+        f"{stats.failed} failed"
     )
     return stats
-
-
-def read_manifest(path: Path) -> dict[str, Thumbnail]:
-    """The manifest as written last time, or empty. Absent is not an error:
-    the first run has no previous manifest, and neither does a build that
-    never rendered thumbnails at all."""
-    if not path.exists():
-        return {}
-    entries = (json.loads(line) for line in path.read_text().splitlines() if line)
-    return {entry["arxiv_id"]: Thumbnail(**entry) for entry in entries}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -256,9 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         run(
             pdfs_dir=settings.pdfs_dir,
-            seed_zip=settings.kaggle_seed_path,
             thumbs_dir=settings.thumbs_dir,
-            manifest_path=settings.thumbnails_manifest_path,
             settings=settings,
             only=args.only,
             limit=args.limit,

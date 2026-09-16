@@ -7,6 +7,7 @@ import type { CatalogFilterState } from "@/components/catalog/catalog-filters";
 import type { CatalogPaper } from "@/lib/api-client";
 import { CATEGORY_ICON, UNMAPPED_CATEGORY_ICON } from "@/lib/category-icon";
 import { formatIdMonth } from "@/lib/id-month";
+import { licenseOf } from "@/lib/license-label";
 
 /** Where a row can send the reader, which is the one thing that differs
  * between a paper we indexed and a paper we only know about.
@@ -109,13 +110,24 @@ export function CatalogResults({
   );
 }
 
-/** The card's left tile: a crop of the paper when we are allowed to show
- * one, the category glyph when we are not.
+/** The card's left tile: a crop of the paper over its category glyph.
  *
- * Most of the table has no image. §6b lets us serve a crop only for papers
- * whose licence permits redistributing one, so the glyph is the common case
- * rather than a loading state, and the tile keeps its size either way: a
- * gutter that changes width per row makes a column of cards read as ragged.
+ * The URL is derived from the id and asked for unconditionally, because the
+ * server renders the crop on the first request for it and serves a file
+ * every time after (D19). Nothing on the wire says whether a given paper has
+ * an image yet, and nothing should: a field like that would go stale the
+ * moment the renderer caught up, and it would need a corpus rebuild to
+ * un-stale.
+ *
+ * `loading="lazy"` is doing real work here rather than saving bytes. Thirty
+ * cards asking at once is thirty PDF renders on a cold cache, so the browser
+ * asking only for what is near the viewport is what keeps the first screen
+ * fast, and it is the same reason nothing here prefetches.
+ *
+ * The glyph underneath is the resting state, not a placeholder to swap: a
+ * paper with no PDF 404s and the image hides itself, leaving the glyph. The
+ * tile keeps its size either way — a gutter that changes width per row makes
+ * a column of cards read as ragged.
  *
  * 4:3, because both sources are landscape — a figure as it sits on the page,
  * or the top half of page one. Cropped square, a title block would lose a
@@ -128,51 +140,58 @@ function Tile({ paper, Icon }: { paper: CatalogPaper; Icon: LucideIcon }) {
       aria-hidden
     >
       <Icon className="size-[18px]" />
-      {paper.thumbnail && (
-        // next/image optimizes nothing here: the export target runs no image
-        // server (images.unoptimized, D13) and the file was already rendered
-        // at the one size this tile uses.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`/thumbs/${paper.thumbnail}`}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          // A missing file means the images and corpus.db were deployed out
-          // of step. Hiding the element uncovers the glyph beneath it, which
-          // is the same fallback the licence gate already produces — better
-          // than a broken-image icon in thirty rows.
-          onError={(event) => {
-            event.currentTarget.hidden = true;
-          }}
-          className="absolute inset-0 size-full object-cover"
-        />
-      )}
+      {/* next/image optimizes nothing here: the export target runs no image
+          server (images.unoptimized, D13) and the file is rendered at the one
+          size this tile uses. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`/thumbs/${paper.arxiv_id}.jpg`}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        // We hold a PDF for every paper in the catalog today, but a 404 is a
+        // normal answer, not an error: hiding the element uncovers the glyph
+        // beneath it, which beats a broken-image icon in thirty rows.
+        onError={(event) => {
+          event.currentTarget.hidden = true;
+        }}
+        className="absolute inset-0 size-full object-cover"
+      />
     </span>
   );
 }
 
+/** One paper.
+ *
+ * The whole card is the target — touch has no hover to hunt with — but the
+ * anchor is the TITLE, stretched over the card by a full-bleed pseudo
+ * element. A card-wide `<a>` cannot contain the licence link, and the
+ * licence link is not optional: showing a crop of a CC paper is conditional
+ * on naming and linking its licence (D19).
+ */
 function PaperCard({ paper }: { paper: CatalogPaper }) {
   const { href, label, external } = destination(paper);
   const Icon = CATEGORY_ICON[paper.primary_category ?? ""] ?? UNMAPPED_CATEGORY_ICON;
   const Destination = external ? ArrowUpRight : BookOpen;
+  const license = licenseOf(paper.license);
 
   return (
-    <Link
-      href={href}
-      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-      // The whole row is the target — touch has no hover to hunt with — so
-      // the accessible name is pinned to the title and the destination,
-      // rather than left to concatenate every metadata field in the row.
-      aria-label={`${paper.title} — ${label}`}
-      className="group border-line bg-panel hover:border-teal-ink/40 hover:bg-paper flex items-start gap-3.5 rounded-md border px-4 py-4 transition-colors motion-reduce:transition-none"
-    >
+    <article className="group border-line bg-panel hover:border-teal-ink/40 hover:bg-paper relative flex items-start gap-3.5 rounded-md border px-4 py-4 transition-colors motion-reduce:transition-none">
       <Tile paper={paper} Icon={Icon} />
 
-      <span className="min-w-0 flex-1">
-        <span className="text-ink block text-[17px] leading-[1.3] font-semibold group-hover:underline">
-          {paper.title}
-        </span>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-ink text-[17px] leading-[1.3] font-semibold">
+          <Link
+            href={href}
+            {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+            // The name is pinned to the title and the destination rather than
+            // left to concatenate every metadata field in the card.
+            aria-label={`${paper.title} — ${label}`}
+            className="after:absolute after:inset-0 hover:underline"
+          >
+            {paper.title}
+          </Link>
+        </h3>
         {paper.authors && (
           <span className="text-muted mt-1.5 block truncate font-mono text-[12px]">
             {paper.authors}
@@ -197,18 +216,31 @@ function PaperCard({ paper }: { paper: CatalogPaper }) {
           {paper.cited_by > 0 && (
             <span className="tabular-nums">cited by {paper.cited_by.toLocaleString()} here</span>
           )}
+          {license && (
+            // Above the stretched title link, so it is reachable as its own
+            // target. This is the licence notice the crop above is granted
+            // on, not a metadata garnish.
+            <a
+              href={license.href}
+              target="_blank"
+              rel="license noopener noreferrer"
+              className="hover:text-ink relative underline underline-offset-2"
+            >
+              {license.name}
+            </a>
+          )}
         </span>
-      </span>
+      </div>
 
       {/* The glyph is the whole affordance: an arrow leaving the box means
-          the row leaves the site, a book means it opens in our reader. The
-          words are in the row's accessible name, not repeated 30 times down
+          the card leaves the site, a book means it opens in our reader. The
+          words are in the card's accessible name, not repeated 30 times down
           the column as a bordered button. */}
       <Destination
         className="text-muted group-hover:text-teal-ink mt-1 size-4 shrink-0 transition-colors motion-reduce:transition-none"
         aria-hidden
       />
-    </Link>
+    </article>
   );
 }
 

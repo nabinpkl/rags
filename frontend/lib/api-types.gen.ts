@@ -234,6 +234,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/thumb/{arxiv_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Thumbnail
+         * @description One paper's card image, rendering it if this is the first request.
+         */
+        get: operations["get_thumbnail_api_thumb__arxiv_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -291,8 +311,8 @@ export interface components {
             indexed: boolean;
             /** Cited By */
             cited_by: number;
-            /** Thumbnail */
-            thumbnail: string | null;
+            /** License */
+            license: string | null;
         };
         /** CatalogPapersResponse */
         CatalogPapersResponse: {
@@ -1064,6 +1084,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogFacetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_thumbnail_api_thumb__arxiv_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                arxiv_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
                 };
             };
             /** @description Validation Error */

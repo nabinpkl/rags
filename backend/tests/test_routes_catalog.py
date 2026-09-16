@@ -16,7 +16,7 @@ def _paper(
     abstract: str = "An abstract about nothing in particular.",
     category: str = "cs.CL",
     has_text: bool = True,
-    thumbnail: str | None = None,
+    license: str | None = None,
 ) -> PaperRow:
     return PaperRow(
         arxiv_id=arxiv_id,
@@ -26,7 +26,7 @@ def _paper(
         categories=category,
         published=f"20{arxiv_id[:2]}-0{arxiv_id[2]}-0{arxiv_id[3]}",
         version="v1",
-        license=None,
+        license=license,
         venue=None,
         authority=None,
         niche_idf=None,
@@ -34,7 +34,6 @@ def _paper(
         revisions=None,
         venue_rigor=None,
         has_text=has_text,
-        thumbnail=thumbnail,
     )
 
 
@@ -46,7 +45,7 @@ PAPERS = [
         "Diffusion models for video",
         "We train a diffusion model.",
         "cs.CV",
-        thumbnail="2026/07/2607.00001.jpg",
+        license="http://creativecommons.org/licenses/by/4.0/",
     ),
     _paper("2608.00002", "Retrieval augmented generation", "Retrieval helps.", "cs.CL"),
     _paper("2608.00003", "A paper with no text at all", "Nothing extracted.", "cs.CL", False),
@@ -183,7 +182,7 @@ def test_no_chunk_text_reaches_this_surface(client):
         "has_text",
         "indexed",
         "cited_by",
-        "thumbnail",
+        "license",
     }
 
 
@@ -208,15 +207,13 @@ def test_the_holding_counts_say_what_each_choice_would_give(client):
     assert body["total"] == 1
 
 
-def test_a_paper_we_may_not_crop_carries_no_thumbnail(client):
-    """§6b: only a licence that permits redistribution gets an image rendered
-    (render_thumbnails), so most of the table has none and the card falls back
-    to its category glyph. The wire says null rather than a placeholder path a
-    client would request and get a 404 for."""
+def test_the_licence_reaches_the_card_that_has_to_display_it(client):
+    """D19: showing a crop of a CC paper is conditional on naming its licence
+    beside the attribution, so the licence is on the wire for the card to
+    print — not for the client to decide anything with."""
     papers = {
-        p["arxiv_id"]: p["thumbnail"] for p in client.get("/api/catalog/papers").json()["papers"]
+        p["arxiv_id"]: p["license"] for p in client.get("/api/catalog/papers").json()["papers"]
     }
 
-    assert papers["2607.00001"] == "2026/07/2607.00001.jpg"
-    assert papers["2608.00002"] is None
+    assert papers["2607.00001"] == "http://creativecommons.org/licenses/by/4.0/"
     assert papers["2608.00003"] is None
