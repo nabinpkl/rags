@@ -104,6 +104,7 @@ export function CatalogResults({
     // The filter, not the loaded rows: a new page arriving is the same list,
     // a new filter is a different one.
     resetKey: JSON.stringify(state),
+    rememberAs: "catalog",
   });
 
   return (
@@ -312,7 +313,7 @@ function PaperCard({ paper }: { paper: CatalogPaper }) {
       <Tile paper={paper} Icon={Icon} />
 
       <div className="min-w-0 flex-1">
-        <h3 className="text-ink text-[17px] leading-[1.3] font-semibold">
+        <h3 className="text-ink text-[18px] leading-[1.3] font-semibold @xl:text-[20px]">
           <Link
             href={href}
             {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}

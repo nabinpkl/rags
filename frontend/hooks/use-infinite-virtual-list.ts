@@ -1,6 +1,6 @@
 "use client";
 
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** The paging half of an infinite query, as the list needs it. Passing the
@@ -31,6 +31,15 @@ export type NextPage = {
  * `resetKey` is the query's identity. When it changes the list is a
  * different list, so the scroller goes back to the top instead of leaving
  * the reader at row 400 of a result that now has 12.
+ *
+ * `rememberAs` keeps the reader's place across a trip away and back: open a
+ * paper in the reader, press Back, and the list is where it was rather than
+ * at the top. The canvas is an inner scroller, so the browser's own scroll
+ * restoration never sees it. The place is the library's snapshot of measured
+ * rows plus the offset (TanStack Virtual's documented restore), stored per
+ * tab and per query. It is only used when the rows it describes are already
+ * back from the query cache on mount; a place in a list that is not there
+ * yet would scroll into blank space.
  */
 export function useInfiniteVirtualList({
   count,
@@ -42,6 +51,7 @@ export function useInfiniteVirtualList({
   fetchAhead,
   page,
   resetKey,
+  rememberAs,
 }: {
   count: number;
   scrollRef: RefObject<HTMLElement | null>;
@@ -53,8 +63,12 @@ export function useInfiniteVirtualList({
   fetchAhead: number;
   page: NextPage;
   resetKey: string;
+  /** Session-storage namespace for the scroll place; omit to not keep one. */
+  rememberAs?: string;
 }) {
-  const scrollMargin = useListOffset(scrollRef, listRef, count > 0);
+  const placeKey = rememberAs ? `${rememberAs}:${resetKey}` : null;
+  const [restored] = useState(() => readPlace(placeKey, count));
+  const scrollMargin = useListOffset(scrollRef, listRef, count > 0, restored?.margin ?? 0);
 
   const virtualizer = useVirtualizer({
     count,
@@ -63,6 +77,8 @@ export function useInfiniteVirtualList({
     overscan,
     gap,
     scrollMargin,
+    initialOffset: restored?.offset ?? 0,
+    initialMeasurementsCache: restored?.rows,
   });
   const items = virtualizer.getVirtualItems();
   const lastIndex = items[items.length - 1]?.index ?? -1;
@@ -94,7 +110,59 @@ export function useInfiniteVirtualList({
     if (scroller) scroller.scrollTop = 0;
   }, [resetKey, scrollRef]);
 
+  // Written on the way out, under the key current at that moment. A filter
+  // change resets to the top anyway, so only the last query's place matters.
+  const latest = useRef({ placeKey, virtualizer, scrollMargin, count });
+  useLayoutEffect(() => {
+    latest.current = { placeKey, virtualizer, scrollMargin, count };
+  });
+  useEffect(() => {
+    const save = () => {
+      const { placeKey: key, virtualizer: v, scrollMargin: margin, count: rows } = latest.current;
+      if (!key) return;
+      writePlace(key, {
+        offset: v.scrollOffset ?? 0,
+        margin,
+        count: rows,
+        rows: v.takeSnapshot(),
+      });
+    };
+    window.addEventListener("pagehide", save);
+    return () => {
+      window.removeEventListener("pagehide", save);
+      save();
+    };
+  }, []);
+
   return { virtualizer, items, scrollMargin };
+}
+
+type Place = { offset: number; margin: number; count: number; rows: VirtualItem[] };
+
+const PLACE_PREFIX = "virtual-list-place:";
+
+// Storage can be absent or refuse (private windows, blocked site data). A
+// lost scroll place is a list that opens at the top, which is where it
+// opened before this existed, so a failure here is not worth surfacing.
+function readPlace(key: string | null, count: number): Place | null {
+  if (!key) return null;
+  let place: Place | null = null;
+  try {
+    const raw = window.sessionStorage.getItem(PLACE_PREFIX + key);
+    place = raw ? (JSON.parse(raw) as Place) : null;
+  } catch {
+    return null;
+  }
+  if (!place || place.count === 0 || place.count > count) return null;
+  return place;
+}
+
+function writePlace(key: string, place: Place) {
+  try {
+    window.sessionStorage.setItem(PLACE_PREFIX + key, JSON.stringify(place));
+  } catch {
+    // See readPlace.
+  }
 }
 
 /** Where the list starts inside its scroller, in scroller content pixels.
@@ -107,8 +175,11 @@ function useListOffset(
   listRef: RefObject<HTMLElement | null> | undefined,
   // The list element may only mount once there are rows to put in it.
   mounted: boolean,
+  // The offset last seen, so a restored place is not read against 0 for the
+  // frame before the first measurement.
+  initial: number,
 ): number {
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useState(initial);
 
   useLayoutEffect(() => {
     const scroller = scrollRef.current;

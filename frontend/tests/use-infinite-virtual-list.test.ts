@@ -1,5 +1,5 @@
-import { renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type NextPage, useInfiniteVirtualList } from "@/hooks/use-infinite-virtual-list";
 
@@ -72,5 +72,60 @@ describe("useInfiniteVirtualList", () => {
 
     rerender(props({ scrollRef, count: 6, resetKey: "b" }));
     expect(scrollRef.current.scrollTop).toBe(0);
+  });
+
+  describe("keeping the reader's place", () => {
+    // Unmount first: an unmount is a save, and Testing Library's own cleanup
+    // runs after this hook, so the last test's place would outlive the clear.
+    afterEach(() => {
+      cleanup();
+      window.sessionStorage.clear();
+    });
+
+    const place = (count: number) => JSON.stringify({ offset: 900, margin: 120, count, rows: [] });
+
+    it("saves the place under the query when the list goes away", () => {
+      const { unmount } = renderHook(() =>
+        useInfiniteVirtualList(props({ rememberAs: "catalog", resetKey: "q=a" })),
+      );
+      unmount();
+
+      const saved = JSON.parse(
+        window.sessionStorage.getItem("virtual-list-place:catalog:q=a") ?? "null",
+      );
+      expect(saved).toMatchObject({ offset: 0, count: 3 });
+    });
+
+    it("scrolls back to it when the rows are already there", () => {
+      window.sessionStorage.setItem("virtual-list-place:catalog:q=a", place(3));
+      const scrollRef = scroller();
+      const { result } = renderHook(() =>
+        useInfiniteVirtualList(props({ scrollRef, rememberAs: "catalog", resetKey: "q=a" })),
+      );
+
+      expect(scrollRef.current.scrollTo).toHaveBeenCalledWith(
+        expect.objectContaining({ top: 900 }),
+      );
+      expect(result.current.scrollMargin).toBe(120);
+    });
+
+    it("starts at the top when the rows it describes have not loaded", () => {
+      window.sessionStorage.setItem("virtual-list-place:catalog:q=a", place(90));
+      const scrollRef = scroller();
+      renderHook(() =>
+        useInfiniteVirtualList(props({ scrollRef, rememberAs: "catalog", resetKey: "q=a" })),
+      );
+
+      expect(scrollRef.current.scrollTo).not.toHaveBeenCalledWith(
+        expect.objectContaining({ top: 900 }),
+      );
+    });
+
+    it("keeps no place for a list that did not ask for one", () => {
+      const { unmount } = renderHook(() => useInfiniteVirtualList(props({})));
+      unmount();
+
+      expect(window.sessionStorage.length).toBe(0);
+    });
   });
 });
