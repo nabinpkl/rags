@@ -14,36 +14,41 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
-## 2026-09-16 — card images, gated on the licence rather than on the file
+## 2026-09-16 — card images rendered on demand, cached as files
 
 **Context:** `/papers` lists 65,503 rows of title, authors and two lines of
-abstract. A figure is the fastest thing a reader judges a paper by, and we
-hold every PDF locally already, so rendering a crop costs nothing at serve
-time. What it does cost is a compliance question: §6b rule 3 says never serve
-an e-print from our servers, written about PDF bytes, and a crop of a page is
-a smaller piece of the same object.
+abstract. A figure is the fastest thing a reader judges a paper by, and every
+PDF is already on disk.
 
-**Decision:** `ingest/render_thumbnails.py` renders one 320px JPEG per paper
-— the first image placed large enough on the page to be a figure, else the
-top half of page one — and only for papers whose recorded licence permits
-redistribution (CC BY, BY-SA, BY-NC-SA, the public-domain dedications). The
-arXiv default licence and every `-nd-` variant get nothing. The gate runs
-where the file is WRITTEN, so a paper we may not crop has nothing on disk;
-the API's null is a consequence, not the control.
+**Decision:** `/thumbs/{arxiv_id}.jpg` — Caddy serves it off disk, and on a
+miss falls through to `GET /api/thumb/{id}`, which renders a 320px crop from
+the local PDF, writes it into the same tree and returns it. The cache is the
+file: no manifest, no `papers.thumbnail` column, nothing on the wire. `just
+thumbnails` only warms the backlog.
 
-**Alternatives rejected:** rendering in the reader's browser from arxiv.org
-(compliant and needs no gate, but thirty cards is thirty PDF fetches from
-arxiv.org per scroll); a generated placeholder for everything (that is the
-category glyph, with more bytes); ignoring the licence (the bug this exists
-to avoid).
+**Why not a build artifact.** The first two versions were: a licence-gated
+batch render, then a manifest read into a `papers.thumbnail` column. Both made
+a card image wait on a corpus rebuild, and the licence gate left 60% of rows
+showing a grey glyph. On demand removes the coupling entirely — a new month
+of papers shows pictures the moment its PDFs land.
 
-**Cost, stated:** 44% of the catalog can have an image, so most cards keep
-the glyph and the column is deliberately mixed. The web container now mounts
-one corpus path, `thumbs/`, where before it mounted none; `pdfs/` stays
-absent.
+**Why every paper.** A low-resolution crop beside a link back to the source is
+the indexing use *Kelly v. Arriba Soft* (9th Cir. 2003) and *Perfect 10 v.
+Amazon.com* (9th Cir. 2007) held to be fair use. The licence then governs what
+the CARD says: a CC paper names and links its licence beside the attribution
+it already carried, an arXiv-default paper owes only the link back. We never
+host the download.
 
-**Revisit when:** arXiv states a position on derived images, or the licence
-mix moves far enough that a partly-covered column reads as broken.
+**Cost, stated:** the api container now mounts `pdfs/` read-only, where its
+absence used to be the guarantee that no serving path could reach an e-print.
+The guarantee moves to `routes_thumbnails.py`: one reader, a whitelisted
+arXiv-id pattern before any path is built, a rendered JPEG returned and never
+the source, both asserted in tests. Also: askRAG must stay non-commercial or
+the 5,233 NC papers' crops come down.
+
+**Revisit when:** askRAG stops being non-commercial, arXiv states a position
+on derived images, or a rightsholder objects to a specific paper (§6b's
+takedown path covers it; deleting one JPEG is the whole remedy).
 
 Spec updated: yes — new decision D19.
 

@@ -367,17 +367,12 @@ class Settings(BaseSettings):
 
     @property
     def thumbs_dir(self) -> Path:
-        # {YYYY}/{MM}/{arxiv_id}.jpg, mirroring pdfs_dir. Unlike that tree
-        # this one IS deployed: Caddy serves it as static bytes, which is
-        # why only redistributable-licence papers may have a file here
-        # (render_thumbnails, §6b).
+        # Flat {arxiv_id}.jpg, and the cache rather than an artifact: a file
+        # here means that paper's card image has been rendered, and its
+        # absence means the next request will render it (D19). Caddy serves
+        # it directly and the api writes into it, so unlike every other
+        # corpus path this one is deployed and writable.
         return self.corpus_dir / "thumbs"
-
-    @property
-    def thumbnails_manifest_path(self) -> Path:
-        # render_thumbnails -> build_indexes. The one output of that stage the
-        # rest of the pipeline reads; the images themselves only Caddy sees.
-        return self.corpus_dir / "thumbnails.jsonl"
 
     @property
     def kaggle_seed_path(self) -> Path:

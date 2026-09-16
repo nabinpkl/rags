@@ -792,6 +792,42 @@
                     }
                 }
             }
+        },
+        "/api/thumb/{arxiv_id}": {
+            "get": {
+                "summary": "Get Thumbnail",
+                "description": "One paper's card image, rendering it if this is the first request.",
+                "operationId": "get_thumbnail_api_thumb__arxiv_id__get",
+                "parameters": [
+                    {
+                        "name": "arxiv_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Arxiv Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "image/jpeg": {}
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -908,7 +944,7 @@
                         "type": "integer",
                         "title": "Cited By"
                     },
-                    "thumbnail": {
+                    "license": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -917,7 +953,7 @@
                                 "type": "null"
                             }
                         ],
-                        "title": "Thumbnail"
+                        "title": "License"
                     }
                 },
                 "type": "object",
@@ -932,7 +968,7 @@
                     "has_text",
                     "indexed",
                     "cited_by",
-                    "thumbnail"
+                    "license"
                 ],
                 "title": "CatalogPaper",
                 "description": "One paper as the catalog knows it, plus what we hold of it.\n\n`indexed` is what decides where a row can send the reader, so it is a\nfield rather than something the client infers from a count."

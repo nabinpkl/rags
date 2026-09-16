@@ -116,9 +116,10 @@ index:
     cd backend && uv run python -m askrag.ingest.build_indexes
     cd backend && uv run python -m askrag.ingest.select_frontier --verify
 
-# Render one card image per paper from the PDFs we already hold, for papers
-# whose licence permits redistributing a crop (§6b). Slow and resumable; run
-# it before `just index` so the manifest reaches papers.thumbnail.
+# Warm the card-image cache from the PDFs we already hold (D19). Optional:
+# a missing image renders on the first request for it, so this only saves
+# readers that first wait. Measured 2026-09-16: ~8 papers/s, and a rerun
+# skips everything already cached.
 thumbnails *ARGS:
     cd backend && uv run python -m askrag.ingest.render_thumbnails {{ARGS}}
 
@@ -186,12 +187,23 @@ deploy *ARGS:
         echo "deploy/.env missing — cp deploy/.env.example deploy/.env and fill it in" >&2
         exit 1
     fi
+    set -a; . deploy/.env; set +a
+    # The thumbnail cache is the one corpus path the api WRITES (D19), and the
+    # container runs as uid/gid 10001 while the tree belongs to whoever ran
+    # `just thumbnails`. Checked here because the symptom otherwise is every
+    # uncached card 404ing with nothing in the api log to say why.
+    thumbs="${ASKRAG_CORPUS_HOST_DIR:-corpus}/thumbs"
+    mkdir -p "$thumbs"
+    if [ "$(stat -Lc %g "$thumbs")" != "10001" ] || [ -z "$(find "$thumbs" -maxdepth 0 -perm -g+w)" ]; then
+        echo "$thumbs is not group-writable by the api (gid 10001). Fix with:" >&2
+        echo "    sudo chgrp 10001 $thumbs && sudo chmod 2775 $thumbs" >&2
+        exit 1
+    fi
     docker compose -f deploy/compose.yml up -d --build {{ARGS}}
     # corpus.db is bind-mounted as a FILE, so the mount pins the inode it
     # resolved at container start; build_indexes writes a new file and renames
     # over it. Without this check a rebuilt corpus is invisible to a running
     # container and the deploy reports healthy while serving last week's counts.
-    set -a; . deploy/.env; set +a
     host_inode=$(stat -Lc %i "${ASKRAG_CORPUS_HOST_DIR:-corpus}/corpus.db")
     mounted_inode=$(docker compose -f deploy/compose.yml exec -T api stat -c %i /data/corpus/corpus.db)
     if [ "$host_inode" != "$mounted_inode" ]; then

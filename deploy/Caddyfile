@@ -32,14 +32,29 @@
 	}
 
 	# --- paper thumbnails -------------------------------------------------
-	# Crops rendered offline from PDFs we hold, and ONLY for papers whose
-	# licence permits redistribution (render_thumbnails, D19). The tree is
-	# mounted read-only and served as bytes; nothing here proxies arxiv.org,
-	# and no PDF is reachable through this path.
-	handle /thumbs/* {
-		root * /srv
-		file_server
-		header Cache-Control "public, max-age=604800"
+	# 320px crops of the PDFs we hold, one per paper (D19). Cached as files
+	# and rendered on the first request for one: a hit is served straight off
+	# disk here, a miss falls through to the api, which renders it, writes it
+	# into this same tree, and returns the bytes. Every later request for
+	# that paper is a file again.
+	#
+	# Nothing on this path proxies arxiv.org and no PDF is reachable through
+	# it — that is the §6b line, not the size of the image.
+	handle_path /thumbs/* {
+		root * /srv/thumbs
+		@cached file
+		handle @cached {
+			file_server
+			header Cache-Control "public, max-age=604800, immutable"
+		}
+		handle {
+			# No slash before {path}: handle_path has already stripped
+			# /thumbs, so {path} still starts with one and spelling
+			# another produces /api/thumb//<id>.jpg, which matches no
+			# route and 404s every uncached card.
+			rewrite * /api/thumb{path}
+			reverse_proxy api:8000
+		}
 	}
 
 	# --- static export ----------------------------------------------------

@@ -16,6 +16,7 @@ from askrag.api.routes_census import router as census_router
 from askrag.api.routes_chat import router as chat_router
 from askrag.api.routes_explorer import router as explorer_router
 from askrag.api.routes_landing import router as landing_router
+from askrag.api.routes_thumbnails import router as thumbnails_router
 from askrag.api.session_store import SessionStore
 from askrag.config import get_settings
 
@@ -52,3 +53,4 @@ app.include_router(explorer_router)
 app.include_router(landing_router)
 app.include_router(census_router)
 app.include_router(catalog_router)
+app.include_router(thumbnails_router)

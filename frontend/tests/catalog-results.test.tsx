@@ -17,29 +17,70 @@ function paper(overrides: Partial<CatalogPaper> = {}): CatalogPaper {
     has_text: true,
     indexed: false,
     cited_by: 0,
-    thumbnail: null,
+    license: null,
     ...overrides,
   };
 }
 
 describe("CatalogResults", () => {
-  it("shows a crop when the licence allowed one and the glyph when it did not", () => {
+  it("names and links a CC licence beside the crop it is granted on", () => {
     render(
       <CatalogResults
         papers={[
-          paper({ arxiv_id: "2607.00001", title: "With a crop", thumbnail: "2026/07/a.jpg" }),
-          paper({ arxiv_id: "2608.00002", title: "Without one" }),
+          paper({
+            title: "Shared under CC",
+            license: "http://creativecommons.org/licenses/by-nc-sa/4.0/",
+          }),
         ]}
-        total={2}
+        total={1}
         state={EMPTY_FILTER}
         loading={false}
         onLoadMore={null}
       />,
     );
 
-    const images = document.querySelectorAll("img");
-    expect(images).toHaveLength(1);
-    expect(images[0]).toHaveAttribute("src", "/thumbs/2026/07/a.jpg");
+    const notice = screen.getByRole("link", { name: "CC BY-NC-SA 4.0" });
+    expect(notice).toHaveAttribute("href", "https://creativecommons.org/licenses/by-nc-sa/4.0/");
+    // Its own target, not swallowed by the card-wide title link.
+    expect(notice).not.toContainElement(screen.getByRole("link", { name: /Shared under CC/ }));
+  });
+
+  it("prints no licence notice for the arXiv default, which grants nothing to name", () => {
+    render(
+      <CatalogResults
+        papers={[
+          paper({
+            title: "Default licence",
+            license: "http://arxiv.org/licenses/nonexclusive-distrib/1.0/",
+          }),
+        ]}
+        total={1}
+        state={EMPTY_FILTER}
+        loading={false}
+        onLoadMore={null}
+      />,
+    );
+
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("asks for every card's image by id, and lets a miss fall back to the glyph", () => {
+    render(
+      <CatalogResults
+        papers={[paper({ arxiv_id: "2607.00001" })]}
+        total={1}
+        state={EMPTY_FILTER}
+        loading={false}
+        onLoadMore={null}
+      />,
+    );
+
+    // Derived from the id, not read off the wire: the server renders the
+    // crop on first request, so nothing here can know whether one exists
+    // yet, and a field that claimed to would go stale (D19).
+    const image = document.querySelector("img");
+    expect(image).toHaveAttribute("src", "/thumbs/2607.00001.jpg");
+    expect(image).toHaveAttribute("loading", "lazy");
   });
 
   it("sends an indexed paper to the reader and everything else to arXiv", () => {
