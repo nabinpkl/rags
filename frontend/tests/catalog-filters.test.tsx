@@ -79,22 +79,6 @@ describe("CatalogFilters", () => {
     expect(within(order).getByRole("option", { name: "Best match" })).toBeEnabled();
   });
 
-  it("commits the search box on a pause, not on every keystroke", () => {
-    vi.useFakeTimers();
-    const onChange = vi.fn();
-    render(<CatalogFilters state={STATE} facets={FACETS} onChange={onChange} />);
-
-    const box = screen.getByLabelText("Search titles and abstracts");
-    fireEvent.change(box, { target: { value: "dif" } });
-    fireEvent.change(box, { target: { value: "diffusion" } });
-    expect(onChange).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(400);
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith({ q: "diffusion" });
-    vi.useRealTimers();
-  });
-
   it("offers every one of the 234 id-months rather than a head and an expander", () => {
     const months = Array.from({ length: 234 }, (_, i) => ({
       value: String(2600 + i),
@@ -110,6 +94,7 @@ describe("CatalogFilters", () => {
     render(<CatalogFilters state={STATE} facets={undefined} onChange={() => {}} />);
 
     expect(screen.queryByLabelText("Field")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Search titles and abstracts")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Month posted")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Show")).toBeInTheDocument();
   });
 });

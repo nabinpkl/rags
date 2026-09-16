@@ -15,6 +15,7 @@ import {
   type Sort,
 } from "@/components/catalog/catalog-filters";
 import { CatalogResults } from "@/components/catalog/catalog-results";
+import { CatalogSearch } from "@/components/catalog/catalog-search";
 import { DrawerPanel } from "@/components/shell/drawer-panel";
 import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { SiteFooter } from "@/components/site-footer";
@@ -185,6 +186,13 @@ function Catalog() {
                   characters either way. A wider panel only adds empty space
                   to the right of every line. */}
             <div className="mx-auto flex w-full max-w-[940px] flex-col gap-5 px-4 py-5 sm:px-6 sm:py-6">
+              {/* Above the results, not in the rail: it is the only control
+                  that takes the reader's own words, and the count it moves
+                  sits one line below it. It stays put on an error too, so a
+                  failed fetch is something to retype through rather than a
+                  dead page. */}
+              <CatalogSearch value={state.q} onCommit={(q) => change({ q })} />
+
               {papers.isError ? (
                 <p className="text-ink-2 py-16 text-center text-[13.5px]">
                   Could not reach the catalog. The API may still be starting up.
