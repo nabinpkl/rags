@@ -206,8 +206,8 @@ function Catalog() {
                   failed fetch is something to retype through rather than a
                   dead page.
 
-                  Sticky, because "Show more" makes this list as long as the
-                  reader keeps asking, and a refinement should not cost a
+                  Sticky, because the list pages itself in for as long as the
+                  reader keeps scrolling, and a refinement should not cost a
                   scroll back to the top. The equal negative margin and
                   padding leave the resting layout exactly where it was and
                   only matter once stuck: a band of the canvas colour above
@@ -238,15 +238,21 @@ function Catalog() {
                   papers={rows}
                   total={total}
                   state={state}
-                  loading={papers.isPending || papers.isFetchingNextPage}
-                  onLoadMore={papers.hasNextPage ? () => void papers.fetchNextPage() : null}
+                  loading={papers.isPending}
+                  page={papers}
+                  scrollRef={canvasRef}
                 />
               )}
-              <SiteFooter />
             </div>
           </main>
         </div>
       </div>
+
+      {/* Outside the canvas, as on Overview: the list has no bottom until the
+          last page loads, so a footer after it would be one the reader
+          chases and never reaches, and the arXiv attribution in it is not
+          optional (§6b). */}
+      <SiteFooter />
     </div>
   );
 }

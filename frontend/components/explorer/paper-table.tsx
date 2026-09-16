@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useInfiniteVirtualList } from "@/hooks/use-infinite-virtual-list";
 import { usePapersQuery, type PapersQueryFilters } from "@/hooks/use-papers-query";
 import { useViewerStore, type SortOption } from "@/stores/viewer-store";
 import { cn } from "@/lib/utils";
@@ -73,15 +73,11 @@ function rigorDots(score: number) {
 }
 
 /** TanStack Table + Virtual over `/api/papers` (D-1): only visible rows
- * render, so 6,460 rows scroll at 60fps. Row click sets `viewer-store`'s
+ * render, so 6,460 rows scroll at 60fps. The windowing and paging are
+ * `use-infinite-virtual-list.ts`, shared with the catalog. Row click sets `viewer-store`'s
  * `paper` (+ URL, via use-viewer-url-sync.ts) — the #29 seam; this
  * component never renders a viewer itself.
- *
- * Rows are dynamically measured (`virtualizer.measureElement`), not a fixed
- * height: paper titles vary from one word to several wrapped lines, and a
- * fixed-height absolutely-positioned row overlaps its neighbor the moment
- * real content exceeds the estimate. `estimateSize` only seeds the initial
- * layout before the first measurement pass. */
+ */
 export function PaperTable() {
   const q = useViewerStore((state) => state.q);
   const category = useViewerStore((state) => state.category);
@@ -95,8 +91,8 @@ export function PaperTable() {
     () => ({ q, category, yearFrom, yearTo, sort }),
     [q, category, yearFrom, yearTo, sort],
   );
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isPending } =
-    usePapersQuery(filters);
+  const query = usePapersQuery(filters);
+  const { data, isPending } = query;
 
   const papers = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
   const total = data?.pages[0]?.total ?? null;
@@ -194,25 +190,15 @@ export function PaperTable() {
   const headerCells = table.getFlatHeaders();
 
   const parentRef = useRef<HTMLDivElement>(null);
-  const virtualizer = useVirtualizer({
+  const { virtualizer, items: virtualRows } = useInfiniteVirtualList({
     count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT_ESTIMATE_PX,
+    scrollRef: parentRef,
+    estimateSize: ROW_HEIGHT_ESTIMATE_PX,
     overscan: OVERSCAN,
+    fetchAhead: FETCH_NEXT_THRESHOLD,
+    page: query,
+    resetKey: JSON.stringify(filters),
   });
-  const virtualRows = virtualizer.getVirtualItems();
-
-  useEffect(() => {
-    const last = virtualRows[virtualRows.length - 1];
-    if (!last) return;
-    if (
-      last.index >= rows.length - 1 - FETCH_NEXT_THRESHOLD &&
-      hasNextPage &&
-      !isFetchingNextPage
-    ) {
-      void fetchNextPage();
-    }
-  }, [virtualRows, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     // `@container`: the table/card switch below keys on THIS element's width

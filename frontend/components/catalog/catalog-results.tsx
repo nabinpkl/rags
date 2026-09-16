@@ -2,8 +2,10 @@
 
 import { ArrowUpRight, BookOpen, type LucideIcon } from "lucide-react";
 import Link from "next/link";
+import { type RefObject, useRef } from "react";
 
 import type { CatalogFilterState } from "@/components/catalog/catalog-filters";
+import { type NextPage, useInfiniteVirtualList } from "@/hooks/use-infinite-virtual-list";
 import type { CatalogPaper } from "@/lib/api-client";
 import { CATEGORY_ICON, UNMAPPED_CATEGORY_ICON } from "@/lib/category-icon";
 import { formatIdMonth } from "@/lib/id-month";
@@ -45,6 +47,17 @@ function describe(state: CatalogFilterState): string {
   return parts.join(" · ");
 }
 
+// A card at the widest tile: 120px image plus 32px padding and a border.
+// Only the first layout uses it; every card is measured once it mounts.
+const CARD_ESTIMATE_PX = 160;
+// Cards are tall, so a few either side is a full screen of slack.
+const OVERSCAN = 4;
+// The API pages 30 at a time; asking 10 cards early leaves the next page
+// most of a screen to arrive before the reader reaches the end.
+const FETCH_AHEAD = 10;
+// Matches the list's former `gap-2.5`.
+const CARD_GAP_PX = 10;
+
 /** The results, as one card per paper.
  *
  * No panel wraps them. A panel frame says "these things are one object read
@@ -52,20 +65,47 @@ function describe(state: CatalogFilterState): string {
  * whose length is a filter result: the reader takes one paper at a time, and
  * a card each is what makes each one its own target. The heading above is
  * therefore a page heading, not a panel header.
+ *
+ * The list is windowed and pages itself in as the reader nears the end, the
+ * same machinery as the /app explorer (`use-infinite-virtual-list.ts`). The
+ * scroller is the page canvas, not a box of the list's own: the heading and
+ * the search scroll away with the cards, so the list has to be told where in
+ * that canvas it starts.
  */
 export function CatalogResults({
   papers,
   total,
   state,
   loading,
-  onLoadMore,
+  page,
+  scrollRef,
 }: {
   papers: CatalogPaper[];
   total: number;
   state: CatalogFilterState;
   loading: boolean;
-  onLoadMore: (() => void) | null;
+  page: NextPage;
+  scrollRef: RefObject<HTMLElement | null>;
 }) {
+  // Here rather than in the list: the list unmounts while a new filter's
+  // first page loads, and the reset to the top has to happen then, not once
+  // the rows are back and the reader has been looking at a skeleton 14,000px
+  // down the canvas.
+  const listRef = useRef<HTMLOListElement>(null);
+  const windowed = useInfiniteVirtualList({
+    count: papers.length,
+    scrollRef,
+    listRef,
+    estimateSize: CARD_ESTIMATE_PX,
+    overscan: OVERSCAN,
+    gap: CARD_GAP_PX,
+    fetchAhead: FETCH_AHEAD,
+    page,
+    // The filter, not the loaded rows: a new page arriving is the same list,
+    // a new filter is a different one.
+    resetKey: JSON.stringify(state),
+  });
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-4">
@@ -87,33 +127,105 @@ export function CatalogResults({
           </p>
         )
       ) : (
-        <>
-          {/* The tile sizes off THIS width, not the viewport's: a docked rail
-              takes 264px, so a 1024px window leaves the list narrower than a
-              600px one with the rail closed. Container queries decide layout
-              inside a region (.claude/rules/frontend.md). */}
-          <ol className="@container flex flex-col gap-2.5">
-            {papers.map((paper) => (
-              <li key={paper.arxiv_id}>
-                <PaperCard paper={paper} />
-              </li>
-            ))}
-          </ol>
-          {onLoadMore && (
-            <button
-              type="button"
-              onClick={onLoadMore}
-              disabled={loading}
-              className="border-line bg-panel text-ink hover:bg-paper disabled:text-muted mt-1 rounded-md border px-4 py-2.5 text-[13px] transition-colors disabled:cursor-wait motion-reduce:transition-none"
-            >
-              {loading
-                ? "Loading…"
-                : `Show more (${(total - papers.length).toLocaleString()} left)`}
-            </button>
-          )}
-        </>
+        <PaperList
+          papers={papers}
+          total={total}
+          page={page}
+          listRef={listRef}
+          windowed={windowed}
+        />
       )}
     </div>
+  );
+}
+
+function PaperList({
+  papers,
+  total,
+  page,
+  listRef,
+  windowed: { virtualizer, items, scrollMargin },
+}: {
+  papers: CatalogPaper[];
+  total: number;
+  page: NextPage;
+  listRef: RefObject<HTMLOListElement | null>;
+  windowed: ReturnType<typeof useInfiniteVirtualList>;
+}) {
+  return (
+    <>
+      {/* The tile sizes off THIS width, not the viewport's: a docked rail
+          takes 264px, so a 1024px window leaves the list narrower than a
+          600px one with the rail closed. Container queries decide layout
+          inside a region (.claude/rules/frontend.md).
+
+          Most cards are not in the DOM, so each one that is says where it
+          sits in the whole result: a screen reader otherwise announces "list,
+          7 items" for a result of 65,503. */}
+      <ol
+        ref={listRef}
+        className="@container relative"
+        style={{ height: virtualizer.getTotalSize() }}
+      >
+        {items.map((item) => {
+          const paper = papers[item.index];
+          return (
+            <li
+              key={paper.arxiv_id}
+              data-index={item.index}
+              ref={virtualizer.measureElement}
+              aria-setsize={total}
+              aria-posinset={item.index + 1}
+              className="absolute inset-x-0 top-0"
+              style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
+            >
+              <PaperCard paper={paper} />
+            </li>
+          );
+        })}
+      </ol>
+      <ListEnd shown={papers.length} total={total} page={page} />
+    </>
+  );
+}
+
+/** What is under the last loaded card: more arriving, a page that failed,
+ * or the end.
+ *
+ * A failed page stops the list asking (the hook will not re-request it on
+ * its own), so the retry here is the only way on, and it has to be a button
+ * rather than a hope that scrolling again works. */
+function ListEnd({ shown, total, page }: { shown: number; total: number; page: NextPage }) {
+  if (page.isFetchNextPageError) {
+    return (
+      <div
+        role="alert"
+        className="border-line text-ink-2 flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed px-4 py-3 text-[13.5px]"
+      >
+        <span>
+          The papers after {shown.toLocaleString()} of {total.toLocaleString()} did not load.
+        </span>
+        <button
+          type="button"
+          onClick={() => void page.fetchNextPage()}
+          className="border-line bg-panel text-ink hover:bg-paper rounded-md border px-3 py-1.5 text-[13px] transition-colors motion-reduce:transition-none"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  return (
+    <p
+      aria-live="polite"
+      className="text-muted py-2 text-center font-mono text-[11px] tracking-[0.08em] tabular-nums uppercase"
+    >
+      {page.isFetchingNextPage
+        ? "Loading more"
+        : page.hasNextPage
+          ? `${shown.toLocaleString()} of ${total.toLocaleString()}`
+          : `All ${total.toLocaleString()} shown`}
+    </p>
   );
 }
 
