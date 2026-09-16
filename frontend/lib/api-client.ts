@@ -120,3 +120,25 @@ export function fetchLatest(query: LatestQuery = {}): Promise<LatestResponse> {
 export function fetchCoverage(): Promise<CoverageResponse> {
   return getJson("/api/coverage", {});
 }
+
+export type CategoryCensusResponse =
+  paths["/api/census/categories"]["get"]["responses"][200]["content"]["application/json"];
+export type CensusMonth = CategoryCensusResponse["months"][number];
+export type UptakeResponse =
+  paths["/api/census/uptake"]["get"]["responses"][200]["content"]["application/json"];
+export type UptakeWork = UptakeResponse["works"][number];
+
+/** GET /api/census/categories — what arXiv cs posted, by primary category,
+ * for the months we hold whole. Distinct from /api/coverage: that one is
+ * about US (how much of each month we collected), this one is about ARXIV,
+ * which only a month above the coverage floor may be spoken for. Months that
+ * fail it come back in `excluded` rather than vanishing from the series. */
+export function fetchCategoryCensus(): Promise<CategoryCensusResponse> {
+  return getJson("/api/census/categories", {});
+}
+
+/** GET /api/census/uptake — work from one complete month that the next
+ * complete month already cites. */
+export function fetchUptake(): Promise<UptakeResponse> {
+  return getJson("/api/census/uptake", {});
+}

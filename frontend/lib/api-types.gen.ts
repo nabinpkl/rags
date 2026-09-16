@@ -154,10 +154,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/census/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Category Census
+         * @description What arXiv cs posted, by primary category, in the months we hold whole.
+         */
+        get: operations["get_category_census_api_census_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/census/uptake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Uptake
+         * @description Work from one complete month that the next complete month already cites.
+         */
+        get: operations["get_uptake_api_census_uptake_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** CategoryCensusResponse */
+        CategoryCensusResponse: {
+            /** Categories */
+            categories: string[];
+            /** Months */
+            months: components["schemas"]["CensusMonth"][];
+            /** Excluded */
+            excluded: components["schemas"]["ExcludedMonth"][];
+        };
+        /** CategoryShare */
+        CategoryShare: {
+            /** Category */
+            category: string;
+            /** Papers */
+            papers: number;
+        };
+        /**
+         * CensusMonth
+         * @description One complete month, by the primary category arXiv filed each paper under.
+         */
+        CensusMonth: {
+            /** Month */
+            month: string;
+            /** Papers */
+            papers: number;
+            /** Catalog Papers */
+            catalog_papers: number;
+            /** Categories */
+            categories: components["schemas"]["CategoryShare"][];
+            /** Other */
+            other: number;
+        };
         /** ChatRequest */
         ChatRequest: {
             /** Question */
@@ -244,6 +316,18 @@ export interface components {
         CoverageResponse: {
             /** Months */
             months: components["schemas"]["MonthBucket"][];
+        };
+        /**
+         * ExcludedMonth
+         * @description A cohort month held too thinly to describe arXiv with, and by how much.
+         */
+        ExcludedMonth: {
+            /** Month */
+            month: string;
+            /** Papers Held */
+            papers_held: number;
+            /** Catalog Papers */
+            catalog_papers: number | null;
         };
         /** FacetBucketOut */
         FacetBucketOut: {
@@ -454,6 +538,41 @@ export interface components {
             next_cursor: string | null;
             /** Total */
             total: number | null;
+        };
+        /**
+         * UptakeResponse
+         * @description Papers from one month already cited by the next month's papers.
+         *
+         *     Both months must be complete, and consecutive: the measurement is "how
+         *     fast did this land", and neither a missing citing month (too few citers)
+         *     nor a gap between the two (more time to accumulate) measures that.
+         */
+        UptakeResponse: {
+            /** From Month */
+            from_month: string | null;
+            /** To Month */
+            to_month: string | null;
+            /** Works */
+            works: components["schemas"]["UptakeWork"][];
+            /** Works Total */
+            works_total: number;
+            /** Edges Total */
+            edges_total: number;
+        };
+        /**
+         * UptakeWork
+         * @description A work from the earlier month, and how much of the later month cites it.
+         *
+         *     `work` is the same shape the foundations table ranks, so a row here opens
+         *     the same detail view rather than a second, thinner one. Both numbers are
+         *     kept because they answer different questions: `work.cited_by` is how much
+         *     the corpus cites it at all, `citations_from` is how much of that arrived
+         *     from a single following month.
+         */
+        UptakeWork: {
+            work: components["schemas"]["Foundation"];
+            /** Citations From */
+            citations_from: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -726,6 +845,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CoverageResponse"];
+                };
+            };
+        };
+    };
+    get_category_census_api_census_categories_get: {
+        parameters: {
+            query?: {
+                top?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryCensusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_uptake_api_census_uptake_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UptakeResponse"];
                 };
             };
         };

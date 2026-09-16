@@ -497,10 +497,159 @@
                     }
                 }
             }
+        },
+        "/api/census/categories": {
+            "get": {
+                "summary": "Get Category Census",
+                "description": "What arXiv cs posted, by primary category, in the months we hold whole.",
+                "operationId": "get_category_census_api_census_categories_get",
+                "parameters": [
+                    {
+                        "name": "top",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 20,
+                            "minimum": 1,
+                            "default": 8,
+                            "title": "Top"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CategoryCensusResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/census/uptake": {
+            "get": {
+                "summary": "Get Uptake",
+                "description": "Work from one complete month that the next complete month already cites.",
+                "operationId": "get_uptake_api_census_uptake_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UptakeResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
         "schemas": {
+            "CategoryCensusResponse": {
+                "properties": {
+                    "categories": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Categories"
+                    },
+                    "months": {
+                        "items": {
+                            "$ref": "#/components/schemas/CensusMonth"
+                        },
+                        "type": "array",
+                        "title": "Months"
+                    },
+                    "excluded": {
+                        "items": {
+                            "$ref": "#/components/schemas/ExcludedMonth"
+                        },
+                        "type": "array",
+                        "title": "Excluded"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "categories",
+                    "months",
+                    "excluded"
+                ],
+                "title": "CategoryCensusResponse"
+            },
+            "CategoryShare": {
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "title": "Category"
+                    },
+                    "papers": {
+                        "type": "integer",
+                        "title": "Papers"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "category",
+                    "papers"
+                ],
+                "title": "CategoryShare"
+            },
+            "CensusMonth": {
+                "properties": {
+                    "month": {
+                        "type": "string",
+                        "title": "Month"
+                    },
+                    "papers": {
+                        "type": "integer",
+                        "title": "Papers"
+                    },
+                    "catalog_papers": {
+                        "type": "integer",
+                        "title": "Catalog Papers"
+                    },
+                    "categories": {
+                        "items": {
+                            "$ref": "#/components/schemas/CategoryShare"
+                        },
+                        "type": "array",
+                        "title": "Categories"
+                    },
+                    "other": {
+                        "type": "integer",
+                        "title": "Other"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "month",
+                    "papers",
+                    "catalog_papers",
+                    "categories",
+                    "other"
+                ],
+                "title": "CensusMonth",
+                "description": "One complete month, by the primary category arXiv filed each paper under."
+            },
             "ChatRequest": {
                 "properties": {
                     "question": {
@@ -726,6 +875,37 @@
                     "months"
                 ],
                 "title": "CoverageResponse"
+            },
+            "ExcludedMonth": {
+                "properties": {
+                    "month": {
+                        "type": "string",
+                        "title": "Month"
+                    },
+                    "papers_held": {
+                        "type": "integer",
+                        "title": "Papers Held"
+                    },
+                    "catalog_papers": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Catalog Papers"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "month",
+                    "papers_held",
+                    "catalog_papers"
+                ],
+                "title": "ExcludedMonth",
+                "description": "A cohort month held too thinly to describe arXiv with, and by how much."
             },
             "FacetBucketOut": {
                 "properties": {
@@ -1390,6 +1570,75 @@
                     "total"
                 ],
                 "title": "PapersResponse"
+            },
+            "UptakeResponse": {
+                "properties": {
+                    "from_month": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "From Month"
+                    },
+                    "to_month": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "To Month"
+                    },
+                    "works": {
+                        "items": {
+                            "$ref": "#/components/schemas/UptakeWork"
+                        },
+                        "type": "array",
+                        "title": "Works"
+                    },
+                    "works_total": {
+                        "type": "integer",
+                        "title": "Works Total"
+                    },
+                    "edges_total": {
+                        "type": "integer",
+                        "title": "Edges Total"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "from_month",
+                    "to_month",
+                    "works",
+                    "works_total",
+                    "edges_total"
+                ],
+                "title": "UptakeResponse",
+                "description": "Papers from one month already cited by the next month's papers.\n\nBoth months must be complete, and consecutive: the measurement is \"how\nfast did this land\", and neither a missing citing month (too few citers)\nnor a gap between the two (more time to accumulate) measures that."
+            },
+            "UptakeWork": {
+                "properties": {
+                    "work": {
+                        "$ref": "#/components/schemas/Foundation"
+                    },
+                    "citations_from": {
+                        "type": "integer",
+                        "title": "Citations From"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "work",
+                    "citations_from"
+                ],
+                "title": "UptakeWork",
+                "description": "A work from the earlier month, and how much of the later month cites it.\n\n`work` is the same shape the foundations table ranks, so a row here opens\nthe same detail view rather than a second, thinner one. Both numbers are\nkept because they answer different questions: `work.cited_by` is how much\nthe corpus cites it at all, `citations_from` is how much of that arrived\nfrom a single following month."
             },
             "ValidationError": {
                 "properties": {

@@ -9,15 +9,24 @@ import { ChatPanel } from "@/components/agent-panel/chat-panel";
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import { SECTIONS, SECTION_IDS, DashboardSidebar } from "@/components/landing/dashboard-sidebar";
 import { FoundationDetail } from "@/components/landing/foundation-detail";
+import { CategoryCensus } from "@/components/landing/category-census";
 import { FoundationsTable } from "@/components/landing/foundations-table";
 import { Hero } from "@/components/landing/hero";
 import { HoldingsChart } from "@/components/landing/holdings-chart";
 import { LatestPapers } from "@/components/landing/latest-papers";
 import { MethodsNote } from "@/components/landing/methods-note";
+import { RecentUptake } from "@/components/landing/recent-uptake";
 import { DrawerPanel } from "@/components/shell/drawer-panel";
 import { SiteFooter } from "@/components/site-footer";
 import { useActiveSection } from "@/hooks/use-active-section";
-import { type Foundation, fetchCoverage, fetchLanding, fetchLatest } from "@/lib/api-client";
+import {
+  type Foundation,
+  fetchCategoryCensus,
+  fetchCoverage,
+  fetchLanding,
+  fetchLatest,
+  fetchUptake,
+} from "@/lib/api-client";
 import { formatIdMonthRange } from "@/lib/id-month";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 
@@ -50,6 +59,15 @@ export default function LandingPage() {
   // (session_store.get_or_create) — this clears the VISIBLE transcript to
   // match, so the panel never shows answers about one foundation under
   // another one's heading.
+  // Two panels open a foundation now (the ranking and the uptake list), so
+  // the transition lives once: the detail replaces the bands, and a canvas
+  // still scrolled to the activity band would otherwise open it mid-page.
+  function openFoundation(foundation: Foundation) {
+    setSelected(foundation);
+    setAsking(null);
+    canvasRef.current?.scrollTo({ top: 0 });
+  }
+
   function ask(foundation: Foundation) {
     if (asking?.arxiv_id !== foundation.arxiv_id) resetSession();
     setAsking(foundation);
@@ -66,6 +84,8 @@ export default function LandingPage() {
     queryFn: () => fetchLatest({ limit: 6 }),
   });
   const { data: coverage } = useQuery({ queryKey: ["coverage"], queryFn: fetchCoverage });
+  const { data: uptake } = useQuery({ queryKey: ["uptake"], queryFn: fetchUptake });
+  const { data: census } = useQuery({ queryKey: ["census"], queryFn: fetchCategoryCensus });
 
   const showingBands = Boolean(data) && selected === null;
   const active = useActiveSection(SECTION_IDS, canvasRef, showingBands);
@@ -232,19 +252,22 @@ export default function LandingPage() {
                     <FoundationsTable
                       stats={data.stats}
                       foundations={data.foundations}
-                      onSelect={(foundation) => {
-                        setSelected(foundation);
-                        setAsking(null);
-                        canvasRef.current?.scrollTo({ top: 0 });
-                      }}
+                      onSelect={openFoundation}
                     />
                   </section>
 
-                  {latest && (
-                    <section id="activity" className="scroll-mt-5">
-                      <LatestPapers papers={latest.papers} />
-                    </section>
-                  )}
+                  {/* The activity band is the page's "right now": what
+                      arrived, what the newest complete month picked up, and
+                      what the field posted while that happened. All three
+                      are counts over months we hold whole, which is what
+                      separates them from a chart of our download schedule. */}
+                  <section id="activity" className="flex scroll-mt-5 flex-col gap-4">
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      {latest && <LatestPapers papers={latest.papers} />}
+                      {uptake && <RecentUptake uptake={uptake} onSelect={openFoundation} />}
+                    </div>
+                    {census && <CategoryCensus census={census} />}
+                  </section>
 
                   {/* Provenance sits in the method band, last, deliberately.
                       As the activity band's widest panel it read as a
