@@ -129,23 +129,39 @@ class Settings(BaseSettings):
     catalog_page_size: int = 30
 
     # --- catalog thumbnails (render_thumbnails) --------------------------
-    # Rendered at 320px wide and displayed at 64: the card's tile is small,
-    # but a 2x screen asks for 128 and a reader who widens the window asks
-    # for more. Above 320 the files stop being small and the tile cannot
-    # show the difference.
+    # Rendered at 320px wide and displayed at up to 160: exactly 2x for a
+    # retina screen. Raising it is not a layout tweak — low resolution is what
+    # makes the crop fair use for the papers under arXiv's default licence
+    # (D19), so this number is a compliance setting.
     thumbnail_width: int = 320
     thumbnail_quality: int = 72
     # How far into a paper to look for a figure. Past the first few pages a
     # picture is a result plot rather than the one that says what the paper
     # is, and every page scanned is a page parsed for every paper.
     thumbnail_scan_pages: int = 8
-    # What separates a figure from a logo, measured where the image is PLACED
+    # What separates a figure from a logo, measured where the thing is PLACED
     # on the page rather than in its own pixels: a 2000px logo placed at 20pt
     # is a logo. Both floors must hold, plus the share of the page, so a wide
     # flat rule and a small inline glyph each fall out.
     thumbnail_min_figure_width_pt: float = 120.0
     thumbnail_min_figure_height_pt: float = 90.0
     thumbnail_min_figure_page_fraction: float = 0.03
+    # And the ceiling, which only the vector path needs: paths that sprawl
+    # across most of a page are a table's rules or a boxed author list, not a
+    # figure. Measured 2026-09-16 over 120 recent papers — without this,
+    # whole pages of dense text were picked as the thumbnail.
+    thumbnail_max_figure_page_fraction: float = 0.45
+    # How close two vector paths must be to count as one drawing. A figure is
+    # hundreds of separate strokes; this is what makes them one object again.
+    thumbnail_cluster_gap_pt: float = 12.0
+    # Whitespace trimming. The probe is a small greyscale render of the clip,
+    # scanned for rows and columns that carry ink: a page is a quarter margin
+    # by area, and at thumbnail size those margins are most of the tile.
+    thumbnail_trim_probe_px: int = 160
+    # 0-255. Anti-aliased text edges land in the 240s, so the threshold sits
+    # just under paper white rather than at mid grey.
+    thumbnail_trim_ink_level: int = 250
+    thumbnail_trim_padding_pt: float = 4.0
 
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000
