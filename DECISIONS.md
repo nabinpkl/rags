@@ -14,6 +14,29 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-16 — sturdier typefaces: Atkinson Hyperlegible Next, Source Serif 4, JetBrains Mono
+
+**Context.** The owner found the text thin to read. Instrument Sans is a
+narrow face with light strokes at 400, and it carries the catalog's abstracts
+and author lines at 12-15px. STIX Two Text has hairline serifs that thin out
+further at the foundations table's row size.
+
+**Decision.** Sans: Atkinson Hyperlegible Next (built for legibility; wider
+letterforms, heavier strokes at the same weight). Serif: Source Serif 4, whose
+optical-size axis thickens strokes at small sizes. Mono: JetBrains Mono, with a
+taller x-height for the 10-11px labels. All three are variable and still
+self-hosted by next/font (§4b unchanged). Tokens (`--font-sans/serif/mono`)
+keep their names, so no component changed.
+
+**Rejected.** Raising the weight of the old faces: Instrument Sans at 500
+stays narrow, and every `font-medium` would have had to step up to hold the
+hierarchy. IBM Plex Sans: close second, lighter at 400.
+
+**Revisit trigger.** The page's look is judged against `docs/mockup.html`
+again, which still names the old faces; update the mock if it is regenerated.
+
+Spec updated: no (the spec does not name typefaces).
+
 ## 2026-09-16 — one rail, addressing views rather than bands
 
 **Context:** Two routes had grown two rails. The dashboard's listed four
