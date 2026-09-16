@@ -43,7 +43,7 @@ export type NextPage = {
  */
 export function useInfiniteVirtualList({
   count,
-  scrollRef,
+  scrollElement,
   listRef,
   estimateSize,
   overscan,
@@ -54,7 +54,13 @@ export function useInfiniteVirtualList({
   rememberAs,
 }: {
   count: number;
-  scrollRef: RefObject<HTMLElement | null>;
+  /** The scroller itself, held in its owner's state rather than a ref. A
+   * parent's ref is attached after a child's layout effects run, so a list
+   * that mounts in the same commit as its scroller (Explore, reopened with
+   * its first page already cached) read `null`, and nothing re-rendered to
+   * make it look again: the list kept its height and drew no rows. A node
+   * in state re-renders the list the moment it exists. */
+  scrollElement: HTMLElement | null;
   listRef?: RefObject<HTMLElement | null>;
   estimateSize: number;
   overscan: number;
@@ -68,11 +74,11 @@ export function useInfiniteVirtualList({
 }) {
   const placeKey = rememberAs ? `${rememberAs}:${resetKey}` : null;
   const [restored] = useState(() => readPlace(placeKey, count));
-  const scrollMargin = useListOffset(scrollRef, listRef, count > 0, restored?.margin ?? 0);
+  const scrollMargin = useListOffset(scrollElement, listRef, count > 0, restored?.margin ?? 0);
 
   const virtualizer = useVirtualizer({
     count,
-    getScrollElement: () => scrollRef.current,
+    getScrollElement: () => scrollElement,
     estimateSize: () => estimateSize,
     overscan,
     gap,
@@ -106,9 +112,8 @@ export function useInfiniteVirtualList({
   useLayoutEffect(() => {
     if (seenKey.current === resetKey) return;
     seenKey.current = resetKey;
-    const scroller = scrollRef.current;
-    if (scroller) scroller.scrollTop = 0;
-  }, [resetKey, scrollRef]);
+    if (scrollElement) scrollElement.scrollTop = 0;
+  }, [resetKey, scrollElement]);
 
   // Written on the way out, under the key current at that moment. A filter
   // change resets to the top anyway, so only the last query's place matters.
@@ -171,7 +176,7 @@ function writePlace(key: string, place: Place) {
  * sits above the list does: the heading wraps to two lines at phone width,
  * and a font arriving late moves everything below it. */
 function useListOffset(
-  scrollRef: RefObject<HTMLElement | null>,
+  scroller: HTMLElement | null,
   listRef: RefObject<HTMLElement | null> | undefined,
   // The list element may only mount once there are rows to put in it.
   mounted: boolean,
@@ -182,7 +187,6 @@ function useListOffset(
   const [offset, setOffset] = useState(initial);
 
   useLayoutEffect(() => {
-    const scroller = scrollRef.current;
     const list = listRef?.current;
     if (!scroller || !list) return;
     const measure = () => {
@@ -198,7 +202,7 @@ function useListOffset(
     observer.observe(scroller);
     for (const child of scroller.children) observer.observe(child);
     return () => observer.disconnect();
-  }, [scrollRef, listRef, mounted]);
+  }, [scroller, listRef, mounted]);
 
   return offset;
 }

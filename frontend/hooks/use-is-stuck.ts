@@ -10,18 +10,17 @@ import { type RefObject, useEffect, useState } from "react";
  *
  * The caller places `sentinelRef` where the sticky element's top edge rests,
  * inside the same scroller; the element is pinned exactly when that point has
- * scrolled out of `rootRef`. An observer rather than a scroll listener, so
+ * scrolled out of `root`. An observer rather than a scroll listener, so
  * nothing runs per frame while the reader scrolls a long list.
  */
 export function useIsStuck(
   sentinelRef: RefObject<HTMLElement | null>,
-  rootRef: RefObject<HTMLElement | null>,
+  root: HTMLElement | null,
 ): boolean {
   const [stuck, setStuck] = useState(false);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    const root = rootRef.current;
     if (!sentinel || !root) return;
     const observer = new IntersectionObserver(
       (entries) => {
@@ -32,7 +31,7 @@ export function useIsStuck(
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [sentinelRef, rootRef]);
+  }, [sentinelRef, root]);
 
   return stuck;
 }

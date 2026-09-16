@@ -24,7 +24,7 @@ function refs() {
   const root = document.createElement("main");
   const sentinel = document.createElement("div");
   root.append(sentinel);
-  return { sentinel: { current: sentinel }, root: { current: root } };
+  return { sentinel: { current: sentinel }, root };
 }
 
 describe("useIsStuck", () => {
@@ -44,7 +44,7 @@ describe("useIsStuck", () => {
     const { result } = renderHook(() => useIsStuck(sentinel, root));
 
     expect(result.current).toBe(false);
-    expect(options?.root).toBe(root.current);
+    expect(options?.root).toBe(root);
 
     act(() => fire([{ isIntersecting: false }]));
     expect(result.current).toBe(true);
