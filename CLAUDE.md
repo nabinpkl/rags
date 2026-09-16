@@ -38,6 +38,10 @@ work is broken into GitHub issues.
   one persistent implementor builds on `issue-<n>-<slug>` branches, one
   persistent reviewer files verdicts, coordinator merges. Role briefs:
   `.claude/briefs/`. Only the coordinator merges or moves board cards.
+- **Commit each arc without being asked.** An arc is one coherent decision
+  landed with its tests and doc fallout; when it is complete and `just check`
+  is green, commit it. Do not wait for permission and do not let arcs pile up
+  in a dirty worktree. Pushing is still asked for explicitly.
 - Decisions the spec doesn't cover stop the work: log in `DECISIONS.md`,
   amend the spec in the same PR (see sdlc.md).
 - New dependencies pass the gate in `docs/sdlc.md` (popular, actively
