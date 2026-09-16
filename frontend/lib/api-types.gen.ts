@@ -194,10 +194,113 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/catalog/papers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Catalog Papers
+         * @description Every paper the catalog knows, filtered. Indexed and not, together.
+         */
+        get: operations["list_catalog_papers_api_catalog_papers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog Facets
+         * @description How many papers each category and each month would give under this filter.
+         */
+        get: operations["get_catalog_facets_api_catalog_facets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** CatalogBucket */
+        CatalogBucket: {
+            /** Value */
+            value: string;
+            /** Papers */
+            papers: number;
+        };
+        /**
+         * CatalogFacetsResponse
+         * @description Counts for the three dimensions the filter offers as lists.
+         *
+         *     Each dimension is counted with every OTHER filter applied but not its own,
+         *     so the numbers answer "what would I get if I picked this instead", which
+         *     is the question a reader is asking when they look at the list.
+         */
+        CatalogFacetsResponse: {
+            /** Holdings */
+            holdings: components["schemas"]["CatalogBucket"][];
+            /** Categories */
+            categories: components["schemas"]["CatalogBucket"][];
+            /** Months */
+            months: components["schemas"]["CatalogBucket"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * CatalogPaper
+         * @description One paper as the catalog knows it, plus what we hold of it.
+         *
+         *     `indexed` is what decides where a row can send the reader, so it is a
+         *     field rather than something the client infers from a count.
+         */
+        CatalogPaper: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string;
+            /** Authors */
+            authors: string | null;
+            /** Abstract */
+            abstract: string;
+            /** Primary Category */
+            primary_category: string;
+            /** Published */
+            published: string;
+            /** Version */
+            version: string | null;
+            /** Has Text */
+            has_text: boolean;
+            /** Indexed */
+            indexed: boolean;
+            /** Cited By */
+            cited_by: number;
+        };
+        /** CatalogPapersResponse */
+        CatalogPapersResponse: {
+            /** Papers */
+            papers: components["schemas"]["CatalogPaper"][];
+            /** Total */
+            total: number;
+            /** Next Offset */
+            next_offset: number | null;
+        };
         /** CategoryCensusResponse */
         CategoryCensusResponse: {
             /** Categories */
@@ -896,6 +999,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UptakeResponse"];
+                };
+            };
+        };
+    };
+    list_catalog_papers_api_catalog_papers_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                category?: string | null;
+                /** @description id-month, e.g. 2608 */
+                month?: string | null;
+                holding?: "all" | "text" | "indexed";
+                sort?: "relevance" | "newest" | "oldest" | "cited";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogPapersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_catalog_facets_api_catalog_facets_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                category?: string | null;
+                month?: string | null;
+                holding?: "all" | "text" | "indexed";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogFacetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

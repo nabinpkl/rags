@@ -1,42 +1,9 @@
-import {
-  Bot,
-  Brain,
-  ChevronRight,
-  Code2,
-  Cpu,
-  Eye,
-  FileText,
-  type LucideIcon,
-  MessageSquareText,
-  Network,
-  Radio,
-  Search,
-  ShieldCheck,
-  Sigma,
-} from "lucide-react";
+import { ChevronRight, FileText } from "lucide-react";
 import Link from "next/link";
 
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import type { LatestResponse } from "@/lib/api-client";
-
-/** The glyph encodes the paper's FIELD, so the column can be scanned by shape
- * before it is read. Decorative-only icons would make the list slower to
- * read, not faster; an unmapped category falls back to the neutral document. */
-const CATEGORY_ICON: Record<string, LucideIcon> = {
-  "cs.CL": MessageSquareText,
-  "cs.CV": Eye,
-  "cs.LG": Brain,
-  "cs.AI": Bot,
-  "cs.RO": Cpu,
-  "cs.IR": Search,
-  "cs.CR": ShieldCheck,
-  "cs.SE": Code2,
-  "cs.NI": Network,
-  "cs.DC": Network,
-  "cs.IT": Radio,
-  "stat.ML": Sigma,
-  "math.OC": Sigma,
-};
+import { CATEGORY_ICON, UNMAPPED_CATEGORY_ICON } from "@/lib/category-icon";
 
 /** What just landed — the newest papers the reader can actually open.
  *
@@ -61,7 +28,7 @@ export function LatestPapers({ papers }: { papers: LatestResponse["papers"] }) {
           radius themselves so a hovered end row still fills to the border. */}
       <ol className="border-line divide-line flex-1 divide-y rounded border [&>li:first-child>a]:rounded-t-[3px] [&>li:last-child>a]:rounded-b-[3px]">
         {papers.map((paper) => {
-          const Icon = CATEGORY_ICON[paper.primary_category ?? ""] ?? FileText;
+          const Icon = CATEGORY_ICON[paper.primary_category ?? ""] ?? UNMAPPED_CATEGORY_ICON;
           return (
             <li key={paper.arxiv_id}>
               <Link

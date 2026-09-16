@@ -99,7 +99,9 @@ work is broken into GitHub issues.
   papers) → `just index` (chunk, embed, rebuild corpus.db + chroma). The
   manifest in `corpus/frontier.json` IS the page's scope — widen it via
   `frontier_top_cited`/`frontier_citers_per_work` in `config.py`, and expect a
-  re-embed. Frontend routes: landing at `/`, app shell at `/app`.
+  re-embed. Frontend routes: landing at `/`, the whole-catalog
+  filter at `/papers` (the one list that is not indexed-only, D16 amendment
+  2026-09-16), app shell at `/app`.
 - Deploy (#81): `just deploy` (compose up; ingress on loopback), `just
   deploy-tailnet` (publish via the host's tailscaled), plus `deploy-logs`,
   `deploy-down`, `deploy-reseed`. Runbook: `deploy/README.md`.

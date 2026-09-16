@@ -198,6 +198,10 @@ def get_category_census(
     try:
         months = complete_months(conn, settings.landing_census_min_coverage)
         categories, census = _category_census(conn, months, top)
+        # Both sets are hoisted: each is a full pass over the catalog census,
+        # and evaluating them inside the comprehension ran them once per month.
+        cohort = set(cohort_months(conn, settings.landing_cohort_min_share))
+        complete = set(months)
         excluded = [
             ExcludedMonth(
                 month=bucket.month,
@@ -205,8 +209,7 @@ def get_category_census(
                 catalog_papers=bucket.catalog_papers,
             )
             for bucket in month_coverage(conn)
-            if bucket.month in set(cohort_months(conn, settings.landing_cohort_min_share))
-            and bucket.month not in set(months)
+            if bucket.month in cohort and bucket.month not in complete
         ]
         return CategoryCensusResponse(categories=categories, months=census, excluded=excluded)
     finally:

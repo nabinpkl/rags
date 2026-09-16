@@ -142,3 +142,29 @@ export function fetchCategoryCensus(): Promise<CategoryCensusResponse> {
 export function fetchUptake(): Promise<UptakeResponse> {
   return getJson("/api/census/uptake", {});
 }
+
+export type CatalogQuery = NonNullable<paths["/api/catalog/papers"]["get"]["parameters"]["query"]>;
+export type CatalogPapersResponse =
+  paths["/api/catalog/papers"]["get"]["responses"][200]["content"]["application/json"];
+export type CatalogPaper = CatalogPapersResponse["papers"][number];
+export type CatalogFacetsResponse =
+  paths["/api/catalog/facets"]["get"]["responses"][200]["content"]["application/json"];
+export type CatalogBucket = CatalogFacetsResponse["categories"][number];
+
+/** GET /api/catalog/papers — every paper the catalog knows, filtered.
+ *
+ * The one list here that is NOT indexed-only (D16 amendment): it describes
+ * what arXiv posted and what we hold of it, which is true of all 65,503 rows,
+ * so a row carries `indexed` and the UI routes it accordingly. No model runs
+ * on this path; the filter is SQL and BM25 over titles and abstracts. */
+export function fetchCatalogPapers(query: CatalogQuery = {}): Promise<CatalogPapersResponse> {
+  return getJson("/api/catalog/papers", query);
+}
+
+/** GET /api/catalog/facets — how many papers each category and month would
+ * give under the current filter, each counted with its own filter dropped. */
+export function fetchCatalogFacets(
+  query: Omit<CatalogQuery, "sort" | "limit" | "offset"> = {},
+): Promise<CatalogFacetsResponse> {
+  return getJson("/api/catalog/facets", query);
+}
