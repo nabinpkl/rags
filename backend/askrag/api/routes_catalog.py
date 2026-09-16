@@ -81,6 +81,11 @@ class CatalogPaper(BaseModel):
     has_text: bool
     indexed: bool
     cited_by: int  # citations from the papers we parsed; 0 for most of the table
+    # Path under the static /thumbs prefix, or None. NULL for most of the
+    # table: a crop of a paper may only be served when its licence permits
+    # redistribution (§6b, render_thumbnails), so the card falls back to its
+    # category glyph rather than to a placeholder image.
+    thumbnail: str | None
 
 
 class CatalogPapersResponse(BaseModel):
@@ -176,6 +181,7 @@ def _page(
     rows = conn.execute(
         "SELECT papers.arxiv_id, papers.title, papers.authors, papers.abstract,"
         "       papers.primary_category, papers.published, papers.version, papers.has_text,"
+        "       papers.thumbnail,"
         f"      {INDEXED_PREDICATE} AS indexed,"
         "       (SELECT count(*) FROM citations WHERE cited_id = papers.arxiv_id) AS cited_by"
         f"{_from(q)}{where}"
@@ -194,6 +200,7 @@ def _page(
             has_text=bool(row["has_text"]),
             indexed=bool(row["indexed"]),
             cited_by=row["cited_by"],
+            thumbnail=row["thumbnail"],
         )
         for row in rows
     ]

@@ -947,6 +947,53 @@ new source anyway), or arXiv publishes a bulk metadata endpoint with stated
 limits — a documented allowance is a different fact from today's best-effort
 tolerance.
 
+### D19. One card image per paper, and only where the licence allows the crop
+
+**Decision (2026-09-16).** `/papers` shows a small image beside each paper.
+`ingest/render_thumbnails.py` renders it offline from the PDFs we already
+hold: the first image placed large enough on a page to be a figure rather
+than a logo, else the top half of page one, which is the title block.
+Output is a 320px JPEG under `corpus/thumbs/{YYYY}/{MM}/{id}.jpg`, served by
+Caddy as static bytes at `/thumbs/*` from a read-only mount. The stage's only
+output to the pipeline is `corpus/thumbnails.jsonl`, which `build_indexes`
+reads into a new `papers.thumbnail` column.
+
+**A paper gets an image only when its recorded licence permits
+redistribution**: Creative Commons BY, BY-SA, BY-NC-SA, and the public-domain
+dedications. Two groups are excluded on purpose. arXiv's default licence
+(`nonexclusive-distrib`) grants **arXiv** the right to distribute the e-print
+and grants us nothing — 36,560 of 65,503 papers, 56%. Every `-nd-` variant is
+excluded because a crop is a derivative work and NoDerivatives says no. The
+licence gate is enforced where the file is written, not where it is served,
+so a paper we may not crop has nothing on disk to leak.
+
+**Why.** §6b rule 3 is flat — never serve an e-print from our servers — and it
+was written about PDF bytes. A crop of a page is a smaller piece of the same
+object, so the rule's reasoning reaches it and the permission has to come from
+somewhere else. For 44% of the table the licence supplies it. For the rest the
+card keeps the category glyph, which is what it already showed.
+
+**Alternatives rejected.** *Render in the reader's browser from arxiv.org*
+(holds §6b perfectly and needs no licence gate, but a page of thirty cards is
+thirty PDF fetches from arxiv.org per scroll, which is abusive to arXiv and
+far too slow to be a thumbnail); *a generated placeholder for every paper*
+(uniform, no licence question, and says nothing — a coloured square per
+category is the glyph we already have, with more bytes); *thumbnails for
+every paper regardless of licence* (the compliance bug this decision exists
+to avoid); *ship no images* (the cards are a list of 65,503 rows of text, and
+a figure is the fastest thing a reader can judge a paper by).
+
+**Consequence.** The web tier now mounts one corpus path, which it never did
+before — `deploy/compose.yml` previously stated that nothing we serve may
+touch the corpus. `thumbs/` is that exception and `pdfs/` is still absent.
+About 26,000 files, roughly 500MB, sit beside the corpus and are deployed.
+
+**Revisit when.** arXiv states a position on derived images (a documented
+allowance or refusal replaces this reading of §6b), or the licence mix shifts
+enough that a 44%-covered column reads as broken rather than as honest.
+
+---
+
 ---
 
 ## 4. Architecture
@@ -1154,6 +1201,7 @@ rags/
 │   │   │   ├── extract_pdfs.py      # pdfs/ → corpus/extracted/*.json + skiplist.json (PyMuPDF4LLM, D6); `--frontier` scopes to the manifest
 │   │   │   ├── chunk_papers.py      # extracted/ → section-aware ~1k-token page-anchored chunks (D7)
 │   │   │   ├── embed_chunks.py      # chunks → vectors/<model_slug>.parquet, local (default) or Voyage backend, batched, resumable (D5)
+│   │   │   ├── render_thumbnails.py # pdfs/ → thumbs/*.jpg + thumbnails.jsonl, licence-gated (D19)
 │   │   │   ├── build_indexes.py     # chunks + vectors → corpus.db (FTS5) + chroma/, shared chunk ids (D4)
 │   │   │   └── ingest_stats.py      # per-stage report: counts, sizes, skip reasons, snapshot datestamp (D12)
 │   │   ├── sandbox/

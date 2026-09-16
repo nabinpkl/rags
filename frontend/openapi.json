@@ -907,6 +907,17 @@
                     "cited_by": {
                         "type": "integer",
                         "title": "Cited By"
+                    },
+                    "thumbnail": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Thumbnail"
                     }
                 },
                 "type": "object",
@@ -920,7 +931,8 @@
                     "version",
                     "has_text",
                     "indexed",
-                    "cited_by"
+                    "cited_by",
+                    "thumbnail"
                 ],
                 "title": "CatalogPaper",
                 "description": "One paper as the catalog knows it, plus what we hold of it.\n\n`indexed` is what decides where a row can send the reader, so it is a\nfield rather than something the client infers from a count."

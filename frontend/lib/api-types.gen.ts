@@ -291,6 +291,8 @@ export interface components {
             indexed: boolean;
             /** Cited By */
             cited_by: number;
+            /** Thumbnail */
+            thumbnail: string | null;
         };
         /** CatalogPapersResponse */
         CatalogPapersResponse: {

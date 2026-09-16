@@ -99,6 +99,11 @@ services:
       timeout: 10s
       start_period: 30s
       retries: 3
+    volumes:
+      # The ONE corpus path the web tier may read. pdfs/ stays absent: §6b
+      # forbids serving an e-print, and this tree holds only crops of papers
+      # whose licence permits redistribution (render_thumbnails, D19).
+      - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/thumbs:/srv/thumbs:ro
     restart: unless-stopped
 
 networks:

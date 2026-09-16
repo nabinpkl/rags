@@ -14,6 +14,41 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-16 — card images, gated on the licence rather than on the file
+
+**Context:** `/papers` lists 65,503 rows of title, authors and two lines of
+abstract. A figure is the fastest thing a reader judges a paper by, and we
+hold every PDF locally already, so rendering a crop costs nothing at serve
+time. What it does cost is a compliance question: §6b rule 3 says never serve
+an e-print from our servers, written about PDF bytes, and a crop of a page is
+a smaller piece of the same object.
+
+**Decision:** `ingest/render_thumbnails.py` renders one 320px JPEG per paper
+— the first image placed large enough on the page to be a figure, else the
+top half of page one — and only for papers whose recorded licence permits
+redistribution (CC BY, BY-SA, BY-NC-SA, the public-domain dedications). The
+arXiv default licence and every `-nd-` variant get nothing. The gate runs
+where the file is WRITTEN, so a paper we may not crop has nothing on disk;
+the API's null is a consequence, not the control.
+
+**Alternatives rejected:** rendering in the reader's browser from arxiv.org
+(compliant and needs no gate, but thirty cards is thirty PDF fetches from
+arxiv.org per scroll); a generated placeholder for everything (that is the
+category glyph, with more bytes); ignoring the licence (the bug this exists
+to avoid).
+
+**Cost, stated:** 44% of the catalog can have an image, so most cards keep
+the glyph and the column is deliberately mixed. The web container now mounts
+one corpus path, `thumbs/`, where before it mounted none; `pdfs/` stays
+absent.
+
+**Revisit when:** arXiv states a position on derived images, or the licence
+mix moves far enough that a partly-covered column reads as broken.
+
+Spec updated: yes — new decision D19.
+
+---
+
 ## 2026-09-16 — a route that lists papers the app cannot retrieve
 
 **Context:** The dashboard counts 65,503 papers and can offer 811. Every

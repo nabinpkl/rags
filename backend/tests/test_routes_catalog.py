@@ -16,6 +16,7 @@ def _paper(
     abstract: str = "An abstract about nothing in particular.",
     category: str = "cs.CL",
     has_text: bool = True,
+    thumbnail: str | None = None,
 ) -> PaperRow:
     return PaperRow(
         arxiv_id=arxiv_id,
@@ -33,13 +34,20 @@ def _paper(
         revisions=None,
         venue_rigor=None,
         has_text=has_text,
+        thumbnail=thumbnail,
     )
 
 
 # One indexed paper, one with text but no chunks, one the catalog knows and
 # nothing else. Only the first can reach the reader; all three must be listed.
 PAPERS = [
-    _paper("2607.00001", "Diffusion models for video", "We train a diffusion model.", "cs.CV"),
+    _paper(
+        "2607.00001",
+        "Diffusion models for video",
+        "We train a diffusion model.",
+        "cs.CV",
+        thumbnail="2026/07/2607.00001.jpg",
+    ),
     _paper("2608.00002", "Retrieval augmented generation", "Retrieval helps.", "cs.CL"),
     _paper("2608.00003", "A paper with no text at all", "Nothing extracted.", "cs.CL", False),
 ]
@@ -175,6 +183,7 @@ def test_no_chunk_text_reaches_this_surface(client):
         "has_text",
         "indexed",
         "cited_by",
+        "thumbnail",
     }
 
 
@@ -197,3 +206,17 @@ def test_the_holding_counts_say_what_each_choice_would_give(client):
     }
     # `total` still answers for the filter as asked, holding included.
     assert body["total"] == 1
+
+
+def test_a_paper_we_may_not_crop_carries_no_thumbnail(client):
+    """§6b: only a licence that permits redistribution gets an image rendered
+    (render_thumbnails), so most of the table has none and the card falls back
+    to its category glyph. The wire says null rather than a placeholder path a
+    client would request and get a 404 for."""
+    papers = {
+        p["arxiv_id"]: p["thumbnail"] for p in client.get("/api/catalog/papers").json()["papers"]
+    }
+
+    assert papers["2607.00001"] == "2026/07/2607.00001.jpg"
+    assert papers["2608.00002"] is None
+    assert papers["2608.00003"] is None

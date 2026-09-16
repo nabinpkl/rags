@@ -31,6 +31,17 @@
 		}
 	}
 
+	# --- paper thumbnails -------------------------------------------------
+	# Crops rendered offline from PDFs we hold, and ONLY for papers whose
+	# licence permits redistribution (render_thumbnails, D19). The tree is
+	# mounted read-only and served as bytes; nothing here proxies arxiv.org,
+	# and no PDF is reachable through this path.
+	handle /thumbs/* {
+		root * /srv
+		file_server
+		header Cache-Control "public, max-age=604800"
+	}
+
 	# --- static export ----------------------------------------------------
 	handle {
 		root * /srv
