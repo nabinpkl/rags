@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { CatalogFilters, type CatalogFilterState } from "@/components/catalog/catalog-filters";
@@ -33,22 +33,36 @@ describe("CatalogFilters", () => {
   it("shows what each choice would give, not what the current filter gave", () => {
     render(<CatalogFilters state={STATE} facets={FACETS} onChange={() => {}} />);
 
-    expect(screen.getByRole("button", { name: /cs\.CV 12,430/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Aug 2026 14,489/ })).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Field")).getByRole("option", { name: "cs.CV · 12,430" }));
+    expect(
+      within(screen.getByLabelText("Month posted")).getByRole("option", {
+        name: "Aug 2026 · 14,489",
+      }),
+    );
+    expect(
+      within(screen.getByLabelText("Show")).getByRole("option", {
+        name: "The agent can read it · 811",
+      }),
+    );
   });
 
-  it("clears a value that is clicked while already selected", () => {
+  it("narrows on a chosen value and clears on Any", () => {
     const onChange = vi.fn();
-    render(
+    const { rerender } = render(
+      <CatalogFilters state={STATE} facets={FACETS} onChange={onChange} />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "cs.CV" } });
+    expect(onChange).toHaveBeenCalledWith({ category: "cs.CV" });
+
+    rerender(
       <CatalogFilters
         state={{ ...STATE, category: "cs.CV" }}
         facets={FACETS}
         onChange={onChange}
       />,
     );
-
-    fireEvent.click(screen.getByRole("button", { name: /cs\.CV 12,430/ }));
-
+    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "" } });
     expect(onChange).toHaveBeenCalledWith({ category: null });
   });
 
@@ -56,12 +70,13 @@ describe("CatalogFilters", () => {
     const { rerender } = render(
       <CatalogFilters state={STATE} facets={FACETS} onChange={() => {}} />,
     );
-    expect(screen.getByRole("button", { name: "Best match" })).toBeDisabled();
+    const order = screen.getByLabelText("Order");
+    expect(within(order).getByRole("option", { name: "Best match" })).toBeDisabled();
 
     rerender(
       <CatalogFilters state={{ ...STATE, q: "diffusion" }} facets={FACETS} onChange={() => {}} />,
     );
-    expect(screen.getByRole("button", { name: "Best match" })).toBeEnabled();
+    expect(within(order).getByRole("option", { name: "Best match" })).toBeEnabled();
   });
 
   it("commits the search box on a pause, not on every keystroke", () => {
@@ -80,45 +95,21 @@ describe("CatalogFilters", () => {
     vi.useRealTimers();
   });
 
-  it("holds the long tail of months behind one click instead of drawing 234", () => {
+  it("offers every one of the 234 id-months rather than a head and an expander", () => {
     const months = Array.from({ length: 234 }, (_, i) => ({
       value: String(2600 + i),
       papers: 234 - i,
     }));
     render(<CatalogFilters state={STATE} facets={{ ...FACETS, months }} onChange={() => {}} />);
 
-    expect(screen.getByRole("button", { name: "224 more" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "224 more" }));
-    expect(screen.getByRole("button", { name: "Show fewer" })).toBeInTheDocument();
+    // 234 months plus "Any month": the reason this is a select and not rows.
+    expect(within(screen.getByLabelText("Month posted")).getAllByRole("option")).toHaveLength(235);
   });
 
-  it("keeps a chosen value visible even when it ranks below the cut", () => {
-    // 36 real id-months, largest first, so the chosen one sits well past the
-    // twelve the row draws.
-    const months = [24, 25, 26]
-      .flatMap((year) =>
-        Array.from({ length: 12 }, (_, m) => `${year}${String(m + 1).padStart(2, "0")}`),
-      )
-      .map((value, i, all) => ({ value, papers: all.length - i }));
-    const last = months[months.length - 1];
-    render(
-      <CatalogFilters
-        state={{ ...STATE, month: last.value }}
-        facets={{ ...FACETS, months }}
-        onChange={() => {}}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: "Dec 2026 1" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-  });
-
-  it("renders no chip row at all when the facets have not arrived", () => {
+  it("renders no facet control at all when the facets have not arrived", () => {
     render(<CatalogFilters state={STATE} facets={undefined} onChange={() => {}} />);
 
-    expect(screen.queryByText("Field")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Field")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Search titles and abstracts")).toBeInTheDocument();
   });
 });
