@@ -190,8 +190,20 @@ function Catalog() {
                   that takes the reader's own words, and the count it moves
                   sits one line below it. It stays put on an error too, so a
                   failed fetch is something to retype through rather than a
-                  dead page. */}
-              <CatalogSearch value={state.q} onCommit={(q) => change({ q })} />
+                  dead page.
+
+                  Sticky, because "Show more" makes this list as long as the
+                  reader keeps asking, and a refinement should not cost a
+                  scroll back to the top. The equal negative margin and
+                  padding leave the resting layout exactly where it was and
+                  only matter once stuck: a band of the canvas colour above
+                  and below the field, so cards pass under a clean edge
+                  instead of butting against the top bar. z-10 is the only
+                  stacking needed — the cards are `relative` with no z-index
+                  of their own. */}
+              <div className="bg-paper sticky top-0 z-10 -my-3 py-3">
+                <CatalogSearch value={state.q} onCommit={(q) => change({ q })} />
+              </div>
 
               {papers.isError ? (
                 <p className="text-ink-2 py-16 text-center text-[13.5px]">
