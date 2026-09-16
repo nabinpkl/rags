@@ -3,7 +3,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useRef, useState } from "react";
 
 import {
   CatalogFilters,
@@ -19,7 +19,9 @@ import { CatalogSearch } from "@/components/catalog/catalog-search";
 import { DrawerPanel } from "@/components/shell/drawer-panel";
 import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { SiteFooter } from "@/components/site-footer";
+import { useIsStuck } from "@/hooks/use-is-stuck";
 import { fetchCatalogFacets, fetchCatalogPapers } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 
 /** Every paper in the catalog, filtered — the third STATIC route (§4c
  * decision 2; still no dynamic segments).
@@ -58,6 +60,9 @@ function Catalog() {
   const router = useRouter();
   const params = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const canvasRef = useRef<HTMLElement>(null);
+  const searchRestRef = useRef<HTMLDivElement>(null);
+  const searchStuck = useIsStuck(searchRestRef, canvasRef);
 
   const state: CatalogFilterState = useMemo(() => {
     const holding = params.get("holding");
@@ -180,12 +185,21 @@ function Catalog() {
             </nav>
           </header>
 
-          <main className="min-h-0 flex-1 overflow-y-auto">
+          <main ref={canvasRef} className="min-h-0 flex-1 overflow-y-auto">
             {/* Narrower than the dashboard's 1280: this canvas is one column of
                   running prose, and the abstract's measure stops near 76
                   characters either way. A wider panel only adds empty space
                   to the right of every line. */}
-            <div className="mx-auto flex w-full max-w-[940px] flex-col gap-5 px-4 py-5 sm:px-6 sm:py-6">
+            <div className="relative mx-auto flex w-full max-w-[940px] flex-col gap-5 px-4 py-5 sm:px-6 sm:py-6">
+              {/* Where the search band's top edge rests: the column's top
+                  padding (20px, 24px from sm) less the band's 12px pull-up.
+                  Absolute, so it takes no slot in the flex gap. Once this
+                  pixel scrolls out, the band is pinned. */}
+              <div
+                ref={searchRestRef}
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 top-2 h-px sm:top-3"
+              />
               {/* Above the results, not in the rail: it is the only control
                   that takes the reader's own words, and the count it moves
                   sits one line below it. It stays put on an error too, so a
@@ -201,7 +215,17 @@ function Catalog() {
                   instead of butting against the top bar. z-10 is the only
                   stacking needed — the cards are `relative` with no z-index
                   of their own. */}
-              <div className="bg-paper sticky top-0 z-10 -my-3 py-3">
+              {/* The edge appears only while pinned. At rest the band sits on
+                  the canvas with nothing under it, so a line there would
+                  underline empty space; pinned, cards pass beneath it and
+                  the line is where the list is cut. A shadow rather than a
+                  border, so it takes no layout. */}
+              <div
+                className={cn(
+                  "bg-paper sticky top-0 z-10 -my-3 py-3 transition-shadow duration-150 motion-reduce:transition-none",
+                  searchStuck && "shadow-[0_1px_0_var(--color-line)]",
+                )}
+              >
                 <CatalogSearch value={state.q} onCommit={(q) => change({ q })} />
               </div>
 
