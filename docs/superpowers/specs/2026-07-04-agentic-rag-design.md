@@ -829,6 +829,19 @@ by a stated rule (`landing_cohort_min_share`). A denominator the snapshot
 cannot supply is reported as unknown, never borrowed. See DECISIONS.md
 2026-09-15.
 
+**Amendment (2026-09-16, the census panels).** With July and August 2026
+collected to 99.95% and 99.99% of the catalog, two panels may describe arXiv
+rather than the corpus, which no earlier panel was allowed to do:
+`GET /api/census/categories` (primary-category share per month) and
+`GET /api/census/uptake` (work from one month already cited by the next).
+Both are gated on `landing_census_min_coverage` (0.9), and a cohort month
+below it is returned in `excluded` and named on the page rather than dropped:
+a month missing from a chart of the field's output reads as a month the field
+went quiet, when what stopped was our collecting. September 2026 is that
+month today — the mirror's folder for it stops at 2609.04203. The
+count-vs-list rule is untouched: these are counts, and a row opens the same
+foundation detail whose citer list stays indexed-only.
+
 **Revisit when.** A breadth tier lands (abstract-level index over all cs
 history). A paper matched at abstract level *cannot be quoted* — we hold no
 text for it — so the tool contracts would then have to distinguish "found"
@@ -1079,6 +1092,7 @@ rags/
 │   │   │   ├── app.py               # FastAPI assembly: routers, CORS, lifespan (opens stores once), static admin
 │   │   │   ├── routes_explorer.py   # GET /api/papers, /api/papers/{id}, /api/facets — browse/filter/search
 │   │   │   ├── routes_landing.py    # GET /api/landing, /api/foundations/{id}, /api/latest, /api/coverage — the citation graph the front door ranks (D16 amendment)
+│   │   │   ├── routes_census.py     # GET /api/census/categories, /api/census/uptake — what arXiv posted, for months held above `landing_census_min_coverage`
 │   │   │   ├── routes_chat.py       # POST /api/chat — budget gate → agent loop → SSE stream; replay mode when capped
 │   │   │   ├── routes_admin.py      # GET /admin — basic-auth spend/trace dashboard (D13)
 │   │   │   └── sse_events.py        # the SSE event vocabulary: thinking|tool_call|tool_result_summary|ui_action|text|cost|done — single source, mirrored by frontend lib/sse.ts

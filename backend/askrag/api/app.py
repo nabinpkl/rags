@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from askrag import telemetry
+from askrag.api.routes_census import router as census_router
 from askrag.api.routes_chat import router as chat_router
 from askrag.api.routes_explorer import router as explorer_router
 from askrag.api.routes_landing import router as landing_router
@@ -48,3 +49,4 @@ app.add_middleware(
 app.include_router(chat_router)
 app.include_router(explorer_router)
 app.include_router(landing_router)
+app.include_router(census_router)

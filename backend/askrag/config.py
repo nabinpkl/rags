@@ -108,10 +108,20 @@ class Settings(BaseSettings):
     landing_max_authors: int = 6
     # An id-month joins the stated cohort when it contributed at least this
     # share of the papers we parsed references from (routes_landing.
-    # _cohort_months). Measured 2026-09-15: 2607 gave 61%, 2608 36%, 2609
+    # cohort_months). Measured 2026-09-15: 2607 gave 61%, 2608 36%, 2609
     # 1.3%, the next month 0.24% — any value between 0.003 and 0.013 selects
     # the same three months, which is why a threshold is tolerable at all.
     landing_cohort_min_share: float = 0.01
+    # A month may be described as arXiv's output only when we hold at least
+    # this much of what the catalog lists for it (routes_census). Measured
+    # 2026-09-16: July 2026 99.95%, August 99.99%, September 8% — September is
+    # not a thin month at arXiv, it is a month the mirror has not published
+    # yet (its folder stops at 2609.04203), so a census panel that included it
+    # would report a collapse in cs output that did not happen.
+    landing_census_min_coverage: float = 0.9
+    # Works listed in the uptake panel. A cap for layout, never a claim: the
+    # panel states how many works and citations the pair of months holds.
+    landing_uptake_limit: int = 8
 
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000

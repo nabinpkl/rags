@@ -202,7 +202,7 @@ def trim_authors(authors: str | None, max_names: int) -> str | None:
     return f"{', '.join(names[:max_names])} +{len(names) - max_names}"
 
 
-def _cohort_months(conn: sqlite3.Connection, min_share: float) -> list[str]:
+def cohort_months(conn: sqlite3.Connection, min_share: float) -> list[str]:
     """The id-months the cohort actually came from, by a stated rule.
 
     Rule: an id-month is in the cohort when it contributed at least
@@ -227,7 +227,7 @@ def _cohort_months(conn: sqlite3.Connection, min_share: float) -> list[str]:
 
 
 def _cohort_stats(conn: sqlite3.Connection, min_share: float) -> CohortStats:
-    months = _cohort_months(conn, min_share)
+    months = cohort_months(conn, min_share)
     start, end = (months[0], months[-1]) if months else (None, None)
     cohort_papers = 0
     catalog_papers: int | None = None
@@ -463,8 +463,12 @@ def _latest(conn: sqlite3.Connection, limit: int, max_authors: int) -> list[Late
     return papers
 
 
-def _coverage(conn: sqlite3.Connection) -> list[MonthBucket]:
+def month_coverage(conn: sqlite3.Connection) -> list[MonthBucket]:
     """What we hold per id-month, beside what the catalog lists for it.
+
+    Public: routes_census reads it to find the months we hold completely
+    enough to describe arXiv with, rather than re-deriving that from its own
+    query and drifting from this one.
 
     Counts are honest totals (CohortStats posture), so no indexed
     restriction: this describes the corpus we collected, not the part the
@@ -522,6 +526,6 @@ def get_coverage(settings: Settings = Depends(get_settings)) -> CoverageResponse
     """How much of each month we hold — the provenance panel's whole input."""
     conn = db.connect_corpus(settings.corpus_db_path)
     try:
-        return CoverageResponse(months=_coverage(conn))
+        return CoverageResponse(months=month_coverage(conn))
     finally:
         conn.close()
