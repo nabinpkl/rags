@@ -39,7 +39,7 @@ import chromadb.errors
 
 from askrag import telemetry
 from askrag.config import get_settings
-from askrag.ingest import kaggle_seed
+from askrag.ingest import kaggle_seed, render_thumbnails
 from askrag.ingest.embed_chunks import read_vectors
 from askrag.ingest.extract_citations import read_citations
 from askrag.ingest.latex_text import latex_to_text
@@ -76,6 +76,10 @@ class PaperRow:
     # second denominator turned "never collected" into "failed to parse"
     # and printed 30% against ourselves.
     has_text: bool = False
+    # Path under corpus/thumbs, or None. Only papers whose licence permits
+    # redistribution have one (render_thumbnails, §6b), so a NULL here means
+    # "we may not show a crop of this paper" as often as it means "no PDF".
+    thumbnail: str | None = None
 
     @property
     def primary_category(self) -> str:
@@ -111,6 +115,7 @@ class BuildStats:
     versions_backfilled: int = 0
     versions_missing: int = 0
     licenses_found: int = 0
+    thumbnails_found: int = 0
     chroma_count: int = 0
     cited_works: int = 0
     citations: int = 0
@@ -266,7 +271,10 @@ def _write_corpus_db(
                 -- 1 => we extracted this paper's text, so it reached the
                 -- reference parser. The parse rate on the landing page is
                 -- counted over these rows, never over every catalog row.
-                has_text         INTEGER NOT NULL
+                has_text         INTEGER NOT NULL,
+                -- Relative path under corpus/thumbs, NULL where we may not
+                -- serve a crop of the paper or could not render one (§6b).
+                thumbnail        TEXT
             );
             -- Title and abstract of EVERY paper, indexed or not: the catalog
             -- filter (/api/catalog) searches the whole table, and the Kaggle
@@ -336,7 +344,7 @@ def _write_corpus_db(
             """
         )
         conn.executemany(
-            "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 (
                     p.arxiv_id,
@@ -356,6 +364,7 @@ def _write_corpus_db(
                     p.revisions,
                     p.venue_rigor,
                     int(p.has_text),
+                    p.thumbnail,
                 )
                 for p in papers
             ],
@@ -510,6 +519,7 @@ def run(
     # rather than a caller mistake.
     citations_path: Path | None = None,
     cited_works_path: Path | None = None,
+    thumbnails_path: Path | None = None,
     without_vectors: bool = False,
 ) -> BuildStats:
     """Rebuild corpus.db + the per-model Chroma collection from ingest artifacts.
@@ -577,11 +587,18 @@ def run(
                 "backfill — they fall back to unpinned PDF URLs (D9)"
             )
 
+        # Absent manifest means no thumbnails, not a failed build: rendering
+        # them is a separate stage (`just thumbnails`) that a metadata rebuild
+        # does not require.
+        thumbnails = render_thumbnails.read_manifest(thumbnails_path) if thumbnails_path else {}
+        stats.thumbnails_found = len(thumbnails)
+
         papers = [
             replace(
                 p,
                 license=licenses.get(p.arxiv_id),
                 version=p.version or backfilled.get(p.arxiv_id),
+                thumbnail=thumbnail.path if (thumbnail := thumbnails.get(p.arxiv_id)) else None,
             )
             for p in papers
         ]
@@ -640,7 +657,7 @@ def run(
         f"build_indexes: {stats.papers} papers, {stats.chunks} chunks -> {corpus_db.name} "
         f"+ chroma '{collection_name}' ({stats.chroma_count}); "
         f"versions backfilled {stats.versions_backfilled} (missing {stats.versions_missing}), "
-        f"licenses {stats.licenses_found}; "
+        f"licenses {stats.licenses_found}; thumbnails {stats.thumbnails_found}; "
         f"{stats.citations} citations over {stats.cited_works} cited works; "
         f"{stats.papers_with_text} papers with extracted text, "
         f"catalog census over {stats.catalog_months} id-months"
@@ -667,6 +684,7 @@ def main(argv: list[str] | None = None) -> int:
             seed_zip=settings.kaggle_seed_path,
             citations_path=settings.citations_path,
             cited_works_path=settings.cited_works_path,
+            thumbnails_path=settings.thumbnails_manifest_path,
             corpus_db=settings.corpus_db_path,
             chroma_dir=settings.chroma_dir,
             collection_name=settings.embedding_model_slug,

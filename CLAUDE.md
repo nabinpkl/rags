@@ -100,7 +100,8 @@ work is broken into GitHub issues.
   text tree; scope it, an unscoped run pulls the pre-2026 facet sample into
   the citation graph) → `just citations` (extract + resolve the citation
   graph) → `just frontier` (derive the index manifest, fetch and extract its
-  papers) → `just index` (chunk, embed, rebuild corpus.db + chroma). The
+  papers) → `just thumbnails` (render the licence-permitting card images,
+  D19) → `just index` (chunk, embed, rebuild corpus.db + chroma). The
   manifest in `corpus/frontier.json` IS the page's scope — widen it via
   `frontier_top_cited`/`frontier_citers_per_work` in `config.py`, and expect a
   re-embed. Frontend routes: landing at `/`, the whole-catalog

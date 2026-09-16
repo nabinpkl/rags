@@ -116,6 +116,12 @@ index:
     cd backend && uv run python -m askrag.ingest.build_indexes
     cd backend && uv run python -m askrag.ingest.select_frontier --verify
 
+# Render one card image per paper from the PDFs we already hold, for papers
+# whose licence permits redistributing a crop (§6b). Slow and resumable; run
+# it before `just index` so the manifest reaches papers.thumbnail.
+thumbnails *ARGS:
+    cd backend && uv run python -m askrag.ingest.render_thumbnails {{ARGS}}
+
 # Rebuild corpus.db alone: the page's numbers (papers, citations, the catalog
 # census) without waiting on the embedder, which runs at ~1,000 chunks/hour on
 # this box. The vector store is left exactly as it is, so chunks embedded since

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, BookOpen } from "lucide-react";
+import { ArrowUpRight, BookOpen, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 
 import type { CatalogFilterState } from "@/components/catalog/catalog-filters";
@@ -109,6 +109,49 @@ export function CatalogResults({
   );
 }
 
+/** The card's left tile: a crop of the paper when we are allowed to show
+ * one, the category glyph when we are not.
+ *
+ * Most of the table has no image. §6b lets us serve a crop only for papers
+ * whose licence permits redistributing one, so the glyph is the common case
+ * rather than a loading state, and the tile keeps its size either way: a
+ * gutter that changes width per row makes a column of cards read as ragged.
+ *
+ * 4:3, because both sources are landscape — a figure as it sits on the page,
+ * or the top half of page one. Cropped square, a title block would lose a
+ * third of its width off each side.
+ */
+function Tile({ paper, Icon }: { paper: CatalogPaper; Icon: LucideIcon }) {
+  return (
+    <span
+      className="bg-paper text-muted group-hover:bg-teal-soft group-hover:text-teal-ink relative mt-0.5 grid h-[60px] w-20 shrink-0 place-items-center overflow-hidden rounded transition-colors motion-reduce:transition-none"
+      aria-hidden
+    >
+      <Icon className="size-[18px]" />
+      {paper.thumbnail && (
+        // next/image optimizes nothing here: the export target runs no image
+        // server (images.unoptimized, D13) and the file was already rendered
+        // at the one size this tile uses.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/thumbs/${paper.thumbnail}`}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          // A missing file means the images and corpus.db were deployed out
+          // of step. Hiding the element uncovers the glyph beneath it, which
+          // is the same fallback the licence gate already produces — better
+          // than a broken-image icon in thirty rows.
+          onError={(event) => {
+            event.currentTarget.hidden = true;
+          }}
+          className="absolute inset-0 size-full object-cover"
+        />
+      )}
+    </span>
+  );
+}
+
 function PaperCard({ paper }: { paper: CatalogPaper }) {
   const { href, label, external } = destination(paper);
   const Icon = CATEGORY_ICON[paper.primary_category ?? ""] ?? UNMAPPED_CATEGORY_ICON;
@@ -124,16 +167,7 @@ function PaperCard({ paper }: { paper: CatalogPaper }) {
       aria-label={`${paper.title} — ${label}`}
       className="group border-line bg-panel hover:border-teal-ink/40 hover:bg-paper flex items-start gap-3.5 rounded-md border px-4 py-4 transition-colors motion-reduce:transition-none"
     >
-      {/* Neutral, unlike the dashboard's six-row version of this list: thirty
-          teal tiles down a column read as a stripe and pull rank from the
-          titles. The category chip below still carries the accent, so the
-          field is named once in colour and once in shape. */}
-      <span
-        className="bg-paper text-muted group-hover:bg-teal-soft group-hover:text-teal-ink mt-0.5 grid size-7 shrink-0 place-items-center rounded transition-colors motion-reduce:transition-none"
-        aria-hidden
-      >
-        <Icon className="size-[14px]" />
-      </span>
+      <Tile paper={paper} Icon={Icon} />
 
       <span className="min-w-0 flex-1">
         <span className="text-ink block text-[17px] leading-[1.3] font-semibold group-hover:underline">
@@ -190,7 +224,7 @@ function SkeletonCards() {
           key={width}
           className="border-line bg-panel flex items-start gap-3.5 rounded-md border px-4 py-4"
         >
-          <span className="bg-line/40 mt-0.5 size-7 shrink-0 rounded" />
+          <span className="bg-line/40 mt-0.5 h-[60px] w-20 shrink-0 rounded" />
           <span className="min-w-0 flex-1">
             <span className={`bg-line/40 block h-4 rounded ${width}`} />
             <span className="bg-line/25 mt-2.5 block h-2.5 w-[30%] rounded" />

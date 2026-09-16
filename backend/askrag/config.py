@@ -128,6 +128,25 @@ class Settings(BaseSettings):
     # lookup or a 65k-row scan under 150ms.
     catalog_page_size: int = 30
 
+    # --- catalog thumbnails (render_thumbnails) --------------------------
+    # Rendered at 320px wide and displayed at 64: the card's tile is small,
+    # but a 2x screen asks for 128 and a reader who widens the window asks
+    # for more. Above 320 the files stop being small and the tile cannot
+    # show the difference.
+    thumbnail_width: int = 320
+    thumbnail_quality: int = 72
+    # How far into a paper to look for a figure. Past the first few pages a
+    # picture is a result plot rather than the one that says what the paper
+    # is, and every page scanned is a page parsed for every paper.
+    thumbnail_scan_pages: int = 8
+    # What separates a figure from a logo, measured where the image is PLACED
+    # on the page rather than in its own pixels: a 2000px logo placed at 20pt
+    # is a logo. Both floors must hold, plus the share of the page, so a wide
+    # flat rule and a small inline glyph each fall out.
+    thumbnail_min_figure_width_pt: float = 120.0
+    thumbnail_min_figure_height_pt: float = 90.0
+    thumbnail_min_figure_page_fraction: float = 0.03
+
     # --- chunking (D7; defaults until evals — revisit trigger in D7) ------
     chunk_size_tokens: int = 1000
     chunk_overlap_ratio: float = 0.15
@@ -345,6 +364,20 @@ class Settings(BaseSettings):
         # The collector's {YYYY}/{MM}/{arxiv_id}.pdf tree — extraction input,
         # local only, never deployed (D9/§4c).
         return self.corpus_dir / "pdfs"
+
+    @property
+    def thumbs_dir(self) -> Path:
+        # {YYYY}/{MM}/{arxiv_id}.jpg, mirroring pdfs_dir. Unlike that tree
+        # this one IS deployed: Caddy serves it as static bytes, which is
+        # why only redistributable-licence papers may have a file here
+        # (render_thumbnails, §6b).
+        return self.corpus_dir / "thumbs"
+
+    @property
+    def thumbnails_manifest_path(self) -> Path:
+        # render_thumbnails -> build_indexes. The one output of that stage the
+        # rest of the pipeline reads; the images themselves only Caddy sees.
+        return self.corpus_dir / "thumbnails.jsonl"
 
     @property
     def kaggle_seed_path(self) -> Path:

@@ -17,11 +17,31 @@ function paper(overrides: Partial<CatalogPaper> = {}): CatalogPaper {
     has_text: true,
     indexed: false,
     cited_by: 0,
+    thumbnail: null,
     ...overrides,
   };
 }
 
 describe("CatalogResults", () => {
+  it("shows a crop when the licence allowed one and the glyph when it did not", () => {
+    render(
+      <CatalogResults
+        papers={[
+          paper({ arxiv_id: "2607.00001", title: "With a crop", thumbnail: "2026/07/a.jpg" }),
+          paper({ arxiv_id: "2608.00002", title: "Without one" }),
+        ]}
+        total={2}
+        state={EMPTY_FILTER}
+        loading={false}
+        onLoadMore={null}
+      />,
+    );
+
+    const images = document.querySelectorAll("img");
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute("src", "/thumbs/2026/07/a.jpg");
+  });
+
   it("sends an indexed paper to the reader and everything else to arXiv", () => {
     render(
       <CatalogResults

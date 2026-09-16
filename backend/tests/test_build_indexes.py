@@ -575,3 +575,44 @@ def test_a_full_build_still_refuses_a_chunk_without_a_vector(paths):
 
     with pytest.raises(build_indexes.IndexBuildError, match="re-run embed_chunks"):
         run(paths)
+
+
+def test_the_thumbnail_manifest_reaches_the_papers_table(paths, tmp_path):
+    """render_thumbnails and the build are separate stages, joined only by the
+    manifest: a paper listed there gets its path on the row, and a paper that
+    is not (no PDF, or a licence that forbids the crop) stays NULL rather than
+    getting a path that would 404."""
+    manifest = tmp_path / "thumbnails.jsonl"
+    manifest.write_text(
+        json.dumps(
+            {
+                "arxiv_id": "2401.00001",
+                "path": "2024/01/2401.00001.jpg",
+                "source": "figure",
+                "width": 320,
+                "height": 200,
+            }
+        )
+        + "\n"
+    )
+
+    run(paths, thumbnails_path=manifest)
+
+    conn = sqlite3.connect(paths["corpus_db"])
+    thumbnails = dict(conn.execute("SELECT arxiv_id, thumbnail FROM papers"))
+    conn.close()
+    assert thumbnails["2401.00001"] == "2024/01/2401.00001.jpg"
+    assert thumbnails["2401.00002"] is None
+
+
+def test_a_build_with_no_manifest_is_a_build_with_no_thumbnails(paths):
+    """Rendering is optional: `just index-metadata` on a box that has never
+    run `just thumbnails` must produce a corpus, not an error."""
+    stats = run(paths)
+
+    conn = sqlite3.connect(paths["corpus_db"])
+    assert (
+        conn.execute("SELECT count(*) FROM papers WHERE thumbnail IS NOT NULL").fetchone()[0] == 0
+    )
+    conn.close()
+    assert stats.thumbnails_found == 0
