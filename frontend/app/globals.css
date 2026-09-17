@@ -34,6 +34,9 @@
   --ink-2: #3f4a53;
   --muted: #66727b;
   --line: #dcdfd9;
+  /* The stroke of an unfilled card. `--line` divides areas inside a panel and
+     is too close to the canvas to be a card's only edge. */
+  --outline: #c3c9c1;
   --teal-soft: #e2efec;
   /* Accent TEXT (chips, links, selected facets) — distinct from
      `--color-teal-deep`, which is an accent SURFACE (the Ask button) and so
@@ -67,6 +70,7 @@
   --ink-2: #bcc5cb;
   --muted: #98a3aa;
   --line: #2c343a;
+  --outline: #333d45;
   --teal-soft: #12332e;
   --teal-ink: #57d4bd;
   --teal-soft-strong: #1b463f;
@@ -105,6 +109,7 @@
   --color-paper: var(--paper);
   --color-panel: var(--panel);
   --color-panel-hover: var(--panel-hover);
+  --color-outline: var(--outline);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-muted: var(--muted);
