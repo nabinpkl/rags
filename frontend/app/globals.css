@@ -60,23 +60,23 @@
 .dark {
   color-scheme: dark;
 
-  /* Kept a step lighter than the machine-room black below, so the agent
-     panel still reads as its own darker column rather than merging with the
-     explorer beside it. */
-  --paper: #13181c;
-  --panel: #1e242a;
-  --panel-hover: #181d22;
+  /* Midnight: near-black with a blue bias, so outlined cards and panels
+     read as clean shapes on it. It now sits darker than the machine-room
+     surface below, so the agent panel separates as a lighter column. */
+  --paper: #080c12;
+  --panel: #111821;
+  --panel-hover: #0d131b;
   --ink: #e8ebe8;
   --ink-2: #bcc5cb;
   --muted: #98a3aa;
-  --line: #2c343a;
-  --outline: #333d45;
+  --line: #1f2833;
+  --outline: #2a3544;
   --teal-soft: #12332e;
   --teal-ink: #57d4bd;
   --teal-soft-strong: #1b463f;
 
   /* Both series lift off the dark panel; the light values are too dark to
-     read as bars against #1e242a. */
+     read as bars against the dark panel. */
   --chart-1: #2fbfa8;
   --chart-2: #17796c;
 }
