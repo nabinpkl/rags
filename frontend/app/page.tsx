@@ -117,7 +117,7 @@ export default function LandingPage() {
               onClick={() => setNavOpen(true)}
               aria-label="Open navigation"
               aria-expanded={navOpen}
-              className="border-line text-ink hover:bg-paper -ml-1 flex size-9 shrink-0 items-center justify-center rounded border transition-colors motion-reduce:transition-none md:hidden"
+              className="border-line text-ink hover:bg-panel-hover -ml-1 flex size-9 shrink-0 items-center justify-center rounded border transition-colors motion-reduce:transition-none md:hidden"
             >
               <Menu className="size-4" aria-hidden />
             </button>

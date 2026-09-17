@@ -42,7 +42,7 @@ export function RecentUptake({
             <button
               type="button"
               onClick={() => onSelect(work)}
-              className="group hover:bg-paper flex w-full items-start gap-3 px-3.5 py-2.5 text-left transition-colors motion-reduce:transition-none"
+              className="group hover:bg-panel-hover flex w-full items-start gap-3 px-3.5 py-2.5 text-left transition-colors motion-reduce:transition-none"
             >
               <span className="min-w-0 flex-1">
                 <span className="text-ink block text-[13.5px] leading-snug font-medium group-hover:underline">

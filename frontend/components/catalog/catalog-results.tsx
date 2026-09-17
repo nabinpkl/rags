@@ -209,7 +209,7 @@ function ListEnd({ shown, total, page }: { shown: number; total: number; page: N
         <button
           type="button"
           onClick={() => void page.fetchNextPage()}
-          className="border-line bg-panel text-ink hover:bg-paper rounded-md border px-3 py-1.5 text-[13px] transition-colors motion-reduce:transition-none"
+          className="border-line bg-panel text-ink hover:bg-panel-hover rounded-md border px-3 py-1.5 text-[13px] transition-colors motion-reduce:transition-none"
         >
           Try again
         </button>
@@ -309,7 +309,7 @@ function PaperCard({ paper }: { paper: CatalogPaper }) {
   const license = licenseOf(paper.license);
 
   return (
-    <article className="group border-line bg-panel hover:border-teal-ink/40 hover:bg-paper relative flex items-start gap-3.5 rounded-md border px-4 py-4 transition-colors motion-reduce:transition-none">
+    <article className="group border-line bg-panel hover:border-teal-ink/40 hover:bg-panel-hover relative flex items-start gap-3.5 rounded-md border px-4 py-4 transition-colors motion-reduce:transition-none">
       <Tile paper={paper} Icon={Icon} />
 
       <div className="min-w-0 flex-1">
