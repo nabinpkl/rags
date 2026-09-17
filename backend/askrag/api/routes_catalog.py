@@ -31,6 +31,7 @@ from pydantic import BaseModel
 
 from askrag import db
 from askrag.api.routes_landing import trim_authors
+from askrag.category_names import category_name
 from askrag.config import Settings, get_settings
 from askrag.facets import INDEXED_PREDICATE
 
@@ -103,6 +104,8 @@ class CatalogPapersResponse(BaseModel):
 class CatalogBucket(BaseModel):
     value: str
     papers: int
+    # The category's arXiv name, on category buckets whose code has one.
+    name: str | None = None
 
 
 class CatalogFacetsResponse(BaseModel):
@@ -298,7 +301,10 @@ def get_catalog_facets(
                 CatalogBucket(value=value, papers=_count(conn, match, category, month, value))
                 for value in HOLDING_CLAUSE
             ],
-            categories=_facet(conn, "papers.primary_category", by_category, params_c, match),
+            categories=[
+                bucket.model_copy(update={"name": category_name(bucket.value)})
+                for bucket in _facet(conn, "papers.primary_category", by_category, params_c, match)
+            ],
             months=_facet(conn, "substr(papers.arxiv_id, 1, 4)", by_month, params_m, match),
             total=_count(conn, match, category, month, holding),
         )

@@ -506,6 +506,17 @@ def test_stale_cited_works_fails_before_any_write(paths, tmp_path):
     assert not paths["corpus_db"].exists()
 
 
+def test_a_cited_work_in_an_unnamed_cs_class_fails_before_any_write(paths, tmp_path):
+    """A class arXiv adds later stops the build, not the page's Field list."""
+    work = {**_work("1707.06347"), "primary_category": "cs.ZZ"}
+    inputs = _citation_inputs(tmp_path, [("2401.00001", "1707.06347")], [work])
+
+    with pytest.raises(IndexBuildError, match="first: cs.ZZ"):
+        run(paths, **inputs)
+
+    assert not paths["corpus_db"].exists()
+
+
 def test_the_build_leaves_planner_stats_behind(tmp_path):
     """ANALYZE at build time is worth 17% on the cited-year histogram.
 

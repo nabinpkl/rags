@@ -14,6 +14,33 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-17 — cs category names are a hand-kept table
+
+**Context.** The Field filter and the card chips show codes (`cs.CL`) with
+no name. Neither source we ingest names a category: the Kaggle snapshot and
+the GCS mirror's `metadata-v5` both carry codes only, and the whole mirror
+bucket holds no taxonomy file. arXiv's API names them, but it is
+export.arxiv.org (D18).
+
+**Decision.** `backend/askrag/category_names.py` holds the 40 `cs.*` names,
+copied by hand from https://arxiv.org/category_taxonomy on 2026-09-17 (one
+manual read, no code path fetches it). The backend sends the name on each
+category facet bucket; other archives' codes carry no name and show as
+codes. `build_indexes` refuses a corpus holding a `cs.*` code the table does
+not name, so a new class stops the build rather than reaching the page
+unnamed.
+
+**Rejected.** Fetching the taxonomy at build or view time (a fan-out to
+arxiv.org, and a build that depends on arXiv being up). A copy in the
+frontend (a second home for the same fact). Naming all 155 codes the corpus
+holds: most are single cross-listed papers, and the build guard would then
+fail on every new archive a cited work comes from.
+
+**Revisit trigger.** The build fails on an unnamed `cs.*` code, or the
+Overview page starts showing non-cs categories to readers.
+
+Spec updated: no (the spec does not cover display names).
+
 ## 2026-09-16 — sturdier typefaces: Atkinson Hyperlegible Next, Source Serif 4, JetBrains Mono
 
 **Context.** The owner found the text thin to read. Instrument Sans is a

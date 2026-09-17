@@ -114,7 +114,9 @@ export function CatalogFilters({
         anyLabel="Any field"
         buckets={facets?.categories}
         selected={state.category}
-        format={(value) => value}
+        // Code first: the closed trigger truncates, and the code is what the
+        // card chips show.
+        format={(bucket) => (bucket.name ? `${bucket.value} ${bucket.name}` : bucket.value)}
         onSelect={(category) => onChange({ category })}
       />
       <BucketSelect
@@ -122,7 +124,7 @@ export function CatalogFilters({
         anyLabel="Any month"
         buckets={facets?.months}
         selected={state.month}
-        format={(value) => formatIdMonth(value, "short")}
+        format={(bucket) => formatIdMonth(bucket.value, "short")}
         onSelect={(month) => onChange({ month })}
       />
 
@@ -216,7 +218,7 @@ function BucketSelect({
   anyLabel: string;
   buckets: CatalogBucket[] | undefined;
   selected: string | null;
-  format: (value: string) => string;
+  format: (bucket: CatalogBucket) => string;
   onSelect: (value: string | null) => void;
 }) {
   if (!buckets || buckets.length === 0) return null;
@@ -229,7 +231,7 @@ function BucketSelect({
         { value: "", label: anyLabel },
         ...buckets.map((bucket) => ({
           value: bucket.value,
-          label: withCount(format(bucket.value), bucket.papers),
+          label: withCount(format(bucket), bucket.papers),
         })),
       ]}
       onChange={(value) => onSelect(value === "" ? null : value)}

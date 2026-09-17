@@ -841,6 +841,17 @@
                     "papers": {
                         "type": "integer",
                         "title": "Papers"
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
                     }
                 },
                 "type": "object",
