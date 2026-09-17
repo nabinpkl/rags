@@ -75,6 +75,17 @@
   --teal-ink: #57d4bd;
   --teal-soft-strong: #1b463f;
 
+  /* Light text on midnight renders thinner than the same weight on paper,
+     so every weight steps up one in dark. Tailwind's weight utilities read
+     these variables; body text reads `--font-weight-normal` below. The
+     faces are variable, so no extra files load; 900 clamps to a face's
+     heaviest axis value. */
+  --font-weight-normal: 500;
+  --font-weight-medium: 600;
+  --font-weight-semibold: 700;
+  --font-weight-bold: 800;
+  --font-weight-extrabold: 900;
+
   /* Both series lift off the dark panel; the light values are too dark to
      read as bars against the dark panel. */
   --chart-1: #2fbfa8;
@@ -150,6 +161,9 @@
 
 body {
   font-family: var(--font-sans), system-ui, sans-serif;
+  /* Tailwind only emits a weight variable a utility uses, so light mode
+     may not define this one. */
+  font-weight: var(--font-weight-normal, 400);
   background: var(--paper);
   color: var(--ink);
 }
