@@ -1,105 +1,16 @@
 "use client";
 
-import {
-  Atom,
-  AudioLines,
-  Binary,
-  Bot,
-  BookOpen,
-  BrainCircuit,
-  Calculator,
-  ChartLine,
-  ChartScatter,
-  ChevronDown,
-  CircleEllipsis,
-  CodeXml,
-  Database,
-  Dna,
-  FileSearch,
-  Film,
-  Gamepad2,
-  Gauge,
-  Globe,
-  Grid3x3,
-  Infinity as InfinityIcon,
-  Landmark,
-  Languages,
-  Library,
-  Microchip,
-  MonitorCog,
-  MousePointerClick,
-  Network,
-  PenTool,
-  RadioTower,
-  Regex,
-  ScanEye,
-  Shapes,
-  Share2,
-  ShieldCheck,
-  Sigma,
-  SlidersHorizontal,
-  Spline,
-  SquareFunction,
-  Waypoints,
-  Workflow,
-  Wrench,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useId, useState } from "react";
 
 import type { CatalogBucket } from "@/lib/api-client";
+import { CATEGORY_ICON, UNMAPPED_CATEGORY_ICON } from "@/lib/category-icon";
 import { cn } from "@/lib/utils";
 
 /** How many topics show before the rest fold into "Others". Nine held 89%
  * of the unfiltered catalog on 2026-09-17; the other 108 codes were mostly
  * cross-listed archives of a few papers each. */
 export const TOP_TOPICS = 9;
-
-/** One glyph per arXiv cs class, so a topic reads at a glance in the rail.
- * The names come from the API (`askrag/category_names.py`); only the picture
- * is the frontend's. Codes outside cs have no name and share one glyph. */
-const TOPIC_ICONS: Record<string, LucideIcon> = {
-  "cs.AI": BrainCircuit,
-  "cs.AR": Microchip,
-  "cs.CC": InfinityIcon,
-  "cs.CE": Calculator,
-  "cs.CG": Spline,
-  "cs.CL": Languages,
-  "cs.CR": ShieldCheck,
-  "cs.CV": ScanEye,
-  "cs.CY": Landmark,
-  "cs.DB": Database,
-  "cs.DC": Network,
-  "cs.DL": Library,
-  "cs.DM": Grid3x3,
-  "cs.DS": Workflow,
-  "cs.ET": Atom,
-  "cs.FL": Regex,
-  "cs.GL": BookOpen,
-  "cs.GR": PenTool,
-  "cs.GT": Gamepad2,
-  "cs.HC": MousePointerClick,
-  "cs.IR": FileSearch,
-  "cs.IT": RadioTower,
-  "cs.LG": ChartScatter,
-  "cs.LO": Binary,
-  "cs.MA": Waypoints,
-  "cs.MM": Film,
-  "cs.MS": SquareFunction,
-  "cs.NA": ChartLine,
-  "cs.NE": Dna,
-  "cs.NI": Globe,
-  "cs.OH": CircleEllipsis,
-  "cs.OS": MonitorCog,
-  "cs.PF": Gauge,
-  "cs.PL": CodeXml,
-  "cs.RO": Bot,
-  "cs.SC": Sigma,
-  "cs.SD": AudioLines,
-  "cs.SE": Wrench,
-  "cs.SI": Share2,
-  "cs.SY": SlidersHorizontal,
-};
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
@@ -189,7 +100,7 @@ function TopicRow({
   active: boolean;
   onPress: () => void;
 }) {
-  const Icon = TOPIC_ICONS[bucket.value] ?? Shapes;
+  const Icon = CATEGORY_ICON[bucket.value] ?? UNMAPPED_CATEGORY_ICON;
   return (
     <button
       type="button"

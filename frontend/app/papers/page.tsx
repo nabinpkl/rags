@@ -244,6 +244,10 @@ function Catalog() {
                   papers={rows}
                   total={total}
                   state={state}
+                  topic={
+                    facets?.categories.find((bucket) => bucket.value === state.category)?.name ??
+                    null
+                  }
                   loading={papers.isPending}
                   page={papers}
                   scrollElement={canvas}

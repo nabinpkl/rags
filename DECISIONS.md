@@ -22,7 +22,7 @@ with icons and counts.
 
 **Decision.** Topics render as rows (`components/catalog/topic-filter.tsx`):
 the nine largest, each with a lucide glyph, the arXiv name and a compact
-count, and the rest folded under "Others (n)" with their summed count. Nine
+count (glyphs from `lib/category-icon.ts`, the map the cards already use), and the rest folded under "Others (n)" with their summed count. Nine
 held 89% of the unfiltered catalog. A row is a toggle; a selected topic from
 the fold stays visible. The list sits last in the rail so it pushes no
 select down. Glyphs are one ink colour, not a colour per topic: colour in

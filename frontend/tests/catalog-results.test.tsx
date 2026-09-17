@@ -41,6 +41,35 @@ function paper(overrides: Partial<CatalogPaper> = {}): CatalogPaper {
 }
 
 describe("CatalogResults", () => {
+  it("says the topic by name in the heading, and by code when it has none", () => {
+    const state = { ...EMPTY_FILTER, category: "cs.RO" };
+    const { rerender } = render(
+      <CatalogResults
+        papers={[paper()]}
+        total={1}
+        state={state}
+        topic="Robotics"
+        loading={false}
+        page={LAST_PAGE}
+        scrollElement={scroller()}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Papers · Robotics");
+
+    rerender(
+      <CatalogResults
+        papers={[paper()]}
+        total={1}
+        state={{ ...EMPTY_FILTER, category: "quant-ph" }}
+        topic={null}
+        loading={false}
+        page={LAST_PAGE}
+        scrollElement={scroller()}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Papers · quant-ph");
+  });
+
   it("names and links a CC licence beside the crop it is granted on", () => {
     render(
       <CatalogResults
@@ -52,6 +81,7 @@ describe("CatalogResults", () => {
         ]}
         total={1}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
@@ -75,6 +105,7 @@ describe("CatalogResults", () => {
         ]}
         total={1}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
@@ -90,6 +121,7 @@ describe("CatalogResults", () => {
         papers={[paper({ arxiv_id: "2607.00001" })]}
         total={1}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
@@ -113,6 +145,7 @@ describe("CatalogResults", () => {
         ]}
         total={2}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
@@ -135,6 +168,7 @@ describe("CatalogResults", () => {
         papers={[paper({ title: "Pinned", version: "v3" })]}
         total={1}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
@@ -153,6 +187,7 @@ describe("CatalogResults", () => {
         papers={[paper()]}
         total={12_345}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={{ ...LAST_PAGE, hasNextPage: true }}
         scrollElement={scroller()}
@@ -172,6 +207,7 @@ describe("CatalogResults", () => {
         papers={[paper()]}
         total={40}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={{ ...LAST_PAGE, hasNextPage: true, isFetchNextPageError: true, fetchNextPage }}
         scrollElement={scroller()}
@@ -191,6 +227,7 @@ describe("CatalogResults", () => {
         papers={[paper()]}
         total={40}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={{ ...LAST_PAGE, hasNextPage: true, fetchNextPage }}
         scrollElement={scroller()}
@@ -206,6 +243,7 @@ describe("CatalogResults", () => {
         papers={[paper()]}
         total={1}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
@@ -223,6 +261,7 @@ describe("CatalogResults", () => {
         papers={[paper()]}
         total={40}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={LAST_PAGE}
         scrollElement={canvas}
@@ -235,6 +274,7 @@ describe("CatalogResults", () => {
         papers={[]}
         total={0}
         state={{ ...EMPTY_FILTER, q: "diffusion" }}
+        topic={null}
         loading
         page={LAST_PAGE}
         scrollElement={canvas}
@@ -249,6 +289,7 @@ describe("CatalogResults", () => {
         papers={[]}
         total={0}
         state={EMPTY_FILTER}
+        topic={null}
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}

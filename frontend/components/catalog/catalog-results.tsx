@@ -37,10 +37,12 @@ function destination(paper: CatalogPaper): { href: string; label: string; extern
  * The search text is deliberately absent: it sits in the field one line
  * above, in the reader's own spelling, so repeating it here would be the page
  * reading its own input back. */
-function describe(state: CatalogFilterState): string {
+function describe(state: CatalogFilterState, topic: string | null): string {
   const parts = [
     state.holding === "indexed" ? "Papers the agent can read" : "Papers",
-    state.category,
+    // The topic's arXiv name where the facets have arrived with one, so the
+    // heading reads as the row the reader pressed rather than as its code.
+    state.category ? (topic ?? state.category) : null,
     state.month ? `posted ${formatIdMonth(state.month)}` : null,
     state.holding === "text" ? "whose text we hold" : null,
   ].filter(Boolean);
@@ -77,6 +79,7 @@ export function CatalogResults({
   papers,
   total,
   state,
+  topic,
   loading,
   page,
   scrollElement,
@@ -84,6 +87,8 @@ export function CatalogResults({
   papers: CatalogPaper[];
   total: number;
   state: CatalogFilterState;
+  /** The selected category's name, when it has one. */
+  topic: string | null;
   loading: boolean;
   page: NextPage;
   scrollElement: HTMLElement | null;
@@ -112,7 +117,7 @@ export function CatalogResults({
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-4">
         <h1 className="font-serif text-ink min-w-0 text-[22px] leading-[1.2] font-semibold text-balance">
-          {describe(state)}
+          {describe(state, topic)}
         </h1>
         <p className="text-muted shrink-0 font-mono text-[11px] tracking-[0.08em] tabular-nums uppercase">
           {loading && papers.length === 0 ? "counting" : `${total.toLocaleString()} found`}
@@ -348,7 +353,10 @@ function PaperCard({ paper }: { paper: CatalogPaper }) {
           {paper.abstract}
         </span>
         <span className="text-muted mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[11.5px]">
-          <span className="bg-teal-soft text-teal-ink shrink-0 rounded px-1.5 py-0.5">
+          {/* The same glyph the rail's topic list uses for this category, so
+              a card and the row that filtered to it read as the same thing. */}
+          <span className="bg-teal-soft text-teal-ink flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5">
+            <Icon className="size-3 shrink-0" aria-hidden />
             {paper.primary_category}
           </span>
           <span className="tabular-nums">{formatDate(paper.published)}</span>
