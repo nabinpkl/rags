@@ -157,6 +157,16 @@ def test_a_facet_drops_its_own_filter_so_the_counts_answer_what_if(client):
     assert body["total"] == 1
 
 
+def test_a_category_bucket_carries_its_arxiv_name(client):
+    body = client.get("/api/catalog/facets").json()
+
+    assert {bucket["value"]: bucket["name"] for bucket in body["categories"]} == {
+        "cs.CL": "Computation and Language",
+        "cs.CV": "Computer Vision and Pattern Recognition",
+    }
+    assert all(bucket["name"] is None for bucket in body["months"] + body["holdings"])
+
+
 def test_paging_stops_rather_than_offering_an_offset_past_the_end(client):
     first = client.get("/api/catalog/papers?limit=2").json()
     second = client.get(f"/api/catalog/papers?limit=2&offset={first['next_offset']}").json()

@@ -264,6 +264,8 @@ export interface components {
             value: string;
             /** Papers */
             papers: number;
+            /** Name */
+            name?: string | null;
         };
         /**
          * CatalogFacetsResponse

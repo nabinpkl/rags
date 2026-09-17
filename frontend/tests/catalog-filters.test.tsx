@@ -19,8 +19,9 @@ const FACETS: CatalogFacetsResponse = {
     { value: "indexed", papers: 811 },
   ],
   categories: [
-    { value: "cs.CV", papers: 12_430 },
-    { value: "cs.LG", papers: 11_209 },
+    { value: "cs.CV", papers: 12_430, name: "Computer Vision and Pattern Recognition" },
+    { value: "cs.LG", papers: 11_209, name: "Machine Learning" },
+    { value: "quant-ph", papers: 40, name: null },
   ],
   months: [
     { value: "2608", papers: 14_489 },
@@ -33,7 +34,12 @@ describe("CatalogFilters", () => {
   it("shows what each choice would give, not what the current filter gave", () => {
     render(<CatalogFilters state={STATE} facets={FACETS} onChange={() => {}} />);
 
-    expect(within(screen.getByLabelText("Field")).getByRole("option", { name: "cs.CV · 12,430" }));
+    const field = within(screen.getByLabelText("Field"));
+    expect(
+      field.getByRole("option", { name: "cs.CV Computer Vision and Pattern Recognition · 12,430" }),
+    );
+    // Outside cs there is no name to show, so the code stands alone.
+    expect(field.getByRole("option", { name: "quant-ph · 40" }));
     expect(
       within(screen.getByLabelText("Month posted")).getByRole("option", {
         name: "Aug 2026 · 14,489",

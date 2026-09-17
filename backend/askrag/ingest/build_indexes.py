@@ -38,6 +38,7 @@ import chromadb.config
 import chromadb.errors
 
 from askrag import telemetry
+from askrag.category_names import unnamed_cs_codes
 from askrag.config import get_settings
 from askrag.ingest import kaggle_seed
 from askrag.ingest.embed_chunks import read_vectors
@@ -431,6 +432,15 @@ def _validate_inputs(
         raise IndexBuildError(
             f"{len(dangling_cited)} cited id(s) missing from cited_works.jsonl "
             f"(first: {dangling_cited[0]}) — stale cited_works, rerun resolve_cited_works"
+        )
+    unnamed = unnamed_cs_codes(
+        {p.primary_category for p in papers_by_id.values()}
+        | {w.primary_category for w in cited_works if w.primary_category}
+    )
+    if unnamed:
+        raise IndexBuildError(
+            f"{len(unnamed)} cs category code(s) have no name (first: {unnamed[0]}) "
+            "— add them to askrag/category_names.py from arXiv's taxonomy page"
         )
     orphans = sorted({c.paper_id for c in chunks} - papers_by_id.keys())
     if orphans:
