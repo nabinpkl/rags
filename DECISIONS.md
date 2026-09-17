@@ -14,6 +14,32 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-17 — the Field facet is a topic list, not a select
+
+**Context.** The rail's four selects (see "one rail", 2026-09-16) hid what
+the catalog holds behind a closed control. The owner asked for a topic list
+with icons and counts.
+
+**Decision.** Topics render as rows (`components/catalog/topic-filter.tsx`):
+the nine largest, each with a lucide glyph, the arXiv name and a compact
+count, and the rest folded under "Others (n)" with their summed count. Nine
+held 89% of the unfiltered catalog. A row is a toggle; a selected topic from
+the fold stays visible. The list sits last in the rail so it pushes no
+select down. Glyphs are one ink colour, not a colour per topic: colour in
+this app means state or a chart series. Month stays a select (234 values).
+The facets query now keeps the previous counts while the next load, so a
+pick no longer unmounts the rail's lists.
+
+**Rejected.** A coloured dot per topic, as in the reference image: 40
+colours with no meaning, and the accent would stop marking selection.
+Shortened names ("Computer Vision"): a second, unofficial name for the same
+code; arXiv's names wrap to two lines instead.
+
+**Revisit trigger.** The fold holds a topic readers pick often, or the
+catalog's cs share drops so the top nine stop covering most of it.
+
+Spec updated: no.
+
 ## 2026-09-17 — cs category names are a hand-kept table
 
 **Context.** The Field filter and the card chips show codes (`cs.CL`) with

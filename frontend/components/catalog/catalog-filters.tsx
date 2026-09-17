@@ -3,6 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useId } from "react";
 
+import { TopicFilter } from "@/components/catalog/topic-filter";
 import type { CatalogBucket, CatalogFacetsResponse } from "@/lib/api-client";
 import { formatIdMonth } from "@/lib/id-month";
 import { cn } from "@/lib/utils";
@@ -49,15 +50,15 @@ export const EMPTY_FILTER: CatalogFilterState = {
  * neither that rail's scroll nor its header — a filter is a property of the
  * list on screen, not a second place to go.
  *
- * Four selects and nothing else: the search field it used to sit above is on
- * the canvas now, where the list it changes is (`catalog-search.tsx`).
+ * No search field: it is on the canvas, where the list it changes is
+ * (`catalog-search.tsx`).
  *
- * Four selects rather than four lists of rows. The corpus has 40 fields and
- * 234 id-months, which as rows was a rail the reader scrolled past to reach
- * the next control, with the long tail parked behind a "224 more" expander
- * that existed only because a flat list could not hold them. A select holds
- * all 234, so every month is one control away, and the whole query fits
- * above the fold with no scrolling at all.
+ * Three selects and one list. The month dimension has 234 id-months, which
+ * as rows was a rail the reader scrolled past to reach the next control, with
+ * the long tail behind a "224 more" expander; a select holds all 234 in one
+ * control. Topics are the exception (`topic-filter.tsx`): nine of them are
+ * most of the catalog, so a short list with counts says what is in here, and
+ * it sits last so it pushes no other control down.
  *
  * Native `<select>`, not a built menu: the rail's own scroll container
  * clips an absolutely-positioned popup, and the platform's list already
@@ -110,22 +111,18 @@ export function CatalogFilters({
       />
 
       <BucketSelect
-        label="Field"
-        anyLabel="Any field"
-        buckets={facets?.categories}
-        selected={state.category}
-        // Code first: the closed trigger truncates, and the code is what the
-        // card chips show.
-        format={(bucket) => (bucket.name ? `${bucket.value} ${bucket.name}` : bucket.value)}
-        onSelect={(category) => onChange({ category })}
-      />
-      <BucketSelect
         label="Month posted"
         anyLabel="Any month"
         buckets={facets?.months}
         selected={state.month}
         format={(bucket) => formatIdMonth(bucket.value, "short")}
         onSelect={(month) => onChange({ month })}
+      />
+
+      <TopicFilter
+        buckets={facets?.categories}
+        selected={state.category}
+        onSelect={(category) => onChange({ category })}
       />
 
       {filtered && (
