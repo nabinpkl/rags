@@ -55,8 +55,9 @@ const OVERSCAN = 4;
 // The API pages 30 at a time; asking 10 cards early leaves the next page
 // most of a screen to arrive before the reader reaches the end.
 const FETCH_AHEAD = 10;
-// Matches the list's former `gap-2.5`.
-const CARD_GAP_PX = 10;
+// Outlined cards need more air than filled ones: at 10px two strokes read
+// as one double rule. Kept equal to the skeleton's `gap-4`.
+const CARD_GAP_PX = 16;
 
 /** The results, as one card per paper.
  *
@@ -390,7 +391,7 @@ function SkeletonCards() {
   return (
     // Same container as the real list, so the skeleton tile is the size the
     // arriving one will be and the row does not resize under the reader.
-    <ol className="@container flex flex-col gap-2.5" aria-hidden>
+    <ol className="@container flex flex-col gap-4" aria-hidden>
       {widths.map((width) => (
         <li
           key={width}
