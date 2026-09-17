@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useMemo, useRef, useState } from "react";
@@ -132,6 +132,10 @@ function Catalog() {
         month: query.month,
         holding: query.holding,
       }),
+    // The rail keeps the last counts while the next ones load. Without this
+    // every pick unmounted the month and topic controls for a round trip,
+    // and the rail collapsed under the reader's pointer.
+    placeholderData: keepPreviousData,
   });
 
   const rows = papers.data?.pages.flatMap((page) => page.papers) ?? [];

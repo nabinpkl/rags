@@ -34,12 +34,11 @@ describe("CatalogFilters", () => {
   it("shows what each choice would give, not what the current filter gave", () => {
     render(<CatalogFilters state={STATE} facets={FACETS} onChange={() => {}} />);
 
-    const field = within(screen.getByLabelText("Field"));
     expect(
-      field.getByRole("option", { name: "cs.CV Computer Vision and Pattern Recognition · 12,430" }),
+      within(screen.getByRole("list", { name: "Topic" })).getByRole("button", {
+        name: /Computer Vision and Pattern Recognition/,
+      }),
     );
-    // Outside cs there is no name to show, so the code stands alone.
-    expect(field.getByRole("option", { name: "quant-ph · 40" }));
     expect(
       within(screen.getByLabelText("Month posted")).getByRole("option", {
         name: "Aug 2026 · 14,489",
@@ -58,18 +57,22 @@ describe("CatalogFilters", () => {
       <CatalogFilters state={STATE} facets={FACETS} onChange={onChange} />,
     );
 
-    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "cs.CV" } });
-    expect(onChange).toHaveBeenCalledWith({ category: "cs.CV" });
+    fireEvent.change(screen.getByLabelText("Month posted"), { target: { value: "2608" } });
+    expect(onChange).toHaveBeenCalledWith({ month: "2608" });
 
     rerender(
-      <CatalogFilters
-        state={{ ...STATE, category: "cs.CV" }}
-        facets={FACETS}
-        onChange={onChange}
-      />,
+      <CatalogFilters state={{ ...STATE, month: "2608" }} facets={FACETS} onChange={onChange} />,
     );
-    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "" } });
-    expect(onChange).toHaveBeenCalledWith({ category: null });
+    fireEvent.change(screen.getByLabelText("Month posted"), { target: { value: "" } });
+    expect(onChange).toHaveBeenCalledWith({ month: null });
+  });
+
+  it("narrows on a topic", () => {
+    const onChange = vi.fn();
+    render(<CatalogFilters state={STATE} facets={FACETS} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Machine Learning/ }));
+    expect(onChange).toHaveBeenCalledWith({ category: "cs.LG" });
   });
 
   it("disables ranking by match until there is something to match", () => {
@@ -99,7 +102,7 @@ describe("CatalogFilters", () => {
   it("renders no facet control at all when the facets have not arrived", () => {
     render(<CatalogFilters state={STATE} facets={undefined} onChange={() => {}} />);
 
-    expect(screen.queryByLabelText("Field")).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Topic" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Month posted")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Show")).toBeInTheDocument();
   });
