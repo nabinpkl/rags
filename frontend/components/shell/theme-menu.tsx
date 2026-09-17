@@ -99,7 +99,7 @@ export function ThemeMenu() {
                 // the selected row is still a target (it re-picks the theme
                 // and closes the menu), and a row that goes inert under the
                 // pointer reads as disabled.
-                "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] hover:bg-paper",
+                "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] hover:bg-panel-hover",
                 theme === value ? "text-teal-ink font-semibold" : "text-ink",
               )}
             >

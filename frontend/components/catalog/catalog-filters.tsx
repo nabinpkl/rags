@@ -130,7 +130,7 @@ export function CatalogFilters({
         <button
           type="button"
           onClick={() => onChange(EMPTY_FILTER)}
-          className="border-line text-ink hover:bg-paper mt-1 w-full rounded border px-3 py-2 text-[13px] transition-colors motion-reduce:transition-none"
+          className="border-line text-ink hover:bg-panel-hover mt-1 w-full rounded border px-3 py-2 text-[13px] transition-colors motion-reduce:transition-none"
         >
           Clear the filter
         </button>

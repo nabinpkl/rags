@@ -120,7 +120,7 @@ export function FacetFilters() {
             "flex items-center justify-between rounded px-2 py-2.5 text-left text-[13px] md:py-1.5",
             category === null
               ? "bg-teal-soft text-teal-ink hover:bg-teal-soft-strong font-semibold"
-              : "hover:bg-paper",
+              : "hover:bg-panel-hover",
           )}
         >
           <span>all</span>
@@ -138,7 +138,7 @@ export function FacetFilters() {
               "flex items-center justify-between rounded px-2 py-2.5 text-left text-[13px] md:py-1.5",
               category === bucket.value
                 ? "bg-teal-soft text-teal-ink hover:bg-teal-soft-strong font-semibold"
-                : "hover:bg-paper",
+                : "hover:bg-panel-hover",
             )}
           >
             <span>{bucket.value}</span>

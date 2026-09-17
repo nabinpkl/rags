@@ -73,7 +73,7 @@ export function ShellSidebar({
                       // rather than toward it.
                       active
                         ? "bg-teal-soft text-teal-ink hover:bg-teal-soft-strong font-semibold"
-                        : "text-ink hover:bg-paper",
+                        : "text-ink hover:bg-panel-hover",
                     )}
                   >
                     <view.icon

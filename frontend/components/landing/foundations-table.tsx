@@ -69,7 +69,7 @@ export function FoundationsTable({
                     onSelect(foundation);
                   }
                 }}
-                className="hover:bg-paper focus-visible:outline-teal cursor-pointer transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 motion-reduce:transition-none"
+                className="hover:bg-panel-hover focus-visible:outline-teal cursor-pointer transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 motion-reduce:transition-none"
               >
                 <td className="border-line text-muted w-10 border-b px-3 py-2.5 align-baseline font-mono text-[11.5px]">
                   {i + 1}

@@ -37,7 +37,7 @@ export function LatestPapers({ papers }: { papers: LatestResponse["papers"] }) {
                 // with), so the accessible name is pinned to the title rather
                 // than left to concatenate every metadata field in the row.
                 aria-label={paper.title}
-                className="group hover:bg-paper flex items-start gap-3 px-3.5 py-3 transition-colors motion-reduce:transition-none"
+                className="group hover:bg-panel-hover flex items-start gap-3 px-3.5 py-3 transition-colors motion-reduce:transition-none"
               >
                 <span
                   className="bg-teal-soft text-teal-ink mt-px grid size-7 shrink-0 place-items-center rounded"
