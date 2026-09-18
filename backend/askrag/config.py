@@ -46,9 +46,13 @@ class Settings(BaseSettings):
     judge_model: str = "claude-opus-4-8"
     # Backend + model are a PAIR: "local" expects a Hugging Face model id,
     # "voyage" expects a Voyage model name (voyage-4-lite is the parked-but-
-    # working operating point — DECISIONS.md 2026-07-05, D5 amendment).
-    embedding_backend: Literal["local", "voyage"] = "local"
-    embedding_model: str = "nomic-ai/nomic-embed-text-v1.5"
+    # working operating point — DECISIONS.md 2026-07-05, D5 amendment),
+    # "openrouter" an OpenRouter model slug (D5 third amendment, 2026-09-18).
+    # Flipping the backend alone is not a swap: the model, dims, price and
+    # revision below must move with it, or the run fails on the first call
+    # with "model does not exist".
+    embedding_backend: Literal["local", "voyage", "openrouter"] = "openrouter"
+    embedding_model: str = "perplexity/pplx-embed-v1-0.6b"
     embedding_dims: int = 512  # a documented trained MRL point for this model (D5)
     # Local backend only: HF revision pin so a model-card force-push can't
     # silently change our vectors; weights cache under corpus/ (gitignored),
@@ -178,8 +182,10 @@ class Settings(BaseSettings):
 
     # --- ingest: embedding (D5 as amended; DECISIONS.md 2026-07-05) ---------
     # Prices the --estimate for API backends; local runs cost $0 by
-    # construction (voyage-4-lite list price kept for the parked path).
-    embedding_usd_per_mtok: float = 0.02
+    # construction. Perplexity's embed tier on OpenRouter, verified against a
+    # billed call 2026-09-18 (11 tokens, $4.4e-08); voyage-4-lite's parked
+    # path lists at $0.02.
+    embedding_usd_per_mtok: float = 0.004
     # Batch caps size one encode/POST call and one resume shard. Defaults fit
     # the local backend. The parked Voyage path on an unpaid account must
     # retune via env — measured 2026-07-05 (Voyage 429 body): no-payment
@@ -192,6 +198,18 @@ class Settings(BaseSettings):
     # items cap binds first.
     embed_batch_max_items: int = 1024
     embed_batch_max_tokens: int = 1_000_000
+    # OpenRouter's embeddings endpoint documents no caps and defers to the
+    # provider, so these are MEASURED from Perplexity's own 400s (2026-09-18):
+    # "input array exceeds maximum of 512 items" and "Input total size exceeds
+    # maximum number of allowed tokens: got 131150, maximum is 120000".
+    openrouter_embed_batch_max_items: int = 512
+    openrouter_embed_batch_max_tokens: int = 120_000
+    # Paced in cl100k tokens (what chunks.jsonl stores), which measured ~6%
+    # under the provider's own count (20.02M ours vs 21.24M billed over the
+    # full corpus), so this targets ~1.9M provider tokens/minute — the rate
+    # that embedded 11M tokens without a single 429. The burst matters more
+    # than the average, which is why token_bucket.py banks nothing.
+    openrouter_embed_tokens_per_min: int = 1_800_000
     # Inner encode() micro-batch for the local backend. Measured 2026-07-05
     # on M-series MPS with ~1k-token chunks: 16 → 0.25s/chunk; the ST default
     # (32) tips unified memory into thrash (~7.5s/chunk, 30x slower).
@@ -351,6 +369,24 @@ class Settings(BaseSettings):
         # together (D5 per-model provenance): short model name + dims.
         name = self.embedding_model.split("/")[-1].lower()
         return f"{name}_{self.embedding_dims}"
+
+    @property
+    def embed_batch_limits(self) -> tuple[int, int]:
+        """(max_items, max_tokens) for one embed call, for the ACTIVE backend.
+
+        Resolved here rather than at the call site so a backend flip cannot
+        leave the caps describing the previous provider — the failure that
+        shape produces is a 400 on the first batch of a long run.
+        """
+        if self.embedding_backend == "openrouter":
+            return self.openrouter_embed_batch_max_items, self.openrouter_embed_batch_max_tokens
+        return self.embed_batch_max_items, self.embed_batch_max_tokens
+
+    @property
+    def embed_tokens_per_minute(self) -> int:
+        """Pace for bulk embedding; 0 means unpaced (local, and Voyage, which
+        pauses between batches instead — `embed_batch_pause_seconds`)."""
+        return self.openrouter_embed_tokens_per_min if self.embedding_backend == "openrouter" else 0
 
     @property
     def vectors_dir(self) -> Path:

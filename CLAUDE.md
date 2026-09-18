@@ -4,8 +4,8 @@
 coordinator session and changes like code (commits, reviewable diffs). Budget:
 150 lines hard ceiling. History lives in git, never in this file. -->
 
-Public portfolio project: agentic RAG over a sample of arXiv CS (57,206
-catalog rows, 20,733 with text, 667 indexed; densest in Jul-Aug 2026).
+Public portfolio project: agentic RAG over a sample of arXiv CS (65,503
+catalog rows, 29,027 with text, 811 indexed; densest in Jul-Aug 2026).
 The agent is a side panel that feeds itself (tools, not context-stuffing),
 on a hand-built loop, deployed for ≤$22/mo. Currently pre-code: spec is done,
 work is broken into GitHub issues.

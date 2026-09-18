@@ -277,6 +277,43 @@ trigger: a paid embeddings tier enters the budget, #18 evals show a paid or
 larger model retrieves meaningfully better on this corpus, or #16's measured
 query-time CPU latency on the target VPS is unacceptable.
 
+**Amendment (2026-09-18, owner directive).** The default backend is
+**`perplexity/pplx-embed-v1-0.6b` at 512d via OpenRouter** (`embedding_backend
+= "openrouter"`); the local nomic path and the parked Voyage path both remain
+selectable. Two facts moved the decision. **Coverage:** 144 of the 811 papers
+with chunks had no vectors at all, the foundations among them, so they were
+retrievable by BM25 only — and closing that locally is 2.6 CPU hours at a
+measured 0.66 chunks/s, with a full re-embed at 16.9. Through the API the
+whole corpus took 679s and $0.0849, which removes CPU time as the reason the
+indexed set stays small. **Retrieval:** on the 33,931 chunks both models
+cover, with identical queries and cosine in both spaces, exact-chunk recall@10
+went 0.718 → 0.837 and MRR@10 0.539 → 0.656 (n=667, ten to thirteen points on
+every metric, top-10 overlap 3.5/10).
+
+Two honest caveats on that number. The previous amendment's revisit trigger
+named **#18's evals**, which do not exist yet; what fired it was a
+**proxy** — one mid-chunk 30-word span per paper retrieving its own chunk —
+whose query text appears verbatim in the target, and which scores the vector
+leg alone rather than the hybrid the app serves. And the swap puts a network
+call in the query path where a local model stood: measured 107 ms/query
+against 264 ms locally, with D8's fail-soft boundary degrading to BM25-only on
+a transport error (confirmed in practice). Per-model artifact keying is what
+makes this reversible: the nomic collection stays in Chroma beside the new
+one, so rollback is one env var.
+
+New operational invariant: an API embedding backend is **paced, not just
+retried**. Perplexity rate-limits upstream of OpenRouter, and the five 429s in
+the bulk run all traced to a cold-start burst, so `ingest/token_bucket.py`
+reserves tokens forward in time and banks nothing — an idle stretch earns no
+credit for a later burst. Batch caps come from the provider's own errors (512
+items, 120,000 tokens per request), not its docs, which state none.
+
+**Revisit when (this amendment).** #17/#18 land and the hand-verified golden
+set disagrees with the proxy above; or the query-path network dependency costs
+more in latency or failed turns than the recall gain is worth; or a
+same-model hosted option appears that would let vectors be topped up rather
+than rebuilt.
+
 ---
 
 ### D6. PDF extraction: PyMuPDF4LLM, with a skip list, not a GPU parser
