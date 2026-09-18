@@ -14,6 +14,66 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-09-18 — embeddings move to pplx-embed-v1-0.6b over OpenRouter (D5 third amendment)
+
+**Context.** The corpus held 40,116 chunks but only 33,931 vectors: 144
+papers had none at all, including RoBERTa (1907.11692), MMLU (2009.03300),
+GCG (2307.15043) and AutoGen (2308.08155) — the foundations the landing page
+names. They answered to BM25 alone, silently. Closing that gap locally is
+2.6 CPU hours at the measured 0.66 chunks/s, and the whole corpus is 16.9,
+which is why the indexed set was curated small in the first place.
+
+**Decision.** `embedding_backend` gains `"openrouter"` and becomes the
+default, model `perplexity/pplx-embed-v1-0.6b` at 512 dims. Measured on the
+same 33,931-chunk pool with identical queries and cosine in both spaces, one
+mid-chunk 30-word span per paper retrieving its own chunk out of 33,931
+candidates (n=667):
+
+| | nomic-512 | pplx-512 |
+|---|---|---|
+| recall@1 | 0.457 | 0.562 |
+| recall@5 | 0.649 | 0.781 |
+| recall@10 | 0.718 | 0.837 |
+| MRR@10 | 0.539 | 0.656 |
+
+Ten to thirteen points on every metric, past D14's 5-point noise floor, and
+the two spaces' top-10s overlap only 3.5/10 on that task, so they are not
+two views of one ranking. A title-to-own-paper task saturates for both
+(recall@1 0.996 vs 0.999) and gates nothing; it is recorded only to show
+neither space is broken. The full corpus embedded in 679s for $0.0849.
+
+**Alternatives rejected.** *Stay local and run the 2.6-hour top-up* — buys
+coverage but not the 11 points, and leaves every future re-embed at 17
+hours. *Fireworks' hosted nomic at $0.008/Mtok* — keeps the model, so the
+existing vectors stay valid, but a different serving stack (pooling, dtype,
+weights version) can shift vectors in ways that show up as worse recall
+rather than an error, and mixing stacks in one collection is unmeasurable.
+*voyage-4-lite, the path D5's second amendment parked* — same $0.02/Mtok as
+OpenAI's small model, five times pplx's price, and no measurement favouring
+it. *Wait for #18's golden set* — the harness does not exist and #17's
+verification pass is human work; the coverage hole is real today.
+
+**Consequence.** Retrieval now depends on outbound TLS at query time, at a
+measured 107 ms/query against 264 ms for the local model on this box. D8's
+fail-soft boundary degrades the vector leg to BM25-only on a transport
+error, which was confirmed by accident when the sandbox proxy's CA broke
+httpx. Perplexity rate-limits upstream of OpenRouter: five 429s in the bulk
+run, every one cleared by a single 5s retry, and all five traced to a
+cold-start burst of 1.1M tokens in 15 seconds. Hence
+`askrag/ingest/token_bucket.py`, which reserves tokens forward in time and
+banks nothing, so an idle stretch earns no credit for a later burst; a
+sliding window over recent spend is what produced the burst. Batch caps are
+the provider's own measured 400s: 512 items, 120,000 tokens. The vectors
+computed during the experiment were imported as the pipeline's parquet
+rather than re-embedded, normalized on the way in (raw norms ranged 1.55 to
+11.97, and chroma's default space is l2). The nomic collection is left in
+chroma, so rollback is one env var plus a restart. The span task is a proxy,
+not #17's golden set: its query text appears verbatim inside the target
+chunk, so it rewards lexical-semantic alignment and measures the vector leg
+alone, not the hybrid the app serves.
+
+Spec updated: D5 (third amendment)
+
 ## 2026-09-17 — the Field facet is a topic list, not a select
 
 **Context.** The rail's four selects (see "one rail", 2026-09-16) hid what

@@ -29,10 +29,12 @@ def test_spec_constants_load_without_env(monkeypatch):
         monkeypatch.delenv(var)
     settings = make_settings()
     assert settings.agent_model == "claude-haiku-4-5-20251001"  # D3
-    assert settings.embedding_backend == "local"  # D5 (second amendment)
-    assert settings.embedding_model == "nomic-ai/nomic-embed-text-v1.5"  # D5
+    assert settings.embedding_backend == "openrouter"  # D5 (third amendment)
+    assert settings.embedding_model == "perplexity/pplx-embed-v1-0.6b"  # D5
     assert settings.embedding_dims == 512  # D5
-    assert settings.embedding_model_revision != ""  # pinned, never floating
+    # The local path's weights guarantee survives the swap: whoever selects
+    # `local` still gets a pinned revision, never a floating one.
+    assert settings.embedding_model_revision != ""
     assert settings.chunk_size_tokens == 1000  # D7
     assert settings.chunk_overlap_ratio == 0.15  # D7
     assert settings.max_tool_steps_per_message == 8  # D1

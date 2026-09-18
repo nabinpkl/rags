@@ -16,6 +16,7 @@ from askrag.ingest.embed_chunks import (
     BatchEmbedding,
     ChunkText,
     EmbeddingError,
+    OpenRouterEmbeddings,
     TransientEmbeddingError,
     VoyageEmbeddings,
 )
@@ -548,3 +549,177 @@ def test_run_without_backend_outside_estimate_raises(paths):
     write_chunks(paths["chunks"], make_chunks(1))
     with pytest.raises(EmbeddingError, match="backend"):
         run(paths, None)
+
+
+# --- OpenRouter adapter: request/response contract, offline (MockTransport) ----
+
+
+def openrouter_adapter(monkeypatch, handler, **overrides) -> OpenRouterEmbeddings:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-key")
+    settings = Settings(
+        embedding_backend="openrouter",
+        embedding_model="perplexity/pplx-embed-v1-0.6b",
+        embedding_dims=DIMS,
+        **overrides,
+    )
+    return OpenRouterEmbeddings(settings, transport=httpx.MockTransport(handler))
+
+
+def test_openrouter_adapter_sends_its_contract_and_parses_response(monkeypatch):
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        body = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"embedding": [float(i)] * DIMS, "index": i} for i in range(len(body["input"]))
+                ],
+                "model": body["model"],
+                "usage": {"prompt_tokens": 91, "total_tokens": 91},
+            },
+        )
+
+    with openrouter_adapter(monkeypatch, handler) as backend:
+        result = backend.embed(["alpha", "beta"])
+    request = seen[0]
+    assert request.url == "https://openrouter.ai/api/v1/embeddings"
+    assert request.headers["authorization"] == "Bearer sk-or-test-key"
+    assert json.loads(request.content) == {
+        "model": "perplexity/pplx-embed-v1-0.6b",
+        "input": ["alpha", "beta"],
+        "dimensions": DIMS,
+    }
+    assert result.total_tokens == 91
+    assert result.vectors == [[0.0] * DIMS, [1.0] * DIMS]
+
+
+def test_openrouter_adapter_sends_no_prompt_prefix_in_either_role(monkeypatch):
+    """This model's card requires no instruction prefix, and the corpus'
+    vectors were produced without one — so neither role may add one, however
+    the nomic-shaped prefix knobs are set (D5 third amendment)."""
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"embedding": [0.0] * DIMS, "index": 0}],
+                "usage": {"prompt_tokens": 3},
+            },
+        )
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-key")
+    settings = Settings(
+        embedding_backend="openrouter",
+        embedding_model="perplexity/pplx-embed-v1-0.6b",
+        embedding_dims=DIMS,
+        embedding_doc_prefix="search_document: ",
+        embedding_query_prefix="search_query: ",
+    )
+    for kind in ("document", "query"):
+        with OpenRouterEmbeddings(
+            settings, transport=httpx.MockTransport(handler), input_kind=kind
+        ) as backend:
+            backend.embed(["what is attention"])
+    assert [json.loads(r.content)["input"] for r in seen] == [
+        ["what is attention"],
+        ["what is attention"],
+    ]
+
+
+def test_openrouter_adapter_orders_vectors_by_index_not_arrival(monkeypatch):
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"embedding": [2.0] * DIMS, "index": 2},
+                    {"embedding": [0.0] * DIMS, "index": 0},
+                    {"embedding": [1.0] * DIMS, "index": 1},
+                ],
+                "usage": {"prompt_tokens": 9},
+            },
+        )
+
+    with openrouter_adapter(monkeypatch, handler) as backend:
+        result = backend.embed(["a", "b", "c"])
+    assert result.vectors == [[0.0] * DIMS, [1.0] * DIMS, [2.0] * DIMS]
+
+
+@pytest.mark.parametrize("status", [429, 500, 503])
+def test_openrouter_adapter_throttle_and_5xx_are_transient(monkeypatch, status):
+    """The provider rate-limits upstream of OpenRouter and its error arrives
+    wrapped in OpenRouter's own envelope, so the status code is what decides
+    retryability (measured 2026-09-18: five 429s in one bulk run)."""
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status, json={"error": {"message": "Rate limit exceeded"}})
+
+    with openrouter_adapter(monkeypatch, handler) as backend:
+        with pytest.raises(TransientEmbeddingError):
+            backend.embed(["alpha"])
+
+
+def test_openrouter_adapter_refuses_to_start_without_a_key(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+
+    def handler(_request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("no request should be attempted without a key")
+
+    with pytest.raises(EmbeddingError, match="OPENROUTER_API_KEY"):
+        OpenRouterEmbeddings(
+            Settings(embedding_backend="openrouter"), transport=httpx.MockTransport(handler)
+        )
+
+
+# --- backend-specific batch caps and pacing ----------------------------------
+
+
+def test_the_active_backend_decides_the_batch_caps(monkeypatch):
+    """Perplexity refuses 512+ items and 120k+ tokens per request, so a
+    backend flip that left Voyage-shaped caps in place would 400 on the first
+    batch of a long run."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-key")
+    assert Settings(embedding_backend="openrouter").embed_batch_limits == (512, 120_000)
+    assert Settings(embedding_backend="local").embed_batch_limits == (1024, 1_000_000)
+    assert Settings(embedding_backend="openrouter").embed_tokens_per_minute == 1_800_000
+    assert Settings(embedding_backend="local").embed_tokens_per_minute == 0
+
+
+def test_a_paced_run_waits_between_batches_and_still_embeds_everything(tmp_path, monkeypatch):
+    slept: list[float] = []
+    monkeypatch.setattr(embed_chunks.time, "sleep", lambda seconds: slept.append(seconds))
+    chunks_path = tmp_path / "chunks.jsonl"
+    write_chunks(
+        chunks_path,
+        [ChunkText(chunk_id=f"p#{i}", text=f"chunk {i}", n_tokens=600) for i in range(4)],
+    )
+    backend = FakeBackend()
+
+    stats = embed_chunks.run(
+        chunks_path=chunks_path,
+        vectors_path=tmp_path / "v.parquet",
+        shards_dir=tmp_path / "shards",
+        backend=backend,
+        provenance=PROVENANCE,
+        dims=DIMS,
+        batch_max_items=1,
+        batch_max_tokens=1_000,
+        usd_per_mtok=0.004,
+        retry_max_attempts=3,
+        retry_base_seconds=0.0,
+        # 36,000/min = 600/s, so each 600-token batch reserves one second.
+        tokens_per_minute=36_000,
+    )
+
+    assert stats.embedded == 4
+    # The first batch runs immediately; the other three wait their turn. Only
+    # THAT is asserted here: `sleep` is faked while `monotonic` is not, so the
+    # reservations stack and the waits grow. The arithmetic itself is pinned
+    # against a fake clock in test_token_bucket.py.
+    assert len(slept) == 3
+    assert all(seconds > 0 for seconds in slept)
