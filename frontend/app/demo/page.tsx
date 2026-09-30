@@ -9,6 +9,7 @@ import { CatalogView } from "@/components/catalog/catalog-view";
 import { AgentButton } from "@/components/shell/agent-button";
 import { DrawerPanel } from "@/components/shell/drawer-panel";
 import { PaperSplitView } from "@/components/viewer/paper-split-view";
+import { useAgentPanel } from "@/hooks/use-agent-panel";
 import { useDriveUi } from "@/hooks/use-drive-ui";
 import { useViewerUrlSync } from "@/hooks/use-viewer-url-sync";
 import { fetchCatalogFacets } from "@/lib/api-client";
@@ -50,7 +51,8 @@ function Demo() {
   const params = useSearchParams();
   const paper = useViewerStore((state) => state.paper);
   const overlay = useUiShellStore((state) => state.overlay);
-  const closeOverlay = useUiShellStore((state) => state.closeOverlay);
+  const agentColumn = useUiShellStore((state) => state.agentColumn);
+  const agentPanel = useAgentPanel();
 
   // A transcript started under a landing-page claim is about that claim's
   // papers. Shown here, under an agent that reads all of them, it would put
@@ -87,15 +89,20 @@ function Demo() {
       barEnd={<AgentButton />}
       reader={paper ? <PaperSplitView /> : undefined}
       aside={
+        // On demand at every width: the sheet follows the overlay below
+        // `lg:`, the column follows its own flag above it, and the one
+        // ChatPanel stays mounted through both (it owns the SSE stream).
         <DrawerPanel
           dockAt="lg"
           side="right"
+          id="agent-panel"
           label="Agent panel"
           open={overlay === "agent"}
-          onClose={closeOverlay}
+          dockedOpen={agentColumn}
+          onClose={agentPanel.close}
           className="w-full sm:w-[420px] lg:h-full lg:w-[420px] lg:shrink-0"
         >
-          <ChatPanel paperCount={paperCount} />
+          <ChatPanel paperCount={paperCount} onClose={agentPanel.close} />
         </DrawerPanel>
       }
     />

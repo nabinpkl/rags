@@ -29,10 +29,12 @@ const DOCK = {
   md: {
     media: MEDIA_FILTERS_DOCKED,
     classes: "md:static md:visible md:z-auto md:translate-x-0 md:shadow-none",
+    hidden: "md:hidden",
   },
   lg: {
     media: MEDIA_AGENT_DOCKED,
     classes: "lg:static lg:visible lg:z-auto lg:translate-x-0 lg:shadow-none",
+    hidden: "lg:hidden",
   },
 } as const;
 
@@ -45,10 +47,16 @@ interface DrawerPanelProps {
   /** Viewport width at which this panel stops being a drawer and docks. */
   dockAt: keyof typeof DOCK;
   side: keyof typeof SIDE;
+  /** For a trigger's `aria-controls`. */
+  id?: string;
   /** Accessible name — the region's label when docked, the dialog's when not. */
   label: string;
   open: boolean;
   onClose: () => void;
+  /** Whether the docked column shows. Omitted, a docked panel always shows
+   * (the filter rail); the agent passes its own state so it can be put away
+   * at any width. The child stays mounted either way. */
+  dockedOpen?: boolean;
   /** Width/appearance classes; the caller owns size, this owns position. */
   className?: string;
   children: ReactNode;
@@ -57,9 +65,11 @@ interface DrawerPanelProps {
 export function DrawerPanel({
   dockAt,
   side,
+  id,
   label,
   open,
   onClose,
+  dockedOpen = true,
   className,
   children,
 }: DrawerPanelProps) {
@@ -107,12 +117,14 @@ export function DrawerPanel({
         {...(asDrawer
           ? { role: "dialog" as const, "aria-modal": true, tabIndex: -1 }
           : { role: "region" as const })}
+        id={id}
         aria-label={label}
         className={cn(
           "fixed inset-y-0 z-40 flex flex-col shadow-2xl transition-transform duration-200 motion-reduce:transition-none",
           SIDE[side].anchor,
           open ? "visible translate-x-0" : cn("invisible", SIDE[side].closed),
           dock.classes,
+          !dockedOpen && dock.hidden,
           className,
         )}
       >

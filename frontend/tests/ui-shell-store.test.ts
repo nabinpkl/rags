@@ -6,12 +6,19 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useUiShellStore } from "@/stores/ui-shell-store";
 
 beforeEach(() => {
-  useUiShellStore.setState({ overlay: "none" });
+  useUiShellStore.setState({ overlay: "none", agentColumn: false });
 });
 
 describe("useUiShellStore", () => {
   it("starts with nothing open", () => {
     expect(useUiShellStore.getState().overlay).toBe("none");
+  });
+
+  it("keeps the docked agent column closed until asked, apart from the overlay", () => {
+    expect(useUiShellStore.getState().agentColumn).toBe(false);
+    useUiShellStore.getState().setAgentColumn(true);
+    useUiShellStore.getState().closeOverlay();
+    expect(useUiShellStore.getState().agentColumn).toBe(true);
   });
 
   it("opens the filters drawer", () => {

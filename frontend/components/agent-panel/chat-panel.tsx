@@ -4,7 +4,6 @@ import { CornerDownRight, Loader2, Sparkles, X } from "lucide-react";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { useAgentStream } from "@/hooks/use-agent-stream";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
-import { useUiShellStore } from "@/stores/ui-shell-store";
 import { cn } from "@/lib/utils";
 import { ToolTimeline } from "@/components/agent-panel/tool-timeline";
 import { CostBadge } from "@/components/agent-panel/cost-badge";
@@ -44,11 +43,16 @@ export interface ChatScope {
 export function ChatPanel({
   scope,
   paperCount,
+  onClose,
 }: {
   scope?: ChatScope;
   /** Unscoped, the agent reads the indexed set. Its size, when known, goes
    * in the boundary line so the reader sees how far the answers can reach. */
   paperCount?: number;
+  /** Where the panel can be put away (the RAG demo). Omitted where it is
+   * part of the page, like the landing page's ask surface, and then there is
+   * no close control to press. */
+  onClose?: () => void;
 } = {}) {
   const [question, setQuestion] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,7 +61,6 @@ export function ChatPanel({
   const mode = useAgentSessionStore((state) => state.mode);
   const turns = useAgentSessionStore((state) => state.turns);
   const verifiedPaperIds = useAgentSessionStore((state) => state.verifiedPaperIds);
-  const closeOverlay = useUiShellStore((state) => state.closeOverlay);
   const { ask } = useAgentStream();
 
   const busy = status.kind === "streaming" || status.kind === "tool_running";
@@ -91,15 +94,17 @@ export function ChatPanel({
         <h2 className="text-machine-text text-[15px] font-semibold">Agent</h2>
         <div className="ml-auto flex items-center gap-1">
           <CostBadge cost={lastTurn?.cost ?? null} />
-          {/* `lg:hidden`, so the docked column has no dead tab stop. */}
-          <button
-            type="button"
-            onClick={closeOverlay}
-            aria-label="Close agent panel"
-            className="text-machine-muted hover:bg-machine-2 hover:text-machine-text flex size-11 items-center justify-center rounded transition-colors lg:hidden motion-reduce:transition-none"
-          >
-            <X className="size-5" aria-hidden />
-          </button>
+          {/* 44px for touch, 36px where a pointer aims at it. */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close agent panel"
+              className="text-machine-muted hover:bg-machine-2 hover:text-machine-text flex size-11 items-center justify-center rounded transition-colors motion-reduce:transition-none lg:size-9"
+            >
+              <X className="size-5 lg:size-4" aria-hidden />
+            </button>
+          )}
         </div>
       </header>
 
