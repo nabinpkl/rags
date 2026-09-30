@@ -738,6 +738,44 @@ retrieval subset per PR (§10 CI), while the LLM-judged Layers 2–3 run on dema
 scorer would catch drift the on-demand traces-replay misses; or the judge-vs-
 human slice shows weak agreement (rework the rubric before trusting numbers).
 
+**Amendment (2026-09-30, owner directive): no human verification pass.** The
+golden set is drafted by one model and checked by a model of another family,
+and a record counts on the checks alone. `verified` leaves the record shape;
+each record carries its `checks` instead. Issue #17's human pass and the
+judge-vs-human agreement slice above are both dropped.
+
+- **Drafter / checker.** GLM 5.3 Flash (Z.ai) drafts (`golden_draft_model`);
+  Muse Spark 1.3 contributor (Meta) checks (`golden_check_model`), both through
+  OpenRouter, chosen by the owner: the account's guardrail blocks the
+  Anthropic, Google and OpenAI slugs, and these two cost cents. A different
+  family on the checking side is the whole defence against a model grading
+  its own questions.
+- **What a record must pass.** Deterministic: the `expected_passage` is a
+  verbatim span of the named chunk and at most 50 words (§6c); an
+  `exact_match` question contains its anchor term; any other question shares
+  none of the chunk's rare terms, so it cannot be a BM25 gimme; an anchor term
+  must recur in two papers, so a running header cannot become one. Checker:
+  the passage alone answers the question, the question is about technical
+  content rather than venue or authors, the drafted answer is right by the
+  passage, and the question cannot be answered closed-book.
+- **Ground truth is anchored twice.** `expected_chunk_ids` are the current
+  `paper#seq` ids, which move whenever chunking constants do (#19); the
+  verbatim passage is what survives that. The integrity test fails the moment
+  a passage stops sitting inside its chunk, and a re-anchor pass fixes the
+  ids from the passages.
+- **Named in every number.** Results from this set are reported as
+  model-checked, never as human-verified.
+
+**Risks accepted.** Checker and drafter can share blind spots, so some records
+will be wrong in ways neither model sees; uniqueness (no *other* chunk also
+answers the question) is not checked, which understates recall where a
+question has several answering chunks. Paper-level recall is reported beside
+chunk-level recall for that reason.
+
+**Revisit when (this amendment).** Two retrieval configurations land within
+five points of each other on a decision that matters; or a spot check of
+twenty records finds more than two wrong.
+
 ---
 
 ### D15. Operational telemetry: OpenTelemetry, JSON-first, built in from the start

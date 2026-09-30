@@ -34,11 +34,34 @@ class Settings(BaseSettings):
     agent_usd_per_mtok_out: float = 5.00
     agent_usd_per_mtok_cache_read: float = 0.10
     # --- eval harness model ids (D14 amendment; issue #79 prefactor) -------
-    # Golden-set drafting (#17): a strong model writes candidate question ->
-    # expected-passage pairs against sampled chunks, hand-verified before they
-    # count — stronger than the deployed agent_model on purpose, since a weak
-    # drafter would only ever propose questions the weak model can answer.
-    draft_model: str = "claude-sonnet-5"
+    # Golden set (D14 amendment 2026-09-30): no human pass, so the drafter and
+    # the checker are different FAMILIES (Z.ai, Meta) — the checker is the only
+    # thing standing between a model and its own questions. OpenRouter slugs,
+    # called through OpenRouter's Anthropic-compatible endpoint; both pass the
+    # account's OpenRouter guardrail, which blocks the Anthropic, Google and
+    # OpenAI slugs (probed 2026-09-30). Both are reasoning models: their
+    # max_tokens must leave room for thinking or the reply comes back empty.
+    golden_draft_model: str = "z-ai/glm-5.3-flash"
+    golden_check_model: str = "meta/muse-spark-1.3-contributor"
+    golden_api_base_url: str = "https://openrouter.ai/api"
+    # Candidates drafted per GoldenType. More are drafted than kept: the checks
+    # cull, and the survivors are the set. Seeded, so a redraft samples the
+    # same source chunks.
+    golden_quota: dict[str, int] = {
+        "single_hop": 45,
+        "exact_match": 35,
+        "multi_hop": 15,
+        "known_hard": 15,
+    }
+    golden_seed: int = 20260930
+    # Source chunks under this many tokens are section stubs with nothing to
+    # ask about; the 1,000-token cap (chunk_size_tokens) bounds the top.
+    golden_min_chunk_tokens: int = 250
+    # A term in at most this many of the ~40k chunks is "rare": a non-
+    # exact_match question may not repeat one from its source chunk, or it is
+    # a keyword match rather than a test of retrieval. Also the ceiling on an
+    # exact_match anchor term, so the anchor is distinctive, not common.
+    golden_rare_term_max_df: int = 40
     # LLM-judge (#17/#18/answer-eval issue): faithfulness + citation-accuracy
     # scoring on the full agent loop. A different model FAMILY than
     # agent_model (Haiku) by design — judging a model with itself masks the

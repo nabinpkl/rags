@@ -2532,3 +2532,27 @@ back as a deliberate contrast.
 
 **Spec updated:** no. The spec does not fix the agent panel's palette; this
 reverses the 2026-08-13 entry's bullet only.
+
+---
+
+## 2026-09-30 — the golden set is model-checked, not hand-verified (owner directive)
+
+**Context:** #17 required a human pass over every candidate before it
+counted, and that pass never happened, so D7's chunking and D8's rerank
+decisions still ship as guesses and the benchmarks page has no scores. The
+owner directed that the set be built without any human step.
+
+**Decision:** D14 is amended (2026-09-30): GLM 5.3 Flash drafts, Muse Spark 1.3
+contributor checks (the owner's pick; the account guardrail blocks the
+Anthropic, Google and OpenAI slugs), and a record counts when it passes the deterministic checks and the
+checker's grounded / answer-correct / not-closed-book verdicts. `verified`
+is replaced by a `checks` object on each record. #17 is superseded.
+
+**Consequence:** every number from this set is labelled model-checked. The
+risk is shared blind spots between two models; the different-family checker
+and the verbatim-span rule are the mitigations.
+
+**Revisit when:** a spot check of twenty records finds more than two wrong,
+or two configurations land within five points on a decision that matters.
+
+**Spec updated:** yes, D14 amendment (2026-09-30).

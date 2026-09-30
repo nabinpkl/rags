@@ -56,10 +56,16 @@ mirror-status *ARGS:
 backend-check:
     cd backend && uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest -q
 
-# Golden-set drafting (#17 fills this in): resolves in the uv workspace
-# (issue #79) against the shared venv; a stub until draft_golden_set.py lands.
-draft-evals:
-    cd evals && uv run python -c "print('draft-evals: not implemented (#17)')"
+# Evals gate: the golden set's schema, sampler and drafter tests, plus the
+# integrity of the committed set against corpus.db (skipped without it).
+evals-check:
+    cd evals && uv run ruff check . && uv run ruff format --check . && uv run ty check . && uv run pytest -q
+
+# Redraft evals/golden.jsonl (D14 amendment 2026-09-30): model-drafted,
+# model-checked, no human pass. Calls OpenRouter (~$0.2 a run); run from the
+# repo root because `evals` is a package there.
+golden *ARGS:
+    uv run --env-file backend/.env python -m evals.draft_golden_set {{ARGS}}
 
 # Frontend gate: lint + typecheck + tests + generated-types drift + the export.
 # CI installs deps first (see ci.yml); locally, run `pnpm install` in frontend/ once.
@@ -78,7 +84,7 @@ frontend-check:
     cd frontend && pnpm lint && pnpm typecheck && pnpm test && pnpm gen:api:check && pnpm build
 
 # Full-repo gate — CI runs exactly this, so local green == CI green
-check: backend-check frontend-check
+check: backend-check evals-check frontend-check
 
 # --- ingest -----------------------------------------------------------------
 

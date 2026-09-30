@@ -97,8 +97,9 @@ work is broken into GitHub issues.
 - Collector: `just status`, `just diverse`, etc. (recipes in
   `collector/justfile`, uv-managed; root `justfile` delegates). Corpus
   artifacts live under `corpus/` (gitignored).
-- Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`,
-  `just eval`. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
+- Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`.
+  Golden set: `just golden` redrafts `evals/golden.jsonl` (model-checked, no
+  human pass, D14 amendment 2026-09-30); `just evals-check` gates it. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
   `POST /api/chat`). Frontend (after #26): `pnpm build`, also run by the gate
   (#52 — `tsc` is not `next build` in export mode). After ANY route or
