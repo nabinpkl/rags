@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { VIEWS, ShellSidebar } from "@/components/shell/shell-sidebar";
 
 describe("ShellSidebar", () => {
-  it("offers both views as links, from either view", () => {
+  it("offers every view as a link, from any view", () => {
     render(<ShellSidebar current="overview" />);
 
     const nav = screen.getByRole("navigation", { name: "Views" });
@@ -12,6 +12,15 @@ describe("ShellSidebar", () => {
     expect(links.map((link) => link.textContent)).toEqual(VIEWS.map((view) => view.label));
     expect(nav).toContainElement(links[0] ?? null);
     expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute("href", "/papers");
+    expect(screen.getByRole("link", { name: "RAG demo" })).toHaveAttribute("href", "/demo");
+  });
+
+  it("lists the RAG demo below Explore", () => {
+    render(<ShellSidebar current="demo" />);
+
+    const labels = screen.getAllByRole("link").map((link) => link.textContent);
+    expect(labels.indexOf("RAG demo")).toBe(labels.indexOf("Explore") + 1);
+    expect(screen.getByRole("link", { name: "RAG demo" })).toHaveAttribute("aria-current", "page");
   });
 
   it("marks the view being read, and only that one", () => {

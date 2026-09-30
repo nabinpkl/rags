@@ -52,6 +52,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Papers · Robotics");
@@ -65,6 +67,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Papers · quant-ph");
@@ -85,6 +89,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 
@@ -109,6 +115,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 
@@ -125,6 +133,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 
@@ -149,12 +159,14 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 
     expect(screen.getByLabelText("Indexed one — Open in the reader")).toHaveAttribute(
       "href",
-      "/app?paper=2607.00001",
+      "/demo?paper=2607.00001",
     );
     expect(screen.getByLabelText("Catalog one — Open on arXiv")).toHaveAttribute(
       "href",
@@ -172,6 +184,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 
@@ -191,6 +205,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={{ ...LAST_PAGE, hasNextPage: true }}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 
@@ -211,6 +227,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={{ ...LAST_PAGE, hasNextPage: true, isFetchNextPageError: true, fetchNextPage }}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 
@@ -231,6 +249,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={{ ...LAST_PAGE, hasNextPage: true, fetchNextPage }}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 
@@ -247,6 +267,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 
@@ -265,6 +287,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={canvas}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
     expect(canvas.scrollTop).toBe(14_000);
@@ -278,6 +302,8 @@ describe("CatalogResults", () => {
         loading
         page={LAST_PAGE}
         scrollElement={canvas}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
     expect(canvas.scrollTop).toBe(0);
@@ -293,6 +319,8 @@ describe("CatalogResults", () => {
         loading={false}
         page={LAST_PAGE}
         scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="catalog"
       />,
     );
 

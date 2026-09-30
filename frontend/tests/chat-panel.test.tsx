@@ -18,6 +18,14 @@ beforeEach(() => {
 });
 
 describe("ChatPanel", () => {
+  it("states how far unscoped answers can reach, with the count when it is known", () => {
+    const { rerender } = render(<ChatPanel paperCount={811} />);
+    expect(screen.getByText(/I read these 811 papers and no others/)).toBeInTheDocument();
+
+    rerender(<ChatPanel />);
+    expect(screen.getByText(/I read the papers listed here and no others/)).toBeInTheDocument();
+  });
+
   it("offers example questions on first run", () => {
     render(<ChatPanel />);
     const list = screen.getByRole("list", { name: /example questions/i });

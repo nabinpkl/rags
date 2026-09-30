@@ -30,7 +30,7 @@ describe("LatestPapers", () => {
     render(<LatestPapers papers={papers} />);
 
     const link = screen.getByRole("link", { name: "AutoDesign: Meta-Harness Optimization" });
-    expect(link).toHaveAttribute("href", "/app?paper=2608.13560");
+    expect(link).toHaveAttribute("href", "/demo?paper=2608.13560");
   });
 
   it("states the date, category, and reference count per row", () => {

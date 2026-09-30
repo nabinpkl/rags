@@ -15,11 +15,10 @@ const EMPTY_CHUNK_IDS: readonly string[] = [];
  * surface) | `cited-excerpts-pane.tsx` (what the agent cited), under a
  * header that D-3 (DECISIONS.md) requires ALWAYS show the abs-page link and
  * an "open on arXiv" button (§6b link-back) — regardless of which D9 rung
- * the PDF pane is on, even mid-load or on a 404. Mounted by `app/page.tsx`
+ * the PDF pane is on, even mid-load or on a 404. Mounted by `app/demo/page.tsx`
  * only when `viewer-store`'s `paper` is set; reads that store plus
  * `agent-session-store`'s citation capture (#29 wiring gap) directly, no
- * props — mirrors `explorer-panel.tsx`/`chat-panel.tsx`'s region-composition
- * role. */
+ * props — the same region-composition role as `chat-panel.tsx`. */
 export function PaperSplitView() {
   const paper = useViewerStore((state) => state.paper);
   const page = useViewerStore((state) => state.page);

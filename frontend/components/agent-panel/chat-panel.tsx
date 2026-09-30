@@ -39,7 +39,15 @@ export interface ChatScope {
  * `scope` makes this the landing page's ask surface too, rather than a second
  * chat implementation: same store, same SSE path, same timeline — only the
  * starters and the server-side paper scope differ. */
-export function ChatPanel({ scope }: { scope?: ChatScope } = {}) {
+export function ChatPanel({
+  scope,
+  paperCount,
+}: {
+  scope?: ChatScope;
+  /** Unscoped, the agent reads the indexed set. Its size, when known, goes
+   * in the boundary line so the reader sees how far the answers can reach. */
+  paperCount?: number;
+} = {}) {
   const [question, setQuestion] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const status = useAgentSessionStore((state) => state.status);
@@ -87,7 +95,7 @@ export function ChatPanel({ scope }: { scope?: ChatScope } = {}) {
             <p className="text-machine-muted text-sm">
               {scope
                 ? `Answers come from ${scope.label} — I search and read those papers, and every step shows here with its cost.`
-                : "Ask about the corpus — I search, read, and compute; every step shows here with its cost."}
+                : `I read ${paperCount === undefined ? "the papers listed here" : `these ${paperCount.toLocaleString()} papers`} and no others. I search, read, and compute, and every step shows here with its cost.`}
             </p>
             <ul className="flex flex-col gap-1.5" aria-label="Example questions">
               {(scope?.starters ?? SUGGESTED_QUESTIONS).map((example) => (

@@ -32,7 +32,7 @@ export function LatestPapers({ papers }: { papers: LatestResponse["papers"] }) {
           return (
             <li key={paper.arxiv_id}>
               <Link
-                href={`/app?paper=${encodeURIComponent(paper.arxiv_id)}`}
+                href={`/demo?paper=${encodeURIComponent(paper.arxiv_id)}`}
                 // The whole row is the target (touch has no hover to hunt
                 // with), so the accessible name is pinned to the title rather
                 // than left to concatenate every metadata field in the row.

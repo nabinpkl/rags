@@ -1183,7 +1183,15 @@ Three layout decisions resolved here, deliberately:
    routes — a second STATIC route is compatible and now exists. The landing
    page is `/`, the app shell moved unchanged to `/app`. Both are prerendered
    by the export; neither needs `generateStaticParams`. The rule was always
-   about not SSG-ing 6,460 pages, not about page count.)* Static export (D13) plus 6,460
+   about not SSG-ing 6,460 pages, not about page count. Amended again
+   2026-09-30: the routes are `/` (overview), `/papers` (the whole catalog)
+   and `/demo` (the indexed papers with the reader and the agent), all
+   static. `/app` is gone: its list and filter rail were a second list
+   implementation over the same papers, and the demo reuses the catalog's.
+   The open paper is `/demo?paper=<id>&page=<n>`; viewer-store owns only
+   those two keys, and the list's filter in the same URL is owned by the
+   catalog, so the agent's `set_filters` writes the URL rather than the
+   store.)* Static export (D13) plus 6,460
    papers makes `paper/[id]/page.tsx` the wrong tool (it would SSG 6,460
    pages or fight `generateStaticParams`). The app is one shell; the open
    paper is a search param (`/?paper=2606.12345&page=4`), owned by the
