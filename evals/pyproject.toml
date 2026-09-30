@@ -22,3 +22,17 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Same lint bar as backend/ (one house style across the workspace).
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ty.environment]
+python-version = "3.12"
+# `evals` is imported as a package from the repo root (`python -m
+# evals.draft_golden_set`), so the root is on the module search path.
+extra-paths = [".."]
