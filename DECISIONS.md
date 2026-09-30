@@ -2501,3 +2501,34 @@ those papers go back to erroring.
 
 **Spec updated:** no — §6b already requires this PDF path, and D16's retrieval
 scope is unchanged.
+
+---
+
+## 2026-09-30 — the agent panel follows the theme (owner directive)
+
+**Context:** the 2026-08-13 theming entry kept the machine-room palette fixed
+dark in both themes, as the claim that the agent half is instrumentation. In
+light mode that put a black column beside a pale page, and the owner asked for
+the panel to follow the theme.
+
+**Decision:** the agent panel's tokens (`--machine*`) move into `:root` /
+`.dark` like the rest of the palette. Light is a near-white column a step off
+the rail's `--panel`; dark keeps the original machine-room values. Its accent,
+amber and rust become text tokens of their own (`--machine-accent`,
+`--machine-amber`, `--machine-rust`), because the shared fills of those names
+read 3.0:1 or less on the light surface.
+
+The PDF surround stays dark in both themes, since the page it frames is always
+white. It stops borrowing the agent tokens and gets fixed `--color-surround*`
+tokens instead, which only worked before because both surfaces were fixed.
+
+**Guard:** `tests/globals-css.test.ts` measures every text/surface pair in
+both themes against WCAG AA, and fails on a hard-coded hex colour in a
+component, which would bypass the table.
+
+**Revisit when:** a surface needs to differ per theme inside the agent panel
+beyond what the tokens express, or the owner wants the dark instrument column
+back as a deliberate contrast.
+
+**Spec updated:** no. The spec does not fix the agent panel's palette; this
+reverses the 2026-08-13 entry's bullet only.

@@ -62,11 +62,11 @@ export function PaperReaderPanel({ arxivId }: { arxivId: string }) {
           PDF and then fetches the pinned one over the top of it. */}
       <div className="min-h-0 flex-1">
         {isPending ? (
-          <div className="text-machine-text flex h-full items-center justify-center bg-[#3c4650] font-mono text-[11px]">
+          <div className="text-surround-text flex h-full items-center justify-center bg-surround font-mono text-[11px]">
             loading…
           </div>
         ) : isError ? (
-          <div className="text-machine-text flex h-full items-center justify-center bg-[#3c4650] p-6 text-center font-mono text-[11px]">
+          <div className="text-surround-text flex h-full items-center justify-center bg-surround p-6 text-center font-mono text-[11px]">
             Couldn&apos;t load this paper. We hold no record of arXiv:{arxivId}.
           </div>
         ) : (

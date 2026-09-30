@@ -59,6 +59,20 @@
      borrowed for a series. */
   --chart-1: #12a38f;
   --chart-2: #0e5f56;
+
+  /* Agent panel. Themed since 2026-09-30 (DECISIONS.md, owner directive):
+     in light it is a near-white column, a step off the rail's --panel so it
+     still reads as its own instrument. Accent, amber and rust are text
+     tokens here, darker than the fills of the same name: --color-teal is
+     3.0:1 on this surface. */
+  --machine: #fbfbf9;
+  --machine-2: #eff1ec;
+  --machine-line: #dcdfd9;
+  --machine-text: #1a2128;
+  --machine-muted: #5d6870;
+  --machine-accent: #0e5f56;
+  --machine-amber: #8a5a0f;
+  --machine-rust: #a8412e;
 }
 
 .dark {
@@ -94,6 +108,18 @@
      read as bars against the dark panel. */
   --chart-1: #2fbfa8;
   --chart-2: #17796c;
+
+  /* The agent panel's original machine-room dark. --machine-muted is
+     #8595a0 because #6d7d88 measured 4.3:1 on machine and 4.0:1 on
+     machine-2; rust is lifted because --color-rust reads 3.0:1 here. */
+  --machine: #10161b;
+  --machine-2: #161e25;
+  --machine-line: #26313a;
+  --machine-text: #c8d2d8;
+  --machine-muted: #8595a0;
+  --machine-accent: #12a38f;
+  --machine-amber: #c9821a;
+  --machine-rust: #e0735c;
 }
 
 @theme inline {
@@ -101,28 +127,25 @@
   --font-serif: var(--font-serif-face);
   --font-mono: var(--font-mono-face);
 
-  /* Agent panel "machine-room" palette (docs/mockup.html) — deliberately NOT
-     themed: the machine room is dark in both themes. It is the app's one
-     fixed surface, the visual claim that this half is instrumentation rather
-     than document. */
-  --color-machine: #10161b;
-  --color-machine-2: #161e25;
-  --color-machine-line: #26313a;
-  --color-machine-text: #c8d2d8;
-  /* #8595a0: #6d7d88 measured 4.3:1 on machine and 4.0:1 on machine-2,
-     under AA for the timeline's 11px mono. 5.5:1 on machine-2 now. */
-  --color-machine-muted: #8595a0;
-  /* Error text on the machine room. --color-rust is tuned for light
-     surfaces and reads 3.0:1 here. */
-  --color-machine-rust: #e0735c;
+  /* The PDF surround: the dark frame and overlays around a paper's pages,
+     fixed in both themes because the page itself is always white (see
+     .pdf-page). It used to borrow the agent panel's palette, which only
+     worked while that palette was fixed too. */
+  --color-surround: #3c4650;
+  --color-surround-text: #c8d2d8;
+  --color-surround-muted: #8595a0;
   --color-teal: #12a38f;
   --color-teal-deep: #0e5f56;
   /* Hover surface for the Ask button. DARKER than its resting colour, not
      lighter: that button's label is near-white, and the intuitive move —
      hovering toward `--color-teal` — drops it to 2.9:1, under AA. */
   --color-teal-deep-hover: #0b4c45;
+  /* The label on a --color-teal-deep surface, in both themes. */
+  --color-teal-deep-label: #eafaf6;
   --color-amber: #c9821a;
   --color-amber-soft: #f4e8d3;
+  /* Text on --color-amber-soft (the replay banner), in both themes. */
+  --color-amber-ink: #6b4a10;
   --color-rust: #a8412e;
 
   /* Themed (see :root / .dark above). */
@@ -139,6 +162,14 @@
   --color-teal-ink: var(--teal-ink);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
+  --color-machine: var(--machine);
+  --color-machine-2: var(--machine-2);
+  --color-machine-line: var(--machine-line);
+  --color-machine-text: var(--machine-text);
+  --color-machine-muted: var(--machine-muted);
+  --color-machine-accent: var(--machine-accent);
+  --color-machine-amber: var(--machine-amber);
+  --color-machine-rust: var(--machine-rust);
 }
 
 /* Interactive affordances, ported from docs/mockup.html (its `button` and

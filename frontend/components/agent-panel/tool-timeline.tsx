@@ -19,7 +19,7 @@ function formatArgs(args: Record<string, unknown> | undefined): string {
 
 function ResultMark({ result }: { result: TimelineEntry["result"] }) {
   if (result === null) return <span>…</span>;
-  if (result.ok) return <span className="text-teal">✓ done</span>;
+  if (result.ok) return <span className="text-machine-accent">✓ done</span>;
   return <span className="text-machine-rust">✗ {result.error ?? "error"}</span>;
 }
 
@@ -42,13 +42,13 @@ export function ToolTimeline({ entries }: ToolTimelineProps) {
           key={entry.id}
           className={cn(
             "border-l-2 py-1 pl-2.5",
-            entry.call.type === "ui_action" ? "border-amber" : "border-machine-line",
+            entry.call.type === "ui_action" ? "border-machine-amber" : "border-machine-line",
           )}
         >
           <span
             className={cn(
               "font-semibold",
-              entry.call.type === "ui_action" ? "text-amber" : "text-teal",
+              entry.call.type === "ui_action" ? "text-machine-amber" : "text-machine-accent",
             )}
           >
             {callLabel(entry.call) ?? "unknown"}
