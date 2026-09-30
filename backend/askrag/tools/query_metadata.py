@@ -21,10 +21,10 @@ retrieve or search must never inflate a total the agent reports back to a
 user — `corpus_stats.n_papers` reporting the full `papers` count while
 `count_papers` reports the indexed-only count would be the same
 silently-diverging-universes bug #73 closed, just moved from the frontend
-header into the agent's mouth. `paper_facets` needs no change: it already
-reports a specific, caller-known paper id's real `n_chunks` (0 for an
-unindexed one), which is honest by construction, not a total that can
-diverge.
+header into the agent's mouth. `paper_facets` is scoped the same way: an id
+with no chunks is refused as unknown, because answering it would give the
+agent a title and venue for a paper it cannot read, and the agent's corpus is
+the indexed set, not the catalog.
 
 `QueryMetadataArgs` is a `RootModel` over a `Field(discriminator="op")`
 union, mirroring `drive_ui.DriveUiArgs`: pydantic picks the matching
@@ -169,11 +169,11 @@ def _run_count_papers(
 def _run_paper_facets(conn: sqlite3.Connection, args: PaperFacetsArgs) -> PaperFacetsResult:
     row = conn.execute(
         "SELECT title, primary_category, year, version, license, venue "
-        "FROM papers WHERE arxiv_id = ?",
+        f"FROM papers WHERE arxiv_id = ? AND {INDEXED_PREDICATE}",
         (args.paper_id,),
     ).fetchone()
     if row is None:
-        raise QueryMetadataError(f"no paper with id {args.paper_id!r} in corpus.db")
+        raise QueryMetadataError(f"no indexed paper with id {args.paper_id!r}")
 
     n_chunks, n_pages = conn.execute(
         "SELECT COUNT(*), COALESCE(MAX(page_end), 0) FROM chunks WHERE paper_id = ?",
