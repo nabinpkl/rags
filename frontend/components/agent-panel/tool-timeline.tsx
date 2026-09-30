@@ -20,7 +20,7 @@ function formatArgs(args: Record<string, unknown> | undefined): string {
 function ResultMark({ result }: { result: TimelineEntry["result"] }) {
   if (result === null) return <span>…</span>;
   if (result.ok) return <span className="text-teal">✓ done</span>;
-  return <span className="text-rust">✗ {result.error ?? "error"}</span>;
+  return <span className="text-machine-rust">✗ {result.error ?? "error"}</span>;
 }
 
 /** Renders exactly what the stream carries: a tool's name + args resolving

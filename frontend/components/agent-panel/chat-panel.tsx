@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import { useAgentStream } from "@/hooks/use-agent-stream";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
@@ -70,7 +71,9 @@ export function ChatPanel({
 
   return (
     <div className="bg-machine border-machine-line text-machine-text flex h-full min-h-0 flex-col lg:border-l">
-      <header className="border-machine-line flex items-center gap-2 border-b px-3.5 py-2.5">
+      {/* 57px, the rail's and the canvas's header height, so the three
+          columns' top rules meet as one line. */}
+      <header className="border-machine-line flex h-[57px] shrink-0 items-center gap-2 border-b px-3.5">
         <span
           className={cn("h-2 w-2 rounded-full", mode.kind === "replay" ? "bg-amber" : "bg-teal")}
         />
@@ -82,22 +85,26 @@ export function ChatPanel({
             type="button"
             onClick={closeOverlay}
             aria-label="Close agent panel"
-            className="text-machine-muted hover:text-machine-text flex h-9 w-9 items-center justify-center text-lg lg:hidden"
+            className="text-machine-muted hover:bg-machine-2 hover:text-machine-text flex size-11 items-center justify-center rounded transition-colors lg:hidden motion-reduce:transition-none"
           >
-            <span aria-hidden="true">✕</span>
+            <X className="size-5" aria-hidden />
           </button>
         </div>
       </header>
 
-      <div className="flex-1 space-y-4 overflow-y-auto px-3.5 py-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3.5 py-3">
         {turns.length === 0 && (
-          <div className="flex flex-col gap-3">
-            <p className="text-machine-muted text-sm">
+          // The boundary line leads, at reading strength: it is what the
+          // reader has to know before asking. The starters sit at the foot,
+          // beside the composer they fill, not stranded at the top of an
+          // empty column.
+          <div className="flex flex-1 flex-col gap-3">
+            <p className="text-machine-text text-sm leading-relaxed text-pretty">
               {scope
                 ? `Answers come from ${scope.label} — I search and read those papers, and every step shows here with its cost.`
                 : `I read ${paperCount === undefined ? "the papers listed here" : `these ${paperCount.toLocaleString()} papers`} and no others. I search, read, and compute, and every step shows here with its cost.`}
             </p>
-            <ul className="flex flex-col gap-1.5" aria-label="Example questions">
+            <ul className="mt-auto flex flex-col gap-1.5" aria-label="Example questions">
               {(scope?.starters ?? SUGGESTED_QUESTIONS).map((example) => (
                 <li key={example}>
                   <button
@@ -106,7 +113,7 @@ export function ChatPanel({
                       setQuestion(example);
                       inputRef.current?.focus();
                     }}
-                    className="border-machine-line bg-machine-2 text-machine-text hover:border-teal hover:text-teal w-full rounded border px-3 py-2 text-left text-[13px]"
+                    className="border-machine-line bg-machine-2 text-machine-text hover:border-teal hover:text-teal w-full rounded border px-3 py-2 text-left text-[13px] leading-snug transition-colors motion-reduce:transition-none"
                   >
                     {example}
                   </button>
@@ -146,8 +153,8 @@ export function ChatPanel({
           onChange={(event) => setQuestion(event.target.value)}
           disabled={busy}
           aria-label="Question for the agent"
-          placeholder="Ask about the corpus…"
-          className="bg-machine-2 border-machine-line text-machine-text min-w-0 flex-1 rounded border px-2.5 py-2.5 text-[16px] lg:py-2 lg:text-sm"
+          placeholder="Ask about these papers…"
+          className="bg-machine-2 border-machine-line text-machine-text placeholder:text-machine-muted min-w-0 flex-1 rounded border px-2.5 py-2.5 text-[16px] disabled:opacity-60 lg:py-2 lg:text-sm"
         />
         <button
           type="submit"

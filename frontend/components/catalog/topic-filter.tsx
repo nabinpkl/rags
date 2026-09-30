@@ -56,7 +56,7 @@ export function TopicFilter({
     <div className="flex flex-col gap-1.5">
       <span
         id={labelId}
-        className="text-muted px-0.5 font-mono text-[10px] tracking-[0.14em] uppercase"
+        className="text-muted px-2.5 font-mono text-[10px] tracking-[0.14em] uppercase"
       >
         Topic
       </span>
@@ -70,7 +70,7 @@ export function TopicFilter({
               type="button"
               aria-expanded={expanded}
               onClick={() => setExpanded((open) => !open)}
-              className="text-ink hover:bg-panel-hover flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left text-[13px] transition-colors motion-reduce:transition-none"
+              className="text-ink hover:bg-panel-hover flex w-full items-center gap-2.5 rounded px-2.5 py-1.5 text-left text-[13px] transition-colors motion-reduce:transition-none"
             >
               <ChevronDown
                 className={cn(
@@ -108,7 +108,7 @@ function TopicRow({
       title={bucket.name ? `${bucket.name} (${bucket.value})` : bucket.value}
       onClick={onPress}
       className={cn(
-        "text-ink hover:bg-panel-hover flex w-full items-start gap-2.5 rounded px-2 py-1.5 text-left text-[13px] leading-snug transition-colors motion-reduce:transition-none",
+        "text-ink hover:bg-panel-hover flex w-full items-start gap-2.5 rounded px-2.5 py-1.5 text-left text-[13px] leading-snug transition-colors motion-reduce:transition-none",
         active && "bg-teal-soft text-teal-ink hover:bg-teal-soft-strong font-semibold",
       )}
     >
