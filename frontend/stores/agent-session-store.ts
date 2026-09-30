@@ -45,6 +45,11 @@ export interface Turn {
   question: string;
   timeline: TimelineEntry[];
   answer: string;
+  // How many steps the timeline held when text last arrived. Text that
+  // arrives after further steps is a new segment of the answer (the model
+  // wrote a line, called tools, then answered), and it starts a new
+  // paragraph instead of running on from the last word.
+  stepsAtLastText: number;
   cost: CostEvent | null;
   stopReason: string | null;
 }
@@ -174,7 +179,15 @@ export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
       mode: { kind: "live" },
       turns: [
         ...state.turns,
-        { id: nextEntryId++, question, timeline: [], answer: "", cost: null, stopReason: null },
+        {
+          id: nextEntryId++,
+          question,
+          timeline: [],
+          answer: "",
+          stepsAtLastText: 0,
+          cost: null,
+          stopReason: null,
+        },
       ],
     })),
 
@@ -247,10 +260,16 @@ export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
           };
         }
 
-        case "text":
+        case "text": {
+          const newSegment = turn.answer.length > 0 && turn.timeline.length > turn.stepsAtLastText;
           return {
-            turns: replaceLastTurn(state.turns, { ...turn, answer: turn.answer + event.text }),
+            turns: replaceLastTurn(state.turns, {
+              ...turn,
+              answer: turn.answer + (newSegment ? "\n\n" : "") + event.text,
+              stepsAtLastText: turn.timeline.length,
+            }),
           };
+        }
 
         case "cost":
           return { turns: replaceLastTurn(state.turns, { ...turn, cost: event }) };
