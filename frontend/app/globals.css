@@ -40,7 +40,10 @@
   --line: #dcdfd9;
   /* The stroke of an unfilled card. `--line` divides areas inside a panel and
      is too close to the canvas to be a card's only edge. */
-  --outline: #c3c9c1;
+  /* #a9b1a7, 1.8:1 on the canvas. At #c3c9c1 (1.4:1) the card edges
+     washed out in light mode; the cards now also fill with --panel, so the
+     edge is not the only thing separating a card from the canvas. */
+  --outline: #a9b1a7;
   --teal-soft: #e2efec;
   /* Accent TEXT (chips, links, selected facets) — distinct from
      `--color-teal-deep`, which is an accent SURFACE (the Ask button) and so
