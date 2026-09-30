@@ -148,6 +148,7 @@ export function CatalogResults({
           listRef={listRef}
           windowed={windowed}
           readerHref={readerHref}
+          showCategory={state.category === null}
         />
       )}
     </div>
@@ -161,6 +162,7 @@ function PaperList({
   listRef,
   windowed: { virtualizer, items, scrollMargin },
   readerHref,
+  showCategory,
 }: {
   papers: CatalogPaper[];
   total: number;
@@ -168,6 +170,7 @@ function PaperList({
   listRef: RefObject<HTMLOListElement | null>;
   windowed: ReturnType<typeof useInfiniteVirtualList>;
   readerHref: (arxivId: string) => string;
+  showCategory: boolean;
 }) {
   return (
     <>
@@ -196,7 +199,7 @@ function PaperList({
               className="absolute inset-x-0 top-0"
               style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
             >
-              <PaperCard paper={paper} readerHref={readerHref} />
+              <PaperCard paper={paper} readerHref={readerHref} showCategory={showCategory} />
             </li>
           );
         })}
@@ -326,9 +329,13 @@ function Tile({ paper, Icon }: { paper: CatalogPaper; Icon: LucideIcon }) {
 function PaperCard({
   paper,
   readerHref,
+  showCategory,
 }: {
   paper: CatalogPaper;
   readerHref: (arxivId: string) => string;
+  /** False while a topic filter is on: every card would carry the same chip,
+   * and the heading above already names the topic. */
+  showCategory: boolean;
 }) {
   const { href, label, external } = destination(paper, readerHref);
   const Icon = CATEGORY_ICON[paper.primary_category ?? ""] ?? UNMAPPED_CATEGORY_ICON;
@@ -373,10 +380,12 @@ function PaperCard({
         <span className="text-muted mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[11.5px]">
           {/* The same glyph the rail's topic list uses for this category, so
               a card and the row that filtered to it read as the same thing. */}
-          <span className="bg-teal-soft text-teal-ink flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5">
-            <Icon className="size-3 shrink-0" aria-hidden />
-            {paper.primary_category}
-          </span>
+          {showCategory && (
+            <span className="bg-teal-soft text-teal-ink flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5">
+              <Icon className="size-3 shrink-0" aria-hidden />
+              {paper.primary_category}
+            </span>
+          )}
           <span className="tabular-nums">{formatDate(paper.published)}</span>
           {paper.cited_by > 0 && (
             <span className="tabular-nums">cited by {paper.cited_by.toLocaleString()} here</span>

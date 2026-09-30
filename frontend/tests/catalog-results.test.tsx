@@ -74,6 +74,24 @@ describe("CatalogResults", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Papers · quant-ph");
   });
 
+  it("drops the category chip while a topic filter is on, since every card would repeat it", () => {
+    const props = {
+      papers: [paper({ primary_category: "cs.RO" })],
+      total: 1,
+      topic: "Robotics",
+      loading: false,
+      page: LAST_PAGE,
+      scrollElement: scroller(),
+      readerHref: (id: string) => `/demo?paper=${id}`,
+      rememberAs: "catalog",
+    };
+    const { rerender } = render(<CatalogResults {...props} state={EMPTY_FILTER} />);
+    expect(screen.getByText("cs.RO")).toBeInTheDocument();
+
+    rerender(<CatalogResults {...props} state={{ ...EMPTY_FILTER, category: "cs.RO" }} />);
+    expect(screen.queryByText("cs.RO")).not.toBeInTheDocument();
+  });
+
   it("names and links a CC licence beside the crop it is granted on", () => {
     render(
       <CatalogResults
