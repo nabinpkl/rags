@@ -1,6 +1,6 @@
 "use client";
 
-import { CornerDownRight, Sparkles, X } from "lucide-react";
+import { CornerDownRight, Loader2, Sparkles, X } from "lucide-react";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { useAgentStream } from "@/hooks/use-agent-stream";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
@@ -103,7 +103,7 @@ export function ChatPanel({
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-4 py-4">
         {turns.length === 0 && (
           // One composed block, centred in the column so the panel has no
           // dead middle: what the agent is, how far it reaches, and what to
@@ -149,20 +149,45 @@ export function ChatPanel({
             </ul>
           </div>
         )}
-        {turns.map((turn) => (
-          <div key={turn.id} className="flex flex-col gap-2">
-            <div className="bg-machine-2 border-machine-line self-end rounded-lg rounded-br-sm border px-3 py-2 text-[13px]">
-              {turn.question}
+        {turns.map((turn) => {
+          // A step that is still out shows its own spinner in the timeline.
+          // Between steps, and before the first answer word, nothing on
+          // screen would move, so the turn says it is thinking.
+          const thinking =
+            busy &&
+            turn === lastTurn &&
+            turn.answer.length === 0 &&
+            !turn.timeline.some((entry) => entry.result === null);
+          return (
+            <div key={turn.id} className="flex flex-col gap-4">
+              <p className="bg-machine-2 max-w-[85%] self-end rounded-2xl rounded-br-md px-3.5 py-2.5 text-[14px] leading-relaxed text-pretty">
+                {turn.question}
+              </p>
+              {/* The agent's side of the turn, marked with the header's tile
+                  so who is speaking needs no label. */}
+              <div className="flex items-start gap-3">
+                <span
+                  className="bg-machine-2 border-machine-line text-machine-text mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg border"
+                  aria-hidden
+                >
+                  <Sparkles className="size-3.5" />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-3">
+                  <ToolTimeline entries={turn.timeline} />
+                  {thinking && (
+                    <p className="text-machine-muted flex items-center gap-2 text-[13px]">
+                      <Loader2 className="size-3.5 motion-safe:animate-spin" aria-hidden />
+                      Thinking
+                    </p>
+                  )}
+                  {turn.answer.length > 0 && (
+                    <MessageMarkdown text={turn.answer} verifiedPaperIds={verifiedPaperIds} />
+                  )}
+                </div>
+              </div>
             </div>
-            <ToolTimeline entries={turn.timeline} />
-            {turn.answer.length > 0 && (
-              <MessageMarkdown text={turn.answer} verifiedPaperIds={verifiedPaperIds} />
-            )}
-            {status.kind === "tool_running" && turn === lastTurn && (
-              <p className="text-machine-muted font-mono text-[11px]">running {status.name}…</p>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <ReplayBanner mode={mode} status={status} />

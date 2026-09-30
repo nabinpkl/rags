@@ -30,7 +30,7 @@ const CitationOrInertLink: Components["a"] = ({ href, children }) => {
         href={arxivAbsUrl(paperId)}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-block rounded border border-machine-accent/40 bg-machine-accent/10 px-1 font-mono text-[10px] text-machine-accent hover:bg-machine-accent/20"
+        className="border-machine-accent/40 bg-machine-accent/10 text-machine-accent hover:bg-machine-accent/20 inline-block rounded border px-1 font-mono text-[11px] leading-normal"
       >
         {children}
       </a>
@@ -40,6 +40,25 @@ const CitationOrInertLink: Components["a"] = ({ href, children }) => {
   // from untrusted, fenced corpus content, §5/§6) renders as plain text —
   // no outbound link askRAG didn't construct itself.
   return <span>{children}</span>;
+};
+
+/** Block styles for the tags an answer uses. Preflight strips paragraph
+ * margins and list bullets, so without these a multi-paragraph answer ran
+ * together as one block and a list lost its markers. Styling only: each
+ * override renders the same allow-listed tag react-markdown would. */
+const BLOCKS: Components = {
+  a: CitationOrInertLink,
+  p: ({ children }) => <p className="[&:not(:first-child)]:mt-3">{children}</p>,
+  ul: ({ children }) => <ul className="mt-2 list-disc space-y-1 pl-5">{children}</ul>,
+  ol: ({ children }) => <ol className="mt-2 list-decimal space-y-1 pl-5">{children}</ol>,
+  li: ({ children }) => <li className="marker:text-machine-muted pl-0.5">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  code: ({ children }) => (
+    <code className="bg-machine-2 rounded px-1 py-px font-mono text-[12.5px]">{children}</code>
+  ),
+  h1: ({ children }) => <p className="mt-4 font-semibold first:mt-0">{children}</p>,
+  h2: ({ children }) => <p className="mt-4 font-semibold first:mt-0">{children}</p>,
+  h3: ({ children }) => <p className="mt-3 font-semibold first:mt-0">{children}</p>,
 };
 
 function citationUrlTransform(url: string): string {
@@ -59,17 +78,17 @@ function citationUrlTransform(url: string): string {
  * allow-listed tag renderers below. */
 export function MessageMarkdown({ text, verifiedPaperIds }: MessageMarkdownProps) {
   return (
-    <div className="text-machine-text text-[13.5px] leading-relaxed">
+    <div className="text-machine-text text-[14px] leading-relaxed">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         skipHtml
         urlTransform={citationUrlTransform}
-        components={{ a: CitationOrInertLink }}
+        components={BLOCKS}
       >
         {linkifyVerifiedCitations(text, verifiedPaperIds)}
       </ReactMarkdown>
       {/* §6c: every answer carries this label, unconditionally. */}
-      <div className="mt-1 font-mono text-[9.5px] tracking-wide text-machine-muted uppercase">
+      <div className="text-machine-muted mt-3 font-mono text-[9.5px] tracking-wide uppercase">
         AI-generated
       </div>
     </div>
