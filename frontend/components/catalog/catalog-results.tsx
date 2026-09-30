@@ -286,7 +286,7 @@ function ListEnd({ shown, total, page }: { shown: number; total: number; page: N
 function Tile({ paper, Icon }: { paper: CatalogPaper; Icon: LucideIcon }) {
   return (
     <span
-      className="bg-panel text-muted group-hover:bg-teal-soft group-hover:text-teal-ink relative mt-0.5 grid h-[60px] w-20 shrink-0 place-items-center overflow-hidden rounded @xl:h-[90px] @xl:w-[120px] @3xl:h-[120px] @3xl:w-40 transition-colors motion-reduce:transition-none"
+      className="bg-panel-hover text-muted group-hover:bg-teal-soft group-hover:text-teal-ink relative mt-0.5 grid h-[60px] w-20 shrink-0 place-items-center overflow-hidden rounded @xl:h-[90px] @xl:w-[120px] @3xl:h-[120px] @3xl:w-40 transition-colors motion-reduce:transition-none"
       aria-hidden
     >
       {/* Grows with the tile, or a 160px box holds an 18px glyph adrift in
@@ -321,10 +321,11 @@ function Tile({ paper, Icon }: { paper: CatalogPaper; Icon: LucideIcon }) {
  * licence link is not optional: showing a crop of a CC paper is conditional
  * on naming and linking its licence (D19).
  *
- * Outlined, not filled: the canvas shows through, so a column of thirty
- * reads as a list of papers rather than a stack of slabs. The fill arrives on
- * hover, which is the one moment a card should read as a single object. The
- * tile keeps the panel colour so an image-less glyph still sits on a surface.
+ * Filled with the panel colour and outlined. Outlined alone, the light
+ * theme's cards sat on the canvas with a 1.4:1 edge and their metadata on
+ * the canvas grey, and a column of them washed out. Hover moves the edge to
+ * the accent rather than changing the fill, so the card does not read as
+ * pressed.
  */
 function PaperCard({
   paper,
@@ -342,7 +343,7 @@ function PaperCard({
   const license = licenseOf(paper.license);
 
   return (
-    <article className="group border-outline hover:border-teal-ink/50 hover:bg-panel relative flex items-start gap-3.5 rounded-md border px-4 py-4 transition-colors motion-reduce:transition-none">
+    <article className="group border-outline bg-panel hover:border-teal-ink/60 relative flex items-start gap-3.5 rounded-md border px-4 py-4 transition-colors motion-reduce:transition-none">
       <Tile paper={paper} Icon={Icon} />
 
       <div className="min-w-0 flex-1">
@@ -433,7 +434,7 @@ function SkeletonCards() {
       {widths.map((width) => (
         <li
           key={width}
-          className="border-outline flex items-start gap-3.5 rounded-md border px-4 py-4"
+          className="border-outline bg-panel flex items-start gap-3.5 rounded-md border px-4 py-4"
         >
           <span className="bg-line/40 mt-0.5 h-[60px] w-20 shrink-0 rounded @xl:h-[90px] @xl:w-[120px] @3xl:h-[120px] @3xl:w-40" />
           <span className="min-w-0 flex-1">

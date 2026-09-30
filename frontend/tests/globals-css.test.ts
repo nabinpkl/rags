@@ -101,12 +101,19 @@ const PAIRS: [string, string, number][] = [
   ["surround-text", "surround", AA],
 ];
 
+// A card's outline against the canvas it sits on. Not a WCAG floor (the
+// card is also told apart by its fill and its text), but a house one: at
+// 1.4:1 the light theme's cards washed out, and 1.7 is the least the owner
+// signed off on seeing.
+const EDGE = 1.7;
+const EDGES: [string, string, number][] = [["outline", "paper", EDGE]];
+
 describe("globals.css palette contrast", () => {
   for (const [theme, palette] of [
     ["light", LIGHT],
     ["dark", DARK],
   ] as const) {
-    it.each(PAIRS)(`${theme}: %s on %s reaches %s:1`, (text, surface, floor) => {
+    it.each([...PAIRS, ...EDGES])(`${theme}: %s on %s reaches %s:1`, (text, surface, floor) => {
       const ratio = contrast(color(text, palette), color(surface, palette));
       expect(ratio, `${text} on ${surface} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(floor);
     });
