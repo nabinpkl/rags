@@ -14,9 +14,10 @@ import { ReplayBanner } from "@/components/agent-panel/replay-banner";
 // First-run starters. They FILL the composer rather than submit it: a turn
 // costs real money against the D11 caps, and a stray tap on a suggestion
 // should not spend it. Phrased for what the corpus actually holds (cs.CL
-// is ~40% of it) so the first answer is a good one.
+// is ~40% of it) so the first answer is a good one, and in words rather than
+// arXiv codes, since a starter is read before the reader knows the codes.
 const SUGGESTED_QUESTIONS = [
-  "What are the recurring themes across the cs.CL papers?",
+  "What are the recurring themes across the natural language processing papers?",
   "Which papers propose new decoding methods, and how do they compare?",
   "Summarize recent work on multilingual instruction tuning",
 ] as const;
