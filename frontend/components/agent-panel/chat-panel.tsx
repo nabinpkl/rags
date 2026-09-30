@@ -1,7 +1,7 @@
 "use client";
 
-import { X } from "lucide-react";
-import { useRef, useState, type FormEvent } from "react";
+import { CornerDownRight, Sparkles, X } from "lucide-react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { useAgentStream } from "@/hooks/use-agent-stream";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 import { useUiShellStore } from "@/stores/ui-shell-store";
@@ -52,6 +52,7 @@ export function ChatPanel({
 } = {}) {
   const [question, setQuestion] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const startersLabelId = useId();
   const status = useAgentSessionStore((state) => state.status);
   const mode = useAgentSessionStore((state) => state.mode);
   const turns = useAgentSessionStore((state) => state.turns);
@@ -74,11 +75,20 @@ export function ChatPanel({
     <div className="bg-machine border-machine-line text-machine-text flex h-full min-h-0 flex-col lg:border-l">
       {/* 57px, the rail's and the canvas's header height, so the three
           columns' top rules meet as one line. */}
-      <header className="border-machine-line flex h-[57px] shrink-0 items-center gap-2 border-b px-3.5">
+      {/* Sized like the rail's brand head (a 26px tile and a 15-17px name),
+          so the two columns' heads read as the same kind of object. The tile
+          turns amber in replay, the state the old status dot carried. */}
+      <header className="border-machine-line flex h-[57px] shrink-0 items-center gap-2.5 border-b px-4">
         <span
-          className={cn("h-2 w-2 rounded-full", mode.kind === "replay" ? "bg-amber" : "bg-teal")}
-        />
-        <h2 className="font-mono text-[11px] tracking-wide uppercase">agent</h2>
+          className={cn(
+            "text-teal-deep-label grid size-[26px] shrink-0 place-items-center rounded-[6px]",
+            mode.kind === "replay" ? "bg-amber" : "bg-teal-deep",
+          )}
+          aria-hidden
+        >
+          <Sparkles className="size-3.5" />
+        </span>
+        <h2 className="text-machine-text text-[15px] font-semibold">Agent</h2>
         <div className="ml-auto flex items-center gap-1">
           <CostBadge cost={lastTurn?.cost ?? null} />
           {/* `lg:hidden`, so the docked column has no dead tab stop. */}
@@ -93,19 +103,31 @@ export function ChatPanel({
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3.5 py-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-3">
         {turns.length === 0 && (
-          // The boundary line leads, at reading strength: it is what the
-          // reader has to know before asking. The starters sit at the foot,
-          // beside the composer they fill, not stranded at the top of an
-          // empty column.
-          <div className="flex flex-1 flex-col gap-3">
-            <p className="text-machine-text text-sm leading-relaxed text-pretty">
-              {scope
-                ? `Answers come from ${scope.label} — I search and read those papers, and every step shows here with its cost.`
-                : `I read ${paperCount === undefined ? "the papers listed here" : `these ${paperCount.toLocaleString()} papers`} and no others. I search, read, and compute, and every step shows here with its cost.`}
+          // One composed block, centred in the column so the panel has no
+          // dead middle: what the agent is, how far it reaches, and what to
+          // try. The starters are plain rows rather than boxed buttons, so
+          // the block reads as one object and not as a stack of cards.
+          <div className="my-auto flex flex-col py-6">
+            <span
+              className="bg-machine-2 border-machine-line text-machine-text grid size-14 place-items-center rounded-2xl border"
+              aria-hidden
+            >
+              <Sparkles className="size-6" />
+            </span>
+            <p className="text-machine-text mt-5 text-[22px] leading-tight font-semibold text-balance">
+              Ask about these papers
             </p>
-            <ul className="mt-auto flex flex-col gap-1.5" aria-label="Example questions">
+            <p className="text-machine-muted mt-2 text-[14px] leading-relaxed text-pretty">
+              {scope
+                ? `Answers come from ${scope.label}, and every step shows here with its cost.`
+                : `I read ${paperCount === undefined ? "the papers listed here" : `these ${paperCount.toLocaleString()} papers`} and no others. Every search and read shows here with its cost.`}
+            </p>
+            <p id={startersLabelId} className="text-machine-muted mt-7 text-[13px] font-medium">
+              Try asking
+            </p>
+            <ul className="mt-1.5 flex flex-col" aria-labelledby={startersLabelId}>
               {(scope?.starters ?? SUGGESTED_QUESTIONS).map((example) => (
                 <li key={example}>
                   <button
@@ -114,8 +136,12 @@ export function ChatPanel({
                       setQuestion(example);
                       inputRef.current?.focus();
                     }}
-                    className="border-machine-line bg-machine-2 text-machine-text hover:border-machine-accent hover:text-machine-accent w-full rounded border px-3 py-2 text-left text-[13px] leading-snug transition-colors motion-reduce:transition-none"
+                    className="group text-machine-text hover:bg-machine-2 -mx-2 flex w-[calc(100%+1rem)] items-start gap-3 rounded px-2 py-2 text-left text-[14px] leading-snug transition-colors motion-reduce:transition-none"
                   >
+                    <CornerDownRight
+                      className="text-machine-muted group-hover:text-machine-accent mt-0.5 size-4 shrink-0"
+                      aria-hidden
+                    />
                     {example}
                   </button>
                 </li>

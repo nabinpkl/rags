@@ -28,13 +28,13 @@ describe("ChatPanel", () => {
 
   it("offers example questions on first run", () => {
     render(<ChatPanel />);
-    const list = screen.getByRole("list", { name: /example questions/i });
+    const list = screen.getByRole("list", { name: /try asking/i });
     expect(within(list).getAllByRole("button").length).toBeGreaterThanOrEqual(2);
   });
 
   it("fills the composer from an example and focuses it, without spending a turn", () => {
     render(<ChatPanel />);
-    const [first] = within(screen.getByRole("list", { name: /example questions/i })).getAllByRole(
+    const [first] = within(screen.getByRole("list", { name: /try asking/i })).getAllByRole(
       "button",
     );
     fireEvent.click(first);
@@ -49,7 +49,7 @@ describe("ChatPanel", () => {
 
   it("submits the filled example only on the visitor's own submit", () => {
     render(<ChatPanel />);
-    const [first] = within(screen.getByRole("list", { name: /example questions/i })).getAllByRole(
+    const [first] = within(screen.getByRole("list", { name: /try asking/i })).getAllByRole(
       "button",
     );
     fireEvent.click(first);
