@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, Library } from "lucide-react";
+import { LayoutDashboard, Library, MessagesSquare } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -8,7 +8,9 @@ import type { ReactNode } from "react";
 import { BrandMark } from "@/components/shell/brand-mark";
 import { cn } from "@/lib/utils";
 
-/** The app's two reading surfaces, as two routes.
+/** The app's reading surfaces, one route each: the counted overview, the
+ * whole catalog, and the RAG demo — the indexed papers with the agent that
+ * reads them, and nothing else.
  *
  * The rail addresses ROUTES, not bands of a scrolling canvas. It used to do
  * both: four rows that scroll-spied the dashboard's bands, and a fifth,
@@ -20,6 +22,7 @@ import { cn } from "@/lib/utils";
 export const VIEWS = [
   { id: "overview", label: "Overview", href: "/", icon: LayoutDashboard },
   { id: "explore", label: "Explore", href: "/papers", icon: Library },
+  { id: "demo", label: "RAG demo", href: "/demo", icon: MessagesSquare },
 ] as const satisfies readonly { id: string; label: string; href: string; icon: LucideIcon }[];
 
 export type ShellView = (typeof VIEWS)[number]["id"];
@@ -27,7 +30,7 @@ export type ShellView = (typeof VIEWS)[number]["id"];
 /** The one rail both routes hang off: what this is, which view, and whatever
  * that view needs to steer itself.
  *
- * `children` is the steering slot, and today only Explore fills it — the
+ * `children` is the steering slot, filled by the two list views — the
  * catalog's filter lives BELOW the view it filters, in the same column,
  * because a filter is a property of the list rather than a place to go. The
  * alternative was a second rail beside the first, which is two columns of
@@ -54,7 +57,7 @@ export function ShellSidebar({
       </div>
 
       {/* Nav and filter scroll as one column. They are not peers competing
-          for height: the nav is two rows tall and never grows, so a scroll
+          for height: the nav is three rows tall and never grows, so a scroll
           container of its own would only ever clip the filter. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <nav aria-label="Views" className="shrink-0 p-2">

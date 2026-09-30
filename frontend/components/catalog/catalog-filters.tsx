@@ -73,28 +73,35 @@ export function CatalogFilters({
   state,
   facets,
   onChange,
+  holdingPinned = false,
 }: {
   state: CatalogFilterState;
   facets: CatalogFacetsResponse | undefined;
   onChange: (next: Partial<CatalogFilterState>) => void;
+  /** The view fixes what we hold (the RAG demo is the indexed papers and
+   * nothing else), so "Show" is not a choice there: offering it would offer
+   * a way out of the view's own premise. */
+  holdingPinned?: boolean;
 }) {
   const holdings = new Map(facets?.holdings.map((bucket) => [bucket.value, bucket.papers]));
   const filtered = (Object.keys(EMPTY_FILTER) as (keyof CatalogFilterState)[]).some(
-    (key) => state[key] !== EMPTY_FILTER[key],
+    (key) => !(holdingPinned && key === "holding") && state[key] !== EMPTY_FILTER[key],
   );
 
   return (
     <div className="flex flex-col gap-4">
-      <FilterSelect
-        label="Show"
-        value={state.holding}
-        resting={state.holding === EMPTY_FILTER.holding}
-        options={HOLDINGS.map((holding) => ({
-          value: holding.value,
-          label: withCount(holding.label, holdings.get(holding.value)),
-        }))}
-        onChange={(holding) => onChange({ holding: holding as Holding })}
-      />
+      {!holdingPinned && (
+        <FilterSelect
+          label="Show"
+          value={state.holding}
+          resting={state.holding === EMPTY_FILTER.holding}
+          options={HOLDINGS.map((holding) => ({
+            value: holding.value,
+            label: withCount(holding.label, holdings.get(holding.value)),
+          }))}
+          onChange={(holding) => onChange({ holding: holding as Holding })}
+        />
+      )}
 
       <FilterSelect
         label="Order"

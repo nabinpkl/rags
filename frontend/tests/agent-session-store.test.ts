@@ -346,3 +346,18 @@ describe("agent-session-store — forward-compat", () => {
     expect(() => applyEvent(futureEvent)).not.toThrow();
   });
 });
+
+describe("agent-session-store — a transcript belongs to one scope", () => {
+  it("records the scope a turn was asked under, and reset clears it", () => {
+    useAgentSessionStore.getState().startTurn("about Qwen3", "2505.09388");
+    expect(useAgentSessionStore.getState().scope).toBe("2505.09388");
+
+    useAgentSessionStore.getState().reset();
+    expect(useAgentSessionStore.getState().scope).toBeNull();
+  });
+
+  it("defaults to the whole indexed set when no claim is named", () => {
+    useAgentSessionStore.getState().startTurn("anything");
+    expect(useAgentSessionStore.getState().scope).toBeNull();
+  });
+});

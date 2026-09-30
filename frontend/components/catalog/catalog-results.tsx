@@ -19,13 +19,12 @@ import { licenseOf } from "@/lib/license-label";
  * would resolve to whatever the paper becomes later, which is not the paper
  * this row counted.
  */
-function destination(paper: CatalogPaper): { href: string; label: string; external: boolean } {
+function destination(
+  paper: CatalogPaper,
+  readerHref: (arxivId: string) => string,
+): { href: string; label: string; external: boolean } {
   if (paper.indexed) {
-    return {
-      href: `/app?paper=${encodeURIComponent(paper.arxiv_id)}`,
-      label: "Open in the reader",
-      external: false,
-    };
+    return { href: readerHref(paper.arxiv_id), label: "Open in the reader", external: false };
   }
   const pinned = paper.version ? `${paper.arxiv_id}${paper.version}` : paper.arxiv_id;
   return { href: `https://arxiv.org/abs/${pinned}`, label: "Open on arXiv", external: true };
@@ -83,6 +82,8 @@ export function CatalogResults({
   loading,
   page,
   scrollElement,
+  readerHref,
+  rememberAs,
 }: {
   papers: CatalogPaper[];
   total: number;
@@ -92,6 +93,12 @@ export function CatalogResults({
   loading: boolean;
   page: NextPage;
   scrollElement: HTMLElement | null;
+  /** Where an indexed card opens the reader. The view decides: the demo opens
+   * it in place, beside its agent; Explore sends the reader to the demo. */
+  readerHref: (arxivId: string) => string;
+  /** The scroll-memory key, one per view, so leaving one list and returning
+   * to the other does not land the reader at the first list's position. */
+  rememberAs: string;
 }) {
   // Here rather than in the list: the list unmounts while a new filter's
   // first page loads, and the reset to the top has to happen then, not once
@@ -110,7 +117,7 @@ export function CatalogResults({
     // The filter, not the loaded rows: a new page arriving is the same list,
     // a new filter is a different one.
     resetKey: JSON.stringify(state),
-    rememberAs: "catalog",
+    rememberAs,
   });
 
   return (
@@ -140,6 +147,7 @@ export function CatalogResults({
           page={page}
           listRef={listRef}
           windowed={windowed}
+          readerHref={readerHref}
         />
       )}
     </div>
@@ -152,12 +160,14 @@ function PaperList({
   page,
   listRef,
   windowed: { virtualizer, items, scrollMargin },
+  readerHref,
 }: {
   papers: CatalogPaper[];
   total: number;
   page: NextPage;
   listRef: RefObject<HTMLOListElement | null>;
   windowed: ReturnType<typeof useInfiniteVirtualList>;
+  readerHref: (arxivId: string) => string;
 }) {
   return (
     <>
@@ -186,7 +196,7 @@ function PaperList({
               className="absolute inset-x-0 top-0"
               style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
             >
-              <PaperCard paper={paper} />
+              <PaperCard paper={paper} readerHref={readerHref} />
             </li>
           );
         })}
@@ -313,8 +323,14 @@ function Tile({ paper, Icon }: { paper: CatalogPaper; Icon: LucideIcon }) {
  * hover, which is the one moment a card should read as a single object. The
  * tile keeps the panel colour so an image-less glyph still sits on a surface.
  */
-function PaperCard({ paper }: { paper: CatalogPaper }) {
-  const { href, label, external } = destination(paper);
+function PaperCard({
+  paper,
+  readerHref,
+}: {
+  paper: CatalogPaper;
+  readerHref: (arxivId: string) => string;
+}) {
+  const { href, label, external } = destination(paper, readerHref);
   const Icon = CATEGORY_ICON[paper.primary_category ?? ""] ?? UNMAPPED_CATEGORY_ICON;
   const Destination = external ? ArrowUpRight : BookOpen;
   const license = licenseOf(paper.license);

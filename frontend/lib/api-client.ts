@@ -8,10 +8,6 @@ import type { paths } from "@/lib/api-types.gen";
 // since `next dev` runs on a different port with no proxy configured yet.
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
-type PapersQuery = NonNullable<paths["/api/papers"]["get"]["parameters"]["query"]>;
-type PapersResponse = paths["/api/papers"]["get"]["responses"][200]["content"]["application/json"];
-type FacetsQuery = NonNullable<paths["/api/facets"]["get"]["parameters"]["query"]>;
-type FacetsResponse = paths["/api/facets"]["get"]["responses"][200]["content"]["application/json"];
 type PaperDetailQuery = NonNullable<paths["/api/papers/{paper_id}"]["get"]["parameters"]["query"]>;
 type PaperDetailResponse =
   paths["/api/papers/{paper_id}"]["get"]["responses"][200]["content"]["application/json"];
@@ -45,19 +41,6 @@ async function getJson<T>(
   const res = await fetch(`${API_BASE_URL}${path}${buildQueryString(query)}`);
   if (!res.ok) throw new ApiError(path, res.status);
   return (await res.json()) as T;
-}
-
-/** GET /api/papers — cursor-paginated browse or (q set) bounded search
- * (D-1/D-2, DECISIONS.md). */
-export function fetchPapers(query: PapersQuery): Promise<PapersResponse> {
-  return getJson("/api/papers", query);
-}
-
-/** GET /api/facets — categorical (category/year/license/venue) counts for
- * the facet rail. A different "facet" sense than `PaperListItem.facets`
- * (routes_explorer.py's module docstring, DECISIONS.md Fill-in 2). */
-export function fetchFacets(query: FacetsQuery): Promise<FacetsResponse> {
-  return getJson("/api/facets", query);
 }
 
 /** GET /api/papers/{paper_id} — paper detail; `chunks` (comma-separated

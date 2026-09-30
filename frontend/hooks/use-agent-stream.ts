@@ -30,9 +30,14 @@ export function useAgentStream() {
     const controller = new AbortController();
     controllerRef.current = controller;
 
+    const scope = foundationId ?? null;
+    const before = useAgentSessionStore.getState();
+    // A new scope starts a new transcript: the server will not carry this
+    // session's history across it, so the panel must not show it either.
+    if (before.turns.length > 0 && before.scope !== scope) before.reset();
     const { sessionId, startTurn, setSessionId, setCapped, setReplay, applyEvent } =
       useAgentSessionStore.getState();
-    startTurn(question);
+    startTurn(question, scope);
 
     try {
       await fetchEventSource(`${API_BASE_URL}/api/chat`, {

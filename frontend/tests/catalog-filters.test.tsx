@@ -30,6 +30,33 @@ const FACETS: CatalogFacetsResponse = {
   total: 65_503,
 };
 
+describe("CatalogFilters — a view with a pinned scope", () => {
+  const PINNED: CatalogFilterState = { ...STATE, holding: "indexed" };
+
+  it("offers no Show control, so the view cannot be widened past its premise", () => {
+    render(<CatalogFilters state={PINNED} facets={FACETS} onChange={() => {}} holdingPinned />);
+    expect(screen.queryByLabelText("Show")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Order")).toBeInTheDocument();
+  });
+
+  it("does not count the pinned scope as a filter the reader chose", () => {
+    const { rerender } = render(
+      <CatalogFilters state={PINNED} facets={FACETS} onChange={() => {}} holdingPinned />,
+    );
+    expect(screen.queryByRole("button", { name: "Clear the filter" })).not.toBeInTheDocument();
+
+    rerender(
+      <CatalogFilters
+        state={{ ...PINNED, category: "cs.CL" }}
+        facets={FACETS}
+        onChange={() => {}}
+        holdingPinned
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Clear the filter" })).toBeInTheDocument();
+  });
+});
+
 describe("CatalogFilters", () => {
   it("shows what each choice would give, not what the current filter gave", () => {
     render(<CatalogFilters state={STATE} facets={FACETS} onChange={() => {}} />);
