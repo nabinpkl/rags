@@ -26,11 +26,11 @@ describe("ToolTimeline", () => {
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent("search_corpus");
-    expect(rows[0]).toHaveTextContent("✓ done");
+    expect(rows[0]).toHaveTextContent("done");
     // §6c: never a chunk count, score, row, or payload — only name/args/ok.
     expect(rows[0]).not.toHaveTextContent(/chunk|score/i);
     expect(rows[1]).toHaveTextContent("open_paper");
-    expect(rows[1]).toHaveTextContent("…"); // no paired result yet
+    expect(rows[1]).toHaveTextContent("running"); // no paired result yet
   });
 
   it("renders a failed result's error text", () => {
@@ -48,6 +48,7 @@ describe("ToolTimeline", () => {
     ];
     render(<ToolTimeline entries={entries} />);
     expect(screen.getByRole("listitem")).toHaveTextContent("no such paper");
+    expect(screen.getByRole("listitem")).toHaveTextContent("failed");
   });
 
   it("does not crash on an unrecognized future call shape (forward-compat)", () => {
