@@ -71,6 +71,16 @@ def test_open_paper_refuses_a_nonexistent_id(corpus_db):
         )
 
 
+def test_open_paper_refuses_a_catalog_paper_that_is_not_indexed(corpus_db):
+    # 2401.00002 has a `papers` row and no chunks: the agent cannot read it,
+    # so it must not be able to put it in front of the reader either (D16).
+    with pytest.raises(DriveUiError, match="2401.00002"):
+        run(
+            DriveUiArgs.model_validate({"action": "open_paper", "paper_id": "2401.00002"}),
+            corpus_db_path=corpus_db,
+        )
+
+
 # --- goto_page -------------------------------------------------------------------
 
 
@@ -118,6 +128,16 @@ def test_set_filters_refuses_a_category_with_no_papers(corpus_db):
     with pytest.raises(DriveUiError, match="cs.LG"):
         run(
             DriveUiArgs.model_validate({"action": "set_filters", "category": "cs.LG"}),
+            corpus_db_path=corpus_db,
+        )
+
+
+def test_set_filters_refuses_a_category_with_only_unindexed_papers(corpus_db):
+    # cs.DS exists in `papers` (2401.00002) but none of it is indexed, so the
+    # filter would empty the list the agent is steering.
+    with pytest.raises(DriveUiError, match="cs.DS"):
+        run(
+            DriveUiArgs.model_validate({"action": "set_filters", "category": "cs.DS"}),
             corpus_db_path=corpus_db,
         )
 

@@ -814,9 +814,13 @@ same bug, unconditionally, needing no tool call to surface).
 ops change behavior for the agent too (they share `count_scalar`/
 `count_grouped`/`INDEXED_PREDICATE` with `GET /api/facets`) — intentional,
 since the agent can only retrieve indexed papers via `search_corpus`/
-`read_paper`. `paper_facets` needs no scope: it reports a specific,
-caller-known paper id's real `n_chunks` (0 for an unindexed one), already
-honest by construction.
+`read_paper`. `paper_facets` and `drive_ui`'s `open_paper`/`set_filters`
+checks are scoped too (tightened 2026-09-30, when the RAG demo view made
+"the agent knows only the indexed papers" a stated product property): an id
+or category with no indexed papers is refused as unknown. Before that,
+`paper_facets` answered any catalog id, which let the agent read a title and
+venue for a paper it could not search, and `open_paper` could put an unreadable
+paper in front of the reader.
 
 **Revisit when.** #15's full ingest runs: the predicate then matches ~all
 6,460 papers and every total self-corrects with no code change — this was
