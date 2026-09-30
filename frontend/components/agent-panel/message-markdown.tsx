@@ -30,7 +30,7 @@ const CitationOrInertLink: Components["a"] = ({ href, children }) => {
         href={arxivAbsUrl(paperId)}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-block rounded border border-teal/40 bg-teal/10 px-1 font-mono text-[10px] text-teal hover:bg-teal/25"
+        className="inline-block rounded border border-machine-accent/40 bg-machine-accent/10 px-1 font-mono text-[10px] text-machine-accent hover:bg-machine-accent/20"
       >
         {children}
       </a>

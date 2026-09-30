@@ -14,7 +14,7 @@ export function CostBadge({ cost }: CostBadgeProps) {
     // the token split is detail that would push the panel header past 390px
     // once the counts reach six digits, so it waits for room.
     <span className="text-machine-muted font-mono text-[11px] whitespace-nowrap">
-      <b className="text-amber font-semibold">${cost.cost_usd.toFixed(4)}</b>
+      <b className="text-machine-amber font-semibold">${cost.cost_usd.toFixed(4)}</b>
       <span className="hidden sm:inline">
         {" "}
         · {cost.tokens_in.toLocaleString()} in / {cost.tokens_out.toLocaleString()} out

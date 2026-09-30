@@ -129,11 +129,11 @@ export function PaperSplitView() {
           cited excerpts yet". */}
       <div className="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-[1fr_auto] @3xl:grid-cols-[1fr_320px] @3xl:grid-rows-1">
         {isPending ? (
-          <div className="text-machine-text flex h-full items-center justify-center bg-[#3c4650] font-mono text-[11px]">
+          <div className="text-surround-text flex h-full items-center justify-center bg-surround font-mono text-[11px]">
             loading…
           </div>
         ) : isError ? (
-          <div className="text-machine-text flex h-full items-center justify-center bg-[#3c4650] p-6 text-center font-mono text-[11px]">
+          <div className="text-surround-text flex h-full items-center justify-center bg-surround p-6 text-center font-mono text-[11px]">
             Couldn&apos;t load this paper. We hold no record of arXiv:{paper}.
           </div>
         ) : (

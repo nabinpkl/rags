@@ -265,11 +265,11 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
     // loop pushed the excerpts pane past the viewport and put a horizontal
     // scrollbar on the whole page; the pane is scrollable, so it is free to
     // shrink below its content.
-    <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-[#3c4650]">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-surround">
       {/* Bounded on BOTH sides and allowed to wrap: unbounded, the provenance
           line and the rung button ran off a 390px screen and collided with
           the scrollbar. */}
-      <div className="text-machine-text absolute top-2.5 right-2.5 left-2.5 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded bg-black/60 px-2.5 py-1 font-mono text-[10.5px]">
+      <div className="text-surround-text absolute top-2.5 right-2.5 left-2.5 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded bg-black/60 px-2.5 py-1 font-mono text-[10.5px]">
         <span>
           arxiv.org/pdf/<b className="text-teal">{idv}</b>
           {rung === 2 && !loading ? ` p.${displayPage}` : ""}
@@ -285,9 +285,9 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
           type="button"
           onClick={toggleRung}
           title="Switch how this PDF is displayed"
-          // `text-machine-text`, not `-muted`: muted on the dark bar read as
+          // `text-surround-text`, not `-muted`: muted on the dark bar read as
           // a disabled control, and nobody presses a control that looks off.
-          className="border-machine-muted text-machine-text hover:border-teal hover:text-teal rounded border px-2 py-1 font-mono text-[9.5px]"
+          className="border-surround-muted text-surround-text hover:border-teal hover:text-teal rounded border px-2 py-1 font-mono text-[9.5px]"
         >
           {/* Names the ACTION, not the current rung: a label reading "reader
               view" next to a reader view can't be told from a status. */}
@@ -315,7 +315,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
           >
             <div ref={pagesRef} />
             {loading && (
-              <div className="text-machine-text absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[11px]">
+              <div className="text-surround-text absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[11px]">
                 loading from arxiv.org…
               </div>
             )}
@@ -328,18 +328,18 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
                 type="button"
                 aria-label="Previous page"
                 onClick={() => gotoPage(displayPage - 1, false)}
-                className="text-machine-text hover:text-teal flex h-9 w-9 items-center justify-center text-[17px]"
+                className="text-surround-text hover:text-teal flex h-9 w-9 items-center justify-center text-[17px]"
               >
                 ‹
               </button>
-              <span className="text-machine-text font-mono text-[10.5px]">
+              <span className="text-surround-text font-mono text-[10.5px]">
                 p.{displayPage} / {numPages}
               </span>
               <button
                 type="button"
                 aria-label="Next page"
                 onClick={() => gotoPage(displayPage + 1, false)}
-                className="text-machine-text hover:text-teal flex h-9 w-9 items-center justify-center text-[17px]"
+                className="text-surround-text hover:text-teal flex h-9 w-9 items-center justify-center text-[17px]"
               >
                 ›
               </button>
@@ -351,7 +351,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
       {rung === 3 && (
         <div
           className={cn(
-            "text-machine-text absolute top-1/2 left-1/2 max-w-[280px] -translate-x-1/2 -translate-y-1/2",
+            "text-surround-text absolute top-1/2 left-1/2 max-w-[280px] -translate-x-1/2 -translate-y-1/2",
             "rounded bg-black/70 px-4 py-3 text-center text-[12px] leading-relaxed",
           )}
         >
@@ -360,7 +360,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
             href={absUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-teal hover:text-machine-text ml-1 underline"
+            className="text-teal hover:text-surround-text ml-1 underline"
           >
             open on arXiv ↗
           </a>

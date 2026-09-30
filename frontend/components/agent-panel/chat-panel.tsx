@@ -114,7 +114,7 @@ export function ChatPanel({
                       setQuestion(example);
                       inputRef.current?.focus();
                     }}
-                    className="border-machine-line bg-machine-2 text-machine-text hover:border-teal hover:text-teal w-full rounded border px-3 py-2 text-left text-[13px] leading-snug transition-colors motion-reduce:transition-none"
+                    className="border-machine-line bg-machine-2 text-machine-text hover:border-machine-accent hover:text-machine-accent w-full rounded border px-3 py-2 text-left text-[13px] leading-snug transition-colors motion-reduce:transition-none"
                   >
                     {example}
                   </button>
@@ -160,7 +160,7 @@ export function ChatPanel({
         <button
           type="submit"
           disabled={busy || question.trim().length === 0}
-          className="bg-teal-deep hover:bg-teal-deep-hover shrink-0 rounded px-4 py-2.5 text-sm font-semibold text-[#eafaf6] disabled:opacity-50 disabled:hover:bg-teal-deep lg:py-2"
+          className="bg-teal-deep hover:bg-teal-deep-hover shrink-0 rounded px-4 py-2.5 text-sm font-semibold text-teal-deep-label disabled:opacity-50 disabled:hover:bg-teal-deep lg:py-2"
         >
           Ask
         </button>
