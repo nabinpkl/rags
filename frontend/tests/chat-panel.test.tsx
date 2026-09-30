@@ -26,6 +26,16 @@ describe("ChatPanel", () => {
     expect(screen.getByText(/I read the papers listed here and no others/)).toBeInTheDocument();
   });
 
+  it("offers a close control only where the panel can be put away", () => {
+    const onClose = vi.fn();
+    const { rerender } = render(<ChatPanel />);
+    expect(screen.queryByRole("button", { name: /close agent panel/i })).not.toBeInTheDocument();
+
+    rerender(<ChatPanel onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: /close agent panel/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("offers example questions on first run", () => {
     render(<ChatPanel />);
     const list = screen.getByRole("list", { name: /try asking/i });

@@ -47,6 +47,43 @@ describe("DrawerPanel — docked", () => {
   });
 });
 
+describe("DrawerPanel — docked, put away", () => {
+  it("hides the column when dockedOpen is false, and keeps the child mounted", () => {
+    installMatchMedia(true);
+    const { rerender } = render(
+      <DrawerPanel
+        dockAt="lg"
+        side="right"
+        label="Agent panel"
+        open={false}
+        dockedOpen={false}
+        onClose={() => {}}
+      >
+        <p>panel body</p>
+      </DrawerPanel>,
+    );
+    const region = screen.getByRole("region", { name: "Agent panel", hidden: true });
+    expect(region).toHaveClass("lg:hidden");
+    // Still in the DOM: the agent panel owns the SSE stream, and a column
+    // put away mid-turn must not drop it.
+    expect(screen.getByText("panel body")).toBeInTheDocument();
+
+    rerender(
+      <DrawerPanel
+        dockAt="lg"
+        side="right"
+        label="Agent panel"
+        open={false}
+        dockedOpen
+        onClose={() => {}}
+      >
+        <p>panel body</p>
+      </DrawerPanel>,
+    );
+    expect(screen.getByRole("region", { name: "Agent panel" })).not.toHaveClass("lg:hidden");
+  });
+});
+
 describe("DrawerPanel — drawer", () => {
   it("keeps a closed drawer out of the accessibility tree and tab order", () => {
     installMatchMedia(false);

@@ -1,19 +1,19 @@
 "use client";
 
-import { useAgentSessionStore } from "@/stores/agent-session-store";
-import { useUiShellStore } from "@/stores/ui-shell-store";
-import { cn } from "@/lib/utils";
+import { Sparkles } from "lucide-react";
 
-/** The way back to the agent below `lg:`, where its panel is a closed sheet
- * rather than a docked column. Hidden from `lg:` up, where it has nothing to
- * open.
+import { useAgentPanel } from "@/hooks/use-agent-panel";
+import { cn } from "@/lib/utils";
+import { useAgentSessionStore } from "@/stores/agent-session-store";
+
+/** Opens and closes the agent at every width: a docked column from `lg:` up,
+ * a sheet below. The agent is on demand, so this is the only way in.
  *
- * It carries a live status dot because a closed sheet hides every other sign
- * that a turn is running, including while the reader looks at the paper the
- * turn is citing. */
+ * It carries a live dot while a turn runs, because a closed panel hides
+ * every other sign that one is running, including while the reader looks at
+ * the paper the turn is citing. */
 export function AgentButton() {
-  const overlay = useUiShellStore((state) => state.overlay);
-  const toggleAgent = useUiShellStore((state) => state.toggleAgent);
+  const { open, toggle } = useAgentPanel();
   const status = useAgentSessionStore((state) => state.status);
 
   const busy = status.kind === "streaming" || status.kind === "tool_running";
@@ -21,18 +21,26 @@ export function AgentButton() {
   return (
     <button
       type="button"
-      onClick={toggleAgent}
-      aria-expanded={overlay === "agent"}
-      className="border-line text-ink hover:bg-panel-hover flex h-9 shrink-0 items-center gap-2 rounded border px-3 text-[13px] transition-colors motion-reduce:transition-none lg:hidden"
+      onClick={toggle}
+      aria-expanded={open}
+      aria-controls="agent-panel"
+      className={cn(
+        "flex h-9 shrink-0 items-center gap-2 rounded border px-3 text-[13px] transition-colors motion-reduce:transition-none",
+        // Both branches carry a hover, and the open one steps away from its
+        // fill rather than toward the unselected look.
+        open
+          ? "border-teal-ink/30 bg-teal-soft text-teal-ink hover:bg-teal-soft-strong font-medium"
+          : "border-line text-ink hover:bg-panel-hover",
+      )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "h-2 w-2 rounded-full",
-          busy ? "bg-amber animate-pulse motion-reduce:animate-none" : "bg-teal",
-        )}
-      />
+      <Sparkles className="size-4" aria-hidden />
       Agent
+      {busy && (
+        <span
+          aria-hidden="true"
+          className="bg-amber size-2 animate-pulse rounded-full motion-reduce:animate-none"
+        />
+      )}
     </button>
   );
 }
