@@ -32,7 +32,11 @@
      made them skimmable rather than readable. Three tiers, no more: a fourth
      grey means a text role went unnamed. */
   --ink-2: #3f4a53;
-  --muted: #66727b;
+  /* #5d6870, not #66727b: card metadata sits on the canvas, not on a panel
+     (the cards are outlined), and #66727b on --paper measured 4.0:1, under
+     AA for the 11-12px mono it sets. 4.6:1 now, and still a clear step
+     below --ink-2. */
+  --muted: #5d6870;
   --line: #dcdfd9;
   /* The stroke of an unfilled card. `--line` divides areas inside a panel and
      is too close to the canvas to be a card's only edge. */
@@ -105,7 +109,12 @@
   --color-machine-2: #161e25;
   --color-machine-line: #26313a;
   --color-machine-text: #c8d2d8;
-  --color-machine-muted: #6d7d88;
+  /* #8595a0: #6d7d88 measured 4.3:1 on machine and 4.0:1 on machine-2,
+     under AA for the timeline's 11px mono. 5.5:1 on machine-2 now. */
+  --color-machine-muted: #8595a0;
+  /* Error text on the machine room. --color-rust is tuned for light
+     surfaces and reads 3.0:1 here. */
+  --color-machine-rust: #e0735c;
   --color-teal: #12a38f;
   --color-teal-deep: #0e5f56;
   /* Hover surface for the Ask button. DARKER than its resting colour, not

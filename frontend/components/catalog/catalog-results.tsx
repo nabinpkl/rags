@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, BookOpen, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { type RefObject, useRef } from "react";
 
@@ -332,7 +332,6 @@ function PaperCard({
 }) {
   const { href, label, external } = destination(paper, readerHref);
   const Icon = CATEGORY_ICON[paper.primary_category ?? ""] ?? UNMAPPED_CATEGORY_ICON;
-  const Destination = external ? ArrowUpRight : BookOpen;
   const license = licenseOf(paper.license);
 
   return (
@@ -340,7 +339,10 @@ function PaperCard({
       <Tile paper={paper} Icon={Icon} />
 
       <div className="min-w-0 flex-1">
-        <h3 className="text-ink text-[18px] leading-[1.3] font-semibold @xl:text-[20px]">
+        {/* Under the page heading's 22px, so the heading reads as the list's
+            name and not as one more title. At 20px the two sat 2px apart
+            and a 900px screen held three cards. */}
+        <h3 className="text-ink text-[16px] leading-[1.35] font-semibold text-pretty @xl:text-[17px]">
           <Link
             href={href}
             {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
@@ -395,14 +397,17 @@ function PaperCard({
         </span>
       </div>
 
-      {/* The glyph is the whole affordance: an arrow leaving the box means
-          the card leaves the site, a book means it opens in our reader. The
-          words are in the card's accessible name, not repeated 30 times down
-          the column as a bordered button. */}
-      <Destination
-        className="text-muted group-hover:text-teal-ink mt-1 size-4 shrink-0 transition-colors motion-reduce:transition-none"
-        aria-hidden
-      />
+      {/* Only the exception is marked: an arrow leaving the box means the
+          card leaves the site. Opening our own reader is what every card on
+          the RAG demo does, and a glyph repeated identically down the column
+          says nothing and reads as a bookmark button. The words are in the
+          card's accessible name either way. */}
+      {external && (
+        <ArrowUpRight
+          className="text-muted group-hover:text-teal-ink mt-1 size-4 shrink-0 transition-colors motion-reduce:transition-none"
+          aria-hidden
+        />
+      )}
     </article>
   );
 }
