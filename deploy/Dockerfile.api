@@ -72,10 +72,11 @@ WORKDIR /app
 USER askrag
 EXPOSE 8000
 
-# Liveness AND corpus readability in one probe: /api/facets reads corpus.db.
-# urllib, not curl — the slim image ships no HTTP client and this one is free.
+# Liveness AND corpus readability in one probe: the indexed-holding facet
+# count reads corpus.db, chunks included, so an empty or unreadable index
+# fails it. urllib, not curl — the slim image ships no HTTP client.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-    CMD ["python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/facets', timeout=8).read(1)"]
+    CMD ["python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/catalog/facets?holding=indexed', timeout=8).read(1)"]
 
 # Single worker on purpose: SessionStore is process-local in-memory state and
 # the budget cascade counts per process (D13 "one FastAPI process, no Redis").

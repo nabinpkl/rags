@@ -21,23 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/papers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Papers */
-        get: operations["list_papers_api_papers_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/papers/{paper_id}": {
         parameters: {
             query?: never;
@@ -47,23 +30,6 @@ export interface paths {
         };
         /** Get Paper */
         get: operations["get_paper_api_papers__paper_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/facets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Facets */
-        get: operations["get_facets_api_facets_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -456,29 +422,6 @@ export interface components {
             /** Catalog Papers */
             catalog_papers: number | null;
         };
-        /** FacetBucketOut */
-        FacetBucketOut: {
-            /** Value */
-            value: string | number | null;
-            /** Count */
-            count: number;
-        };
-        /** FacetDimension */
-        FacetDimension: {
-            /** Buckets */
-            buckets: components["schemas"]["FacetBucketOut"][];
-            /** Truncated */
-            truncated: boolean;
-        };
-        /** FacetsResponse */
-        FacetsResponse: {
-            /** Total */
-            total: number;
-            category: components["schemas"]["FacetDimension"];
-            year: components["schemas"]["FacetDimension"];
-            license: components["schemas"]["FacetDimension"];
-            venue: components["schemas"]["FacetDimension"];
-        };
         /**
          * Foundation
          * @description A work our recent cohort builds on. Not a `papers` row — see cited_works.
@@ -630,42 +573,6 @@ export interface components {
             /** Excerpts Truncated */
             excerpts_truncated: boolean;
         };
-        /** PaperListItem */
-        PaperListItem: {
-            /** Arxiv Id */
-            arxiv_id: string;
-            /** Title */
-            title: string;
-            /** Authors */
-            authors: string;
-            /** Abstract */
-            abstract: string;
-            /** Primary Category */
-            primary_category: string;
-            /** Year */
-            year: number;
-            /** Venue */
-            venue: string | null;
-            /** License */
-            license: string | null;
-            /** Version */
-            version: string | null;
-            /** Score */
-            score: number | null;
-            /** Facets */
-            facets?: {
-                [key: string]: number | null;
-            } | null;
-        };
-        /** PapersResponse */
-        PapersResponse: {
-            /** Items */
-            items: components["schemas"]["PaperListItem"][];
-            /** Next Cursor */
-            next_cursor: string | null;
-            /** Total */
-            total: number | null;
-        };
         /**
          * UptakeResponse
          * @description Papers from one month already cited by the next month's papers.
@@ -756,43 +663,6 @@ export interface operations {
             };
         };
     };
-    list_papers_api_papers_get: {
-        parameters: {
-            query?: {
-                q?: string;
-                category?: string | null;
-                year_from?: number | null;
-                year_to?: number | null;
-                facets?: string | null;
-                sort?: ("relevance" | "year_desc" | "year_asc" | "title_asc") | null;
-                cursor?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PapersResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_paper_api_papers__paper_id__get: {
         parameters: {
             query?: {
@@ -814,39 +684,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaperDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_facets_api_facets_get: {
-        parameters: {
-            query?: {
-                category?: string | null;
-                year_from?: number | null;
-                year_to?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FacetsResponse"];
                 };
             };
             /** @description Validation Error */

@@ -287,7 +287,7 @@ def test_only_one_api_path_reads_chunk_text_and_it_is_capped():
     """The grep half of #36's acceptance, as a test so it cannot rot.
 
     Chunk text may be READ in exactly two places in the API layer:
-    `routes_explorer._cited_excerpts`, which word-caps what it returns, and
+    `routes_paper_detail._cited_excerpts`, which word-caps what it returns, and
     `answer_guard.fetch_sources`, which never emits what it reads — it exists
     only to detect verbatim overlap. A third reader is a new egress path and
     must justify itself here.
@@ -303,7 +303,7 @@ def test_only_one_api_path_reads_chunk_text_and_it_is_capped():
         if any(reader.search(line) for line in path.read_text().splitlines())
     }
 
-    assert found == {"routes_explorer.py", "answer_guard.py"}, (
+    assert found == {"routes_paper_detail.py", "answer_guard.py"}, (
         f"new chunk-text reader in the API layer: {found}"
     )
 
@@ -313,7 +313,7 @@ def test_the_excerpt_endpoint_caps_every_row_it_returns():
     import pathlib
 
     source = (
-        pathlib.Path(__file__).resolve().parents[1] / "askrag" / "api" / "routes_explorer.py"
+        pathlib.Path(__file__).resolve().parents[1] / "askrag" / "api" / "routes_paper_detail.py"
     ).read_text()
 
     assert '_cap_words(r["text"], settings.quote_max_words)' in source

@@ -11,9 +11,8 @@ anywhere, so the SQL-injection/DoS surface the old authorizer/timeout
 machinery guarded against no longer exists (§6, superseded).
 
 `count_papers`' group-by counting SQL lives in `askrag.facets` (D-2, issue
-#27 DECISIONS.md): `GET /api/facets` and the papers list's `facets=`
-scoping share the exact same column map and query template via that module,
-each supplying only its own `max_groups` cap — no second copy anywhere.
+#27 DECISIONS.md): one column map and one query template, with the group
+cap a parameter — no second copy anywhere.
 
 `count_papers` (via `facets.where_clause`) and `corpus_stats` both scope to
 the INDEXED corpus (D16, issue #73): a paper the agent can't actually

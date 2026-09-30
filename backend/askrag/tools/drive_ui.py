@@ -57,9 +57,11 @@ class SetFiltersArgs(_DriveUiAction):
     model_config = ConfigDict(extra="forbid")
 
     action: Literal["set_filters"] = "set_filters"
+    # The one filter the RAG demo's list exposes to the agent. It had
+    # year_min/year_max while the /app explorer had a year rail; the catalog
+    # filters by id-month instead, and a field the UI cannot show would let a
+    # confirmed call change nothing on screen. None clears the category.
     category: str | None = None
-    year_min: int | None = None
-    year_max: int | None = None
 
 
 _ActionUnion = Annotated[

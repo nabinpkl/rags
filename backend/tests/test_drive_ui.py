@@ -1,6 +1,7 @@
 """Tests for askrag.tools.drive_ui — enum + DB validation (§5/§6)."""
 
 import pytest
+from pydantic import ValidationError
 
 from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
 from askrag.tools.drive_ui import (
@@ -142,12 +143,19 @@ def test_set_filters_refuses_a_category_with_only_unindexed_papers(corpus_db):
         )
 
 
-def test_set_filters_with_no_category_needs_no_db_check(corpus_db):
+def test_set_filters_clearing_the_category_needs_no_db_check(corpus_db):
     result = run(
-        DriveUiArgs.model_validate({"action": "set_filters", "year_min": 2020}),
+        DriveUiArgs.model_validate({"action": "set_filters", "category": None}),
         corpus_db_path=corpus_db,
     )
-    assert result == SetFiltersArgs(year_min=2020)
+    assert result == SetFiltersArgs(category=None)
+
+
+def test_set_filters_refuses_a_year_the_list_cannot_show():
+    # The catalog filters by id-month, not year; a year filter would be a
+    # confirmed call that changes nothing on screen.
+    with pytest.raises(ValidationError):
+        DriveUiArgs.model_validate({"action": "set_filters", "year_min": 2020})
 
 
 # --- enum + closed-schema enforcement -----------------------------------------

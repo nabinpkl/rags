@@ -172,9 +172,10 @@ TOOLS: dict[str, ToolSpec] = {
     "drive_ui": ToolSpec(
         name="drive_ui",
         description=(
-            "Drive the explorer UI: open a paper, jump to a page, or set "
-            "search filters. Every target is validated against corpus.db "
-            "before the action is forwarded."
+            "Drive the reader's screen: open an indexed paper, jump to a "
+            "page, or filter the paper list by arXiv category. Every target "
+            "is validated against the indexed papers before the action is "
+            "forwarded."
         ),
         args_model=drive_ui.DriveUiArgs,
         handler=drive_ui.run,

@@ -27,7 +27,7 @@ cohort and with every month bucket, and a month whose denominator is unknown
 says so instead of borrowing a wrong one.
 
 §6c: nothing here returns `chunks.text`. The landing surface is metadata and
-counts only; paper text reaches the wire solely through routes_explorer's capped
+counts only; paper text reaches the wire solely through routes_paper_detail's capped
 cited-excerpt path.
 """
 
