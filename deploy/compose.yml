@@ -104,7 +104,7 @@ services:
     # proxy to the API, so a dead web->api path reads as unhealthy here
     # instead of as a 502 only a visitor sees.
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "-T", "5", "http://127.0.0.1:8080/api/facets"]
+      test: ["CMD", "wget", "-qO-", "-T", "5", "http://127.0.0.1:8080/api/catalog/facets?holding=indexed"]
       interval: 30s
       timeout: 10s
       start_period: 30s

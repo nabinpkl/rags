@@ -1,8 +1,9 @@
 """GET /api/catalog/* — filter the WHOLE papers table, with no model in the path.
 
-Every other list surface here is indexed-only (D16): `/api/papers`,
-`/api/facets` and every agent tool hide a paper with no `chunks` rows, because
-those surfaces promise retrieval and a chunk-less paper cannot be retrieved.
+Every other surface here is indexed-only (D16): the reader's paper record and
+every agent tool hide a paper with no `chunks` rows, because they promise
+retrieval and a chunk-less paper cannot be retrieved. The RAG demo's list is
+this route with `holding=indexed`, which applies the same predicate.
 This one promises something different and smaller — what arXiv posted and
 whether we hold it — which is true of every row in `papers`.
 
