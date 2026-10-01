@@ -95,13 +95,29 @@
   th,td{padding:12px 16px;text-align:left;vertical-align:middle}
   thead th{font-size:13px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--outline);white-space:nowrap}
   thead th small{font-weight:400;margin-left:4px}
-  tbody tr + tr td,tbody tr + tr th{border-top:1px solid var(--line)}
+  tbody + tbody tr:first-child > *{border-top:1px solid var(--line)}
   tbody th{font-weight:600;font-size:14px}
-  tbody th .id{display:block;font-weight:400;color:var(--muted);margin-top:2px}
-  tr.focus{background:var(--teal-soft)}
-  tr.all td,tr.all th{border-top:1px solid var(--outline)}
+  tbody.focus tr.main{background:var(--teal-soft)}
+  tbody.all tr > *{border-top:1px solid var(--outline)}
+  tbody.all th{padding-left:44px}
+  /* The whole type label is the disclosure control, so the target is the
+     cell, not the 16px chevron. */
+  .disc{display:grid;grid-template-columns:16px minmax(0,1fr);gap:12px;align-items:start;width:100%;border:0;background:transparent;padding:0;text-align:left;font-weight:600;font-size:14px;border-radius:4px}
+  .disc svg{width:16px;height:16px;margin-top:2px;color:var(--muted);transition:transform .2s}
+  .disc[aria-expanded="true"] svg{transform:rotate(90deg);color:var(--ink)}
+  .disc:hover .name{text-decoration:underline;text-underline-offset:3px}
+  .disc .id{display:block;font-weight:400;color:var(--muted);margin-top:2px}
+  tr.about td{padding:0 16px 8px 44px;font-size:13px;color:var(--muted)}
+  tr.sample > *{padding-top:8px;padding-bottom:8px}
+  tr.sample td.q{padding-left:44px;font-size:13.5px;line-height:1.4;max-width:0}
+  tr.sample:last-child > *{padding-bottom:16px}
+  tbody.open tr.main > *{padding-bottom:6px}
+  .rank{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;font-size:13px}
+  .rank b{font-weight:400;text-align:right;white-space:nowrap}
+  .rank.hit b{color:var(--teal-ink);font-weight:700}
+  .rank span{color:var(--muted)}
   td.n{color:var(--muted);text-align:right;width:48px}
-  td.v{width:22%}
+  td.v{width:19%}
   .cell{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;gap:10px}
   .cell b{font-weight:400;text-align:right}
   .cell.best b{font-weight:700}
@@ -220,7 +236,7 @@
               <th scope="col">Semantic <small>vector</small></th>
               <th scope="col">Hybrid <small>RRF</small></th>
             </tr></thead>
-            <tbody id="rows"></tbody>
+            <tbody hidden></tbody>
           </table>
         </div>
         <p class="hint" id="metric-note"></p>
@@ -262,6 +278,7 @@
 
 <script>
 const SCORES = {"table": [{"type": "vocabulary_mismatch", "n": 22, "bm25": {"r5": 0.36363636363636365, "r20": 0.7272727272727273, "mrr": 0.2586822899322899}, "vector": {"r5": 0.7272727272727273, "r20": 0.9545454545454546, "mrr": 0.5390806561859193}, "hybrid": {"r5": 0.7727272727272727, "r20": 0.9090909090909091, "mrr": 0.4856060606060606}}, {"type": "single_hop", "n": 30, "bm25": {"r5": 0.9666666666666667, "r20": 0.9666666666666667, "mrr": 0.8066666666666666}, "vector": {"r5": 0.8666666666666667, "r20": 0.9, "mrr": 0.6830555555555555}, "hybrid": {"r5": 0.9666666666666667, "r20": 1.0, "mrr": 0.8092592592592592}}, {"type": "exact_match", "n": 23, "bm25": {"r5": 0.8695652173913043, "r20": 0.9565217391304348, "mrr": 0.8066361556064073}, "vector": {"r5": 0.8695652173913043, "r20": 0.9130434782608695, "mrr": 0.6945865302642796}, "hybrid": {"r5": 0.9130434782608695, "r20": 1.0, "mrr": 0.8004140786749482}}, {"type": "known_hard", "n": 11, "bm25": {"r5": 0.8181818181818182, "r20": 1.0, "mrr": 0.5971533516988062}, "vector": {"r5": 0.7272727272727273, "r20": 0.9090909090909091, "mrr": 0.5288272333726879}, "hybrid": {"r5": 0.8181818181818182, "r20": 1.0, "mrr": 0.6572510822510822}}, {"type": "multi_hop", "n": 10, "bm25": {"r5": 0.55, "r20": 0.95, "mrr": 0.675}, "vector": {"r5": 0.5, "r20": 0.9, "mrr": 0.7722222222222223}, "hybrid": {"r5": 0.6, "r20": 0.95, "mrr": 0.7090909090909091}}], "overall": {"bm25": {"r5": 0.7447916666666666, "r20": 0.9114583333333334, "mrr": 0.6433575919390064}, "vector": {"r5": 0.78125, "r20": 0.9166666666666666, "mrr": 0.64444013633497}, "hybrid": {"r5": 0.8541666666666666, "r20": 0.9739583333333334, "mrr": 0.70511776996152}}, "n": 96};
+const SAMPLES = {"vocabulary_mismatch": [{"q": "How can I measure how strongly research fields draw on each other, based on references between papers, in a way that accounts for differences in field size?", "anchor": null, "rank": {"bm25": [null], "vector": [1], "hybrid": [4]}}, {"q": "How do I place synthetic individuals generated from a zone-wide demographic distribution into specific smaller areas so their local counts match real survey data?", "anchor": null, "rank": {"bm25": [3], "vector": [1], "hybrid": [1]}}, {"q": "How do I train a deep learning segmentation model for 3D medical images when I only have a few fully annotated scans but access to many scans with only partial labels?", "anchor": null, "rank": {"bm25": [13], "vector": [4], "hybrid": [4]}}], "single_hop": [{"q": "When randomizing the order of system calls, why does the transformation only delay calls in the set S instead of every system call the program makes?", "anchor": null, "rank": {"bm25": [1], "vector": [null], "hybrid": [1]}}, {"q": "What AI systems and research areas are in scope for this consensus document on technical AI safety research priorities, and what does it explicitly rule out?", "anchor": null, "rank": {"bm25": [2], "vector": [1], "hybrid": [2]}}, {"q": "In the Operator Function task, how is the newly defined arithmetic operator constructed, and what factor is expected to determine how hard the task is?", "anchor": null, "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}], "exact_match": [{"q": "Which wireless technologies does the scheduling tool evaluate exposure and optimization in, alongside LTE?", "anchor": "LTE", "rank": {"bm25": [1], "vector": [null], "hybrid": [3]}}, {"q": "In the paper's transfer learning setup, which optimizer is reported to work slightly better than SGD for ResNets, contrary to common practice?", "anchor": "ResNets", "rank": {"bm25": [1], "vector": [2], "hybrid": [1]}}, {"q": "How does the approximability of the BCU and WCU connectivity problems compare with that of the MST problem studied in the setting of uncertainty regions?", "anchor": "MST", "rank": {"bm25": [1], "vector": [3], "hybrid": [1]}}], "known_hard": [{"q": "Per Table 28, what training throughput in tokens per second does NeoMME-260M reach with LIK enabled, and how does it compare to the run without LIK?", "anchor": null, "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "In the breakdown of venues where CNS papers were published, which venue accounts for the largest number of publications, and how many papers does it have?", "anchor": null, "rank": {"bm25": [11], "vector": [3], "hybrid": [5]}}, {"q": "In the event-forecasting model's ablation that removes its time gate, by how many percentage points does directional accuracy drop on the GPT-5.4-mini backbone compared with the full model?", "anchor": null, "rank": {"bm25": [3], "vector": [2], "hybrid": [1]}}], "multi_hop": [{"q": "In the NeoMME training recipe, the tiled late-interaction kernel (LIK) is adopted to cut scoring memory — does it also speed up training at the 260M model's training shape, and what mean latency does that same 260M variant record when encoding a single text query on an Apple M5 Pro?", "anchor": null, "rank": {"bm25": [2, 3], "vector": [6, 2], "hybrid": [3, 2]}}, {"q": "In GLANCE's speculative decoding setup for vision-language models, how many drafting passes per round does GLANCE spend, and how many sequential drafting passes does the deployed drafter pay in the configuration where that drafter runs fastest?", "anchor": null, "rank": {"bm25": [2, 5], "vector": [1, 16], "hybrid": [1, 8]}}, {"q": "In this study of LLM-based scoring of health and life science journal articles, why can the authors not determine whether the higher scores awarded when the model reads the entire article rather than just its title and abstract reflect genuine research quality?", "anchor": null, "rank": {"bm25": [20, 8], "vector": [7, 1], "hybrid": [11, 2]}}]};
 const EXAMPLES = [{"id": "vocabulary_mismatch-0905.2636#15", "type": "vocabulary_mismatch", "question": "How can I measure how strongly research fields draw on each other, based on references between papers, in a way that accounts for differences in field size?", "anchor": null, "expected": {"id": "0905.2636#15", "paper": "0905.2636", "section": "We assign papers to communities according to their venues …", "title": "Information Diffusion in Computer Science Citation Networks"}, "bm25": [{"id": "2004.13675#15", "paper": "2004.13675", "section": "E. Classification process", "title": "Cloud Network Slicing: A systematic mapping study from scientific publications", "grade": 0}, {"id": "0905.2636#16", "paper": "0905.2636", "section": "Correlations of information diffusion and citation features", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}, {"id": "2608.29749#17", "paper": "2608.29749", "section": "C. Per-Dimension Drifting Objective", "title": "DriftingVLA: Native One-Step Vision-Language-Action Generation via Per-Dimension Temporal Drifting", "grade": 0}, {"id": "2609.03577#5", "paper": "2609.03577", "section": "1. The State of Things", "title": "Language, Language Models, and What We're Talking About", "grade": 0}, {"id": "2608.30616#24", "paper": "2608.30616", "section": "A.2 Annotation Protocol", "title": "OCR-Based Field Extraction for Archaeological Pottery Metadata: The CENTURIA Dataset", "grade": 0}], "vector": [{"id": "0905.2636#15", "paper": "0905.2636", "section": "We assign papers to communities according to their venues …", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 2}, {"id": "0905.2636#19", "paper": "0905.2636", "section": "1984, 1985–1989, 1990–1994, and 1995–1999.", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}, {"id": "0905.2636#14", "paper": "0905.2636", "section": "Information diffusion and the effects of citations", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}, {"id": "0905.2636#7", "paper": "0905.2636", "section": "Description of data sets", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}, {"id": "0905.2636#16", "paper": "0905.2636", "section": "Correlations of information diffusion and citation features", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}], "rank": {"bm25": null, "vector": 1, "hybrid": 4}, "short": "How fields draw on each other"}, {"id": "vocabulary_mismatch-2305.15559#27", "type": "vocabulary_mismatch", "question": "When simulating agents that keep a running estimate of their environment and revise it after each noisy observation, should the update shift the estimate fully toward the latest data or only by the smallest change needed — and how does that choice affect how much earlier information is kept and the agent's search movement?", "anchor": null, "expected": {"id": "2305.15559#27", "paper": "2305.15559", "section": "IV. DISCUSSION", "title": "Inverse square Levy walk emerging universally in goal-oriented tasks"}, "bm25": [{"id": "2608.30478#11", "paper": "2608.30478", "section": "3.2 Active perception makes the setting observable", "title": "Agents in the Large: Perception-Centered Architecture for Persistent Agents", "grade": 0}, {"id": "2608.30478#17", "paper": "2608.30478", "section": "4.3 Action Space", "title": "Agents in the Large: Perception-Centered Architecture for Persistent Agents", "grade": 0}, {"id": "2608.30478#4", "paper": "2608.30478", "section": "1 Introduction", "title": "Agents in the Large: Perception-Centered Architecture for Persistent Agents", "grade": 0}, {"id": "2608.30478#26", "paper": "2608.30478", "section": "5.2 Architectural Comparison", "title": "Agents in the Large: Perception-Centered Architecture for Persistent Agents", "grade": 0}, {"id": "2608.11350#3", "paper": "2608.11350", "section": "1 Introduction", "title": "Self-Evolving Embodied Agents via Skill-Harness Evolution", "grade": 0}], "vector": [{"id": "2305.15559#27", "paper": "2305.15559", "section": "IV. DISCUSSION", "title": "Inverse square Levy walk emerging universally in goal-oriented tasks", "grade": 2}, {"id": "2305.15559#26", "paper": "2305.15559", "section": "IV. DISCUSSION", "title": "Inverse square Levy walk emerging universally in goal-oriented tasks", "grade": 1}, {"id": "2305.15559#9", "paper": "2305.15559", "section": "I. INTRODUCTION", "title": "Inverse square Levy walk emerging universally in goal-oriented tasks", "grade": 1}, {"id": "2608.12253#14", "paper": "2608.12253", "section": "3.4 Breaking the Chain: Verbalized Sampling and Co-Training", "title": "One Frozen Simulator Is Not Enough: Simulator Collapse in Multi-Agent RL", "grade": 0}, {"id": "2608.30647#25", "paper": "2608.30647", "section": "6.2 Setup", "title": "What It Costs to Compose, Rebuild, and Correct Precomputed Memory", "grade": 0}], "rank": {"bm25": null, "vector": 1, "hybrid": 3}, "short": "Agents updating a noisy estimate"}, {"id": "vocabulary_mismatch-2608.11871#10", "type": "vocabulary_mismatch", "question": "I'm building an AR app where a person wearing a head-mounted camera controls apps by touching small parts of real objects, like an edge or a flat face, with a finger. What requirements should guide how finely the system picks out those parts, and what makes the touch actions and control feel natural?", "anchor": null, "expected": {"id": "2608.11871#10", "paper": "2608.11871", "section": "3 Design Requirements", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction"}, "bm25": [{"id": "2608.30584#34", "paper": "2608.30584", "section": "Structured Attribute Extraction Prompt", "title": "Learning Compositional Spatio-Temporal Video Grounding with Synthetic Curriculum", "grade": 0}, {"id": "2608.11871#8", "paper": "2608.11871", "section": "2 Related Work", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2608.11871#6", "paper": "2608.11871", "section": "1 Introduction", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2609.03467#35", "paper": "2609.03467", "section": "C.1.1 Dialog rewrite", "title": "When Users Don't Ask: Benchmarking Context-Driven Memory Retrieval in Conversational Agents", "grade": 0}, {"id": "2503.14734#30", "paper": "2503.14734", "section": "Post-Training Evaluations", "title": "GR00T N1: An Open Foundation Model for Generalist Humanoid Robots", "grade": 0}], "vector": [{"id": "2608.11871#10", "paper": "2608.11871", "section": "3 Design Requirements", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 2}, {"id": "2608.11871#17", "paper": "2608.11871", "section": "4.4 Interactive and Intuitive Control", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2608.11871#6", "paper": "2608.11871", "section": "1 Introduction", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2608.11871#18", "paper": "2608.11871", "section": "4.4 Interactive and Intuitive Control", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2608.11871#8", "paper": "2608.11871", "section": "2 Related Work", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}], "rank": {"bm25": null, "vector": 1, "hybrid": 6}, "short": "Touch controls for an AR headset"}, {"id": "exact_match-2310.09607#2", "type": "exact_match", "question": "Which wireless technologies does the scheduling tool evaluate exposure and optimization in, alongside LTE?", "anchor": "LTE", "expected": {"id": "2310.09607#2", "paper": "2310.09607", "section": "II. Literature Review", "title": "Analysis of the Penetration of 5G Wireless RF-EMF on Human Skin"}, "bm25": [{"id": "2310.09607#2", "paper": "2310.09607", "section": "II. Literature Review", "title": "Analysis of the Penetration of 5G Wireless RF-EMF on Human Skin", "grade": 2}, {"id": "1801.04953#17", "paper": "1801.04953", "section": "REFERENCES", "title": "Fast Uplink Grant for Machine Type Communications: Challenges and Opportunities", "grade": 0}, {"id": "2310.09607#19", "paper": "2310.09607", "section": "Conclusion", "title": "Analysis of the Penetration of 5G Wireless RF-EMF on Human Skin", "grade": 1}, {"id": "2310.09607#0", "paper": "2310.09607", "section": "Title and abstract", "title": "Analysis of the Penetration of 5G Wireless RF-EMF on Human Skin", "grade": 1}, {"id": "1801.04953#5", "paper": "1801.04953", "section": "A. Overview of the RA Process", "title": "Fast Uplink Grant for Machine Type Communications: Challenges and Opportunities", "grade": 0}], "vector": [{"id": "2608.12371#6", "paper": "2608.12371", "section": "A. Decentralized Scheduling and Task Offloading", "title": "Multi-Agent Scheduling with LLM-Assisted Contract Net Negotiation for Stream Processing in Mobile Edge Computing", "grade": 0}, {"id": "2608.12371#16", "paper": "2608.12371", "section": "A. Experimental Methodology", "title": "Multi-Agent Scheduling with LLM-Assisted Contract Net Negotiation for Stream Processing in Mobile Edge Computing", "grade": 0}, {"id": "2608.12371#7", "paper": "2608.12371", "section": "B. LLM- and Agentic-AI-Based Scheduling", "title": "Multi-Agent Scheduling with LLM-Assisted Contract Net Negotiation for Stream Processing in Mobile Edge Computing", "grade": 0}, {"id": "1801.04953#14", "paper": "1801.04953", "section": "B. Optimal Fast Uplink Grant Allocation", "title": "Fast Uplink Grant for Machine Type Communications: Challenges and Opportunities", "grade": 0}, {"id": "1801.04953#2", "paper": "1801.04953", "section": "I. INTRODUCTION", "title": "Fast Uplink Grant for Machine Type Communications: Challenges and Opportunities", "grade": 0}], "rank": {"bm25": 1, "vector": null, "hybrid": 3}, "short": "Wireless tech alongside LTE"}, {"id": "vocabulary_mismatch-2608.30935#50", "type": "vocabulary_mismatch", "question": "I want a robot to follow instructions, find objects, and follow a moving target using just a single camera — can one compact model handle all of these tasks and work across different robots without retraining?", "anchor": null, "expected": {"id": "2608.30935#50", "paper": "2608.30935", "section": "VII. CONCLUSION", "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation"}, "bm25": [{"id": "2608.30935#5", "paper": "2608.30935", "section": "I. INTRODUCTION", "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation", "grade": 1}, {"id": "2608.29078#5", "paper": "2608.29078", "section": "III. PROPOSED SYSTEM", "title": "DREAM: Deployment-Time Demonstration Generation via Real-to-Sim for Scalable Policy Adaptation", "grade": 0}, {"id": "2608.13453#4", "paper": "2608.13453", "section": "Introduction", "title": "UniTexture: Cross-Task Universal Adversarial Textures for Vision-Language-Action Models", "grade": 0}, {"id": "2608.30935#4", "paper": "2608.30935", "section": "Light Origins Team", "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation", "grade": 1}, {"id": "2608.29967#2", "paper": "2608.29967", "section": "I. INTRODUCTION", "title": "Training-Free Action Correction for VLA Model Failures via Language Feedback", "grade": 0}], "vector": [{"id": "2608.30643#13", "paper": "2608.30643", "section": "4.1 Setup", "title": "Temporal Forcing: 4D Representation Alignment for Vision-Language-Action Models", "grade": 0}, {"id": "2503.14734#40", "paper": "2503.14734", "section": "5. Related Work", "title": "GR00T N1: An Open Foundation Model for Generalist Humanoid Robots", "grade": 0}, {"id": "2503.14734#3", "paper": "2503.14734", "section": "Abstract", "title": "GR00T N1: An Open Foundation Model for Generalist Humanoid Robots", "grade": 0}, {"id": "2410.24164#5", "paper": "2410.24164", "section": "I. INTRODUCTION", "title": "π0: A Vision-Language-Action Flow Model for General Robot Control", "grade": 0}, {"id": "2504.16054#2", "paper": "2504.16054", "section": "Physical Intelligence", "title": "π0.5: a Vision-Language-Action Model with Open-World Generalization", "grade": 0}], "rank": {"bm25": 20, "vector": null, "hybrid": null}, "short": "One model for robot navigation"}];
 
 const TYPES = {
@@ -271,7 +288,16 @@ const TYPES = {
   known_hard: "Answer is in a table or equation",
   multi_hop: "Needs two passages",
 };
+const ABOUT = {
+  vocabulary_mismatch: "Asked in the searcher's own words: the question may not use any word of its passage that appears in 500 or fewer passages.",
+  single_hop: "A plain question answered by one passage, written without that passage's rarest words.",
+  exact_match: "Hinges on a named term (an acronym, model or benchmark), which the question must contain.",
+  known_hard: "The answer is read from a table or an equation.",
+  multi_hop: "Needs facts from two passages of one paper; recall counts each passage, so finding one scores half.",
+};
 const LEGS = ["bm25", "vector", "hybrid"];
+const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>';
+const expanded = new Set();
 const NOTES = {
   r5: "Share of each question's expected passages in the top 5. One question is 4.5 points on the 22-question row and 10 on the 10-question row, so small gaps are noise.",
   r20: "Share of each question's expected passages in the top 20.",
@@ -292,15 +318,52 @@ function cells(scores, m) {
     .join("");
 }
 
-function renderTable(m) {
-  const rows = SCORES.table.map(
-    (r) =>
-      `<tr${r.type === "vocabulary_mismatch" ? ' class="focus"' : ""}><th scope="row">${TYPES[r.type]}<span class="id">${r.type}</span></th><td class="n num">${r.n}</td>${cells(r, m)}</tr>`,
+// A rank for a sample row; a two-passage question shows both ranks, and it
+// counts as a hit in the top 5 when either passage is there.
+function rankCell(ranks) {
+  const hit = ranks.some((r) => r && r <= 5);
+  const text = ranks.map((r) => (r ? ordinal(r) : "\u2013")).join(", ");
+  const miss = ranks.every((r) => !r);
+  return `<td><div class="rank${hit ? " hit" : ""}"><b class="num">${text}</b>${miss ? "<span>not in top 20</span>" : ""}</div></td>`;
+}
+
+function typeBody(r, m) {
+  const isOpen = expanded.has(r.type);
+  const cls = [r.type === "vocabulary_mismatch" ? "focus" : "", isOpen ? "open" : ""].join(" ").trim();
+  const id = "s-" + r.type;
+  const samples = SAMPLES[r.type]
+    .map((s) => `<tr class="sample"${isOpen ? "" : " hidden"}><td class="q" colspan="2">${esc(s.q)}</td>${LEGS.map((l) => rankCell(s.rank[l])).join("")}</tr>`)
+    .join("");
+  return (
+    `<tbody${cls ? ` class="${cls}"` : ""}>` +
+    `<tr class="main"><th scope="row"><button type="button" class="disc" aria-expanded="${isOpen}" aria-controls="${id}" data-type="${r.type}">${CHEVRON}<span><span class="name">${TYPES[r.type]}</span><span class="id">${r.type}</span></span></button></th>` +
+    `<td class="n num">${r.n}</td>${cells(r, m)}</tr>` +
+    `<tr class="about" id="${id}"${isOpen ? "" : " hidden"}><td colspan="5">${ABOUT[r.type]} Three of its questions, with where each search ranked the expected passage:</td></tr>` +
+    samples +
+    `</tbody>`
   );
-  rows.push(`<tr class="all"><th scope="row">All questions</th><td class="n num">${SCORES.n}</td>${cells(SCORES.overall, m)}</tr>`);
-  document.getElementById("rows").innerHTML = rows.join("");
+}
+
+let metric = "r5";
+function renderTable(m) {
+  metric = m;
+  const table = document.querySelector("table");
+  table.querySelectorAll("tbody").forEach((b) => b.remove());
+  const html =
+    SCORES.table.map((r) => typeBody(r, m)).join("") +
+    `<tbody class="all"><tr><th scope="row">All questions</th><td class="n num">${SCORES.n}</td>${cells(SCORES.overall, m)}</tr></tbody>`;
+  table.insertAdjacentHTML("beforeend", html);
   document.getElementById("metric-note").textContent = NOTES[m];
 }
+
+document.querySelector("table").addEventListener("click", (ev) => {
+  const b = ev.target.closest(".disc");
+  if (!b) return;
+  const t = b.dataset.type;
+  expanded.has(t) ? expanded.delete(t) : expanded.add(t);
+  renderTable(metric);
+  document.querySelector(`.disc[data-type="${t}"]`).focus();
+});
 
 document.querySelectorAll(".seg button").forEach((b) =>
   b.addEventListener("click", () => {
