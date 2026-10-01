@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Keyword or Meaning</title>
+<title>Retrieval Benchmarks</title>
 <!-- Mock only: the Google Fonts link stands in for next/font, which self-hosts these faces in the app. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,700&display=swap" rel="stylesheet">
 <style>
   /* Tokens copied from frontend/app/globals.css (light :root, then .dark). */
   :root{
@@ -17,6 +17,7 @@
     --line:#dcdfd9; --outline:#a9b1a7;
     --teal-soft:#e2efec; --teal-soft-strong:#cfe5e0; --teal-ink:#0e5f56; --teal:#12a38f;
     --amber-ink:#8a5a0f;
+    --bar:var(--muted);
     --sans:"Atkinson Hyperlegible Next", system-ui, sans-serif;
     --serif:"Source Serif 4", Georgia, serif;
     --mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -29,6 +30,7 @@
       --line:#1f2833; --outline:#46576b;
       --teal-soft:#12332e; --teal-soft-strong:#1b463f; --teal-ink:#57d4bd;
       --amber-ink:#e0a44a;
+      --bar:var(--muted);
     }
   }
   :root[data-theme="dark"]{
@@ -38,14 +40,16 @@
     --line:#1f2833; --outline:#46576b;
     --teal-soft:#12332e; --teal-soft-strong:#1b463f; --teal-ink:#57d4bd;
     --amber-ink:#e0a44a;
+    --bar:var(--muted);
   }
 
   *{box-sizing:border-box}
   html,body{overflow-x:clip}
   body{margin:0;font-family:var(--sans);font-size:14px;line-height:1.5;color:var(--ink);background:var(--paper)}
   button{font:inherit;color:inherit;cursor:pointer}
-  a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
-  .label{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  .num{font-variant-numeric:tabular-nums}
+  .id{font-family:var(--mono);font-size:12px}
 
   /* ── shell: rail + canvas, as in components/shell ─────────── */
   .shell{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
@@ -55,126 +59,112 @@
   .brand b em{font-style:normal;color:var(--teal-ink)}
   .rail-scroll{overflow-y:auto;flex:1;min-height:0}
   .nav{padding:8px;display:flex;flex-direction:column;gap:2px;list-style:none;margin:0}
-  .nav a,.results a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;font-size:13px;color:var(--ink);text-decoration:none;white-space:nowrap;transition:background-color .2s}
-  .nav a:hover,.results a:hover{background:var(--panel-hover)}
+  .nav a,.sub a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;font-size:13px;color:var(--ink);text-decoration:none;white-space:nowrap;transition:background-color .2s}
+  .nav a:hover,.sub a:hover{background:var(--panel-hover)}
   .nav a svg{width:16px;height:16px;color:var(--muted);flex-shrink:0}
-  .nav a[aria-current="page"],.results a[aria-current="page"]{background:var(--teal-soft);color:var(--teal-ink);font-weight:600}
-  .nav a[aria-current="page"]:hover,.results a[aria-current="page"]:hover{background:var(--teal-soft-strong)}
+  .nav a[aria-current="page"],.sub a[aria-current="page"]{background:var(--teal-soft);color:var(--teal-ink);font-weight:600}
   .nav a[aria-current="page"] svg{color:var(--teal-ink)}
-  .results{border-top:1px solid var(--line);margin-top:4px;padding:14px 8px}
-  .results .label{padding:0 10px 8px;display:block}
-  .results ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
-  .results a{justify-content:space-between}
-  .results .state{font-family:var(--mono);font-size:10.5px;color:var(--muted);font-weight:400}
-  .results a[aria-current="page"] .state{color:var(--teal-ink)}
+  .sub{list-style:none;margin:0;padding:0 8px 8px 34px;display:flex;flex-direction:column;gap:2px}
+  .sub a{justify-content:space-between;padding:6px 10px}
+  .sub span{font-size:12px;color:var(--muted);font-weight:400}
 
   .canvas{min-width:0}
   .topbar{height:57px;display:flex;align-items:center;padding:0 24px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:2}
   .crumb{font-size:13px;color:var(--muted)}
   .crumb b{color:var(--ink);font-weight:600}
-  .page{max-width:980px;padding:36px 24px 48px;display:flex;flex-direction:column;gap:24px}
+  .page{max-width:1040px;padding:32px 24px 56px;display:flex;flex-direction:column;gap:40px}
 
-  h1{font-family:var(--serif);font-weight:700;font-size:34px;line-height:1.1;letter-spacing:-.015em;margin:0 0 10px;max-width:30ch;text-wrap:balance;overflow-wrap:anywhere}
-  .lead{font-size:15.5px;color:var(--ink-2);margin:0;max-width:60ch;text-wrap:pretty}
+  /* ── heading: what was measured, how, when ────────────────── */
+  h1{font-size:26px;font-weight:700;line-height:1.2;margin:0 0 8px;letter-spacing:-.01em}
+  .meta{display:flex;flex-wrap:wrap;gap:4px 16px;margin:0 0 16px;padding:0;list-style:none;font-size:13px;color:var(--muted)}
+  .finding{font-size:16px;line-height:1.55;margin:0;max-width:64ch;text-wrap:pretty}
+  .finding b{font-weight:600}
+  h2{font-size:17px;font-weight:700;margin:0}
+  .sec-h{display:flex;justify-content:space-between;align-items:center;gap:12px 24px;flex-wrap:wrap;margin-bottom:12px}
+  .hint{font-size:13px;color:var(--muted);margin:10px 0 0;max-width:72ch}
 
-  /* ── the chart: one mirrored row per query ───────────────────
-     Keyword results grow left from the query, semantic results grow
-     right, rank 1 nearest the query. Form carries the state (filled,
-     half, empty ring) and colour only repeats it. */
-  .chart{background:var(--panel);border:1px solid var(--outline);border-radius:6px;padding:8px 0 4px}
-  .row,.chart-h{display:grid;grid-template-columns:40px 84px minmax(0,1fr) 84px 40px;align-items:center;column-gap:14px;padding:0 20px}
-  .chart-h{padding-top:10px;padding-bottom:6px}
-  .chart-h .k{grid-column:1 / 3;text-align:right}
-  .chart-h .s{grid-column:4 / 6}
-  .chart-h b{font-size:13px}
-  .chart-h b span{font-family:var(--mono);font-size:10.5px;color:var(--muted);font-weight:400;margin-left:6px}
-  .group{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:center;padding:14px 20px 6px;border-top:1px solid var(--line)}
-  .row{width:100%;border:0;background:transparent;text-align:left;min-height:44px;padding-top:6px;padding-bottom:6px;transition:background-color .2s}
-  .row:hover{background:var(--panel-hover)}
-  .row[aria-expanded="true"]{background:var(--teal-soft)}
-  .tally{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted)}
-  .tally.win{color:var(--teal-ink);font-weight:600}
-  .row .tally:first-child{text-align:right}
-  .dots{display:flex;gap:8px}
-  .dots.k{flex-direction:row-reverse;justify-content:flex-start}
-  /* The empty ring is a mark, not a divider: --muted, because --outline
-     measured 1.9-2.4:1 against the panel, under WCAG 1.4.11's 3:1. */
-  .dot{width:20px;height:20px;border-radius:50%;flex-shrink:0;border:2px solid var(--muted)}
-  .dot.y{background:var(--teal-ink);border-color:var(--teal-ink)}
-  .dot.p{border-color:var(--amber-ink);background:linear-gradient(90deg,var(--amber-ink) 50%,transparent 50%)}
-  .q{text-align:center;font-size:14px;line-height:1.3;overflow-wrap:anywhere}
-  .q small{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
-  .key{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;padding:12px 20px 10px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
-  .key span{display:inline-flex;align-items:center;gap:6px}
-  .key .dot{width:12px;height:12px;border-width:2px}
+  /* ── metric switch ────────────────────────────────────────── */
+  .seg{display:inline-flex;border:1px solid var(--outline);border-radius:6px;background:var(--panel);padding:2px;gap:2px}
+  .seg button{border:1px solid transparent;background:transparent;border-radius:4px;padding:6px 12px;min-height:32px;font-size:13px;color:var(--ink-2);transition:background-color .2s}
+  .seg button:hover{background:var(--panel-hover)}
+  .seg button[aria-pressed="true"]{border-color:var(--teal-ink);background:var(--teal-soft);color:var(--teal-ink);font-weight:600}
 
-  /* ── evidence: opened from a chart row ────────────────────── */
-  .evidence{border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
-  .evidence[hidden]{display:none}
-  .leg{padding:12px 20px 16px;min-width:0}
-  .leg + .leg{border-left:1px solid var(--line)}
-  .leg .label{display:block;margin-bottom:8px}
-  .leg ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-  .leg li{display:grid;grid-template-columns:12px minmax(0,1fr);gap:10px;align-items:start}
-  .leg .dot{width:12px;height:12px;margin-top:4px}
+  /* ── results table: the bar is drawn inside the cell ──────── */
+  .tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--outline);border-radius:6px}
+  table{border-collapse:collapse;width:100%;min-width:640px}
+  th,td{padding:12px 16px;text-align:left;vertical-align:middle}
+  thead th{font-size:13px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--outline);white-space:nowrap}
+  thead th small{font-weight:400;margin-left:4px}
+  tbody tr + tr td,tbody tr + tr th{border-top:1px solid var(--line)}
+  tbody th{font-weight:600;font-size:14px}
+  tbody th .id{display:block;font-weight:400;color:var(--muted);margin-top:2px}
+  tr.focus{background:var(--teal-soft)}
+  tr.all td,tr.all th{border-top:1px solid var(--outline)}
+  td.n{color:var(--muted);text-align:right;width:48px}
+  td.v{width:22%}
+  .cell{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;gap:10px}
+  .cell b{font-weight:400;text-align:right}
+  .cell.best b{font-weight:700}
+  .track{height:8px;border-radius:2px;background:var(--line);overflow:hidden}
+  .track i{display:block;height:100%;background:var(--bar)}
+  .cell.best .track i{background:var(--teal-ink)}
+
+  /* ── joined rankings: two top-5 lists, a line per shared passage ── */
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .tab{border:1px solid var(--outline);background:var(--panel);border-radius:6px;padding:8px 12px;min-height:40px;text-align:left;font-size:13px;line-height:1.3;max-width:260px;transition:background-color .2s}
+  .tab:hover{background:var(--panel-hover)}
+  .tab[aria-selected="true"]{border-color:var(--teal-ink);background:var(--teal-soft)}
+  .tab span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+  .tab[aria-selected="true"] span{color:var(--teal-ink)}
+  .ex{background:var(--panel);border:1px solid var(--outline);border-radius:6px}
+  .ex-q{padding:16px 20px;border-bottom:1px solid var(--line)}
+  .ex-q p{margin:0;font-size:15px;line-height:1.45;max-width:80ch}
+  .ex-q dl{display:flex;flex-wrap:wrap;gap:4px 20px;margin:10px 0 0;font-size:13px}
+  .ex-q dt{color:var(--muted);display:inline}
+  .ex-q dd{display:inline;margin:0 0 0 6px}
+  .lists{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);padding:12px 20px 16px}
+  .lists svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+  .lists svg path{fill:none;stroke:var(--teal-ink);stroke-width:1.5}
+  .col h3{font-size:13px;font-weight:600;margin:0 0 6px;color:var(--ink-2)}
+  .col ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+  .col li{display:grid;grid-template-columns:20px 14px minmax(0,1fr);gap:8px;align-items:start;padding:6px 8px;border-radius:4px;min-height:52px}
+  .col li.g2{background:var(--teal-soft)}
+  .rk{font-size:12px;color:var(--muted);text-align:right;padding-top:1px}
+  .mark{width:12px;height:12px;border-radius:50%;margin-top:4px;border:2px solid var(--muted)}
+  .g2 .mark{background:var(--teal-ink);border-color:var(--teal-ink)}
+  .g1 .mark{border-color:var(--amber-ink);background:linear-gradient(90deg,var(--amber-ink) 50%,transparent 50%)}
   .t{font-size:13.5px;line-height:1.35;overflow-wrap:anywhere}
-  .sec{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+  .s{display:block;font-size:12px;color:var(--muted);margin-top:1px;overflow-wrap:anywhere}
+  .key{display:flex;gap:6px 18px;flex-wrap:wrap;padding:10px 20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .key span{display:inline-flex;align-items:center;gap:6px}
+  .key .mark{margin:0;width:11px;height:11px}
+  .key .g2,.key .g1{display:inline-flex}
 
-  /* ── overlap: the one number measured over all 15 ─────────── */
-  .overlap{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 24px;align-items:end}
-  .overlap h2{font-size:15px;margin:0}
-  .bar{grid-column:1 / -1;display:flex;height:28px;border-radius:4px;overflow:hidden;border:1px solid var(--muted)}
-  .bar div{display:flex;align-items:center;padding:0 10px;font-family:var(--mono);font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
-  .bar .ko{flex:4.4;background:var(--panel);color:var(--ink)}
-  .bar .both{flex:0.6;background:var(--teal-ink);padding:0}
-  .bar .so{flex:4.4;background:var(--panel);color:var(--ink);justify-content:flex-end;border-left:0}
-  .bar-l{grid-column:1 / -1;display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
-  .bar-l b{color:var(--teal-ink);font-family:var(--mono);font-weight:600}
-  .pending{font-family:var(--mono);font-size:11.5px;color:var(--muted);border:1px dashed var(--outline);border-radius:4px;padding:4px 8px;white-space:nowrap}
+  /* ── run configuration, in the order a run file lists it ──── */
+  .run{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px;background:var(--panel);border:1px solid var(--outline);border-radius:6px;padding:4px 20px}
+  .run div{display:grid;grid-template-columns:132px minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .run dt{color:var(--muted)}
+  .run dd{margin:0;overflow-wrap:anywhere}
 
+  footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+  footer a{color:inherit}
 
-  /* ── benchmark card: the configuration the numbers came from ── */
-  .bcard{background:var(--panel);border:1px solid var(--outline);border-radius:6px}
-  .bcard-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--line)}
-  .bcard-h h2{font-size:15px;margin:0}
-  .bcard-h span{font-family:var(--mono);font-size:11px;color:var(--muted)}
-  .bgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
-  @media (max-width: 1100px){ .bgrid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))} }
-  .bgrid section{padding:14px 16px 16px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 -1px -1px 0}
-  .bgrid .label{display:block;margin-bottom:10px}
-  .bgrid dl{margin:0;display:flex;flex-direction:column;font-size:12px}
-  .bgrid dt{color:var(--muted)}
-  .bgrid dt:not(:first-child){margin-top:9px}
-  .bgrid dd{margin:0;font-family:var(--mono);font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-  .bgrid dd.off{color:var(--amber-ink)}
-  .foot{border-top:1px solid var(--line);padding:14px 24px;color:var(--muted);font-size:12px}
-
-  @media (max-width: 860px){
-    .shell{grid-template-columns:minmax(0,1fr);align-content:start}
-    .rail,.canvas{min-width:0}
-    .rail{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}
-    .rail-scroll{overflow:visible}
-    .nav{flex-direction:row;flex-wrap:wrap}
-    .results ol{flex-direction:row;overflow-x:auto}
-    .topbar{position:static;padding:0 16px}
-    .page{padding:24px 16px 40px}
+  @media (max-width:900px){
+    .shell{grid-template-columns:minmax(0,1fr)}
+    .rail{display:none}
+    .run{grid-template-columns:minmax(0,1fr)}
   }
-  @media (max-width: 600px){
-    h1{font-size:27px}
-    /* The query moves above its dots; the mirror keeps its centre line. */
-    .row,.chart-h{grid-template-columns:32px 1fr 1fr 32px;column-gap:10px;padding-left:12px;padding-right:12px}
-    .row .q{grid-column:1 / -1;grid-row:1;margin-bottom:6px}
-    .chart-h .k{grid-column:1 / 3}
-    .chart-h .s{grid-column:3 / 5}
-    .chart-h .mid{display:none}
-    .row,.chart-h{column-gap:22px}
-    .dots{gap:6px}
-    .evidence{grid-template-columns:1fr}
-    .leg + .leg{border-left:0;border-top:1px solid var(--line)}
-    .leg{padding-left:16px;padding-right:16px}
-    .overlap{grid-template-columns:1fr}
+  @media (max-width:640px){
+    .page{padding:24px 16px 40px;gap:32px}
+    .topbar{padding:0 16px}
+    h1{font-size:22px}
+    .lists{grid-template-columns:minmax(0,1fr);gap:16px;padding:12px 12px 16px}
+    .lists .gap,.lists svg{display:none}
+    .ex-q{padding:14px 16px}
+    .run div{grid-template-columns:minmax(0,1fr);gap:2px}
+    .tab{max-width:none;flex:1 1 100%}
   }
-  @media (prefers-reduced-motion: reduce){ *{transition:none !important} }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
@@ -188,125 +178,208 @@
         <li><a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>RAG demo</a></li>
         <li><a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></svg>Benchmarks</a></li>
       </ul>
-      <nav class="results" aria-label="Benchmark results">
-        <span class="label">Results</span>
-        <ol>
-          <li><a href="#" aria-current="page">Keyword or meaning <span class="state">15 q</span></a></li>
-          <li><a href="#">Fusing both <span class="state">pending</span></a></li>
-          <li><a href="#">Embedding models <span class="state">proxy</span></a></li>
-          <li><a href="#">Reranking <span class="state">not run</span></a></li>
-          <li><a href="#">Agent, end to end <span class="state">not run</span></a></li>
-        </ol>
-      </nav>
+      <ul class="sub" aria-label="Benchmarks">
+        <li><a href="#" aria-current="page">Keyword vs semantic <span class="num">96 q</span></a></li>
+        <li><a href="#">Chunk size <span>not run</span></a></li>
+        <li><a href="#">Reranking <span>not run</span></a></li>
+        <li><a href="#">Agent answers <span>not run</span></a></li>
+      </ul>
     </div>
   </aside>
 
   <main class="canvas">
-    <div class="topbar"><span class="crumb">Benchmarks / <b>Keyword or meaning</b></span></div>
+    <div class="topbar"><span class="crumb">Benchmarks / <b>Keyword vs semantic</b></span></div>
 
     <div class="page">
       <header>
-        <h1>Keyword search finds the word. Semantic search finds the idea.</h1>
-        <p class="lead">Both searches, run separately over the 811 papers the demo reads. Top three results each.</p>
+        <h1>Keyword vs semantic retrieval</h1>
+        <ul class="meta">
+          <li class="num">96 questions over 811 papers</li>
+          <li>Higher is better</li>
+          <li>Updated 1 Oct 2026</li>
+          <li>Run <span class="id">92627c53ca46</span></li>
+        </ul>
+        <p class="finding">When a question uses the paper's own words, keyword search does as well as semantic search. When it describes the problem in the asker's own words, semantic search puts the right passage in the top 5 <b class="num">73%</b> of the time against <b class="num">36%</b> for keywords, and combining the two keeps that (<b class="num">77%</b>).</p>
       </header>
 
-      <section class="chart" aria-label="Top three results per search, by query">
-        <div class="chart-h" aria-hidden="true">
-          <span class="k"><b>Keyword<span>BM25</span></b></span>
-          <span class="mid"></span>
-          <span class="s"><b>Semantic<span>vector</span></b></span>
+      <section aria-labelledby="t-h">
+        <div class="sec-h">
+          <h2 id="t-h">Results by question type</h2>
+          <div class="seg" role="group" aria-label="Metric">
+            <button type="button" data-m="r5" aria-pressed="true">Recall@5</button>
+            <button type="button" data-m="r20" aria-pressed="false">Recall@20</button>
+            <button type="button" data-m="mrr" aria-pressed="false">MRR</button>
+          </div>
         </div>
-        <div id="rows"></div>
-        <div class="key" aria-hidden="true">
-          <span><i class="dot y"></i>on topic</span>
-          <span><i class="dot p"></i>partly</span>
-          <span><i class="dot"></i>off topic</span>
-          <span>Select a query to see the papers</span>
+        <div class="tablewrap">
+          <table>
+            <thead><tr>
+              <th scope="col">Question type</th>
+              <th scope="col" class="num" style="text-align:right">n</th>
+              <th scope="col">Keyword <small>BM25</small></th>
+              <th scope="col">Semantic <small>vector</small></th>
+              <th scope="col">Hybrid <small>RRF</small></th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <p class="hint" id="metric-note"></p>
+      </section>
+
+      <section aria-labelledby="e-h">
+        <div class="sec-h"><h2 id="e-h">Five questions, both top 5s</h2></div>
+        <div class="tabs" role="tablist" aria-label="Example questions" id="tabs"></div>
+        <div class="ex" role="tabpanel" id="panel" aria-labelledby="e-h">
+          <div class="ex-q" id="exq"></div>
+          <div class="lists" id="lists"></div>
+          <div class="key" aria-hidden="true">
+            <span class="g2"><i class="mark"></i>the expected passage</span>
+            <span class="g1"><i class="mark"></i>another passage of the expected paper</span>
+            <span><i class="mark"></i>another paper</span>
+            <span>A line joins a passage both searches returned</span>
+          </div>
         </div>
       </section>
 
-      <section class="overlap" aria-label="Overlap between the two searches">
-        <h2>They rarely find the same passage</h2>
-        <span class="pending">Recall@10, MRR: waiting on golden set #17</span>
-        <div class="bar" role="img" aria-label="Of each search's top 5, 0.6 are shared on average across 15 queries">
-          <div class="ko">keyword only 4.4</div><div class="both"></div><div class="so">semantic only 4.4</div>
-        </div>
-        <div class="bar-l"><span>Top 5 from each, averaged over 15 queries</span><span><b>0.6</b> shared</span></div>
+      <section aria-labelledby="r-h">
+        <div class="sec-h"><h2 id="r-h">Run configuration</h2></div>
+        <dl class="run">
+          <div><dt>Questions</dt><dd>96 counted of 158 drafted, <span class="id">evals/golden.jsonl</span></dd></div>
+          <div><dt>Checked by</dt><dd>models, not people: drafted by <span class="id">z-ai/glm-5.3-flash</span>, checked by <span class="id">meta/muse-spark-1.3-contributor</span></dd></div>
+          <div><dt>Corpus</dt><dd class="num">811 arXiv cs papers, 40,116 passages</dd></div>
+          <div><dt>Chunking</dt><dd>section-aware, up to 1,000 tokens (<span class="id">cl100k_base</span>), 15% overlap</dd></div>
+          <div><dt>Keyword</dt><dd>SQLite FTS5 BM25, porter stemming, terms OR-joined</dd></div>
+          <div><dt>Semantic</dt><dd><span class="id">perplexity/pplx-embed-v1-0.6b</span>, 512 dims, cosine, Chroma HNSW</dd></div>
+          <div><dt>Hybrid</dt><dd>reciprocal rank fusion, <span class="id">k = 60</span>, over each leg's top 20</dd></div>
+          <div><dt>Relevance</dt><dd>one expected passage per question (two for multi-passage)</dd></div>
+        </dl>
       </section>
 
-      <section class="bcard" aria-labelledby="bcard-h">
-        <div class="bcard-h"><h2 id="bcard-h">Benchmark card</h2><span>run 30 Sep 2026 · config as run</span></div>
-        <div class="bgrid">
-          <section><span class="label">Corpus</span><dl>
-            <dt>Papers</dt><dd>811</dd>
-            <dt>Passages</dt><dd>40,116</dd>
-            <dt>Extraction</dt><dd>PyMuPDF4LLM</dd>
-          </dl></section>
-          <section><span class="label">Chunking</span><dl>
-            <dt>Max size</dt><dd>1,000 tokens</dd>
-            <dt>Mean size</dt><dd>504 tokens</dd>
-            <dt>Overlap</dt><dd>15%</dd>
-            <dt>Split at</dt><dd>section headings</dd>
-            <dt>Tokenizer</dt><dd>cl100k_base</dd>
-            <dt>Extra</dt><dd>1 title+abstract per paper</dd>
-          </dl></section>
-          <section><span class="label">Keyword search</span><dl>
-            <dt>Engine</dt><dd>SQLite FTS5, BM25</dd>
-            <dt>Tokens</dt><dd>porter, unicode61</dd>
-            <dt>Terms</dt><dd>joined with OR</dd>
-          </dl></section>
-          <section><span class="label">Semantic search</span><dl>
-            <dt>Model</dt><dd>pplx-embed-v1-0.6b</dd>
-            <dt>Dimensions</dt><dd>512</dd>
-            <dt>Index</dt><dd>Chroma HNSW, cosine</dd>
-            <dt>Served by</dt><dd>OpenRouter</dd>
-          </dl></section>
-          <section><span class="label">This run</span><dl>
-            <dt>Results</dt><dd>top 5 per search</dd>
-            <dt>Queries</dt><dd>15, hand-picked</dd>
-            <dt>Judged</dt><dd>by hand, top 3</dd>
-            <dt>Rerank</dt><dd class="off">off</dd>
-            <dt>Tuned</dt><dd class="off">no, defaults (D7)</dd>
-          </dl></section>
-        </div>
-      </section>
+      <footer>Thank you to arXiv for use of its open access interoperability. This service was not reviewed or approved by, nor does it necessarily express or reflect the policies or opinions of, arXiv. <a href="#">Report an issue</a> · <a href="#">Takedown request</a></footer>
     </div>
   </main>
 </div>
 
 <script>
-const EXAMPLES = {"making neural networks smaller so they run on phones": {"overlap": 0, "bm25": [{"p": "1807.03748", "t": "Representation Learning with Contrastive Predictive Coding", "s": "3.1 Audio", "pg": 4, "j": "n"}, {"p": "2112.00029", "t": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models", "s": "M.1 Neural Pruning", "pg": 45, "j": "y"}, {"p": "1512.00103", "t": "Multilingual Language Processing From Bytes", "s": "3.2 Independent segments", "pg": 4, "j": "n"}], "vector": [{"p": "1503.02531", "t": "Distilling the Knowledge in a Neural Network", "s": "paper", "pg": 1, "j": "y"}, {"p": "2606.10932", "t": "Density Field State Space Models: 1-Bit Distillation, Efficient Inference, and Knowledge Organization in Mamba-2", "s": "1 Introduction", "pg": 1, "j": "y"}, {"p": "2608.30792", "t": "Conjoint Audio-to-Spikes Encoding and Processing for Efficient Neuromorphic Speech Recognition", "s": "A. Architecture", "pg": 12, "j": "p"}]}, "getting robots to learn from watching humans": {"overlap": 0, "bm25": [{"p": "2507.06261", "t": "Gemini 2.5: Pushing the Frontier with Advanced Reasoning, Multimodality, Long Context, and Next Generation Agentic Capabilities", "s": "8.5. Long Context Video Understanding Demo", "pg": 73, "j": "n"}, {"p": "2503.14734", "t": "GR00T N1: An Open Foundation Model for Generalist Humanoid Robots", "s": "References", "pg": 33, "j": "n"}, {"p": "2608.13362", "t": "NestDex: Nested Policy Learning with Copilot Assisted Teleoperation for Dexterous Manipulation", "s": "REFERENCES", "pg": 8, "j": "n"}], "vector": [{"p": "2503.14734", "t": "GR00T N1: An Open Foundation Model for Generalist Humanoid Robots", "s": "5. Related Work", "pg": 17, "j": "y"}, {"p": "2503.14734", "t": "GR00T N1: An Open Foundation Model for Generalist Humanoid Robots", "s": "5. Related Work", "pg": 17, "j": "y"}, {"p": "2504.16054", "t": "π0.5: a Vision-Language-Action Model with Open-World Generalization", "s": "I. INTRODUCTION", "pg": 2, "j": "p"}]}, "BLEU": {"overlap": 0, "bm25": [{"p": "2606.05924", "t": "Better Literary Translation: A Multi-Aspect Data Generation and LLM Training Approach", "s": "A.1 Effect of Composite Reward Design", "pg": 10, "j": "p"}, {"p": "2608.12018", "t": "Poly-Dialectal Neural Machine Translation System for Bangla Regional Dialects", "s": "4.8.1 BLEU (Bilingual Evaluation Understudy)", "pg": 21, "j": "y"}, {"p": "2608.12590", "t": "Auditable agentic AI for evidence-grounded thyroid ultrasound diagnosis and reporting", "s": "2.6 Evidence-grounded report assembly improves reporting consistency and efficiency", "pg": 11, "j": "p"}], "vector": [{"p": "2609.00491", "t": "MemeBridge: A Dataset for Benchmarking and Mitigating the Bidirectional Cultural Gap in Meme Interpretation", "s": "Ming Jiang", "pg": 1, "j": "n"}, {"p": "0808.0549", "t": "Resource Allocation of MU-OFDM Based Cognitive Radio Systems Under Partial Channel State Information", "s": "Cyril Leung", "pg": 1, "j": "n"}, {"p": "2212.08073", "t": "Constitutional AI: Harmlessness from AI Feedback", "s": "Anthropic", "pg": 1, "j": "n"}]}, "SWE-bench Verified": {"overlap": 2, "bm25": [{"p": "2508.10925", "t": "gpt-oss-120b & gpt-oss-20b Model Card", "s": "5.2.3.1 SWE-bench Verified", "pg": 27, "j": "y"}, {"p": "2601.03267", "t": "OpenAI GPT-5 System Card", "s": "6.1.3.1 SWE-bench Verified (N=477)", "pg": 38, "j": "y"}, {"p": "2609.02783", "t": "EarlyEval: Cheaper Agent Evaluation via Early Outcome Prediction", "s": "B. RQ2: Preservation of Per-Agent Rankings", "pg": 8, "j": "p"}], "vector": [{"p": "2508.10925", "t": "gpt-oss-120b & gpt-oss-20b Model Card", "s": "5.2.3.1 SWE-bench Verified", "pg": 27, "j": "y"}, {"p": "2601.03267", "t": "OpenAI GPT-5 System Card", "s": "6.1.3.1 SWE-bench Verified (N=477)", "pg": 38, "j": "y"}, {"p": "2608.29831", "t": "A^2Agent: Action-Aware Reinforcement Learning for Repository-Level Code Localization Agents", "s": "C Benchmark Details", "pg": 12, "j": "y"}]}, "how to stop a chatbot from following malicious instructions hidden in documents": {"overlap": 1, "bm25": [{"p": "2608.30980", "t": "Evaluating and Improving LLM Self-Modeling", "s": "[1] Audit task / seed.", "pg": 64, "j": "n"}, {"p": "2601.03267", "t": "OpenAI GPT-5 System Card", "s": "Evaluations", "pg": 10, "j": "p"}, {"p": "2608.31100", "t": "S3Gym: Can LLMs Turn Self-Testing and Self-Judging into Self-Improvement?", "s": "Chess-style state prediction", "pg": 24, "j": "n"}], "vector": [{"p": "2608.30980", "t": "Evaluating and Improving LLM Self-Modeling", "s": "[1] Audit task / seed.", "pg": 64, "j": "n"}, {"p": "2608.30980", "t": "Evaluating and Improving LLM Self-Modeling", "s": "[1] Audit task / seed.", "pg": 63, "j": "n"}, {"p": "2608.30980", "t": "Evaluating and Improving LLM Self-Modeling", "s": "[1] Audit task / seed.", "pg": 64, "j": "n"}]}, "prompt injection": {"overlap": 1, "bm25": [{"p": "2601.03267", "t": "OpenAI GPT-5 System Card", "s": "Evaluations", "pg": 11, "j": "y"}, {"p": "2601.03267", "t": "OpenAI GPT-5 System Card", "s": "4.2 Expert and Automated Red Teaming for Prompt Injections", "pg": 22, "j": "y"}, {"p": "2608.13538", "t": "SAEVerbalizer: Generating Explanations for Sparse Autoencoder Features via Representation Verbalization", "s": "4.3.2 Ablation Study", "pg": 7, "j": "n"}], "vector": [{"p": "2601.03267", "t": "OpenAI GPT-5 System Card", "s": "3.6 Prompt Injections", "pg": 11, "j": "y"}, {"p": "2608.13538", "t": "SAEVerbalizer: Generating Explanations for Sparse Autoencoder Features via Representation Verbalization", "s": "B.1 Prompt and Injection Implementation", "pg": 14, "j": "n"}, {"p": "2608.13538", "t": "SAEVerbalizer: Generating Explanations for Sparse Autoencoder Features via Representation Verbalization", "s": "E.1 Prompt and Injection Robustness", "pg": 16, "j": "n"}]}, "why do language models make things up": {"overlap": 0, "bm25": [{"p": "2302.13971", "t": "LLaMA: Open and Efficient Foundation Language Models", "s": "Write a theory to explain why cat never existed", "pg": 24, "j": "n"}, {"p": "2606.18606", "t": "Steerable Cultural Preference Optimization of Reward Models", "s": "D. Representative Samples", "pg": 12, "j": "n"}, {"p": "2608.13168", "t": "Which LLM Is Your Ideal Companion? Evaluating Emotional Companion Capabilities of LLMs Based on Adult Attachment Theory", "s": "O Human Evaluation", "pg": 24, "j": "n"}], "vector": [{"p": "2609.03577", "t": "Language, Language Models, and What We're Talking About", "s": "paper", "pg": 1, "j": "n"}, {"p": "2609.03577", "t": "Language, Language Models, and What We're Talking About", "s": "Abstract", "pg": 1, "j": "n"}, {"p": "2609.03577", "t": "Language, Language Models, and What We're Talking About", "s": "4. What do you mean by Language Model?", "pg": 8, "j": "n"}]}, "hallucination": {"overlap": 1, "bm25": [{"p": "2609.03467", "t": "When Users Don't Ask: Benchmarking Context-Driven Memory Retrieval in Conversational Agents", "s": "7.1 Hallucination under Conversational Framing", "pg": 7, "j": "y"}, {"p": "2609.00231", "t": "Beyond Language Priors: Diagnosing and Fixing Visual-Origin Hallucinations in Multimodal LLM", "s": "1 Introduction", "pg": 1, "j": "y"}, {"p": "2508.10925", "t": "gpt-oss-120b & gpt-oss-20b Model Card", "s": "4.5 Hallucinations", "pg": 17, "j": "y"}], "vector": [{"p": "2609.03467", "t": "When Users Don't Ask: Benchmarking Context-Driven Memory Retrieval in Conversational Agents", "s": "7.1 Hallucination under Conversational Framing", "pg": 7, "j": "y"}, {"p": "2405.08603", "t": "A Comprehensive Survey of Large Language Models and Multimodal Large Language Models in Medicine", "s": "6.1. Hallucination Phenomenon", "pg": 19, "j": "y"}, {"p": "2303.08774", "t": "GPT-4 Technical Report", "s": "2.2 Hallucinations", "pg": 46, "j": "y"}]}};
-const GROUPS = [
-  ["The query names the thing", [
-    {q:"BLEU"}, {q:"SWE-bench Verified"}, {q:"prompt injection"}, {q:"hallucination"}]],
-  ["The query describes it", [
-    {q:"getting robots to learn from watching humans"},
-    {q:"making neural networks smaller so they run on phones"},
-    {q:"how to stop a chatbot from following malicious instructions hidden in documents", said:"prompt injection"},
-    {q:"why do language models make things up", said:"hallucination"}]],
-];
-const STATE = {y:"on topic", p:"partly on topic", n:"off topic"};
-const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const on = rows => rows.filter(r => r.j === "y").length;
-const dots = (rows, side) => `<span class="dots ${side}">${rows.map(r => `<i class="dot ${r.j}"></i>`).join("")}</span>`;
-const legList = rows => `<ol>${rows.map(r => `<li><i class="dot ${r.j}" title="${STATE[r.j]}"></i><div><span class="t">${esc(r.t)}</span><span class="sec">${esc(r.s === "paper" ? "Title and abstract" : r.s)} · p.${r.pg}</span></div></li>`).join("")}</ol>`;
-let n = 0;
-document.getElementById("rows").innerHTML = GROUPS.map(([name, items]) =>
-  `<div class="group">${name}</div>` + items.map(it => {
-    const e = EXAMPLES[it.q], k = on(e.bm25), s = on(e.vector), id = "ev" + (n++);
-    const label = `${it.q}: keyword ${k} of 3 on topic, semantic ${s} of 3`;
-    return `<button type="button" class="row" aria-expanded="false" aria-controls="${id}" aria-label="${esc(label)}">
-        <span class="tally ${k > s ? "win" : ""}">${k}/3</span>${dots(e.bm25, "k")}
-        <span class="q">${esc(it.q)}${it.said ? `<small>said as “${it.said}” above</small>` : ""}</span>
-        ${dots(e.vector, "s")}<span class="tally ${s > k ? "win" : ""}">${s}/3</span>
-      </button>
-      <div class="evidence" id="${id}" hidden><div class="leg"><span class="label">Keyword</span>${legList(e.bm25)}</div><div class="leg"><span class="label">Semantic</span>${legList(e.vector)}</div></div>`;
-  }).join("")).join("");
-document.querySelectorAll(".row").forEach(row => row.addEventListener("click", () => {
-  const open = row.getAttribute("aria-expanded") === "true";
-  row.setAttribute("aria-expanded", String(!open));
-  document.getElementById(row.getAttribute("aria-controls")).hidden = open;
-}));
+const SCORES = {"table": [{"type": "vocabulary_mismatch", "n": 22, "bm25": {"r5": 0.36363636363636365, "r20": 0.7272727272727273, "mrr": 0.2586822899322899}, "vector": {"r5": 0.7272727272727273, "r20": 0.9545454545454546, "mrr": 0.5390806561859193}, "hybrid": {"r5": 0.7727272727272727, "r20": 0.9090909090909091, "mrr": 0.4856060606060606}}, {"type": "single_hop", "n": 30, "bm25": {"r5": 0.9666666666666667, "r20": 0.9666666666666667, "mrr": 0.8066666666666666}, "vector": {"r5": 0.8666666666666667, "r20": 0.9, "mrr": 0.6830555555555555}, "hybrid": {"r5": 0.9666666666666667, "r20": 1.0, "mrr": 0.8092592592592592}}, {"type": "exact_match", "n": 23, "bm25": {"r5": 0.8695652173913043, "r20": 0.9565217391304348, "mrr": 0.8066361556064073}, "vector": {"r5": 0.8695652173913043, "r20": 0.9130434782608695, "mrr": 0.6945865302642796}, "hybrid": {"r5": 0.9130434782608695, "r20": 1.0, "mrr": 0.8004140786749482}}, {"type": "known_hard", "n": 11, "bm25": {"r5": 0.8181818181818182, "r20": 1.0, "mrr": 0.5971533516988062}, "vector": {"r5": 0.7272727272727273, "r20": 0.9090909090909091, "mrr": 0.5288272333726879}, "hybrid": {"r5": 0.8181818181818182, "r20": 1.0, "mrr": 0.6572510822510822}}, {"type": "multi_hop", "n": 10, "bm25": {"r5": 0.55, "r20": 0.95, "mrr": 0.675}, "vector": {"r5": 0.5, "r20": 0.9, "mrr": 0.7722222222222223}, "hybrid": {"r5": 0.6, "r20": 0.95, "mrr": 0.7090909090909091}}], "overall": {"bm25": {"r5": 0.7447916666666666, "r20": 0.9114583333333334, "mrr": 0.6433575919390064}, "vector": {"r5": 0.78125, "r20": 0.9166666666666666, "mrr": 0.64444013633497}, "hybrid": {"r5": 0.8541666666666666, "r20": 0.9739583333333334, "mrr": 0.70511776996152}}, "n": 96};
+const EXAMPLES = [{"id": "vocabulary_mismatch-0905.2636#15", "type": "vocabulary_mismatch", "question": "How can I measure how strongly research fields draw on each other, based on references between papers, in a way that accounts for differences in field size?", "anchor": null, "expected": {"id": "0905.2636#15", "paper": "0905.2636", "section": "We assign papers to communities according to their venues …", "title": "Information Diffusion in Computer Science Citation Networks"}, "bm25": [{"id": "2004.13675#15", "paper": "2004.13675", "section": "E. Classification process", "title": "Cloud Network Slicing: A systematic mapping study from scientific publications", "grade": 0}, {"id": "0905.2636#16", "paper": "0905.2636", "section": "Correlations of information diffusion and citation features", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}, {"id": "2608.29749#17", "paper": "2608.29749", "section": "C. Per-Dimension Drifting Objective", "title": "DriftingVLA: Native One-Step Vision-Language-Action Generation via Per-Dimension Temporal Drifting", "grade": 0}, {"id": "2609.03577#5", "paper": "2609.03577", "section": "1. The State of Things", "title": "Language, Language Models, and What We're Talking About", "grade": 0}, {"id": "2608.30616#24", "paper": "2608.30616", "section": "A.2 Annotation Protocol", "title": "OCR-Based Field Extraction for Archaeological Pottery Metadata: The CENTURIA Dataset", "grade": 0}], "vector": [{"id": "0905.2636#15", "paper": "0905.2636", "section": "We assign papers to communities according to their venues …", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 2}, {"id": "0905.2636#19", "paper": "0905.2636", "section": "1984, 1985–1989, 1990–1994, and 1995–1999.", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}, {"id": "0905.2636#14", "paper": "0905.2636", "section": "Information diffusion and the effects of citations", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}, {"id": "0905.2636#7", "paper": "0905.2636", "section": "Description of data sets", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}, {"id": "0905.2636#16", "paper": "0905.2636", "section": "Correlations of information diffusion and citation features", "title": "Information Diffusion in Computer Science Citation Networks", "grade": 1}], "rank": {"bm25": null, "vector": 1, "hybrid": 4}, "short": "How fields draw on each other"}, {"id": "vocabulary_mismatch-2305.15559#27", "type": "vocabulary_mismatch", "question": "When simulating agents that keep a running estimate of their environment and revise it after each noisy observation, should the update shift the estimate fully toward the latest data or only by the smallest change needed — and how does that choice affect how much earlier information is kept and the agent's search movement?", "anchor": null, "expected": {"id": "2305.15559#27", "paper": "2305.15559", "section": "IV. DISCUSSION", "title": "Inverse square Levy walk emerging universally in goal-oriented tasks"}, "bm25": [{"id": "2608.30478#11", "paper": "2608.30478", "section": "3.2 Active perception makes the setting observable", "title": "Agents in the Large: Perception-Centered Architecture for Persistent Agents", "grade": 0}, {"id": "2608.30478#17", "paper": "2608.30478", "section": "4.3 Action Space", "title": "Agents in the Large: Perception-Centered Architecture for Persistent Agents", "grade": 0}, {"id": "2608.30478#4", "paper": "2608.30478", "section": "1 Introduction", "title": "Agents in the Large: Perception-Centered Architecture for Persistent Agents", "grade": 0}, {"id": "2608.30478#26", "paper": "2608.30478", "section": "5.2 Architectural Comparison", "title": "Agents in the Large: Perception-Centered Architecture for Persistent Agents", "grade": 0}, {"id": "2608.11350#3", "paper": "2608.11350", "section": "1 Introduction", "title": "Self-Evolving Embodied Agents via Skill-Harness Evolution", "grade": 0}], "vector": [{"id": "2305.15559#27", "paper": "2305.15559", "section": "IV. DISCUSSION", "title": "Inverse square Levy walk emerging universally in goal-oriented tasks", "grade": 2}, {"id": "2305.15559#26", "paper": "2305.15559", "section": "IV. DISCUSSION", "title": "Inverse square Levy walk emerging universally in goal-oriented tasks", "grade": 1}, {"id": "2305.15559#9", "paper": "2305.15559", "section": "I. INTRODUCTION", "title": "Inverse square Levy walk emerging universally in goal-oriented tasks", "grade": 1}, {"id": "2608.12253#14", "paper": "2608.12253", "section": "3.4 Breaking the Chain: Verbalized Sampling and Co-Training", "title": "One Frozen Simulator Is Not Enough: Simulator Collapse in Multi-Agent RL", "grade": 0}, {"id": "2608.30647#25", "paper": "2608.30647", "section": "6.2 Setup", "title": "What It Costs to Compose, Rebuild, and Correct Precomputed Memory", "grade": 0}], "rank": {"bm25": null, "vector": 1, "hybrid": 3}, "short": "Agents updating a noisy estimate"}, {"id": "vocabulary_mismatch-2608.11871#10", "type": "vocabulary_mismatch", "question": "I'm building an AR app where a person wearing a head-mounted camera controls apps by touching small parts of real objects, like an edge or a flat face, with a finger. What requirements should guide how finely the system picks out those parts, and what makes the touch actions and control feel natural?", "anchor": null, "expected": {"id": "2608.11871#10", "paper": "2608.11871", "section": "3 Design Requirements", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction"}, "bm25": [{"id": "2608.30584#34", "paper": "2608.30584", "section": "Structured Attribute Extraction Prompt", "title": "Learning Compositional Spatio-Temporal Video Grounding with Synthetic Curriculum", "grade": 0}, {"id": "2608.11871#8", "paper": "2608.11871", "section": "2 Related Work", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2608.11871#6", "paper": "2608.11871", "section": "1 Introduction", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2609.03467#35", "paper": "2609.03467", "section": "C.1.1 Dialog rewrite", "title": "When Users Don't Ask: Benchmarking Context-Driven Memory Retrieval in Conversational Agents", "grade": 0}, {"id": "2503.14734#30", "paper": "2503.14734", "section": "Post-Training Evaluations", "title": "GR00T N1: An Open Foundation Model for Generalist Humanoid Robots", "grade": 0}], "vector": [{"id": "2608.11871#10", "paper": "2608.11871", "section": "3 Design Requirements", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 2}, {"id": "2608.11871#17", "paper": "2608.11871", "section": "4.4 Interactive and Intuitive Control", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2608.11871#6", "paper": "2608.11871", "section": "1 Introduction", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2608.11871#18", "paper": "2608.11871", "section": "4.4 Interactive and Intuitive Control", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}, {"id": "2608.11871#8", "paper": "2608.11871", "section": "2 Related Work", "title": "ATOM: Geometry-Aware Microgesture towards Object-Agnostic Tangible Interaction", "grade": 1}], "rank": {"bm25": null, "vector": 1, "hybrid": 6}, "short": "Touch controls for an AR headset"}, {"id": "exact_match-2310.09607#2", "type": "exact_match", "question": "Which wireless technologies does the scheduling tool evaluate exposure and optimization in, alongside LTE?", "anchor": "LTE", "expected": {"id": "2310.09607#2", "paper": "2310.09607", "section": "II. Literature Review", "title": "Analysis of the Penetration of 5G Wireless RF-EMF on Human Skin"}, "bm25": [{"id": "2310.09607#2", "paper": "2310.09607", "section": "II. Literature Review", "title": "Analysis of the Penetration of 5G Wireless RF-EMF on Human Skin", "grade": 2}, {"id": "1801.04953#17", "paper": "1801.04953", "section": "REFERENCES", "title": "Fast Uplink Grant for Machine Type Communications: Challenges and Opportunities", "grade": 0}, {"id": "2310.09607#19", "paper": "2310.09607", "section": "Conclusion", "title": "Analysis of the Penetration of 5G Wireless RF-EMF on Human Skin", "grade": 1}, {"id": "2310.09607#0", "paper": "2310.09607", "section": "Title and abstract", "title": "Analysis of the Penetration of 5G Wireless RF-EMF on Human Skin", "grade": 1}, {"id": "1801.04953#5", "paper": "1801.04953", "section": "A. Overview of the RA Process", "title": "Fast Uplink Grant for Machine Type Communications: Challenges and Opportunities", "grade": 0}], "vector": [{"id": "2608.12371#6", "paper": "2608.12371", "section": "A. Decentralized Scheduling and Task Offloading", "title": "Multi-Agent Scheduling with LLM-Assisted Contract Net Negotiation for Stream Processing in Mobile Edge Computing", "grade": 0}, {"id": "2608.12371#16", "paper": "2608.12371", "section": "A. Experimental Methodology", "title": "Multi-Agent Scheduling with LLM-Assisted Contract Net Negotiation for Stream Processing in Mobile Edge Computing", "grade": 0}, {"id": "2608.12371#7", "paper": "2608.12371", "section": "B. LLM- and Agentic-AI-Based Scheduling", "title": "Multi-Agent Scheduling with LLM-Assisted Contract Net Negotiation for Stream Processing in Mobile Edge Computing", "grade": 0}, {"id": "1801.04953#14", "paper": "1801.04953", "section": "B. Optimal Fast Uplink Grant Allocation", "title": "Fast Uplink Grant for Machine Type Communications: Challenges and Opportunities", "grade": 0}, {"id": "1801.04953#2", "paper": "1801.04953", "section": "I. INTRODUCTION", "title": "Fast Uplink Grant for Machine Type Communications: Challenges and Opportunities", "grade": 0}], "rank": {"bm25": 1, "vector": null, "hybrid": 3}, "short": "Wireless tech alongside LTE"}, {"id": "vocabulary_mismatch-2608.30935#50", "type": "vocabulary_mismatch", "question": "I want a robot to follow instructions, find objects, and follow a moving target using just a single camera — can one compact model handle all of these tasks and work across different robots without retraining?", "anchor": null, "expected": {"id": "2608.30935#50", "paper": "2608.30935", "section": "VII. CONCLUSION", "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation"}, "bm25": [{"id": "2608.30935#5", "paper": "2608.30935", "section": "I. INTRODUCTION", "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation", "grade": 1}, {"id": "2608.29078#5", "paper": "2608.29078", "section": "III. PROPOSED SYSTEM", "title": "DREAM: Deployment-Time Demonstration Generation via Real-to-Sim for Scalable Policy Adaptation", "grade": 0}, {"id": "2608.13453#4", "paper": "2608.13453", "section": "Introduction", "title": "UniTexture: Cross-Task Universal Adversarial Textures for Vision-Language-Action Models", "grade": 0}, {"id": "2608.30935#4", "paper": "2608.30935", "section": "Light Origins Team", "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation", "grade": 1}, {"id": "2608.29967#2", "paper": "2608.29967", "section": "I. INTRODUCTION", "title": "Training-Free Action Correction for VLA Model Failures via Language Feedback", "grade": 0}], "vector": [{"id": "2608.30643#13", "paper": "2608.30643", "section": "4.1 Setup", "title": "Temporal Forcing: 4D Representation Alignment for Vision-Language-Action Models", "grade": 0}, {"id": "2503.14734#40", "paper": "2503.14734", "section": "5. Related Work", "title": "GR00T N1: An Open Foundation Model for Generalist Humanoid Robots", "grade": 0}, {"id": "2503.14734#3", "paper": "2503.14734", "section": "Abstract", "title": "GR00T N1: An Open Foundation Model for Generalist Humanoid Robots", "grade": 0}, {"id": "2410.24164#5", "paper": "2410.24164", "section": "I. INTRODUCTION", "title": "π0: A Vision-Language-Action Flow Model for General Robot Control", "grade": 0}, {"id": "2504.16054#2", "paper": "2504.16054", "section": "Physical Intelligence", "title": "π0.5: a Vision-Language-Action Model with Open-World Generalization", "grade": 0}], "rank": {"bm25": 20, "vector": null, "hybrid": null}, "short": "One model for robot navigation"}];
+
+const TYPES = {
+  vocabulary_mismatch: "Describes the problem, not the paper's terms",
+  single_hop: "Plain question about one passage",
+  exact_match: "Names a specific term",
+  known_hard: "Answer is in a table or equation",
+  multi_hop: "Needs two passages",
+};
+const LEGS = ["bm25", "vector", "hybrid"];
+const NOTES = {
+  r5: "Share of each question's expected passages in the top 5. One question is 4.5 points on the 22-question row and 10 on the 10-question row, so small gaps are noise.",
+  r20: "Share of each question's expected passages in the top 20.",
+  mrr: "Mean of 1 / rank of the first expected passage within the top 20; 1.00 means always first.",
+};
+
+const fmt = (m, v) => (m === "mrr" ? v.toFixed(2) : Math.round(v * 100) + "%");
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+function cells(scores, m) {
+  const vals = LEGS.map((l) => scores[l][m]);
+  const top = Math.max(...vals);
+  return vals
+    .map((v) => {
+      const best = Math.round(v * 100) === Math.round(top * 100);
+      return `<td class="v"><div class="cell${best ? " best" : ""}"><b class="num">${fmt(m, v)}</b><span class="track"><i style="width:${(v * 100).toFixed(1)}%"></i></span></div></td>`;
+    })
+    .join("");
+}
+
+function renderTable(m) {
+  const rows = SCORES.table.map(
+    (r) =>
+      `<tr${r.type === "vocabulary_mismatch" ? ' class="focus"' : ""}><th scope="row">${TYPES[r.type]}<span class="id">${r.type}</span></th><td class="n num">${r.n}</td>${cells(r, m)}</tr>`,
+  );
+  rows.push(`<tr class="all"><th scope="row">All questions</th><td class="n num">${SCORES.n}</td>${cells(SCORES.overall, m)}</tr>`);
+  document.getElementById("rows").innerHTML = rows.join("");
+  document.getElementById("metric-note").textContent = NOTES[m];
+}
+
+document.querySelectorAll(".seg button").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderTable(b.dataset.m);
+  }),
+);
+
+const ordinal = (n) => n + (n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th");
+const placed = (r) => (r ? ordinal(r) : "not in top 20");
+function outcome(e) {
+  const k = e.rank.bm25 && e.rank.bm25 <= 5, s = e.rank.vector && e.rank.vector <= 5;
+  return k && s ? "Both find it" : k ? "Keyword finds it" : s ? "Semantic finds it" : "Neither finds it";
+}
+
+function item(x, i) {
+  return `<li class="g${x.grade}" data-id="${esc(x.id)}"><span class="rk num">${i + 1}</span><i class="mark"></i><span class="t">${esc(x.title)}<span class="s">${esc(x.section)}</span></span></li>`;
+}
+
+let current = 0;
+function renderExample(i) {
+  current = i;
+  const e = EXAMPLES[i];
+  document.querySelectorAll(".tab").forEach((t, j) => {
+    t.setAttribute("aria-selected", String(j === i));
+    t.tabIndex = j === i ? 0 : -1;
+  });
+  document.getElementById("panel").setAttribute("aria-labelledby", "tab-" + i);
+  document.getElementById("exq").innerHTML =
+    `<p>${esc(e.question)}</p><dl>` +
+    `<div><dt>Expected</dt><dd>${esc(e.expected.title)}, ${esc(e.expected.section)}</dd></div>` +
+    `<div><dt>Keyword</dt><dd class="num">${placed(e.rank.bm25)}</dd></div>` +
+    `<div><dt>Semantic</dt><dd class="num">${placed(e.rank.vector)}</dd></div>` +
+    `<div><dt>Hybrid</dt><dd class="num">${placed(e.rank.hybrid)}</dd></div></dl>`;
+  document.getElementById("lists").innerHTML =
+    `<svg aria-hidden="true"></svg>` +
+    `<div class="col" id="lk"><h3>Keyword (BM25)</h3><ol>${e.bm25.map(item).join("")}</ol></div>` +
+    `<div class="gap"></div>` +
+    `<div class="col" id="lv"><h3>Semantic (vector)</h3><ol>${e.vector.map(item).join("")}</ol></div>`;
+  drawLinks();
+}
+
+function drawLinks() {
+  const box = document.getElementById("lists");
+  const svg = box.querySelector("svg");
+  if (getComputedStyle(svg).display === "none") return;
+  const base = box.getBoundingClientRect();
+  const paths = [];
+  box.querySelectorAll("#lk li").forEach((a) => {
+    const b = box.querySelector(`#lv li[data-id="${CSS.escape(a.dataset.id)}"]`);
+    if (!b) return;
+    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    const x1 = ra.right - base.left, y1 = ra.top + ra.height / 2 - base.top;
+    const x2 = rb.left - base.left, y2 = rb.top + rb.height / 2 - base.top;
+    const mx = (x1 + x2) / 2;
+    paths.push(`<path d="M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}"/>`);
+  });
+  svg.innerHTML = paths.join("");
+}
+
+const tabs = document.getElementById("tabs");
+tabs.innerHTML = EXAMPLES.map(
+  (e, i) => `<button type="button" class="tab" role="tab" id="tab-${i}" aria-controls="panel">${esc(e.short)}<span>${outcome(e)}</span></button>`,
+).join("");
+tabs.querySelectorAll(".tab").forEach((t, i) => {
+  t.addEventListener("click", () => renderExample(i));
+  t.addEventListener("keydown", (ev) => {
+    const d = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    const j = (current + d + EXAMPLES.length) % EXAMPLES.length;
+    renderExample(j);
+    tabs.children[j].focus();
+  });
+});
+
+renderTable("r5");
+renderExample(0);
+window.addEventListener("resize", drawLinks);
+document.fonts && document.fonts.ready.then(drawLinks);
 </script>
 </body>
 </html>
