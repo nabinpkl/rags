@@ -776,6 +776,34 @@ chunk-level recall for that reason.
 five points of each other on a decision that matters; or a spot check of
 twenty records finds more than two wrong.
 
+**Amendment (2026-10-01, owner directive): a vocabulary-mismatch type.** The
+first retrieval run (#18) put BM25 at 97% recall@5 on single_hop: barring only
+words in at most 40 chunks left questions sharing mid-frequency words with their
+chunk, so the set could not show where semantic retrieval earns its place. A
+fifth type, `vocabulary_mismatch`, holds the question a person types when they
+have the problem a passage addresses but not the paper's terms. Its sources are
+chunks that name a method, model or benchmark (the anchored pool, sampled after
+every other type so no existing source moves). Its lexical rule bars every word
+the chunk shares that sits in at most `golden_mismatch_max_shared_df` (500)
+chunks, so everyday field words stay usable and the question still reads like a
+person's. Because a drafter obeying that rule can write a question no one would
+type, the checker also rules on `natural`: false for a stilted question or a
+roundabout rewording of a term the asker would know ("malicious text that
+hijacks a model" for prompt injection). The verdict is asked of this type only
+and is `None` on the others. BM25's score on this type is held down by the
+rule and is reported that way, never as a finding about BM25; the type
+measures what the vector leg recovers when the searcher lacks the paper's
+words, and whether fusion keeps it.
+
+Measured on the first draft (60 candidates, 22 counted): recall@5 is BM25 36%,
+vector 73%, hybrid 77%. Every BM25 hit came through field words the rule
+allows on purpose ("regression", "channel", "diffusion"); tightening the bar
+until those go would buy a lower BM25 number with questions nobody types.
+
+**Revisit when (2026-10-01).** BM25 recall@5 on `vocabulary_mismatch` reaches
+the vector leg's (the type stops separating them), or a spot check finds more
+than two in ten counted questions unnatural.
+
 ---
 
 ### D15. Operational telemetry: OpenTelemetry, JSON-first, built in from the start

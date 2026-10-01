@@ -44,6 +44,8 @@ class Source:
 
     type: GoldenType
     chunks: tuple[SourceChunk, ...]
+    # The words the question may not share with its chunk(s): the rare
+    # terms, or for vocabulary_mismatch every word under its wider df bar.
     rare_terms: frozenset[str]
     anchor_term: str | None = None
 
@@ -146,6 +148,7 @@ def sample_sources(
     *,
     seed: int,
     rare_max_df: int,
+    mismatch_max_df: int,
 ) -> list[Source]:
     rng = random.Random(seed)
     term_df: Counter[str] = Counter()
@@ -207,4 +210,16 @@ def sample_sources(
         pair = (first, second)
         rare = rare_terms(first.text, df, rare_max_df) | rare_terms(second.text, df, rare_max_df)
         sources.append(Source(GoldenType.MULTI_HOP, pair, rare))
+
+    # vocabulary_mismatch: chunks that name a method, model or benchmark, so
+    # a searcher who has not read the paper has to describe it. Sampled last,
+    # so adding this type moved none of the other types' sources.
+    for chunk in take(anchored, quota.get(GoldenType.VOCABULARY_MISMATCH, 0)):
+        sources.append(
+            Source(
+                GoldenType.VOCABULARY_MISMATCH,
+                (chunk,),
+                rare_terms(chunk.text, df, mismatch_max_df),
+            )
+        )
     return sources

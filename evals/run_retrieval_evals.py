@@ -193,6 +193,13 @@ def render(
         subset = [r for r in records if r.type == t]
         cells = [_pct(score(subset, rankings, c, ks).recall[k_lo]) for c in CONFIGS]
         lines.append(f"| {t.value} | {len(subset)} | " + " | ".join(cells) + " |")
+    if GoldenType.VOCABULARY_MISMATCH in types:
+        lines += [
+            "",
+            "vocabulary_mismatch questions may not use any word of their passage that"
+            " appears in 500 or fewer chunks, so keyword search can match them only"
+            " on common field words; the row shows what semantic search recovers.",
+        ]
     lines += [
         "",
         f"One question is {100 / len(records):.1f} points at this size, so gaps"

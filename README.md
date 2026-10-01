@@ -26,13 +26,13 @@ each question's expected chunks in the top k; paper recall counts any chunk of
 the expected paper.
 
 <!-- retrieval-evals:start -->
-74 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 811 indexed papers and 40,116 chunks. Run `45ed9aa762b0`.
+96 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 811 indexed papers and 40,116 chunks. Run `c4a6312f76eb`.
 
 | Retrieval | Recall@5 | Recall@20 | MRR | Paper recall@5 | Paper recall@20 |
 |---|---|---|---|---|---|
-| Keyword (BM25) | 86% | 97% | 0.76 | 97% | 99% |
-| Semantic (vector) | 80% | 91% | 0.68 | 95% | 96% |
-| Hybrid (RRF) | 88% | 99% | 0.77 | 100% | 100% |
+| Keyword (BM25) | 74% | 91% | 0.64 | 96% | 99% |
+| Semantic (vector) | 78% | 92% | 0.64 | 94% | 97% |
+| Hybrid (RRF) | 85% | 97% | 0.71 | 100% | 100% |
 
 Recall@5 by question type:
 
@@ -42,8 +42,11 @@ Recall@5 by question type:
 | exact_match | 23 | 87% | 87% | 91% |
 | multi_hop | 10 | 55% | 50% | 60% |
 | known_hard | 11 | 82% | 73% | 82% |
+| vocabulary_mismatch | 22 | 36% | 73% | 77% |
 
-One question is 1.4 points at this size, so gaps under about 5 points are noise.
+vocabulary_mismatch questions may not use any word of their passage that appears in 500 or fewer chunks, so keyword search can match them only on common field words; the row shows what semantic search recovers.
+
+One question is 1.0 points at this size, so gaps under about 5 points are noise.
 <!-- retrieval-evals:end -->
 
 `backend/` and `frontend/` land per the spec's milestones; this README grows

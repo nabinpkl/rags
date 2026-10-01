@@ -39,6 +39,7 @@ from evals.golden_set import (
     GoldenRecord,
     GoldenType,
     dump_golden,
+    load_golden,
 )
 from evals.sample_sources import (
     Source,
@@ -75,6 +76,19 @@ _TYPE_BRIEF = {
         "is a specific value, result or relation read from that table or math. "
         "Do not use any of the banned terms."
     ),
+    GoldenType.VOCABULARY_MISMATCH: (
+        "Write the question a person types into a paper search when they have the "
+        "problem or goal this excerpt addresses but have not read this paper, so they "
+        "do not know its terms or the names it coins. Start from their situation: what "
+        "they are building, what goes wrong, what they want to find out, in the plain "
+        "words they would really use. Do not use any of the banned terms. Do not turn "
+        "a well-known technical term into a roundabout description: someone who would "
+        "ask about prompt injection says 'prompt injection', not 'malicious text that "
+        "hijacks a model'. If the excerpt's idea is only askable through such a term, "
+        "ask from a different angle: what it is for, or what it fixes. Good: 'can I "
+        "tell a robot arm in plain English which object to pick up?' for an excerpt on "
+        "a vision-language-action policy."
+    ),
 }
 
 _DRAFT_SYSTEM = f"""You write evaluation questions for a retrieval system over \
@@ -110,6 +124,16 @@ definition, data), not bibliographic details (venue, authors, dates).
 - closed_book_correct: the closed-book answer gives the same specific answer \
 as the excerpt(s). "I don't know", a vague or a generic answer is false.
 - note: one short sentence on any problem, else ""."""
+
+# Added to the grade for vocabulary_mismatch: the lexical rule bars the
+# chunk's words, and a drafter obeying it can produce a question no one types.
+_NATURAL_CHECK = """
+Also include "natural": bool. True only if a person who has not read this \
+paper would plausibly type this exact question into a paper search, starting \
+from their own problem or goal. False if it is stilted or reads as a \
+deliberate rewording of a technical term the asker would already know (for \
+example "attacks where hidden malicious text takes over a model" in place of \
+"prompt injection")."""
 
 
 class ModelClient(Protocol):
@@ -209,10 +233,11 @@ def check_record(
     closed_book = client.complete_nonempty(
         settings.golden_check_model, _CLOSED_BOOK_SYSTEM, question, _CHECK_TOKENS
     )
+    asks_natural = source.type is GoldenType.VOCABULARY_MISMATCH
     grade = parse_json(
         client.complete_nonempty(
             settings.golden_check_model,
-            _GRADE_SYSTEM,
+            _GRADE_SYSTEM + (_NATURAL_CHECK if asks_natural else ""),
             f"{fenced(source)}\n\nQuestion: {question}\nProposed answer: {answer}\n"
             f"Closed-book answer: {closed_book}",
             _CHECK_TOKENS,
@@ -238,6 +263,7 @@ def check_record(
             substantive=bool(grade["substantive"]),
             answer_correct=bool(grade["answer_correct"]),
             closed_book_correct=bool(grade["closed_book_correct"]),
+            natural=bool(grade["natural"]) if asks_natural else None,
             check_model=settings.golden_check_model,
             note=str(grade.get("note", "")),
         ),
@@ -258,6 +284,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--limit", type=int, default=None, help="draft only the first N sources")
     parser.add_argument("--workers", type=int, default=6)
+    parser.add_argument(
+        "--types",
+        nargs="+",
+        type=GoldenType,
+        default=None,
+        help="redraft only these types; the file keeps every other type's records",
+    )
     args = parser.parse_args(argv)
     settings = get_settings()
 
@@ -273,7 +306,11 @@ def main(argv: list[str] | None = None) -> int:
         settings.golden_quota,
         seed=settings.golden_seed,
         rare_max_df=settings.golden_rare_term_max_df,
-    )[: args.limit]
+        mismatch_max_df=settings.golden_mismatch_max_shared_df,
+    )
+    if args.types:
+        sources = [s for s in sources if s.type in args.types]
+    sources = sources[: args.limit]
     print(f"drafting {len(sources)} sources", file=sys.stderr)
 
     client = OpenRouterClient.from_settings(settings)
@@ -292,6 +329,11 @@ def main(argv: list[str] | None = None) -> int:
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         records = [r for r in pool.map(attempt, sources) if r is not None]
+    if args.types:
+        kept_others = [
+            r for r in load_golden(GOLDEN_PATH, counted_only=False) if r.type not in args.types
+        ]
+        records = kept_others + records
     records.sort(key=lambda r: r.id)
     dump_golden(records, GOLDEN_PATH)
 
@@ -310,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
             ("substantive", not r.checks.substantive),
             ("answer_correct", not r.checks.answer_correct),
             ("closed_book_correct", r.checks.closed_book_correct),
+            ("natural", r.checks.natural is False),
         )
         if failed
     )

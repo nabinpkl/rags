@@ -31,9 +31,11 @@ class StubClient:
     def __init__(self, *replies: str):
         self.replies = list(replies)
         self.prompts: list[str] = []
+        self.systems: list[str] = []
 
     def complete_nonempty(self, model, system, user, max_tokens):
         self.prompts.append(user)
+        self.systems.append(system)
         return self.replies.pop(0)
 
 
@@ -98,3 +100,35 @@ def test_check_record_carries_every_verdict():
     assert rec.expected_chunk_ids == ["1234.5678#2"]
     # the grader saw the closed-book answer it has to judge
     assert "Closed-book answer: I don't know." in client.prompts[1]
+
+
+GRADE = {
+    "grounded": True,
+    "substantive": True,
+    "answer_correct": True,
+    "closed_book_correct": False,
+    "note": "",
+}
+DRAFT = {
+    "question": "Which setting makes small fine-tuned add-ons work best?",
+    "answer": "rank 8",
+    "spans": ["The rank r = 8 gives the best recall."],
+    "difficulty": "medium",
+}
+
+
+@pytest.mark.parametrize("natural", [True, False])
+def test_vocabulary_mismatch_counts_only_when_the_checker_finds_it_natural(natural):
+    client = StubClient("I don't know.", json.dumps({**GRADE, "natural": natural}))
+    rec = check_record(source(GoldenType.VOCABULARY_MISMATCH), DRAFT, client, get_settings())
+    assert '"natural"' in client.systems[1]
+    assert rec.checks.natural is natural
+    assert rec.counts() is natural
+
+
+def test_other_types_are_not_asked_about_naturalness():
+    client = StubClient("I don't know.", json.dumps(GRADE))
+    rec = check_record(source(), DRAFT, client, get_settings())
+    assert '"natural"' not in client.systems[1]
+    assert rec.checks.natural is None
+    assert rec.counts()

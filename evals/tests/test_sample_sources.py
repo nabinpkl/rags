@@ -61,8 +61,8 @@ def test_sampling_is_seeded_stratified_and_one_per_paper():
         for i in range(2)
     ]
     quota = {GoldenType.SINGLE_HOP.value: 4}
-    first = sample_sources(chunks, Counter(), quota, seed=1, rare_max_df=40)
-    again = sample_sources(chunks, Counter(), quota, seed=1, rare_max_df=40)
+    first = sample_sources(chunks, Counter(), quota, seed=1, rare_max_df=40, mismatch_max_df=500)
+    again = sample_sources(chunks, Counter(), quota, seed=1, rare_max_df=40, mismatch_max_df=500)
     assert [s.chunks for s in first] == [s.chunks for s in again]
     papers = [s.chunks[0].paper_id for s in first]
     assert len(papers) == len(set(papers)) == 4
@@ -75,9 +75,32 @@ def test_multi_hop_pairs_two_sections_of_one_paper():
         chunk("1.1#1", "cl", "results text", section="Results"),
     ]
     sources = sample_sources(
-        chunks, Counter(), {GoldenType.MULTI_HOP.value: 1}, seed=0, rare_max_df=40
+        chunks,
+        Counter(),
+        {GoldenType.MULTI_HOP.value: 1},
+        seed=0,
+        rare_max_df=40,
+        mismatch_max_df=500,
     )
     assert len(sources) == 1
     pair = sources[0].chunks
     assert pair[0].paper_id == pair[1].paper_id
     assert pair[0].section != pair[1].section
+
+
+def test_vocabulary_mismatch_bars_words_under_the_wider_bar_and_moves_nothing():
+    chunks = [
+        chunk(f"{p}.0001#1", "cl", f"we train robots with GRPO and grokking {p}")
+        for p in range(1, 7)
+    ]
+    df = Counter({"train": 2000, "robot": 300, "grokking": 3, "grpo": 6})
+    base = {GoldenType.EXACT_MATCH.value: 2}
+    widened = {**base, GoldenType.VOCABULARY_MISMATCH.value: 2}
+    kw = dict(seed=3, rare_max_df=40, mismatch_max_df=500)
+    before = sample_sources(chunks, df, base, **kw)
+    after = sample_sources(chunks, df, widened, **kw)
+    assert [s.chunks for s in after[:2]] == [s.chunks for s in before]
+    mismatch = [s for s in after if s.type is GoldenType.VOCABULARY_MISMATCH]
+    assert len(mismatch) == 2
+    assert {"robot", "grokking", "grpo"} <= mismatch[0].rare_terms
+    assert "train" not in mismatch[0].rare_terms

@@ -25,6 +25,9 @@ class GoldenType(StrEnum):
     EXACT_MATCH = "exact_match"  # hinges on a distinctive term: the BM25 leg
     MULTI_HOP = "multi_hop"  # needs two chunks of one paper together
     KNOWN_HARD = "known_hard"  # tables and math, D6's honest floor
+    # the searcher's own words for a need the paper names in its own terms:
+    # where keyword matching structurally fails and the vector leg must carry
+    VOCABULARY_MISMATCH = "vocabulary_mismatch"
 
 
 class Difficulty(StrEnum):
@@ -46,6 +49,9 @@ class GoldenChecks(BaseModel):
     substantive: bool  # checker: technical content, not venue/author trivia
     answer_correct: bool  # checker: the drafted answer is right by the passage
     closed_book_correct: bool  # checker answered it WITHOUT the passage
+    # checker: a person would really type this, not a contrived rewording of a
+    # term they would know. Asked of vocabulary_mismatch only; None elsewhere.
+    natural: bool | None = None
     check_model: str
     note: str = ""
 
@@ -81,6 +87,7 @@ class GoldenRecord(BaseModel):
             and c.substantive
             and c.answer_correct
             and not c.closed_book_correct
+            and c.natural is not False
         )
 
 
