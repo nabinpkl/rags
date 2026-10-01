@@ -52,6 +52,7 @@ class Settings(BaseSettings):
         "exact_match": 35,
         "multi_hop": 15,
         "known_hard": 15,
+        "vocabulary_mismatch": 60,
     }
     golden_seed: int = 20260930
     # Source chunks under this many tokens are section stubs with nothing to
@@ -62,6 +63,11 @@ class Settings(BaseSettings):
     # a keyword match rather than a test of retrieval. Also the ceiling on an
     # exact_match anchor term, so the anchor is distinctive, not common.
     golden_rare_term_max_df: int = 40
+    # A vocabulary_mismatch question may share no word with its chunk that
+    # sits in at most this many chunks: everyday field words ("model",
+    # "robot", "attack") stay usable, so the question reads like a person's,
+    # while every word that would let BM25 single the chunk out is barred.
+    golden_mismatch_max_shared_df: int = 500
     # LLM-judge (#17/#18/answer-eval issue): faithfulness + citation-accuracy
     # scoring on the full agent loop. A different model FAMILY than
     # agent_model (Haiku) by design — judging a model with itself masks the

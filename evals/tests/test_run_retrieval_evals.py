@@ -90,6 +90,7 @@ def test_render_has_a_row_per_config_and_a_row_per_present_type():
         assert f"| {label} | 100% | 100% | 1.00 | 100% | 100% |" in table
     assert "| multi_hop | 1 |" in table
     assert "known_hard" not in table
+    assert "common field words" not in table
     assert "model-checked" in table
 
 
@@ -118,3 +119,10 @@ def test_fingerprint_moves_with_the_set_and_the_fusion_constant(tmp_path: Path):
     assert fingerprint(Settings(), golden, 101) != base
     golden.write_text("b\n")
     assert fingerprint(Settings(), golden, 100) != base
+
+
+def test_render_explains_the_mismatch_row():
+    records = [record("q1", ["p#1"], GoldenType.VOCABULARY_MISMATCH)]
+    rankings = {"q1": {c: ["p#1"] for c in CONFIGS}}
+    table = render(records, rankings, [5], n_papers=1, n_chunks=1, run_id="abc")
+    assert "only on common field words" in table

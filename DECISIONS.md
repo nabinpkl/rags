@@ -2556,3 +2556,24 @@ and the verbatim-span rule are the mitigations.
 or two configurations land within five points on a decision that matters.
 
 **Spec updated:** yes, D14 amendment (2026-09-30).
+
+## 2026-10-01 — the golden set gains a vocabulary-mismatch type (owner directive)
+
+**Context:** the first retrieval eval (#18) scored BM25 at 97% recall@5 on
+single_hop questions, so the set could not show where semantic search helps,
+which the benchmarks page exists to show.
+
+**Decision:** a `vocabulary_mismatch` type: questions in the searcher's own
+words for a need the paper names in its terms, barred from every chunk word in
+at most 500 chunks, and counted only when the checker also finds the question
+natural (not a roundabout rewording of a known term).
+
+**Consequence:** on 22 counted questions, recall@5 is BM25 36%, vector 73%,
+hybrid 77%. BM25 still matches on common field words the rule allows; the bar
+was not tightened further, because that trades natural questions for a lower
+keyword score.
+
+**Revisit when:** BM25 recall@5 on the type reaches the vector leg's, or a spot
+check finds more than two in ten counted questions unnatural.
+
+**Spec updated:** yes, D14 amendment (2026-10-01).
