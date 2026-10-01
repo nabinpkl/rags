@@ -67,6 +67,12 @@ evals-check:
 golden *ARGS:
     uv run --env-file backend/.env python -m evals.draft_golden_set {{ARGS}}
 
+# Retrieval evals (#18): keyword, semantic and hybrid over the golden set.
+# Embeds each question once (a cent or so); `--write-readme` refreshes the
+# README's results block.
+eval *ARGS:
+    uv run --env-file backend/.env python -m evals.run_retrieval_evals {{ARGS}}
+
 # Frontend gate: lint + typecheck + tests + generated-types drift + the export.
 # CI installs deps first (see ci.yml); locally, run `pnpm install` in frontend/ once.
 #
