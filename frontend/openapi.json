@@ -1188,6 +1188,17 @@
                         ],
                         "title": "Primary Category"
                     },
+                    "primary_category_name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Primary Category Name"
+                    },
                     "year": {
                         "anyOf": [
                             {

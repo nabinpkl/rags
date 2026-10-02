@@ -117,6 +117,15 @@ def test_foundations_rank_by_citation_count(client):
     assert foundations[0]["title"] == "Proximal Policy Optimization"
 
 
+def test_foundations_carry_arxivs_name_for_their_category(client):
+    """The page shows "Machine Learning", not "cs.LG"; the name comes from the
+    one hand-copied table, and a work with no category gets no name."""
+    foundations = {f["arxiv_id"]: f for f in client.get("/api/landing").json()["foundations"]}
+
+    assert foundations["1707.06347"]["primary_category_name"] == "Machine Learning"
+    assert foundations["9999.99999"]["primary_category_name"] is None
+
+
 def test_an_unresolvable_cited_work_still_counts(client):
     """Dropping it would understate every total; it appears with a null title."""
     foundations = client.get("/api/landing").json()["foundations"]

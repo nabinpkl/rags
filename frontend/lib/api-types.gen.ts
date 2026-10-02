@@ -437,6 +437,8 @@ export interface components {
             authors: string | null;
             /** Primary Category */
             primary_category: string | null;
+            /** Primary Category Name */
+            primary_category_name?: string | null;
             /** Year */
             year: number | null;
             /** Version */
