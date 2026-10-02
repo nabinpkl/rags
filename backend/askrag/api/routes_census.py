@@ -15,12 +15,20 @@ indexed-only. §6c: metadata and counts, no chunk text.
 """
 
 import sqlite3
+from functools import lru_cache
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from askrag import db
-from askrag.api.routes_landing import Foundation, cohort_months, month_coverage, trim_authors
+from askrag.api.routes_landing import (
+    Foundation,
+    MonthBucket,
+    cohort_months,
+    month_coverage,
+    trim_authors,
+)
 from askrag.category_names import category_name
 from askrag.config import Settings, get_settings
 
@@ -98,7 +106,7 @@ def next_month(yymm: str) -> str:
     return f"{year + 1:02d}01" if month == 12 else f"{year:02d}{month + 1:02d}"
 
 
-def complete_months(conn: sqlite3.Connection, min_coverage: float) -> list[str]:
+def complete_months(coverage: list[MonthBucket], min_coverage: float) -> list[str]:
     """Id-months we hold at least `min_coverage` of the catalog's count for.
 
     A month with no catalog count cannot qualify: unknown coverage is not
@@ -107,13 +115,13 @@ def complete_months(conn: sqlite3.Connection, min_coverage: float) -> list[str]:
     """
     return [
         bucket.month
-        for bucket in month_coverage(conn)
+        for bucket in coverage
         if bucket.catalog_papers and bucket.papers_held / bucket.catalog_papers >= min_coverage
     ]
 
 
 def _category_census(
-    conn: sqlite3.Connection, months: list[str], top: int
+    conn: sqlite3.Connection, coverage: list[MonthBucket], months: list[str], top: int
 ) -> tuple[list[str], list[CensusMonth]]:
     if not months:
         return [], []
@@ -132,12 +140,12 @@ def _category_census(
     # No: by size, because the bars are drawn in this order and a reader reads
     # the first one as the largest.
     ranked = sorted(totals, key=lambda cat: (-totals[cat], cat))[:top]
-    coverage = {bucket.month: bucket for bucket in month_coverage(conn)}
+    by_month = {bucket.month: bucket for bucket in coverage}
     out: list[CensusMonth] = []
     for month in months:
         held = {row["category"]: row["papers"] for row in rows if row["month"] == month}
         listed = [CategoryShare(category=cat, papers=held.get(cat, 0)) for cat in ranked]
-        bucket = coverage[month]
+        bucket = by_month[month]
         out.append(
             CensusMonth(
                 month=month,
@@ -198,13 +206,35 @@ def get_category_census(
     settings: Settings = Depends(get_settings),
 ) -> CategoryCensusResponse:
     """What arXiv cs posted, by primary category, in the months we hold whole."""
-    conn = db.connect_corpus(settings.corpus_db_path)
+    # Keyed on the file's identity: build_indexes writes a new corpus.db and
+    # renames it over the old one, so a rebuild changes the inode and the next
+    # request recomputes. Uncached this was ~1.5 s, three catalog passes.
+    stat = settings.corpus_db_path.stat()
+    return _cached_category_census(
+        str(settings.corpus_db_path),
+        stat.st_ino,
+        stat.st_mtime_ns,
+        top,
+        settings.landing_census_min_coverage,
+        settings.landing_cohort_min_share,
+    )
+
+
+@lru_cache(maxsize=8)
+def _cached_category_census(
+    db_path: str,
+    _inode: int,
+    _mtime_ns: int,
+    top: int,
+    min_coverage: float,
+    min_share: float,
+) -> CategoryCensusResponse:
+    conn = db.connect_corpus(Path(db_path))
     try:
-        months = complete_months(conn, settings.landing_census_min_coverage)
-        categories, census = _category_census(conn, months, top)
-        # Both sets are hoisted: each is a full pass over the catalog census,
-        # and evaluating them inside the comprehension ran them once per month.
-        cohort = set(cohort_months(conn, settings.landing_cohort_min_share))
+        coverage = month_coverage(conn)
+        months = complete_months(coverage, min_coverage)
+        categories, census = _category_census(conn, coverage, months, top)
+        cohort = set(cohort_months(conn, min_share))
         complete = set(months)
         excluded = [
             ExcludedMonth(
@@ -212,7 +242,7 @@ def get_category_census(
                 papers_held=bucket.papers_held,
                 catalog_papers=bucket.catalog_papers,
             )
-            for bucket in month_coverage(conn)
+            for bucket in coverage
             if bucket.month in cohort and bucket.month not in complete
         ]
         names = {code: name for code in categories if (name := category_name(code))}
@@ -228,7 +258,7 @@ def get_uptake(settings: Settings = Depends(get_settings)) -> UptakeResponse:
     """Work from one complete month that the next complete month already cites."""
     conn = db.connect_corpus(settings.corpus_db_path)
     try:
-        months = complete_months(conn, settings.landing_census_min_coverage)
+        months = complete_months(month_coverage(conn), settings.landing_census_min_coverage)
         pairs = [(a, b) for a, b in zip(months, months[1:], strict=False) if next_month(a) == b]
         if not pairs:
             return UptakeResponse(
