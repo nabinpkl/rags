@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from askrag import db
 from askrag.api.routes_landing import Foundation, cohort_months, month_coverage, trim_authors
+from askrag.category_names import category_name
 from askrag.config import Settings, get_settings
 
 router = APIRouter()
@@ -55,6 +56,9 @@ class CategoryCensusResponse(BaseModel):
     # to compare months, and a per-month top list would silently change axes
     # between the bars a reader is comparing.
     categories: list[str]
+    # arXiv's name for each listed code that has one (category_names.py);
+    # a code outside cs is absent and shows as itself.
+    category_names: dict[str, str]
     months: list[CensusMonth]
     excluded: list[ExcludedMonth]
 
@@ -211,7 +215,10 @@ def get_category_census(
             for bucket in month_coverage(conn)
             if bucket.month in cohort and bucket.month not in complete
         ]
-        return CategoryCensusResponse(categories=categories, months=census, excluded=excluded)
+        names = {code: name for code in categories if (name := category_name(code))}
+        return CategoryCensusResponse(
+            categories=categories, category_names=names, months=census, excluded=excluded
+        )
     finally:
         conn.close()
 

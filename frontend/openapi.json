@@ -763,6 +763,13 @@
                         "type": "array",
                         "title": "Categories"
                     },
+                    "category_names": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "type": "object",
+                        "title": "Category Names"
+                    },
                     "months": {
                         "items": {
                             "$ref": "#/components/schemas/CensusMonth"
@@ -781,6 +788,7 @@
                 "type": "object",
                 "required": [
                     "categories",
+                    "category_names",
                     "months",
                     "excluded"
                 ],

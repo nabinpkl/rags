@@ -110,6 +110,26 @@ def test_every_month_reports_the_same_categories_in_the_same_order(client):
     assert (july["papers"], july["catalog_papers"]) == (4, 4)
 
 
+def test_the_census_names_its_categories_as_arxiv_does(client):
+    body = client.get("/api/census/categories").json()
+
+    assert body["category_names"] == {
+        "cs.CL": "Computation and Language",
+        "cs.CV": "Computer Vision and Pattern Recognition",
+        "cs.CR": "Cryptography and Security",
+        "cs.RO": "Robotics",
+    }
+
+
+def test_uptake_works_carry_their_category_name(client):
+    works = client.get("/api/census/uptake").json()["works"]
+
+    assert [w["work"]["primary_category_name"] for w in works] == [
+        "Computer Vision and Pattern Recognition",
+        "Computation and Language",
+    ]
+
+
 def test_categories_outside_the_shared_list_land_in_other_so_a_month_still_sums(tmp_path):
     _write_corpus_db(tmp_path / "corpus.db", PAPERS, CHUNKS, CITED_WORKS, CITATIONS, CATALOG_MONTHS)
 
