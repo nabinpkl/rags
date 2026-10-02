@@ -231,3 +231,37 @@ def test_the_catalog_is_scanned_a_fixed_number_of_times_whatever_the_month_count
         CATALOG_MONTHS | {paper.arxiv_id[:4]: 400 for paper in thin},
     )
     assert few == many
+
+
+def test_the_census_is_computed_once_per_corpus_build(tmp_path, monkeypatch):
+    """Uncached it was three catalog passes (~1.5 s) per request for numbers
+    that only change when corpus.db is rebuilt."""
+    _write_corpus_db(tmp_path / "corpus.db", PAPERS, CHUNKS, CITED_WORKS, CITATIONS, CATALOG_MONTHS)
+    calls = []
+    real = routes_census.month_coverage
+    monkeypatch.setattr(routes_census, "month_coverage", lambda conn: calls.append(1) or real(conn))
+    client = _client(tmp_path)
+
+    first = client.get("/api/census/categories").json()
+    second = client.get("/api/census/categories").json()
+
+    assert first == second
+    assert len(calls) == 1
+
+
+def test_a_rebuilt_corpus_is_seen_without_a_restart(tmp_path):
+    """build_indexes writes a new file and renames it over the old one; the
+    cache is keyed on that file's identity, so the next request recomputes."""
+    db_path = tmp_path / "corpus.db"
+    _write_corpus_db(db_path, PAPERS, CHUNKS, CITED_WORKS, CITATIONS, CATALOG_MONTHS)
+    client = _client(tmp_path)
+    assert [m["month"] for m in client.get("/api/census/categories").json()["months"]] == [
+        "2607",
+        "2608",
+    ]
+
+    rebuilt = tmp_path / "corpus.db.new"
+    _write_corpus_db(rebuilt, PAPERS, CHUNKS, CITED_WORKS, CITATIONS, {"2607": 4})
+    rebuilt.replace(db_path)
+
+    assert [m["month"] for m in client.get("/api/census/categories").json()["months"]] == ["2607"]
