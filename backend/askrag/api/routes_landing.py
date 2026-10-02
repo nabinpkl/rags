@@ -35,7 +35,7 @@ import re
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from askrag import db
 from askrag.category_names import category_name
@@ -100,10 +100,18 @@ class Foundation(BaseModel):
     primary_category: str | None
     # arXiv's name for `primary_category` (category_names.py), None for a
     # code outside cs; the page shows the name, the code stays for filters.
+    # Filled here rather than by each caller, so every route that builds a
+    # Foundation (landing, foundations, uptake) carries it.
     primary_category_name: str | None = None
     year: int | None
     version: str | None
     cited_by: int
+
+    @model_validator(mode="after")
+    def _name_the_category(self) -> "Foundation":
+        if self.primary_category and self.primary_category_name is None:
+            self.primary_category_name = category_name(self.primary_category)
+        return self
 
 
 class LandingResponse(BaseModel):
@@ -269,8 +277,6 @@ def _foundations(conn: sqlite3.Connection, limit: int, max_authors: int) -> list
 def _to_foundation(row: sqlite3.Row, max_authors: int) -> Foundation:
     fields = dict(row)
     fields["authors"] = trim_authors(fields["authors"], max_authors)
-    if fields["primary_category"]:
-        fields["primary_category_name"] = category_name(fields["primary_category"])
     return Foundation(**fields)
 
 

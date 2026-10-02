@@ -6,6 +6,8 @@ import type { CategoryCensusResponse } from "@/lib/api-client";
 
 const CENSUS: CategoryCensusResponse = {
   categories: ["cs.CV", "cs.LG"],
+  // cs.LG left unnamed on purpose: the row falls back to the code.
+  category_names: { "cs.CV": "Computer Vision and Pattern Recognition" },
   months: [
     {
       month: "2607",
@@ -47,16 +49,23 @@ describe("CategoryCensus", () => {
     expect(screen.getByText("Not yet shown: September 2026 (8% collected).")).toBeInTheDocument();
   });
 
+  it("names each category as arXiv does, falling back to the code", () => {
+    render(<CategoryCensus census={CENSUS} />);
+
+    const rows = screen.getAllByRole("rowheader").map((cell) => cell.textContent);
+    expect(rows).toEqual(["Computer Vision and Pattern Recognition", "cs.LG"]);
+  });
+
   it("asks every month for the same categories, in the same order", () => {
     render(<CategoryCensus census={CENSUS} />);
 
     const rows = screen.getAllByRole("rowheader").map((cell) => cell.textContent);
-    expect(rows).toEqual(["cs.CV", "cs.LG"]);
+    expect(rows).toEqual(["Computer Vision and Pattern Recognition", "cs.LG"]);
   });
 
   it("renders nothing when no month is held completely enough", () => {
     const { container } = render(
-      <CategoryCensus census={{ categories: [], months: [], excluded: [] }} />,
+      <CategoryCensus census={{ categories: [], category_names: {}, months: [], excluded: [] }} />,
     );
 
     expect(container).toBeEmptyDOMElement();

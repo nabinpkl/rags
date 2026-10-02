@@ -43,11 +43,13 @@ export function RecentUptake({
                 <span className="text-ink block text-[13.5px] leading-snug font-medium group-hover:underline">
                   {work.title ?? work.arxiv_id}
                 </span>
-                <span className="text-muted mt-1.5 flex items-center gap-2 text-[11.5px]">
-                  <span className="bg-teal-soft text-teal-ink shrink-0 rounded px-1 py-px font-mono text-[10.5px]">
-                    {work.primary_category ?? "uncategorized"}
-                  </span>
-                  <span className="tabular-nums">{work.cited_by.toLocaleString()} in total</span>
+                <span className="text-muted mt-1 block text-[11.5px] tabular-nums">
+                  {[
+                    work.primary_category_name ?? work.primary_category,
+                    `${work.cited_by.toLocaleString()} in total`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               </span>
               <span className="w-20 shrink-0 pt-px">

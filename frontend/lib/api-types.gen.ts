@@ -275,6 +275,10 @@ export interface components {
         CategoryCensusResponse: {
             /** Categories */
             categories: string[];
+            /** Category Names */
+            category_names: {
+                [key: string]: string;
+            };
             /** Months */
             months: components["schemas"]["CensusMonth"][];
             /** Excluded */

@@ -44,8 +44,10 @@ export function CategoryCensus({ census }: { census: CategoryCensusResponse }) {
           <tbody>
             {census.categories.map((category, row) => (
               <tr key={category}>
-                <th scope="row" className="text-ink py-1 pr-3 text-left font-normal">
-                  <span className="font-mono text-[11.5px]">{category}</span>
+                <th scope="row" className="text-ink py-1.5 pr-3 text-left text-[13px] font-normal">
+                  {census.category_names[category] ?? (
+                    <span className="font-mono text-[11.5px]">{category}</span>
+                  )}
                 </th>
                 {census.months.map((month) => {
                   const share = month.categories[row]?.papers ?? 0;

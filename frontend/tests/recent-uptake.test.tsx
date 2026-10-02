@@ -11,6 +11,7 @@ function work(arxiv_id: string, title: string, citations_from: number, cited_by:
       title,
       authors: "A. Author",
       primary_category: "cs.CL",
+      primary_category_name: "Computation and Language",
       year: 2026,
       version: "v1",
       cited_by,
@@ -47,6 +48,7 @@ describe("RecentUptake", () => {
 
     expect(screen.getByText("92")).toBeInTheDocument();
     expect(screen.getByText(/118 in total/)).toBeInTheDocument();
+    expect(screen.getByText(/Computation and Language · 118 in total/)).toBeInTheDocument();
   });
 
   it("opens the same detail view the ranking opens", () => {
