@@ -1,141 +1,47 @@
-import { FlaskConical, History } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
-import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import type { LandingResponse } from "@/lib/api-client";
 
-/** How the numbers are made, and what they are not.
+/** How the numbers are made, and what they are not, folded shut.
  *
- * The "what this is not" paragraph is load-bearing, not a disclaimer: it is
- * the reason the page has no theme cards. Delete it and the design looks
- * arbitrary instead of deliberate.
+ * The "not a census, no themes" line is load-bearing: it is the reason the
+ * page has no theme cards. It stays on the page, one click deep, because the
+ * page reads without it and a reader who doubts a number knows where to look.
  */
-export function MethodsNote({
-  stats,
-  citedYears,
-}: {
-  stats: LandingResponse["stats"];
-  citedYears: LandingResponse["cited_years"];
-}) {
+export function MethodsNote({ stats }: { stats: LandingResponse["stats"] }) {
   // Over papers whose text reached the parser, NEVER over every catalog row:
-  // the second denominator printed a 30% parse rate for a parser that yields
-  // 81%, and then blamed the missing 70% on reference lists that "did not
-  // parse" when those papers had never been collected at all.
+  // that denominator printed a 30% parse rate for a parser that yields 81%.
   const parseRate = stats.papers_parsed
     ? Math.round((stats.papers_with_references / stats.papers_parsed) * 100)
     : 0;
-  // An empty graph is a real state (a corpus built before extract_citations
-  // ran). Keep the raw total to detect it, and guard the divisor separately —
-  // "0% of these citations" reads as a finding when it is an absence.
-  const placeable = citedYears.reduce((sum, bucket) => sum + bucket.citations, 0);
-  const total = placeable || 1;
-  // Only the recent tail is legible as bars; the long pre-2020 tail collapses
-  // into the sentence below.
-  const recent = citedYears.filter((bucket) => bucket.year !== null && bucket.year >= 2020);
-  const max = Math.max(...recent.map((bucket) => bucket.citations), 1);
-  // The claim worth making is against the COHORT's own year, not a round
-  // number: 82% of this cohort's citations point at work published before the
-  // year the cohort itself was written in. Undated works count as older.
-  const cohortYear = stats.cohort_end ? 2000 + Number(stats.cohort_end.slice(0, 2)) : null;
-  const beforeCohortYear = cohortYear
-    ? citedYears
-        .filter((bucket) => bucket.year === null || bucket.year < cohortYear)
-        .reduce((sum, bucket) => sum + bucket.citations, 0)
-    : 0;
 
   const steps = [
-    {
-      // Provenance, not plumbing: where the papers came from is a reason to
-      // trust the counts, how their PDFs are stored on our disk is not.
-      title: "1 · collect",
-      body: `cs papers from the cohort's id-months, mirrored from Google's arXiv bucket: ${stats.cohort_papers.toLocaleString()} of them, plus the older works they cite.`,
-    },
-    {
-      // A rate, not the two counts behind it: how many PDFs we processed is
-      // our business, how much the page's counts undercount is the reader's.
-      title: "2 · parse",
-      body: `arXiv ids pulled out of each reference list by pattern. ${parseRate}% of the papers yielded a usable list; the rest carry no citations into any count here.`,
-    },
-    {
-      title: "3 · count",
-      body: "One citation per (paper, target) pair. Self-citations dropped. The rank is a count; there is nothing else in it.",
-    },
-    {
-      // The one place the indexed count belongs: beside the rule that
-      // produced it. On its own, as a KPI card, 667 next to 19,613 read as a
-      // shortfall rather than as a scope.
-      title: "4 · index",
-      body: `The ${stats.readable_papers.toLocaleString()} works on this page are the ones the agent can read and quote. The page defines what is indexed, not the other way round.`,
-    },
-  ];
+    ["Collect", "cs papers from arXiv's Google Cloud mirror, plus the older works they cite."],
+    ["Parse", `arXiv ids from each reference list. ${parseRate}% of papers yield one.`],
+    ["Count", "One citation per citing paper and work. Self-citations dropped."],
+    ["Index", "The agent reads and quotes the recent papers that cite the works ranked here."],
+  ] as const;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-5">
-      <DashboardPanel
-        icon={History}
-        title="How far back it reaches"
-        meta={placeable ? "2020 onward" : undefined}
-        className="lg:col-span-2"
-      >
-        <div className="flex min-h-[132px] flex-1 items-end gap-1.5" aria-hidden>
-          {recent.map((bucket) => (
-            <div key={bucket.year} className="flex h-full flex-1 flex-col items-center gap-1">
-              <span className="text-muted font-mono text-[10px] tabular-nums">
-                {Math.round((bucket.citations / total) * 100)}%
-              </span>
-              {/* Percentage of the track, like the trends panel, so this card
-                  fills whatever height the row hands it instead of ending in
-                  a band of empty panel beside a taller neighbour. */}
-              <div className="relative w-full flex-1">
-                <div
-                  className="bg-chart-1 absolute inset-x-0 bottom-0 rounded-t-sm"
-                  style={{ height: `${Math.max((bucket.citations / max) * 100, 1.5)}%` }}
-                />
-              </div>
-              <span className="text-muted font-mono text-[10px]">{bucket.year}</span>
-            </div>
-          ))}
-        </div>
-        <p className="text-muted mt-3 text-[13px] leading-relaxed">
-          {cohortYear && placeable ? (
-            <>
-              {Math.round((beforeCohortYear / total) * 100)}% of these citations point at work
-              published before {cohortYear}. The newest work is not built only on the newest work,
-              which is why a few months of papers can say something about more than a few months.
-            </>
-          ) : (
-            "No citations to place in time yet."
-          )}
+    <details className="group border-line bg-panel rounded-md border">
+      <summary className="text-ink hover:bg-panel-hover flex cursor-pointer list-none items-center gap-2 rounded-md px-4 py-3 text-[13px] font-medium transition-colors motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
+        <ChevronRight
+          className="text-muted size-4 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"
+          aria-hidden
+        />
+        How this is counted
+      </summary>
+      <div className="border-line grid gap-x-8 gap-y-3 border-t px-4 py-4 sm:grid-cols-2">
+        {steps.map(([title, body]) => (
+          <p key={title} className="text-ink max-w-[60ch] text-[13px] leading-relaxed">
+            <b className="font-semibold">{title}.</b> {body}
+          </p>
+        ))}
+        <p className="text-ink-2 max-w-[60ch] text-[13px] leading-relaxed sm:col-span-2">
+          A count over a sample of recent arXiv cs, not a measure of importance. No topic labels:
+          two runs of the same clustering agree on only 43–61% of pairs.
         </p>
-      </DashboardPanel>
-
-      <DashboardPanel
-        icon={FlaskConical}
-        title="How these numbers are made"
-        meta="four steps"
-        className="lg:col-span-3"
-      >
-        <div className="mb-4 grid gap-4 sm:grid-cols-2">
-          {steps.map((step) => (
-            <div key={step.title}>
-              <b className="text-muted mb-1 block font-mono text-[10.5px] font-semibold tracking-[0.1em] uppercase">
-                {step.title}
-              </b>
-              <p className="text-ink m-0 text-[13px] leading-relaxed">{step.body}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="bg-paper border-l-rust mt-auto border-l-[3px] px-3.5 py-2.5 text-[13px] leading-relaxed">
-          <b className="text-rust">What this is not.</b> It is not a citation count, and it is not a
-          census: it is a count over a sample of recent arXiv cs, so it measures what <i>these</i>{" "}
-          papers build on, not what is important overall. The {100 - parseRate}% of collected papers
-          whose reference lists did not parse are missing entirely, and outside the cohort months
-          the corpus thins to a few papers a month, so nothing here should be read as a trend over
-          time. Grouping papers into named themes is deliberately absent: on this data, two runs of
-          the same clustering agree on only 43–61% of pairs, so any theme label would be a claim
-          about our code rather than about the literature.
-        </div>
-      </DashboardPanel>
-    </div>
+      </div>
+    </details>
   );
 }

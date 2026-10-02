@@ -1,5 +1,3 @@
-import { PieChart } from "lucide-react";
-
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import type { CategoryCensusResponse } from "@/lib/api-client";
 import { formatIdMonth } from "@/lib/id-month";
@@ -28,19 +26,17 @@ export function CategoryCensus({ census }: { census: CategoryCensusResponse }) {
 
   return (
     <DashboardPanel
-      icon={PieChart}
       title="What the field posted"
-      meta={census.months.map((month) => formatIdMonth(month.month, "short")).join(" · ")}
-      description="Primary category of every cs paper arXiv announced in these months. Not our sample of them: we hold effectively all of both, so this is the census."
-      footer={<CensusFooter census={census} />}
+      description="Share of all cs papers arXiv announced, by primary category."
+      footer={census.excluded.length > 0 ? <CensusFooter census={census} /> : undefined}
     >
       <div className="flex-1 overflow-x-auto">
         <table className="w-full text-[12.5px]">
           <thead>
-            <tr className="text-muted font-mono text-[10px] tracking-[0.1em] uppercase">
-              <th className="py-1 text-left font-normal">Category</th>
+            <tr className="text-muted text-[11px]">
+              <th className="py-1 text-left font-medium">Category</th>
               {census.months.map((month) => (
-                <th key={month.month} className="py-1 pl-4 text-right font-normal">
+                <th key={month.month} className="py-1 pl-4 text-right font-medium">
                   {formatIdMonth(month.month, "short")}
                 </th>
               ))}
@@ -80,29 +76,16 @@ export function CategoryCensus({ census }: { census: CategoryCensusResponse }) {
   );
 }
 
-/** The denominators, and the month that could not be drawn. Both are things a
- * reader cannot recover from the bars. */
+/** A month too thin to speak for itself is named, not drawn: a missing
+ * column reads as a field that stopped publishing. */
 function CensusFooter({ census }: { census: CategoryCensusResponse }) {
-  const counts = census.months
-    .map(
-      (month) =>
-        `${formatIdMonth(month.month, "short")} ${month.papers.toLocaleString()} of ${month.catalog_papers.toLocaleString()}`,
-    )
-    .join("; ");
   const excluded = census.excluded
     .map((month) => {
-      const held = month.papers_held.toLocaleString();
-      if (!month.catalog_papers) return `${formatIdMonth(month.month)} (${held} papers held)`;
+      if (!month.catalog_papers) return formatIdMonth(month.month);
       const share = Math.round((month.papers_held / month.catalog_papers) * 100);
-      return `${formatIdMonth(month.month)}, where we hold ${share}% of the ${month.catalog_papers.toLocaleString()} papers arXiv posted`;
+      return `${formatIdMonth(month.month)} (${share}% collected)`;
     })
-    .join("; ");
+    .join(", ");
 
-  return (
-    <>
-      Papers held against the catalog: {counts}. Each paper counts once, under the primary category
-      arXiv filed it in.
-      {excluded && ` Left out: ${excluded} — too little of it to speak for the month.`}
-    </>
-  );
+  return <>Not yet shown: {excluded}.</>;
 }

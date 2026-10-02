@@ -35,21 +35,8 @@ export type ShellView = (typeof VIEWS)[number]["id"];
  * because a filter is a property of the list rather than a place to go. The
  * alternative was a second rail beside the first, which is two columns of
  * chrome on a 768px viewport before any papers appear.
- *
- * `cohort` is the dataset's identity rather than a control, so it sits at the
- * foot of the rail on the view whose numbers were counted over it.
  */
-export function ShellSidebar({
-  current,
-  cohort,
-  children,
-}: {
-  current: ShellView;
-  /** The id-month range the overview's counts cover; omitted where nothing
-   * on screen was counted over it. */
-  cohort?: string | null;
-  children?: ReactNode;
-}) {
+export function ShellSidebar({ current, children }: { current: ShellView; children?: ReactNode }) {
   return (
     <div className="flex h-full flex-col">
       <div className="border-line flex h-[57px] shrink-0 items-center gap-2.5 border-b px-4">
@@ -95,25 +82,6 @@ export function ShellSidebar({
             the pill a selected row draws rather than sitting 4px inside it. */}
         {children && <div className="border-line mt-1 border-t px-2 py-3">{children}</div>}
       </div>
-
-      {cohort !== undefined && (
-        <dl className="border-line shrink-0 border-t px-4 py-3.5">
-          {/* "Cohort", not "Window": the months the counted papers came from.
-              Labelled Window, and derived as the min/max citing id-month, it
-              read Nov 2007 - Sep 2026 because 261 stray seed papers had
-              parsed references, and the page then claimed all of it. */}
-          <dt className="text-muted font-mono text-[9.5px] tracking-[0.14em] uppercase">Cohort</dt>
-          <dd className="text-ink mt-1 font-mono text-[11.5px] tabular-nums">
-            {cohort ?? "not yet counted"}
-          </dd>
-          <dt className="text-muted mt-3 font-mono text-[9.5px] tracking-[0.14em] uppercase">
-            Source
-          </dt>
-          <dd className="text-ink mt-1 font-mono text-[11.5px]">
-            arXiv cs sample, parsed references
-          </dd>
-        </dl>
-      )}
     </div>
   );
 }

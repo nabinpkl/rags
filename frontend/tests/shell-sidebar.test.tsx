@@ -39,16 +39,4 @@ describe("ShellSidebar", () => {
 
     expect(screen.getByRole("button", { name: "Clear the filter" })).toBeInTheDocument();
   });
-
-  it("says the cohort is not yet counted rather than printing an empty range", () => {
-    render(<ShellSidebar current="overview" cohort={null} />);
-
-    expect(screen.getByText("not yet counted")).toBeInTheDocument();
-  });
-
-  it("leaves the cohort out entirely where nothing on screen was counted over it", () => {
-    render(<ShellSidebar current="explore" />);
-
-    expect(screen.queryByText("Cohort")).not.toBeInTheDocument();
-  });
 });

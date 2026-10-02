@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Hero } from "@/components/landing/hero";
-import type { LandingResponse } from "@/lib/api-client";
+import type { CoverageResponse, LandingResponse } from "@/lib/api-client";
 
 function stats(overrides: Partial<LandingResponse["stats"]> = {}): LandingResponse["stats"] {
   return {
@@ -19,72 +19,66 @@ function stats(overrides: Partial<LandingResponse["stats"]> = {}): LandingRespon
   };
 }
 
+function month(
+  id: string,
+  held: number,
+  catalog: number | null,
+): CoverageResponse["months"][number] {
+  return {
+    month: id,
+    papers_held: held,
+    papers_parsed: held,
+    refs_made: 0,
+    catalog_papers: catalog,
+  };
+}
+
+const MONTHS = [month("2606", 20, 12000), month("2607", 13010, 13016), month("2608", 6370, 14491)];
+
 describe("Hero", () => {
-  it("is a sentence, not a KPI row", () => {
-    // Four big numbers above the ranking read as the finding; the finding is
-    // the ranking. The totals that size the sample stay, inside the sentence
-    // that says what they are.
-    const { container } = render(<Hero stats={stats()} />);
+  it("prints no corpus totals: they size our pile, not the finding", () => {
+    render(<Hero stats={stats()} months={MONTHS} />);
 
-    expect(container.querySelector("dl")).toBeNull();
-    expect(screen.queryByText("65,694")).not.toBeInTheDocument();
-    expect(screen.queryByText("667")).not.toBeInTheDocument();
-    expect(screen.queryByText(/papers the agent reads and quotes/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/172,404/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/65,694/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/667/)).not.toBeInTheDocument();
   });
 
-  it("claims a measured share of arXiv, never 'every paper'", () => {
-    // The page said "every cs paper arXiv posted in the window". Measured,
-    // that was 94% of July 2026, 49% of August and 5% of September.
-    render(<Hero stats={stats()} />);
+  it("meters only the cohort's months, each against arXiv's own count", () => {
+    render(<Hero stats={stats()} months={MONTHS} />);
 
-    expect(screen.getByText(/19,380 of the 27,507 cs papers/)).toBeInTheDocument();
-    expect(screen.queryByText(/every cs paper/)).not.toBeInTheDocument();
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(screen.getByText("44%")).toBeInTheDocument();
+    expect(screen.getByText(/6,370 of 14,491 papers/)).toBeInTheDocument();
+    // June 2026 is outside the cohort and is not drawn.
+    expect(screen.queryByText(/20 of 12,000/)).not.toBeInTheDocument();
   });
 
-  it("counts citations in the same breath as the papers they came from", () => {
-    render(<Hero stats={stats()} />);
+  it("says n/a rather than 0% when the catalog cannot answer for a month", () => {
+    render(<Hero stats={stats()} months={[month("2608", 6370, null)]} />);
 
-    expect(screen.getByText(/172,404 citations to other arXiv papers/)).toBeInTheDocument();
+    expect(screen.getByText("n/a")).toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
   });
 
-  it("drops the share rather than the honesty when the catalog cannot answer", () => {
-    render(<Hero stats={stats({ cohort_catalog_papers: null })} />);
-
-    expect(screen.getByText(/19,380 cs papers/)).toBeInTheDocument();
-    expect(screen.queryByText(/of the 27,507/)).not.toBeInTheDocument();
-  });
-
-  it("names the cohort from the id-months the API derived, not a hardcoded date", () => {
-    render(<Hero stats={stats()} />);
-
-    expect(screen.getByText(/posted between July 2026 and August 2026/)).toBeInTheDocument();
-  });
-
-  it("gives each side its own year, since the two need not share one", () => {
+  it("names the cohort from the id-months the API derived, each with its own year", () => {
     render(<Hero stats={stats({ cohort_start: "2512", cohort_end: "2609" })} />);
 
-    expect(screen.getByText(/between December 2025 and September 2026/)).toBeInTheDocument();
-    expect(screen.queryByText(/December and September 2026/)).not.toBeInTheDocument();
+    expect(screen.getByText(/from December 2025 to September 2026/)).toBeInTheDocument();
   });
 
-  it("says one month when the cohort is one month, with the preposition to match", () => {
-    // The preposition travels with the span: a fixed "in" in the sentence
-    // plus "between" from the formatter rendered "posted in between July...".
+  it("says one month when the cohort is one month", () => {
     render(<Hero stats={stats({ cohort_start: "2608", cohort_end: "2608" })} />);
 
     expect(screen.getByText(/posted in August 2026/)).toBeInTheDocument();
-    expect(screen.queryByText(/August 2026 and August 2026/)).not.toBeInTheDocument();
   });
 
-  it("degrades to a neutral phrase on an empty graph rather than rendering NaN", () => {
-    render(<Hero stats={stats({ cohort_start: null, cohort_end: null })} />);
+  it("degrades to a neutral phrase and no meters on an empty graph", () => {
+    const { container } = render(
+      <Hero stats={stats({ cohort_start: null, cohort_end: null })} months={MONTHS} />,
+    );
 
     expect(screen.getByText(/in the indexed months/)).toBeInTheDocument();
-  });
-
-  it("states the method in the lede: counted, not modelled", () => {
-    render(<Hero stats={stats()} />);
-
-    expect(screen.getByText(/No topic modelling, no clustering/)).toBeInTheDocument();
+    expect(container.querySelector("dl")).toBeNull();
   });
 });

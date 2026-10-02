@@ -1,7 +1,5 @@
 "use client";
 
-import { BookOpen } from "lucide-react";
-
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import { ArxivPdfFrame } from "@/components/viewer/arxiv-pdf-frame";
 import { useViewerPaper } from "@/hooks/use-viewer-paper";
@@ -25,7 +23,6 @@ export function PaperReaderPanel({ arxivId }: { arxivId: string }) {
 
   return (
     <DashboardPanel
-      icon={BookOpen}
       title={isPending ? "Loading…" : (data?.title ?? `arXiv:${arxivId}`)}
       meta={data?.version ? `version ${data.version.replace(/^v/, "")}` : "latest version"}
       bodyClassName="min-h-0 p-0"

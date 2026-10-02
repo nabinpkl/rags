@@ -33,21 +33,14 @@ describe("LatestPapers", () => {
     expect(link).toHaveAttribute("href", "/demo?paper=2608.13560");
   });
 
-  it("states the date, category, and reference count per row", () => {
+  it("states the date and category per row, not bookkeeping", () => {
     render(<LatestPapers papers={papers} />);
 
     expect(screen.getByText(/13 Aug 2026/)).toBeInTheDocument();
     expect(screen.getByText(/12 Aug 2026/)).toBeInTheDocument();
     expect(screen.getByText(/cs\.CL/)).toBeInTheDocument();
-    expect(screen.getByText(/30 refs/)).toBeInTheDocument();
-    expect(screen.getByText(/1 ref/)).toBeInTheDocument();
+    expect(screen.queryByText(/refs?$/)).not.toBeInTheDocument();
     expect(screen.getByText(/uncategorized/)).toBeInTheDocument();
-  });
-
-  it("says freshness follows the index run, not the clock", () => {
-    render(<LatestPapers papers={papers} />);
-
-    expect(screen.getByText(/once the index run covers them/)).toBeInTheDocument();
   });
 
   it("renders nothing with no papers", () => {
