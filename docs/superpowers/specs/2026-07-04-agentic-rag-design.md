@@ -986,40 +986,19 @@ from "readable", which this decision currently does not have to.
 
 ---
 
-### D17. PDFs are transient; text and the citation graph are the retained artifacts
+### D17. Withdrawn (2026-10-02, owner directive): PDFs are kept
 
-**Decision.** A PDF is fetched, extracted, and deleted. What we keep per paper
-is the extracted text and the arXiv ids its reference list names. Retention is
-therefore ~68 KB/paper instead of ~4.7 MB/paper — **70x smaller** — which is
-what makes a rolling window over cs affordable at all: five months of cs PDFs
-fill a 365 GB volume, while the same span in text form is under 10 GB.
+D17 made PDFs transient: fetch, extract, delete, keep only text and citation
+edges. It was never implemented, and the owner withdrew it on 2026-10-02.
+PDFs fetched from the GCS mirror stay under `corpus/pdfs/`. D19 depends on
+that, since card images render from the PDFs we hold, and keeping them means a
+chunker or extractor change re-runs over local bytes instead of a download
+pass. §6b is unchanged: holding a PDF for internal processing is not serving,
+proxying or caching it to anyone, and no PDF leaves our infrastructure.
 
-**Why.** The binding constraint on corpus size turned out to be one-time
-transfer, not disk, and the extra megabytes in a PDF are figures, not writing:
-text length saturates against PDF size (a 0.3 MB PDF yields ~35 KB of text; a
-9 MB PDF yields ~65 KB). Keeping the bytes buys nothing we use. §6b prohibits
-*serving, proxying, or caching* e-prints externally — it has never prohibited
-internal extraction, which §6c row 1 explicitly sanctions — but the
-internal/external distinction was inferred rather than written, and a rule
-that important should not have to be inferred. **This decision states it:
-extraction is internal processing; retention of the bytes is not required by
-it, and deleting them narrows our exposure rather than widening it.**
-
-**Alternatives rejected.** *Keep every PDF* (the status quo — 121 GB for two
-months of cs, and the ceiling that forced "we can only afford 2 months", which
-was never true of text). *Keep PDFs only for the indexed frontier* (a second
-retention rule to reason about, for ~300 papers, saving nothing that matters).
-*Re-fetch on demand at serve time* (would put arxiv.org in the request path,
-which D9 exists to keep it out of).
-
-**Risks accepted.** Re-extracting a paper means re-fetching it from the GCS
-mirror — free and fast, but not instant, so a chunker change costs a download
-pass. Extraction quality is frozen at the extractor version that ran: if
-PyMuPDF4LLM improves, we re-fetch rather than re-run over local bytes.
-
-**Revisit when.** Re-extraction becomes routine (more than ~quarterly), or the
-mirror stops carrying a month we need — either would make the bytes worth
-their disk again.
+The cost is disk, about 4 MB per paper (a month of cs is about 50 GB), and the
+volume, not transfer, is now what bounds how many months we hold. The number
+stays so that D18 and later keep theirs.
 
 ---
 
