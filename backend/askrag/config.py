@@ -231,8 +231,12 @@ class Settings(BaseSettings):
     # provider, so these are MEASURED from Perplexity's own 400s (2026-09-18):
     # "input array exceeds maximum of 512 items" and "Input total size exceeds
     # maximum number of allowed tokens: got 131150, maximum is 120000".
+    # The token cap is counted in cl100k (what chunks.jsonl stores) against a
+    # limit the provider counts in its own tokenizer, which runs higher: a
+    # batch of 119,565 cl100k tokens was 129,339 to Perplexity (+8.2%,
+    # 2026-10-02). 105k leaves room for +14%.
     openrouter_embed_batch_max_items: int = 512
-    openrouter_embed_batch_max_tokens: int = 120_000
+    openrouter_embed_batch_max_tokens: int = 105_000
     # Paced in cl100k tokens (what chunks.jsonl stores), which measured ~6%
     # under the provider's own count (20.02M ours vs 21.24M billed over the
     # full corpus), so this targets ~1.9M provider tokens/minute — the rate

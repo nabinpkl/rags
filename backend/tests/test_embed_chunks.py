@@ -680,11 +680,12 @@ def test_openrouter_adapter_refuses_to_start_without_a_key(monkeypatch):
 
 
 def test_the_active_backend_decides_the_batch_caps(monkeypatch):
-    """Perplexity refuses 512+ items and 120k+ tokens per request, so a
+    """Perplexity refuses 512+ items and 120k+ of its own tokens per request
+    (105k cl100k leaves room for its tokenizer counting higher), so a
     backend flip that left Voyage-shaped caps in place would 400 on the first
     batch of a long run."""
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-key")
-    assert Settings(embedding_backend="openrouter").embed_batch_limits == (512, 120_000)
+    assert Settings(embedding_backend="openrouter").embed_batch_limits == (512, 105_000)
     assert Settings(embedding_backend="local").embed_batch_limits == (1024, 1_000_000)
     assert Settings(embedding_backend="openrouter").embed_tokens_per_minute == 1_800_000
     assert Settings(embedding_backend="local").embed_tokens_per_minute == 0
