@@ -42,6 +42,11 @@ work is broken into GitHub issues.
   landed with its tests and doc fallout; when it is complete and `just check`
   is green, commit it. Do not wait for permission and do not let arcs pile up
   in a dirty worktree. Pushing is still asked for explicitly.
+- **A job that may run past 2 hours runs detached, never as a harness
+  background task** (those are killed at 2 h): `setsid nohup <cmd> >>
+  corpus/<job>_<date>.log 2>&1 < /dev/null & disown`, so it outlives the
+  session. Watch it by PID (`kill -0 <pid>`), not `pgrep -f`, which matches
+  the watcher's own command line.
 - Decisions the spec doesn't cover stop the work: log in `DECISIONS.md`,
   amend the spec in the same PR (see sdlc.md).
 - New dependencies pass the gate in `docs/sdlc.md` (popular, actively
