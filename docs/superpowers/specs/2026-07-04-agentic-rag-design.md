@@ -914,7 +914,8 @@ is why the scope is affordable and how counts relate to lists.
   row means "the Kaggle catalog describes it". Merging them would let a work
   nothing can read surface wherever a readable paper can.
 
-**Amendment (2026-09-13, home-as-dashboard).** The front door keeps its
+**Amendment (2026-09-13, home-as-dashboard; superseded 2026-10-02, see §4c
+decision 2: Explore is `/`, the dashboard is `/citations`).** The front door keeps its
 composition and gains two sections, both fed by `routes_landing.py` under the
 same rule: `GET /api/coverage` (per id-month holdings — counts, so honest
 totals with no indexed restriction) and `GET /api/latest` (newest papers — a
@@ -1236,7 +1237,13 @@ Three layout decisions resolved here, deliberately:
    The open paper is `/demo?paper=<id>&page=<n>`; viewer-store owns only
    those two keys, and the list's filter in the same URL is owned by the
    catalog, so the agent's `set_filters` writes the URL rather than the
-   store.)* Static export (D13) plus 6,460
+   store. Amended again 2026-10-02: Explore is the home page. The routes
+   are `/` (the whole catalog, filtered), `/citations` (the counted
+   overview, renamed) and `/demo`. `/papers` is gone with no redirect: the
+   site is tailnet-only and pre-launch. The share of each cohort month we
+   hold moved from the citations hero to Explore's top bar, and
+   `/api/coverage` names the cohort's months so the client never re-derives
+   `landing_cohort_min_share`.)* Static export (D13) plus 6,460
    papers makes `paper/[id]/page.tsx` the wrong tool (it would SSG 6,460
    pages or fight `generateStaticParams`). The app is one shell; the open
    paper is a search param (`/?paper=2606.12345&page=4`), owned by the

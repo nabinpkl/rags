@@ -5,21 +5,22 @@ import { VIEWS, ShellSidebar } from "@/components/shell/shell-sidebar";
 
 describe("ShellSidebar", () => {
   it("offers every view as a link, from any view", () => {
-    render(<ShellSidebar current="overview" />);
+    render(<ShellSidebar current="citations" />);
 
     const nav = screen.getByRole("navigation", { name: "Views" });
     const links = screen.getAllByRole("link");
     expect(links.map((link) => link.textContent)).toEqual(VIEWS.map((view) => view.label));
     expect(nav).toContainElement(links[0] ?? null);
-    expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute("href", "/papers");
+    expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Citations" })).toHaveAttribute("href", "/citations");
     expect(screen.getByRole("link", { name: "RAG demo" })).toHaveAttribute("href", "/demo");
   });
 
-  it("lists the RAG demo below Explore", () => {
+  it("leads with Explore, the home page", () => {
     render(<ShellSidebar current="demo" />);
 
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(labels.indexOf("RAG demo")).toBe(labels.indexOf("Explore") + 1);
+    expect(labels).toEqual(["Explore", "Citations", "RAG demo"]);
     expect(screen.getByRole("link", { name: "RAG demo" })).toHaveAttribute("aria-current", "page");
   });
 
@@ -27,7 +28,7 @@ describe("ShellSidebar", () => {
     render(<ShellSidebar current="explore" />);
 
     expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Citations" })).not.toHaveAttribute("aria-current");
   });
 
   it("mounts a view's own controls under the nav rather than beside it", () => {

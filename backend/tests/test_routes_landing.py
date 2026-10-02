@@ -347,6 +347,17 @@ def test_coverage_states_what_we_hold_against_what_arxiv_posted(client):
     ]
 
 
+def test_coverage_names_the_cohort_the_citation_counts_come_from(client):
+    """Explore meters the cohort's months; the rule that picks them lives in
+    cohort_months, once, and travels with the series rather than being
+    re-derived from shares in the client."""
+    cohort = client.get("/api/coverage").json()["cohort"]
+    stats = client.get("/api/landing").json()["stats"]
+
+    assert cohort == ["2608"]
+    assert (cohort[0], cohort[-1]) == (stats["cohort_start"], stats["cohort_end"])
+
+
 def test_a_census_below_our_holdings_reports_unknown_not_over_100_percent(tmp_path):
     """A snapshot older than the month it is asked about cannot be its
     denominator. Unknown is printable; 233 of 0 is not."""

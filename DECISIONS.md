@@ -2596,3 +2596,26 @@ September pull needs space found first (volume growth or cleanup elsewhere).
 needs.
 
 **Spec updated:** yes, D17 replaced by a withdrawal note (number kept).
+
+## 2026-10-02 — Explore is the home page; the overview becomes Citations (owner directive)
+
+**Context:** `/` opened on the citation dashboard, and the whole catalog sat
+one click away at `/papers`. The dashboard's hero also carried the share of
+each cohort month we hold, which scopes the catalog more than the ranking.
+
+**Decision:** `/` is Explore (the catalog filter), the dashboard moves to
+`/citations` under the name Citations, and the rail lists Explore, Citations,
+RAG demo. The per-month share moves to Explore's top bar as a compact meter.
+`/api/coverage` gains `cohort` (the id-months `cohort_months` selects), so the
+client picks the months without re-deriving the threshold. `/papers` is
+removed without a redirect.
+
+**Consequence:** a visitor lands on papers, not on a claim; the agent is still
+entered from a claim on Citations. Old `/papers` links 404.
+
+**Revisit when:** the site goes public and `/papers` links exist outside the
+tailnet (then add one Caddy redirect), or visitors are found not to reach
+Citations from the rail.
+
+**Spec updated:** yes, §4c decision 2 amendment (2026-10-02), and the
+2026-09-13 home-as-dashboard amendment marked superseded.
