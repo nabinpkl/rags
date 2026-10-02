@@ -26,8 +26,7 @@ export function CategoryCensus({ census }: { census: CategoryCensusResponse }) {
 
   return (
     <DashboardPanel
-      title="What the field posted"
-      description="Share of all cs papers arXiv announced, by primary category."
+      title="By primary category"
       footer={census.excluded.length > 0 ? <CensusFooter census={census} /> : undefined}
     >
       <div className="flex-1 overflow-x-auto">

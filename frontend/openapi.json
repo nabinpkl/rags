@@ -216,49 +216,6 @@
                 }
             }
         },
-        "/api/latest": {
-            "get": {
-                "summary": "Get Latest",
-                "description": "The dashboard's \"what just landed\" list \u2014 newest indexed papers.",
-                "operationId": "get_latest_api_latest_get",
-                "parameters": [
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "integer",
-                            "maximum": 50,
-                            "minimum": 1,
-                            "default": 8,
-                            "title": "Limit"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/LatestResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/api/coverage": {
             "get": {
                 "summary": "Get Coverage",
@@ -1353,87 +1310,6 @@
                     "cited_years"
                 ],
                 "title": "LandingResponse"
-            },
-            "LatestPaper": {
-                "properties": {
-                    "arxiv_id": {
-                        "type": "string",
-                        "title": "Arxiv Id"
-                    },
-                    "title": {
-                        "type": "string",
-                        "title": "Title"
-                    },
-                    "authors": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Authors"
-                    },
-                    "primary_category": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Primary Category"
-                    },
-                    "published": {
-                        "type": "string",
-                        "title": "Published"
-                    },
-                    "version": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Version"
-                    },
-                    "ref_count": {
-                        "type": "integer",
-                        "title": "Ref Count"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "arxiv_id",
-                    "title",
-                    "authors",
-                    "primary_category",
-                    "published",
-                    "version",
-                    "ref_count"
-                ],
-                "title": "LatestPaper",
-                "description": "A paper we hold and have indexed, newest first. Indexed-only (D16):\nthe dashboard links every row to the reader, so nothing listed may\ndead-end. Fresh-but-unindexed papers appear here on their own once the\nindex run covers them \u2014 no second code path."
-            },
-            "LatestResponse": {
-                "properties": {
-                    "papers": {
-                        "items": {
-                            "$ref": "#/components/schemas/LatestPaper"
-                        },
-                        "type": "array",
-                        "title": "Papers"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "papers"
-                ],
-                "title": "LatestResponse"
             },
             "MonthBucket": {
                 "properties": {

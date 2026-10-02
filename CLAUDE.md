@@ -123,7 +123,8 @@ work is broken into GitHub issues.
   `frontier_top_cited`/`frontier_citers_per_work` in `config.py`, and expect a
   re-embed. Frontend routes: Explore at `/` (home: the
   whole-catalog filter, the one list that is not indexed-only, D16 amendment
-  2026-09-16), the citation counts at `/citations`, the RAG demo at `/demo`
+  2026-09-16), the citation counts at `/citations`, arXiv's category
+  census at `/trends`, the RAG demo at `/demo`
   (indexed papers, reader, agent).
 - Deploy (#81): `just deploy` (compose up; ingress on loopback), `just
   deploy-tailnet` (publish via the host's tailscaled), plus `deploy-logs`,

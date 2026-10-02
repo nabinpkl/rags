@@ -313,24 +313,6 @@ def test_scope_size_counts_the_foundation_itself_when_we_hold_it(tmp_path):
     assert detail["scope_size"] == 3
 
 
-def test_latest_lists_newest_indexed_papers_with_reference_counts(client):
-    """The dashboard's "what just landed" list. 2608.00003 is counted in the
-    stats but never listed: it has no chunks, so linking it would dead-end
-    (D16 — the same rule as indexed_citers)."""
-    papers = client.get("/api/latest").json()["papers"]
-
-    # Same published date, so arxiv_id breaks the tie, newest first.
-    assert [p["arxiv_id"] for p in papers] == ["2608.00002", "2608.00001"]
-    assert [p["ref_count"] for p in papers] == [2, 3]
-    assert all(p["published"] == "2026-01-01" for p in papers)
-
-
-def test_latest_limit_caps_the_list(client):
-    papers = client.get("/api/latest?limit=1").json()["papers"]
-
-    assert [p["arxiv_id"] for p in papers] == ["2608.00002"]
-
-
 def test_coverage_states_what_we_hold_against_what_arxiv_posted(client):
     """The provenance panel's input. Counts are honest totals (CohortStats
     posture): every paper and edge lands in its id-month, indexed or not, and

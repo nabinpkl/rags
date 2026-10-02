@@ -39,15 +39,15 @@ export function CitationAge({
           : "No citations to place in time yet."
       }
     >
-      <div className="flex min-h-[150px] flex-1 items-end gap-1.5" aria-hidden>
+      <div className="flex h-[220px] items-end gap-1.5" aria-hidden>
         {recent.map((bucket) => (
           <div key={bucket.year} className="flex h-full flex-1 flex-col items-center gap-1">
             <span className="text-muted font-mono text-[10px] tabular-nums">
               {Math.round((bucket.citations / total) * 100)}%
             </span>
-            {/* Percentage of the track, so the chart fills whatever height
-                the row hands it instead of ending in a band of empty panel
-                beside a taller neighbour. */}
+            {/* Bars are a percentage of the fixed track; the track is fixed
+                because a row-stretched one drew 650px of bars beside the
+                uptake list. */}
             <div className="relative w-full flex-1">
               <div
                 className="bg-chart-1 absolute inset-x-0 bottom-0 rounded-t-sm"

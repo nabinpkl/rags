@@ -1243,7 +1243,10 @@ Three layout decisions resolved here, deliberately:
    site is tailnet-only and pre-launch. The share of each cohort month we
    hold moved from the citations hero to Explore's top bar, and
    `/api/coverage` names the cohort's months so the client never re-derives
-   `landing_cohort_min_share`.)* Static export (D13) plus 6,460
+   `landing_cohort_min_share`. Same day: `/trends` holds the category census
+   (the one count over what arXiv posted rather than what we hold), and the
+   "just indexed" list and its `GET /api/latest` are deleted, since Explore
+   sorted newest already lists the same papers.)* Static export (D13) plus 6,460
    papers makes `paper/[id]/page.tsx` the wrong tool (it would SSG 6,460
    pages or fight `generateStaticParams`). The app is one shell; the open
    paper is a search param (`/?paper=2606.12345&page=4`), owned by the
@@ -1296,7 +1299,7 @@ rags/
 │   │   │   ├── app.py               # FastAPI assembly: routers, CORS, lifespan (opens stores once), static admin
 │   │   │   ├── routes_explorer.py   # GET /api/papers, /api/papers/{id}, /api/facets — browse/filter/search
 │   │   │   ├── routes_catalog.py    # GET /api/catalog/papers, /api/catalog/facets — the whole papers table, filtered (D16 amendment 2026-09-16)
-│   │   │   ├── routes_landing.py    # GET /api/landing, /api/foundations/{id}, /api/latest, /api/coverage — the citation graph the front door ranks (D16 amendment)
+│   │   │   ├── routes_landing.py    # GET /api/landing, /api/foundations/{id}, /api/coverage — the citation graph Citations ranks (D16 amendment)
 │   │   │   ├── routes_census.py     # GET /api/census/categories, /api/census/uptake — what arXiv posted, for months held above `landing_census_min_coverage`
 │   │   │   ├── routes_chat.py       # POST /api/chat — budget gate → agent loop → SSE stream; replay mode when capped
 │   │   │   ├── routes_admin.py      # GET /admin — basic-auth spend/trace dashboard (D13)
