@@ -30,11 +30,14 @@ COPY collector/pyproject.toml collector/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-workspace --package askrag
 
-# Source layer: install askrag itself as a built wheel (--no-editable), so
-# the runtime stage needs nothing but the venv.
+# Source stage: askrag alone, built as a wheel and unpacked into its own
+# directory with --no-deps. It stays OUT of the dependency venv on purpose:
+# the runtime copies the venv (1.7 GB, torch) and this package as two layers,
+# so a backend-only change re-copies kilobytes instead of the whole venv.
+FROM builder AS app
 COPY backend/ backend/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable --package askrag
+    uv pip install --no-deps --target /pkg ./backend
 
 
 # python:3.13-slim-bookworm
@@ -46,6 +49,10 @@ RUN groupadd --system --gid 10001 askrag \
     && useradd --system --uid 10001 --gid 10001 --no-create-home askrag
 
 COPY --from=builder --chown=root:root /app/.venv /app/.venv
+# The trailing slash on /pkg/ copies its CONTENTS (askrag/ and its
+# dist-info) into site-packages. The python3.13 segment is the venv's own,
+# fixed by the digest-pinned uv base above.
+COPY --from=app --chown=root:root /pkg/ /app/.venv/lib/python3.13/site-packages/
 ENV PATH="/app/.venv/bin:$PATH"
 
 # askrag is installed into site-packages, so config.py's _REPO_ROOT default
