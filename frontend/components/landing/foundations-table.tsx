@@ -2,6 +2,7 @@
 
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import type { Foundation } from "@/lib/api-client";
+import { formatIdMonth } from "@/lib/id-month";
 
 /** The ranking that survives a rerun.
  *
@@ -10,9 +11,8 @@ import type { Foundation } from "@/lib/api-client";
  * 43-61% of pairs, so a named theme would be a claim about our code rather
  * than about the literature (see methods-note.tsx, which says so on the page).
  *
- * Author lists arrive already trimmed (`config.landing_max_authors`) — the
- * catalog's untrimmed lists were 94% of the payload, so they are cut where
- * that cost is paid, not here.
+ * Rows carry title, area and when the work was posted. Author lists were
+ * cut: on technical reports they ran to "+553" and said less than the title.
  */
 export function FoundationsTable({
   foundations,
@@ -71,20 +71,15 @@ export function FoundationsTable({
                       </span>
                     )}
                   </span>
-                  <span className="text-muted mt-0.5 block text-[11.5px]">
+                  <span className="text-muted mt-0.5 block text-[11.5px] tabular-nums">
                     <span className="sm:hidden">
-                      {foundation.primary_category && `${foundation.primary_category} · `}
+                      {categoryLabel(foundation) && `${categoryLabel(foundation)} · `}
                     </span>
-                    {foundation.authors}
-                    {foundation.year ? ` · ${foundation.year}` : ""}
+                    {posted(foundation)}
                   </span>
                 </td>
-                <td className="border-line hidden border-b px-3 py-2.5 align-baseline sm:table-cell">
-                  {foundation.primary_category && (
-                    <span className="bg-teal-soft text-teal-ink rounded-[3px] px-1.5 py-0.5 font-mono text-[10.5px]">
-                      {foundation.primary_category}
-                    </span>
-                  )}
+                <td className="border-line text-ink-2 hidden border-b px-3 py-2.5 align-baseline text-[12.5px] sm:table-cell">
+                  {categoryLabel(foundation)}
                 </td>
                 <td className="border-line border-b px-3 py-2.5 text-right align-baseline whitespace-nowrap sm:w-[176px]">
                   <span className="bg-line mr-2.5 hidden h-[7px] w-[100px] overflow-hidden rounded-sm align-middle sm:inline-block">
@@ -104,4 +99,20 @@ export function FoundationsTable({
       </div>
     </DashboardPanel>
   );
+}
+
+/** arXiv's name for the area, or the bare code outside cs, which the name
+ * table does not cover. */
+function categoryLabel(foundation: Foundation): string | null {
+  return foundation.primary_category_name ?? foundation.primary_category;
+}
+
+/** When the work was first posted. A new-style id's YYMM prefix IS that
+ * month; an old-style id (`cs/0112017`) has none, so the catalog year stands
+ * in. */
+function posted(foundation: Foundation): string {
+  if (/^\d{4}\./.test(foundation.arxiv_id)) {
+    return formatIdMonth(foundation.arxiv_id.slice(0, 4), "short");
+  }
+  return foundation.year ? String(foundation.year) : "";
 }

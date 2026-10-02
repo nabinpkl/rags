@@ -38,6 +38,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from askrag import db
+from askrag.category_names import category_name
 from askrag.config import Settings, get_settings
 from askrag.facets import INDEXED_PREDICATE
 
@@ -97,6 +98,9 @@ class Foundation(BaseModel):
     title: str | None
     authors: str | None
     primary_category: str | None
+    # arXiv's name for `primary_category` (category_names.py), None for a
+    # code outside cs; the page shows the name, the code stays for filters.
+    primary_category_name: str | None = None
     year: int | None
     version: str | None
     cited_by: int
@@ -284,6 +288,8 @@ def _foundations(conn: sqlite3.Connection, limit: int, max_authors: int) -> list
 def _to_foundation(row: sqlite3.Row, max_authors: int) -> Foundation:
     fields = dict(row)
     fields["authors"] = trim_authors(fields["authors"], max_authors)
+    if fields["primary_category"]:
+        fields["primary_category_name"] = category_name(fields["primary_category"])
     return Foundation(**fields)
 
 
