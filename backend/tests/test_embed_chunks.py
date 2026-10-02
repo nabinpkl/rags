@@ -14,6 +14,7 @@ from askrag.config import Settings
 from askrag.ingest import embed_chunks
 from askrag.ingest.embed_chunks import (
     BatchEmbedding,
+    BatchTooLargeError,
     ChunkText,
     EmbeddingError,
     OpenRouterEmbeddings,
@@ -724,3 +725,54 @@ def test_a_paced_run_waits_between_batches_and_still_embeds_everything(tmp_path,
     # against a fake clock in test_token_bucket.py.
     assert len(slept) == 3
     assert all(seconds > 0 for seconds in slept)
+
+
+class CappedBackend(FakeBackend):
+    """Refuses any call over `max_texts` texts, as the provider refuses a
+    batch its own tokenizer counts over the limit."""
+
+    def __init__(self, max_texts: int):
+        super().__init__()
+        self.refused = 0
+        self._max_texts = max_texts
+
+    def embed(self, texts: list[str]) -> BatchEmbedding:
+        if len(texts) > self._max_texts:
+            self.refused += 1
+            raise BatchTooLargeError("got 121438, maximum is 120000")
+        return super().embed(texts)
+
+
+def test_a_batch_the_provider_counts_too_large_is_split_not_dropped(paths):
+    chunks = [ChunkText(f"p#{i}", f"text {i}", 10) for i in range(4)]
+    write_chunks(paths["chunks"], chunks)
+    backend = CappedBackend(max_texts=1)
+    stats = run(paths, backend)
+    assert stats.embedded == 4
+    assert backend.refused == 3  # the batch of 4, then each half of 2
+    assert [len(call) for call in backend.calls] == [1, 1, 1, 1]
+    assert read_vectors(paths) == {c.chunk_id: vector_for(c.text) for c in chunks}
+
+
+def test_a_single_text_over_the_limit_still_fails_loudly(paths):
+    write_chunks(paths["chunks"], [ChunkText("p#0", "text", 10)])
+    with pytest.raises(BatchTooLargeError):
+        run(paths, CappedBackend(max_texts=0))
+
+
+def test_openrouter_adapter_names_the_token_limit_400(monkeypatch):
+    body = {"error": {"message": "Input total size exceeds maximum number of allowed tokens"}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json=body)
+
+    with openrouter_adapter(monkeypatch, handler) as backend, pytest.raises(BatchTooLargeError):
+        backend.embed(["alpha"])
+
+
+def test_openrouter_adapter_other_400s_stay_plain_http_errors(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": {"message": "unknown model"}})
+
+    with openrouter_adapter(monkeypatch, handler) as backend, pytest.raises(httpx.HTTPStatusError):
+        backend.embed(["alpha"])

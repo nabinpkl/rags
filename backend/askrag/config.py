@@ -234,7 +234,8 @@ class Settings(BaseSettings):
     # The token cap is counted in cl100k (what chunks.jsonl stores) against a
     # limit the provider counts in its own tokenizer, which runs higher: a
     # batch of 119,565 cl100k tokens was 129,339 to Perplexity (+8.2%,
-    # 2026-10-02). 105k leaves room for +14%.
+    # 2026-10-02), another +15.8%. 105k keeps most batches under it, and
+    # embed_chunks splits the rest on the provider's 400.
     openrouter_embed_batch_max_items: int = 512
     openrouter_embed_batch_max_tokens: int = 105_000
     # Paced in cl100k tokens (what chunks.jsonl stores), which measured ~6%
