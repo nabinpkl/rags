@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Layers, Quote } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
@@ -136,7 +136,6 @@ export function FoundationDetail({
         {data && (
           <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">
             <DashboardPanel
-              icon={Layers}
               title="Cited alongside"
               meta="co-citation"
               footer="Counted, not clustered: how many of our papers cite both."
@@ -170,7 +169,6 @@ export function FoundationDetail({
             </DashboardPanel>
 
             <DashboardPanel
-              icon={Quote}
               title="Recent papers citing it"
               meta="indexed"
               footer={

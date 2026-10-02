@@ -32,14 +32,11 @@ const CENSUS: CategoryCensusResponse = {
 };
 
 describe("CategoryCensus", () => {
-  it("states the share of each month, with the denominators under it", () => {
+  it("states the share of each month", () => {
     render(<CategoryCensus census={CENSUS} />);
 
     expect(screen.getByText("19.2%")).toBeInTheDocument(); // 2500 of 13,010
     expect(screen.getByText("18.3%")).toBeInTheDocument(); // 2647 of 14,489
-    expect(
-      screen.getByText(/Jul 2026 13,010 of 13,016; Aug 2026 14,489 of 14,491/),
-    ).toBeInTheDocument();
   });
 
   it("says why a month is absent instead of leaving a gap in the series", () => {
@@ -47,9 +44,7 @@ describe("CategoryCensus", () => {
     // field went quiet, so the one we cannot draw is named with its share.
     render(<CategoryCensus census={CENSUS} />);
 
-    expect(
-      screen.getByText(/Left out: September 2026, where we hold 8% of the 5,012 papers/),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Not yet shown: September 2026 (8% collected).")).toBeInTheDocument();
   });
 
   it("asks every month for the same categories, in the same order", () => {

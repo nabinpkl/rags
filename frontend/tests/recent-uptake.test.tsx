@@ -34,10 +34,10 @@ describe("RecentUptake", () => {
   it("names both months, so the window the count covers is on the page", () => {
     render(<RecentUptake uptake={UPTAKE} onSelect={() => {}} />);
 
-    expect(screen.getByText("August 2026 citing July 2026")).toBeInTheDocument();
     expect(
-      screen.getByText(/1,312 July 2026 papers drew 2,061 citations from August 2026 papers/),
+      screen.getByText("July 2026 papers that August 2026 papers already cite."),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/2,061/)).not.toBeInTheDocument();
   });
 
   it("shows the month's count beside the work's total, never one alone", () => {
@@ -46,7 +46,7 @@ describe("RecentUptake", () => {
     render(<RecentUptake uptake={UPTAKE} onSelect={() => {}} />);
 
     expect(screen.getByText("92")).toBeInTheDocument();
-    expect(screen.getByText(/118 citations in all/)).toBeInTheDocument();
+    expect(screen.getByText(/118 in total/)).toBeInTheDocument();
   });
 
   it("opens the same detail view the ranking opens", () => {

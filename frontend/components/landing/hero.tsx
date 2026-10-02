@@ -1,61 +1,84 @@
-import type { LandingResponse } from "@/lib/api-client";
+import type { CoverageResponse, LandingResponse } from "@/lib/api-client";
 import { formatIdMonth } from "@/lib/id-month";
 
-/** The page's opening claim, in one sentence, and then out of the way.
+type Month = CoverageResponse["months"][number];
+
+/** The page's question, one line of scope, and how much of each counted
+ * month we hold.
  *
- * It carried four KPI cards (papers, citations, cited works, indexed papers).
- * Four six-figure numbers at the top of a page about what CS is building on
- * read as the finding, when the finding is the ranked list below: the totals
- * only describe the pile the list was counted from. The two a reader needs to
- * size that pile stay, as prose, inside the sentence that already explains
- * what they are. The rest live where they are used — the cited-works total in
- * the table's own footer, the indexed count in step 4 of the method note.
+ * The meters replace a paragraph of totals. "27,907 of the 32,519 cs papers"
+ * is the same claim as three bars, and the bars also show WHERE the gap is
+ * (a month still being collected), which the sentence could not. Citation
+ * and cited-work totals are gone: they size our pile, not the finding.
  */
-export function Hero({ stats }: { stats: LandingResponse["stats"] }) {
+export function Hero({
+  stats,
+  months,
+}: {
+  stats: LandingResponse["stats"];
+  /** The coverage series; only the cohort's months are drawn. */
+  months?: Month[];
+}) {
+  const { cohort_start: start, cohort_end: end } = stats;
+  const cohort =
+    start && end ? (months ?? []).filter((m) => m.month >= start && m.month <= end) : [];
+
   return (
-    <div>
-      <h1 className="font-serif text-ink max-w-[30ch] text-[clamp(1.55rem,3.2vw,2rem)] leading-[1.16] font-bold">
-        What is computer science building on right now?
-      </h1>
-      <p className="text-muted mt-3 max-w-[68ch] text-[14.5px] leading-relaxed">
-        We pulled <b className="text-ink font-semibold">{sample(stats)}</b> arXiv posted{" "}
-        {formatCohort(stats)}, extracted the reference list from each one, and counted{" "}
-        <b className="text-ink font-semibold">
-          {stats.citations.toLocaleString()} citations to other arXiv papers
-        </b>
-        . No topic modelling, no clustering, no LLM judgement, just what recent work actually cites.
-        Every number below opens the papers behind it.
-      </p>
+    <div className="@container">
+      <div className="flex flex-col gap-5 pt-2 pb-1 @2xl:flex-row @2xl:items-end @2xl:justify-between @2xl:gap-10">
+        <div className="min-w-0">
+          <h1 className="font-serif text-ink max-w-[24ch] text-[clamp(1.7rem,3.4vw,2.35rem)] leading-[1.1] font-bold text-balance">
+            What is computer science building on right now?
+          </h1>
+          <p className="text-ink-2 mt-3 max-w-[60ch] text-[15px] leading-snug">
+            The arXiv work cited most by cs papers posted {formatCohort(stats)}.
+          </p>
+        </div>
+
+        {cohort.length > 0 && (
+          <div className="shrink-0 @2xl:w-[280px]">
+            <p className="text-muted mb-2 text-[11.5px]">Share of arXiv cs collected</p>
+            <dl className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5">
+              {cohort.map((month) => {
+                const share = month.catalog_papers
+                  ? month.papers_held / month.catalog_papers
+                  : null;
+                const label =
+                  share === null
+                    ? `${month.papers_held.toLocaleString()} papers`
+                    : `${month.papers_held.toLocaleString()} of ${month.catalog_papers?.toLocaleString()} papers`;
+                return (
+                  <div key={month.month} className="contents" title={label}>
+                    <dt className="text-muted font-mono text-[11px] tabular-nums">
+                      {formatIdMonth(month.month, "short")}
+                    </dt>
+                    <dd className="bg-line h-1.5 overflow-hidden rounded-sm">
+                      <span
+                        className="bg-chart-1 block h-full rounded-sm"
+                        style={{ width: `${Math.min((share ?? 0) * 100, 100)}%` }}
+                      />
+                    </dd>
+                    <dd className="text-ink w-10 text-right font-mono text-[11px] tabular-nums">
+                      {share === null ? "n/a" : `${Math.round(share * 100)}%`}
+                      <span className="sr-only">, {label}</span>
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-/** The whole prepositional phrase, because the preposition depends on the
- * span: "in August 2026" for one month, "between July 2026 and September
- * 2026" for several. A fixed "in" in the sentence read "in between".
- *
- * Each side carries its OWN year: pinning the start month to the end year
- * once printed "November 2026" for a span beginning in November 2007. And
- * "between", not "and": the cohort spans three months today, where "July and
- * September" would name two and skip the largest one. */
+/** "in August 2026" for one month, "from July 2026 to September 2026" for
+ * several. Each side carries its OWN year: pinning the start month to the end
+ * year once printed "November 2026" for a span beginning in November 2007. */
 function formatCohort(stats: LandingResponse["stats"]): string {
   const { cohort_start: start, cohort_end: end } = stats;
   if (!start || !end) return "in the indexed months";
   if (start === end) return `in ${formatIdMonth(end)}`;
-  return `between ${formatIdMonth(start)} and ${formatIdMonth(end)}`;
-}
-
-/** The sentence's subject, and the page's central claim about itself.
- *
- * It said "every cs paper arXiv posted in ...", which was measured false:
- * 94% of July 2026, 49% of August, 5% of September. So the claim is now the
- * measured one, with the catalog's own count in it, and it degrades to the
- * bare number when the snapshot is too old to supply a denominator rather
- * than falling back to the word it cannot support.
- */
-function sample(stats: LandingResponse["stats"]): string {
-  const held = stats.cohort_papers.toLocaleString();
-  const total = stats.cohort_catalog_papers;
-  if (!total) return `${held} cs papers`;
-  return `${held} of the ${total.toLocaleString()} cs papers`;
+  return `from ${formatIdMonth(start)} to ${formatIdMonth(end)}`;
 }

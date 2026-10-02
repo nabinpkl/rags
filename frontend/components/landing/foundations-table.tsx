@@ -1,13 +1,11 @@
 "use client";
 
-import { ListOrdered } from "lucide-react";
-
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
-import type { Foundation, LandingResponse } from "@/lib/api-client";
+import type { Foundation } from "@/lib/api-client";
 
 /** The ranking that survives a rerun.
  *
- * It is a count of parsed citations and nothing else — no clustering, no
+ * It is a count of parsed citations and nothing else: no clustering, no
  * theme labels. On this data two runs of the same clustering agree on only
  * 43-61% of pairs, so a named theme would be a claim about our code rather
  * than about the literature (see methods-note.tsx, which says so on the page).
@@ -17,11 +15,9 @@ import type { Foundation, LandingResponse } from "@/lib/api-client";
  * that cost is paid, not here.
  */
 export function FoundationsTable({
-  stats,
   foundations,
   onSelect,
 }: {
-  stats: LandingResponse["stats"];
   foundations: Foundation[];
   onSelect: (foundation: Foundation) => void;
 }) {
@@ -31,26 +27,19 @@ export function FoundationsTable({
   const max = foundations[0]?.cited_by ?? 1;
 
   return (
-    <DashboardPanel
-      icon={ListOrdered}
-      title="The foundations"
-      meta="ranked by citations"
-      description={`Ranked by how many of the ${stats.papers_with_references.toLocaleString()} recent papers we counted cite them. Add a month of papers and the numbers move because the literature moved, not because an algorithm re-drew a boundary.`}
-      footer={`Showing the top ${foundations.length} of ${stats.cited_works.toLocaleString()} cited works.`}
-      bodyClassName="p-0"
-    >
+    <DashboardPanel title="Most cited" bodyClassName="px-0 pb-0">
       {/* The ranking scrolls inside its panel rather than pushing the rest of
           the dashboard below the fold: 40 rows at full height is a page, not a
           panel, and the bands under it would never be seen. */}
-      <div className="max-h-[46vh] min-h-[280px] overflow-y-auto">
+      <div className="border-line max-h-[52vh] min-h-[280px] overflow-y-auto rounded-b-md border-t">
         <table className="w-full border-collapse tabular-nums">
           <thead className="bg-panel sticky top-0 z-10">
             <tr>
-              {["", "Work being built on", "Area", "Cited by"].map((label, i) => (
+              {["", "Paper", "Area", "Cited by"].map((label, i) => (
                 <th
                   key={label || i}
                   scope="col"
-                  className={`border-line text-muted border-b px-3 py-2 font-mono text-[10px] font-semibold tracking-[0.1em] uppercase ${i === 3 ? "text-right" : "text-left"}`}
+                  className={`border-line text-muted border-b px-3 py-2 text-[11px] font-medium ${i === 3 ? "text-right" : "text-left"} ${i === 2 ? "hidden sm:table-cell" : ""}`}
                 >
                   {label}
                 </th>
@@ -83,18 +72,21 @@ export function FoundationsTable({
                     )}
                   </span>
                   <span className="text-muted mt-0.5 block text-[11.5px]">
+                    <span className="sm:hidden">
+                      {foundation.primary_category && `${foundation.primary_category} · `}
+                    </span>
                     {foundation.authors}
                     {foundation.year ? ` · ${foundation.year}` : ""}
                   </span>
                 </td>
-                <td className="border-line border-b px-3 py-2.5 align-baseline">
+                <td className="border-line hidden border-b px-3 py-2.5 align-baseline sm:table-cell">
                   {foundation.primary_category && (
                     <span className="bg-teal-soft text-teal-ink rounded-[3px] px-1.5 py-0.5 font-mono text-[10.5px]">
                       {foundation.primary_category}
                     </span>
                   )}
                 </td>
-                <td className="border-line w-[176px] border-b px-3 py-2.5 text-right align-baseline whitespace-nowrap">
+                <td className="border-line border-b px-3 py-2.5 text-right align-baseline whitespace-nowrap sm:w-[176px]">
                   <span className="bg-line mr-2.5 hidden h-[7px] w-[100px] overflow-hidden rounded-sm align-middle sm:inline-block">
                     <span
                       className="bg-teal block h-full rounded-sm"
@@ -102,7 +94,7 @@ export function FoundationsTable({
                     />
                   </span>
                   <b className="text-ink inline-block w-[3.4em] text-right font-mono text-[13px] font-semibold">
-                    {foundation.cited_by}
+                    {foundation.cited_by.toLocaleString()}
                   </b>
                 </td>
               </tr>

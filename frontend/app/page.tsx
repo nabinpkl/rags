@@ -1,16 +1,16 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Menu, MessagesSquare } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { ChatPanel } from "@/components/agent-panel/chat-panel";
+import { CitationAge } from "@/components/landing/citation-age";
 import { DashboardPanel } from "@/components/landing/dashboard-panel";
 import { FoundationDetail } from "@/components/landing/foundation-detail";
 import { CategoryCensus } from "@/components/landing/category-census";
 import { FoundationsTable } from "@/components/landing/foundations-table";
 import { Hero } from "@/components/landing/hero";
-import { HoldingsChart } from "@/components/landing/holdings-chart";
 import { LatestPapers } from "@/components/landing/latest-papers";
 import { MethodsNote } from "@/components/landing/methods-note";
 import { RecentUptake } from "@/components/landing/recent-uptake";
@@ -25,7 +25,6 @@ import {
   fetchLatest,
   fetchUptake,
 } from "@/lib/api-client";
-import { formatIdMonthRange } from "@/lib/id-month";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 
 /** The front door (§4c decision 2 amendment: a second STATIC route, still no
@@ -77,7 +76,7 @@ export default function LandingPage() {
   // and a failed chart must not take the dashboard down with it.
   const { data: latest } = useQuery({
     queryKey: ["latest"],
-    queryFn: () => fetchLatest({ limit: 6 }),
+    queryFn: () => fetchLatest({ limit: 8 }),
   });
   const { data: coverage } = useQuery({ queryKey: ["coverage"], queryFn: fetchCoverage });
   const { data: uptake } = useQuery({ queryKey: ["uptake"], queryFn: fetchUptake });
@@ -88,10 +87,6 @@ export default function LandingPage() {
     setAsking(null);
     canvasRef.current?.scrollTo({ top: 0 });
   }
-
-  const cohortLabel = data
-    ? formatIdMonthRange(data.stats.cohort_start, data.stats.cohort_end)
-    : null;
 
   return (
     <div className="bg-paper text-ink flex h-dvh flex-col">
@@ -107,7 +102,7 @@ export default function LandingPage() {
           onClose={() => setNavOpen(false)}
           className="bg-panel border-line w-[min(320px,86vw)] shrink-0 border-r md:w-[264px]"
         >
-          <ShellSidebar current="overview" cohort={cohortLabel} />
+          <ShellSidebar current="overview" />
         </DrawerPanel>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -174,13 +169,7 @@ export default function LandingPage() {
                 <>
                   <FoundationDetail foundation={selected} onBack={backToOverview} onAsk={ask} />
                   {asking && (
-                    <DashboardPanel
-                      icon={MessagesSquare}
-                      title="Ask about these papers"
-                      meta="scoped"
-                      description="The agent reads them with tools (search, fetch, quote) rather than being handed a wall of context. It answers only from what it can cite, and quotes are capped at 50 words, 3 per paper."
-                      bodyClassName="p-0"
-                    >
+                    <DashboardPanel title="Ask about these papers" bodyClassName="p-0">
                       <div className="h-[520px] overflow-hidden rounded-b-md">
                         <ChatPanel
                           scope={{
@@ -197,37 +186,25 @@ export default function LandingPage() {
 
               {data && selected === null && (
                 <>
-                  <Hero stats={data.stats} />
+                  <Hero stats={data.stats} months={coverage?.months} />
 
-                  <FoundationsTable
-                    stats={data.stats}
-                    foundations={data.foundations}
-                    onSelect={openFoundation}
-                  />
+                  <FoundationsTable foundations={data.foundations} onSelect={openFoundation} />
 
-                  {/* The activity group is the page's "right now": what
-                      arrived, what the newest complete month picked up, and
-                      what the field posted while that happened. All three
-                      are counts over months we hold whole, which is what
-                      separates them from a chart of our download schedule. */}
-                  <section className="flex flex-col gap-4">
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      {latest && <LatestPapers papers={latest.papers} />}
-                      {uptake && <RecentUptake uptake={uptake} onSelect={openFoundation} />}
-                    </div>
+                  {/* The page's "right now": what arrived and what the newest
+                      complete month picked up. */}
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {latest && <LatestPapers papers={latest.papers} />}
+                    {uptake && <RecentUptake uptake={uptake} onSelect={openFoundation} />}
+                  </div>
+
+                  {/* The field's shape and the cited work's age: two context
+                      panels, paired so neither stretches a full row of bars. */}
+                  <div className="grid gap-4 xl:grid-cols-2">
                     {census && <CategoryCensus census={census} />}
-                  </section>
+                    <CitationAge stats={data.stats} citedYears={data.cited_years} />
+                  </div>
 
-                  {/* Provenance sits in the method group, last, deliberately.
-                      As the activity group's widest panel it read as a
-                      finding: bars of papers-per-month with no denominator,
-                      on a page about what CS is building on, invited "19
-                      papers in October 2025" as a fact about October rather
-                      than about our download schedule. */}
-                  <section className="flex flex-col gap-4">
-                    <MethodsNote stats={data.stats} citedYears={data.cited_years} />
-                    {coverage && <HoldingsChart months={coverage.months} />}
-                  </section>
+                  <MethodsNote stats={data.stats} />
                 </>
               )}
             </div>
