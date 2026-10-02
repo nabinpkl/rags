@@ -2577,3 +2577,22 @@ keyword score.
 check finds more than two in ten counted questions unnatural.
 
 **Spec updated:** yes, D14 amendment (2026-10-01).
+
+## 2026-10-02 — D17 withdrawn: PDFs are kept (owner directive)
+
+**Context:** collecting September 2026 (12,520 cs papers, 50.6 GB on the
+mirror) does not fit the 38 GB free on the corpus volume. D17 said PDFs are
+deleted after extraction, but no code ever deleted them; `corpus/pdfs/` holds
+154 GB.
+
+**Decision:** D17 is withdrawn. PDFs fetched from the GCS mirror are retained.
+D19's card images render from them, and re-extraction runs over local bytes.
+
+**Consequence:** disk bounds the corpus, about 50 GB per month of cs. The
+September pull needs space found first (volume growth or cleanup elsewhere).
+§6b is untouched: nothing serves, proxies or caches a PDF outward.
+
+**Revisit when:** the volume cannot grow to hold the months the landing page
+needs.
+
+**Spec updated:** yes, D17 replaced by a withdrawal note (number kept).
