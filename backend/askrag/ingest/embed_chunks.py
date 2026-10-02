@@ -85,6 +85,18 @@ class TransientEmbeddingError(EmbeddingError):
         self.retry_after = retry_after
 
 
+class BatchTooLargeError(EmbeddingError):
+    """The provider counted the batch over its per-request token limit.
+
+    Batches are sized in cl100k, the limit is in the provider's tokenizer, and
+    the gap varies with the text (+8% to +16% measured 2026-10-02, highest on
+    math-heavy papers), so no fixed cap is safe: the batch is split instead.
+    """
+
+
+# Perplexity's 400 body, relayed by OpenRouter.
+_TOKEN_LIMIT_MARKER = "exceeds maximum number of allowed tokens"
+
 # Transport faults (connect/read/timeout) retry alongside throttling.
 _RETRYABLE = (TransientEmbeddingError, httpx.TransportError)
 
@@ -322,6 +334,8 @@ class OpenRouterEmbeddings:
                 f"HTTP {response.status_code} from embeddings API: {response.text[:200]}",
                 retry_after=_parse_retry_after(response.headers.get("retry-after")),
             )
+        if response.status_code == 400 and _TOKEN_LIMIT_MARKER in response.text:
+            raise BatchTooLargeError(f"HTTP 400 from embeddings API: {response.text[:200]}")
         response.raise_for_status()
         payload = response.json()
         # `index` is authoritative for order: the contract is order-preserving
@@ -520,6 +534,31 @@ def _embed_with_retry(
     raise AssertionError("unreachable: the last attempt re-raises inside the loop")
 
 
+def _embed_splitting(
+    backend: EmbeddingsBackend,
+    texts: list[str],
+    max_attempts: int,
+    base_seconds: float,
+) -> BatchEmbedding:
+    """Embed `texts`, halving on BatchTooLargeError until each half fits.
+
+    A single text over the limit still raises: no split can fix it.
+    """
+    try:
+        return _embed_with_retry(backend, texts, max_attempts, base_seconds)
+    except BatchTooLargeError:
+        if len(texts) == 1:
+            raise
+        _log.warning(f"provider counted {len(texts)} texts over its token limit; splitting")
+        mid = len(texts) // 2
+        left = _embed_splitting(backend, texts[:mid], max_attempts, base_seconds)
+        right = _embed_splitting(backend, texts[mid:], max_attempts, base_seconds)
+        return BatchEmbedding(
+            vectors=left.vectors + right.vectors,
+            total_tokens=left.total_tokens + right.total_tokens,
+        )
+
+
 def _merge_shards(vectors_path: Path, shards_dir: Path, provenance: EmbeddingProvenance) -> None:
     """Everything embedded -> one per-model parquet; dedupe guards the
     crash-between-merge-and-cleanup window (both copies briefly exist)."""
@@ -602,7 +641,7 @@ def run(
                 if bucket is not None:
                     waited = bucket.take(sum(c.n_tokens for c in batch))
                     batch_span.set_attribute("askrag.paced_seconds", round(waited, 3))
-                result = _embed_with_retry(
+                result = _embed_splitting(
                     backend,
                     [c.text for c in batch],
                     retry_max_attempts,
