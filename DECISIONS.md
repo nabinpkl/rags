@@ -2619,3 +2619,25 @@ Citations from the rail.
 
 **Spec updated:** yes, §4c decision 2 amendment (2026-10-02), and the
 2026-09-13 home-as-dashboard amendment marked superseded.
+
+## 2026-10-02 — Trends tab for the category census; "Just indexed" deleted (owner directive)
+
+**Context:** Citations carried two panels that are not about citations: a
+list of the newest indexed papers, which Explore sorted by newest already
+shows, and the category census, which counts what arXiv posted rather than
+what we hold.
+
+**Decision:** the census moves to a new static route `/trends` (rail tab
+"Trends"). The newest-papers list is deleted with its endpoint
+`GET /api/latest`. Citations is now the ranking, uptake beside citation age,
+and the method note. Citations and Trends share one `DashboardShell`.
+
+**Consequence:** Citations shows only citation counts. A visitor wanting new
+papers uses Explore.
+
+**Revisit when:** Trends gains a second panel that is not a census (then
+reconsider its name), or the newest-indexed list is needed somewhere Explore
+cannot serve it.
+
+**Spec updated:** yes, §4c decision 2 amendment (2026-10-02) extended, and
+the repo layout's routes_landing.py line.

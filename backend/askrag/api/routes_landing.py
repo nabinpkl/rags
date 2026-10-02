@@ -144,25 +144,6 @@ class FoundationDetailResponse(BaseModel):
     scope_size: int
 
 
-class LatestPaper(BaseModel):
-    """A paper we hold and have indexed, newest first. Indexed-only (D16):
-    the dashboard links every row to the reader, so nothing listed may
-    dead-end. Fresh-but-unindexed papers appear here on their own once the
-    index run covers them — no second code path."""
-
-    arxiv_id: str
-    title: str
-    authors: str | None
-    primary_category: str | None
-    published: str
-    version: str | None
-    ref_count: int
-
-
-class LatestResponse(BaseModel):
-    papers: list[LatestPaper]
-
-
 class MonthBucket(BaseModel):
     """One id-month of the corpus, against what arXiv posted that month.
 
@@ -448,30 +429,6 @@ def get_foundation(
         conn.close()
 
 
-def _latest(conn: sqlite3.Connection, limit: int, max_authors: int) -> list[LatestPaper]:
-    # Newest INDEXED papers only (D16 — every row links to the reader).
-    # The inner query picks the N newest, the outer counts their references;
-    # counting before the limit would scan the whole citations table.
-    rows = conn.execute(
-        "SELECT p.arxiv_id, p.title, p.authors, p.primary_category, p.published,"
-        "       p.version, count(cit.cited_id) AS ref_count"
-        "  FROM (SELECT * FROM papers"
-        f"         WHERE {INDEXED_PREDICATE}"
-        "         ORDER BY published DESC, arxiv_id DESC"
-        "         LIMIT ?) p"
-        "  LEFT JOIN citations cit ON cit.citing_id = p.arxiv_id"
-        " GROUP BY p.arxiv_id"
-        " ORDER BY p.published DESC, p.arxiv_id DESC",
-        (limit,),
-    ).fetchall()
-    papers = []
-    for row in rows:
-        fields = dict(row)
-        fields["authors"] = trim_authors(fields["authors"], max_authors)
-        papers.append(LatestPaper(**fields))
-    return papers
-
-
 def month_coverage(conn: sqlite3.Connection) -> list[MonthBucket]:
     """What we hold per id-month, beside what the catalog lists for it.
 
@@ -515,19 +472,6 @@ def month_coverage(conn: sqlite3.Connection) -> list[MonthBucket]:
         )
         for row in rows
     ]
-
-
-@router.get("/api/latest", response_model=LatestResponse)
-def get_latest(
-    limit: int = Query(default=8, ge=1, le=50),
-    settings: Settings = Depends(get_settings),
-) -> LatestResponse:
-    """The dashboard's "what just landed" list — newest indexed papers."""
-    conn = db.connect_corpus(settings.corpus_db_path)
-    try:
-        return LatestResponse(papers=_latest(conn, limit, settings.landing_max_authors))
-    finally:
-        conn.close()
 
 
 @router.get("/api/coverage", response_model=CoverageResponse)

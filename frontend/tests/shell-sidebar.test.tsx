@@ -13,6 +13,7 @@ describe("ShellSidebar", () => {
     expect(nav).toContainElement(links[0] ?? null);
     expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Citations" })).toHaveAttribute("href", "/citations");
+    expect(screen.getByRole("link", { name: "Trends" })).toHaveAttribute("href", "/trends");
     expect(screen.getByRole("link", { name: "RAG demo" })).toHaveAttribute("href", "/demo");
   });
 
@@ -20,7 +21,7 @@ describe("ShellSidebar", () => {
     render(<ShellSidebar current="demo" />);
 
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(labels).toEqual(["Explore", "Citations", "RAG demo"]);
+    expect(labels).toEqual(["Explore", "Citations", "Trends", "RAG demo"]);
     expect(screen.getByRole("link", { name: "RAG demo" })).toHaveAttribute("aria-current", "page");
   });
 

@@ -81,19 +81,8 @@ export function fetchFoundation(
   return getJson(`/api/foundations/${encodeURIComponent(arxivId)}`, query);
 }
 
-type LatestQuery = NonNullable<paths["/api/latest"]["get"]["parameters"]["query"]>;
-export type LatestResponse =
-  paths["/api/latest"]["get"]["responses"][200]["content"]["application/json"];
-export type LatestPaper = LatestResponse["papers"][number];
 export type CoverageResponse =
   paths["/api/coverage"]["get"]["responses"][200]["content"]["application/json"];
-
-/** GET /api/latest — the dashboard's "what just landed" list. Newest
- * INDEXED papers only (D16): every row links to the reader, so an
- * unindexed paper must not appear no matter how fresh it is. */
-export function fetchLatest(query: LatestQuery = {}): Promise<LatestResponse> {
-  return getJson("/api/latest", query);
-}
 
 /** GET /api/coverage — per id-month, what we hold against what arXiv posted.
  * Counts, not lists: the series describes the corpus we collected, including

@@ -80,26 +80,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/latest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Latest
-         * @description The dashboard's "what just landed" list — newest indexed papers.
-         */
-        get: operations["get_latest_api_latest_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/coverage": {
         parameters: {
             query?: never;
@@ -486,34 +466,6 @@ export interface components {
             cited_years: components["schemas"]["CitedYearBucket"][];
         };
         /**
-         * LatestPaper
-         * @description A paper we hold and have indexed, newest first. Indexed-only (D16):
-         *     the dashboard links every row to the reader, so nothing listed may
-         *     dead-end. Fresh-but-unindexed papers appear here on their own once the
-         *     index run covers them — no second code path.
-         */
-        LatestPaper: {
-            /** Arxiv Id */
-            arxiv_id: string;
-            /** Title */
-            title: string;
-            /** Authors */
-            authors: string | null;
-            /** Primary Category */
-            primary_category: string | null;
-            /** Published */
-            published: string;
-            /** Version */
-            version: string | null;
-            /** Ref Count */
-            ref_count: number;
-        };
-        /** LatestResponse */
-        LatestResponse: {
-            /** Papers */
-            papers: components["schemas"]["LatestPaper"][];
-        };
-        /**
          * MonthBucket
          * @description One id-month of the corpus, against what arXiv posted that month.
          *
@@ -753,37 +705,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FoundationDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_latest_api_latest_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LatestResponse"];
                 };
             };
             /** @description Validation Error */
