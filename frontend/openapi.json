@@ -1102,11 +1102,19 @@
                         },
                         "type": "array",
                         "title": "Months"
+                    },
+                    "cohort": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Cohort"
                     }
                 },
                 "type": "object",
                 "required": [
-                    "months"
+                    "months",
+                    "cohort"
                 ],
                 "title": "CoverageResponse"
             },

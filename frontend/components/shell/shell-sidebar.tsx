@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, Library, MessagesSquare } from "lucide-react";
+import { Library, MessagesSquare, Quote } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -8,9 +8,9 @@ import type { ReactNode } from "react";
 import { BrandMark } from "@/components/shell/brand-mark";
 import { cn } from "@/lib/utils";
 
-/** The app's reading surfaces, one route each: the counted overview, the
- * whole catalog, and the RAG demo — the indexed papers with the agent that
- * reads them, and nothing else.
+/** The app's reading surfaces, one route each: the whole catalog (home),
+ * the citation counts, and the RAG demo (the indexed papers with the agent
+ * that reads them).
  *
  * The rail addresses ROUTES, not bands of a scrolling canvas. It used to do
  * both: four rows that scroll-spied the dashboard's bands, and a fifth,
@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils";
  * scrolling finds them faster than aiming at a row does.
  */
 export const VIEWS = [
-  { id: "overview", label: "Overview", href: "/", icon: LayoutDashboard },
-  { id: "explore", label: "Explore", href: "/papers", icon: Library },
+  { id: "explore", label: "Explore", href: "/", icon: Library },
+  { id: "citations", label: "Citations", href: "/citations", icon: Quote },
   { id: "demo", label: "RAG demo", href: "/demo", icon: MessagesSquare },
 ] as const satisfies readonly { id: string; label: string; href: string; icon: LucideIcon }[];
 

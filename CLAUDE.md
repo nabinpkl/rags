@@ -19,8 +19,8 @@ work is broken into GitHub issues.
   if the spec is wrong, change the spec first (it's a numbered decision).
 - **Map**: `docs/architecture.html`. **Look & feel**: `docs/mockup.html`
   (the PDF.js continuous-scroll viewer there is the reference behavior) and
-  `docs/landing-mockup.html` (the front door, rendered from real citation
-  data — its copy, not just its layout, is the reference).
+  `docs/landing-mockup.html` (the Citations page's original mockup; the live
+  page has since cut its copy, so it is layout reference only).
 - **Work**: issues #9–#39 on nabinpkl/rags, board
   https://github.com/users/nabinpkl/projects/2
 
@@ -121,9 +121,10 @@ work is broken into GitHub issues.
   request and cache as files (D19), so the recipe only warms the backlog. The
   manifest in `corpus/frontier.json` IS the page's scope — widen it via
   `frontier_top_cited`/`frontier_citers_per_work` in `config.py`, and expect a
-  re-embed. Frontend routes: landing at `/`, the whole-catalog
-  filter at `/papers` (the one list that is not indexed-only, D16 amendment
-  2026-09-16), the RAG demo at `/demo` (indexed papers, reader, agent).
+  re-embed. Frontend routes: Explore at `/` (home: the
+  whole-catalog filter, the one list that is not indexed-only, D16 amendment
+  2026-09-16), the citation counts at `/citations`, the RAG demo at `/demo`
+  (indexed papers, reader, agent).
 - Deploy (#81): `just deploy` (compose up; ingress on loopback), `just
   deploy-tailnet` (publish via the host's tailscaled), plus `deploy-logs`,
   `deploy-down`, `deploy-reseed`. Runbook: `deploy/README.md`.

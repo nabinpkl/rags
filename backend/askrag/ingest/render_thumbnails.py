@@ -1,4 +1,4 @@
-"""corpus/pdfs/** -> corpus/thumbs/{arxiv_id}.jpg — the card image for /papers.
+"""corpus/pdfs/** -> corpus/thumbs/{arxiv_id}.jpg — the card image for the catalog.
 
 Three sources, in order: an embedded image placed large enough on a page to
 be a figure rather than a logo; a cluster of vector paths that is the same

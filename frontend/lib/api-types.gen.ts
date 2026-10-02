@@ -409,6 +409,8 @@ export interface components {
         CoverageResponse: {
             /** Months */
             months: components["schemas"]["MonthBucket"][];
+            /** Cohort */
+            cohort: string[];
         };
         /**
          * ExcludedMonth

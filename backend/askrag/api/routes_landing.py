@@ -185,6 +185,9 @@ class MonthBucket(BaseModel):
 
 class CoverageResponse(BaseModel):
     months: list[MonthBucket]
+    # The id-months the citation counts come from (`cohort_months`), so a
+    # client can pick them out of `months` without re-deriving the rule.
+    cohort: list[str]
 
 
 def trim_authors(authors: str | None, max_names: int) -> str | None:
@@ -526,6 +529,9 @@ def get_coverage(settings: Settings = Depends(get_settings)) -> CoverageResponse
     """How much of each month we hold — the provenance panel's whole input."""
     conn = db.connect_corpus(settings.corpus_db_path)
     try:
-        return CoverageResponse(months=month_coverage(conn))
+        return CoverageResponse(
+            months=month_coverage(conn),
+            cohort=cohort_months(conn, settings.landing_cohort_min_share),
+        )
     finally:
         conn.close()
