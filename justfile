@@ -67,8 +67,14 @@ evals-check:
 golden *ARGS:
     uv run --env-file backend/.env python -m evals.draft_golden_set {{ARGS}}
 
-# Retrieval evals (#18): keyword, semantic and hybrid over the golden set.
-# Embeds each question once (a cent or so); `--write-readme` refreshes the
+# One model rewrite per golden question (evals/rewrites.jsonl), the input to
+# the eval's rewrite row. Rerun after `just golden`; `just eval` refuses stale.
+rewrites *ARGS:
+    uv run --env-file backend/.env python -m evals.rewrite_queries {{ARGS}}
+
+# Retrieval evals (#18): keyword, semantic, hybrid and rewrite + hybrid over
+# the golden set, at the top 10 and the top 50. Embeds each question and its
+# rewrite once (a cent or so); `--write-readme` refreshes the
 # README's results block.
 eval *ARGS:
     uv run --env-file backend/.env python -m evals.run_retrieval_evals {{ARGS}}

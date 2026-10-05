@@ -3,10 +3,14 @@
 Scores keyword-only (BM25), semantic-only (vector) and hybrid (RRF) retrieval
 on every counted golden record at k = search_top_k, the depth the agent
 reads: chunk recall@k, nDCG@k, MRR and paper recall@k, plus per-query
-latency. Paper recall sits beside chunk recall because the set does not
-check that its expected chunk is the ONLY one answering a question (D14
-amendment 2026-09-30), so chunk recall understates where a paper repeats
-itself.
+latency. A fourth row runs hybrid over one model rewrite of the question
+(rewrite_queries.py), the agent's first move without its loop. Each row also
+reports recall at eval_pool_k, retrieved separately with every leg at that
+depth: the ceiling for a reranker reordering that pool into the top k.
+
+Paper recall sits beside chunk recall because the set does not check that
+its expected chunk is the ONLY one answering a question (D14 amendment
+2026-09-30), so chunk recall understates where a paper repeats itself.
 
 The legs are called directly rather than through `HybridSearch.search`: that
 path degrades to BM25-only when the vector leg fails (D8), which on a live
@@ -16,6 +20,7 @@ same per-leg depth, and hybrid latency is the sum of its legs because the
 live path runs them one after the other.
 
 Rerank has no row: the stage is not built (D8 makes it eval-gated, #19).
+The rewrite row's latency adds the rewrite call's recorded seconds.
 """
 
 import argparse
@@ -39,6 +44,7 @@ from askrag.retrieval.hybrid_search import rrf_fuse
 from askrag.retrieval.vector_store import VectorStore
 
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, GoldenType, load_golden
+from evals.rewrite_queries import REWRITES_PATH, load_rewrites
 
 README_PATH = Path(__file__).parent.parent / "README.md"
 _MARKER_START = "<!-- retrieval-evals:start -->"
@@ -49,6 +55,7 @@ CONFIGS: dict[str, str] = {
     "bm25": "Keyword (BM25)",
     "vector": "Semantic (vector)",
     "hybrid": "Hybrid (RRF)",
+    "rewrite": "Rewrite + hybrid",
 }
 
 
@@ -121,30 +128,49 @@ def score(
 
 @dataclass(frozen=True)
 class Retrieved:
-    """One question's rankings and the seconds each config took."""
+    """One question's rankings at k and at the pool depth, and the seconds
+    each config took at k."""
 
     rankings: dict[str, list[str]]
+    pools: dict[str, list[str]]
     seconds: dict[str, float]
 
 
 def make_retriever(
-    settings: Settings, conn: sqlite3.Connection, k: int
-) -> Callable[[str], Retrieved]:
+    settings: Settings, conn: sqlite3.Connection, k: int, pool_k: int
+) -> Callable[[str, str], Retrieved]:
+    """`retrieve(question, rewrite)`: the three methods on the question,
+    and hybrid on the rewrite."""
     embedder = QueryEmbedder(settings)
     store = VectorStore(settings)
 
-    def retrieve(question: str) -> Retrieved:
+    def hybrid(query: str) -> tuple[dict[str, list[str]], dict[str, list[str]], dict[str, float]]:
         t0 = time.perf_counter()
-        bm25 = fts.search_bm25(conn, question, k)
+        bm25 = fts.search_bm25(conn, query, k)
         t1 = time.perf_counter()
-        vector = store.query(embedder.embed_query(question), k)
+        embedding = embedder.embed_query(query)
+        vector = store.query(embedding, k)
         t2 = time.perf_counter()
         fused = rrf_fuse({"bm25": bm25, "vector": vector}, settings.rrf_k)
-        hybrid = sorted(fused, key=lambda c: fused[c][0], reverse=True)[:k]
+        top = sorted(fused, key=lambda c: fused[c][0], reverse=True)[:k]
         t3 = time.perf_counter()
+        bm25_pool = fts.search_bm25(conn, query, pool_k)
+        vector_pool = store.query(embedding, pool_k)
+        fused_pool = rrf_fuse({"bm25": bm25_pool, "vector": vector_pool}, settings.rrf_k)
+        top_pool = sorted(fused_pool, key=lambda c: fused_pool[c][0], reverse=True)[:pool_k]
+        return (
+            {"bm25": bm25, "vector": vector, "hybrid": top},
+            {"bm25": bm25_pool, "vector": vector_pool, "hybrid": top_pool},
+            {"bm25": t1 - t0, "vector": t2 - t1, "hybrid": t3 - t0},
+        )
+
+    def retrieve(question: str, rewrite: str) -> Retrieved:
+        rankings, pools, seconds = hybrid(question)
+        rw_rankings, rw_pools, rw_seconds = hybrid(rewrite)
         return Retrieved(
-            rankings={"bm25": bm25, "vector": vector, "hybrid": hybrid},
-            seconds={"bm25": t1 - t0, "vector": t2 - t1, "hybrid": t3 - t0},
+            rankings={**rankings, "rewrite": rw_rankings["hybrid"]},
+            pools={**pools, "rewrite": rw_pools["hybrid"]},
+            seconds={**seconds, "rewrite": rw_seconds["hybrid"]},
         )
 
     return retrieve
@@ -154,12 +180,15 @@ def p50_ms(samples: Sequence[float]) -> float:
     return statistics.median(samples) * 1000
 
 
-def fingerprint(settings: Settings, golden_path: Path, n_chunks: int) -> str:
+def fingerprint(
+    settings: Settings, golden_path: Path, n_chunks: int, rewrites_path: Path = REWRITES_PATH
+) -> str:
     """Twelve hex characters naming everything a score depends on: the set,
-    the index's size, the embedding model and the chunking and fusion
-    constants. Two tables with the same fingerprint are comparable."""
+    its rewrites, the index's size, the embedding model and the chunking and
+    fusion constants. Two tables with the same fingerprint are comparable."""
     inputs = {
         "golden_sha256": hashlib.sha256(golden_path.read_bytes()).hexdigest(),
+        "rewrites_sha256": hashlib.sha256(rewrites_path.read_bytes()).hexdigest(),
         "chunks": n_chunks,
         "embedding": settings.embedding_model_slug,
         "embedding_revision": settings.embedding_model_revision,
@@ -169,6 +198,7 @@ def fingerprint(settings: Settings, golden_path: Path, n_chunks: int) -> str:
         "chunk_min_tokens": settings.chunk_min_tokens,
         "rrf_k": settings.rrf_k,
         "k": settings.search_top_k,
+        "pool_k": settings.eval_pool_k,
     }
     blob = json.dumps(inputs, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:12]
@@ -181,8 +211,10 @@ def _pct(value: float) -> str:
 def render(
     records: Sequence[GoldenRecord],
     rankings: dict[str, dict[str, list[str]]],
+    pools: dict[str, dict[str, list[str]]],
     latency_ms: dict[str, float],
     k: int,
+    pool_k: int,
     *,
     n_papers: int,
     n_chunks: int,
@@ -190,6 +222,7 @@ def render(
 ) -> str:
     """Configs ranked by recall@k, best first, then recall@k per type."""
     scores = {c: score(records, rankings, c, k) for c in CONFIGS}
+    pool_recall = {c: score(records, pools, c, pool_k).recall for c in CONFIGS}
     ranked = sorted(CONFIGS, key=lambda c: scores[c].recall, reverse=True)
     lines = [
         f"{len(records)} golden questions, model-checked rather than human-verified"
@@ -197,14 +230,15 @@ def render(
         f" {n_papers:,} indexed papers and {n_chunks:,} chunks, scored at the"
         f" top {k} the agent reads. Run `{run_id}`.",
         "",
-        f"| Retrieval | Recall@{k} | nDCG@{k} | MRR | Paper recall@{k} | p50 latency |",
-        "|---|---|---|---|---|---|",
+        f"| Retrieval | Recall@{k} | nDCG@{k} | MRR | Paper recall@{k} | Recall@{pool_k}"
+        " | p50 latency |",
+        "|---|---|---|---|---|---|---|",
     ]
     for c in ranked:
         s = scores[c]
         lines.append(
             f"| {CONFIGS[c]} | {_pct(s.recall)} | {s.ndcg:.2f} | {s.mrr:.2f}"
-            f" | {_pct(s.paper_recall)} | {latency_ms[c]:.0f} ms |"
+            f" | {_pct(s.paper_recall)} | {_pct(pool_recall[c])} | {latency_ms[c]:.0f} ms |"
         )
 
     types = [t for t in GoldenType if any(r.type == t for r in records)]
@@ -227,6 +261,10 @@ def render(
             " on common field words.",
         ]
     lines += [
+        "",
+        f"Recall@{pool_k} is the most a reranker reordering the top {pool_k} into"
+        f" the top {k} could reach. Rewrite + hybrid searches one model rewrite of"
+        " the question; its latency includes the rewrite call.",
         "",
         f"One question is {100 / len(records):.1f} points at this size, so gaps"
         " under about 5 points are noise. Latency is the median per question on"
@@ -251,21 +289,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     settings = get_settings()
-    k = settings.search_top_k
+    k, pool_k = settings.search_top_k, settings.eval_pool_k
     records = load_golden(GOLDEN_PATH)
+    rewrites = load_rewrites(records)
 
     conn = db.connect_corpus(None)
     try:
         n_chunks = conn.execute("SELECT count(*) FROM chunks").fetchone()[0]
         n_papers = conn.execute("SELECT count(DISTINCT paper_id) FROM chunks").fetchone()[0]
-        retrieve = make_retriever(settings, conn, k)
+        retrieve = make_retriever(settings, conn, k, pool_k)
         rankings: dict[str, dict[str, list[str]]] = {}
+        pools: dict[str, dict[str, list[str]]] = {}
         seconds: dict[str, list[float]] = {c: [] for c in CONFIGS}
         for i, r in enumerate(records, start=1):
-            got = retrieve(r.question)
-            rankings[r.id] = got.rankings
+            got = retrieve(r.question, rewrites[r.id].rewrite)
+            rankings[r.id], pools[r.id] = got.rankings, got.pools
             for c in CONFIGS:
                 seconds[c].append(got.seconds[c])
+            seconds["rewrite"][-1] += rewrites[r.id].seconds
             print(f"\r{i}/{len(records)}", end="", file=sys.stderr, flush=True)
         print(file=sys.stderr)
     finally:
@@ -274,7 +315,15 @@ def main(argv: list[str] | None = None) -> int:
     run_id = fingerprint(settings, GOLDEN_PATH, n_chunks)
     latency = {c: p50_ms(seconds[c]) for c in CONFIGS}
     table = render(
-        records, rankings, latency, k, n_papers=n_papers, n_chunks=n_chunks, run_id=run_id
+        records,
+        rankings,
+        pools,
+        latency,
+        k,
+        pool_k,
+        n_papers=n_papers,
+        n_chunks=n_chunks,
+        run_id=run_id,
     )
     print(table, end="")
     if args.write_readme:

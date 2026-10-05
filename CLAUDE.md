@@ -105,7 +105,9 @@ work is broken into GitHub issues.
 - Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`.
   Golden set: `just golden` redrafts `evals/golden.jsonl` (model-checked, no
   human pass, D14 amendment 2026-09-30); `just evals-check` gates it;
-  `just eval` scores BM25, vector and hybrid on it (`--write-readme`
+  `just rewrites` writes one agent-model rewrite per question
+  (`evals/rewrites.jsonl`); `just eval` scores BM25, vector, hybrid and
+  rewrite + hybrid on it at the top 10 and top 50 (`--write-readme`
   refreshes the README table). Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
   `POST /api/chat`). Frontend (after #26): `pnpm build`, also run by the gate

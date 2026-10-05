@@ -384,6 +384,9 @@ enabled. See DECISIONS.md 2026-07-05.
 
 ### D8. Retrieval: hybrid (vector + BM25 + RRF), filters pushed down; rerank only if evals demand it
 
+*Amended 2026-10-05: the reranking ceiling is measured (D14 amendment of that
+date): hybrid recall@10 79%, recall@50 93%.*
+
 **Decision.** `search_corpus` runs vector search (Chroma) and BM25 (FTS5)
 in parallel, fuses with reciprocal rank fusion, applies metadata filters
 (category, year, facets — pushed into Chroma's `where` and SQL respectively),
@@ -870,6 +873,25 @@ for Horn clauses. Short queries invite this.
 - **Checkpointed redrafts.** Each checked record is appended to a progress
   file under a signature of models, prompts and caps; a killed run resumes,
   and a run with failed drafts keeps the file so a rerun retries only those.
+
+**Amendment (2026-10-05, owner directive): the reranking ceiling and a
+rewrite row.** Before building a reranker (D8) or crediting the agent's
+query rewriting, the runner measures each in isolation. Every row also
+reports recall at `eval_pool_k` (50), retrieved separately with each leg at
+that depth: the most a reranker reordering that pool into the top 10 could
+reach. A fourth row runs hybrid over one rewrite of the question by the
+agent's own model (`just rewrites`, committed as `evals/rewrites.jsonl` so
+`just eval` stays free of model calls; the runner refuses rewrites of
+questions that have since changed).
+
+Measured (run `b9a4726765fe`, 93 queries): hybrid recall@10 79% and
+recall@50 93%, so a perfect reranker could add at most 14 points. One
+rewrite then hybrid: recall@10 65%; it changed the outcome on 21 questions,
+helping 3 and hurting 18, by generalising into field terms that match other
+papers and by expanding acronyms wrongly. The set's questions are written
+from their passages, which favours the original wording, so the row does not
+show that rewriting hurts real searches; it shows that one rewrite replacing
+the query is not the agent's advantage here.
 
 ---
 

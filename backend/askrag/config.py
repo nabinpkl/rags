@@ -300,6 +300,9 @@ class Settings(BaseSettings):
     # Also the retrieval evals' cutoff (#18): they score the k the agent
     # reads, since recall past it describes passages the agent never sees.
     search_top_k: int = 10
+    # The evals' second depth: the candidates a reranker would reorder into
+    # the top search_top_k. Recall here is the most any reordering can reach.
+    eval_pool_k: int = 50
     rerank_enabled: bool = False  # ships only if evals justify it (D8)
 
     # --- tools (§5) ----------------------------------------------------------
