@@ -2686,3 +2686,24 @@ enough that the intervals separate.
 
 **Spec updated:** yes, D14 amendment (2026-10-05).
 
+
+## 2026-10-05 — the OpenRouter guardrail dropped DeepSeek and GLM; models move (owner directive)
+
+**Context:** the account's OpenRouter allowlist now holds Muse Spark 1.3
+Contributor, Space Bunny Alpha, gpt-oss-120b and the embedding model, plus
+MiMo V2.6 Flash on the owner's pick. DeepSeek V4 Flash (the tailnet agent) and
+GLM 5.3 Flash (the golden drafter) both return 404 behind the guardrail, so
+the deployed agent could no longer answer.
+
+**Decision:** `smoke_model` is `xiaomi/mimo-v2.6-flash` ($0.14/$0.28 per
+million tokens, tool calls verified; one live chat answered with six searches
+for $0.0067). The golden drafter is `stealth/space-bunny-alpha`; the checker
+stays Muse Spark. gpt-oss-120b was tried as drafter and lost (54 counted of
+197, against 83 for Space Bunny). A stealth model is not used for the agent:
+it can be withdrawn without notice, which is the failure that prompted this.
+
+**Revisit when:** the allowlist changes again, or Space Bunny leaves
+OpenRouter before the next redraft.
+
+**Spec updated:** yes, D14 amendment (2026-10-05) for the drafter; the smoke
+model is not a spec decision (D3's prod agent is unchanged).
