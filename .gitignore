@@ -27,3 +27,4 @@ __pycache__/
 
 # Infisical project link — machine-local, written by `infisical init`.
 .infisical.json
+evals/golden.progress.jsonl

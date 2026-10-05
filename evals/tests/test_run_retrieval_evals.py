@@ -30,6 +30,7 @@ CHECKS = GoldenChecks(
     answer_correct=True,
     closed_book_correct=False,
     natural=True,
+    unambiguous=True,
     check_model="checker",
 )
 

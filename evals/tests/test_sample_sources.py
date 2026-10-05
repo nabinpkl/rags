@@ -61,8 +61,9 @@ def test_sampling_is_seeded_stratified_and_one_per_paper():
         for i in range(2)
     ]
     quota = {GoldenType.SINGLE_HOP.value: 4}
-    first = sample_sources(chunks, Counter(), quota, seed=1, rare_max_df=40, mismatch_max_df=500)
-    again = sample_sources(chunks, Counter(), quota, seed=1, rare_max_df=40, mismatch_max_df=500)
+    kw = dict(seed=1, rare_max_df=40, mismatch_max_df=500, multi_hop_min_shared=0)
+    first = sample_sources(chunks, Counter(), quota, **kw)
+    again = sample_sources(chunks, Counter(), quota, **kw)
     assert [s.chunks for s in first] == [s.chunks for s in again]
     papers = [s.chunks[0].paper_id for s in first]
     assert len(papers) == len(set(papers)) == 4
@@ -81,11 +82,51 @@ def test_multi_hop_pairs_two_sections_of_one_paper():
         seed=0,
         rare_max_df=40,
         mismatch_max_df=500,
+        multi_hop_min_shared=1,
     )
     assert len(sources) == 1
     pair = sources[0].chunks
     assert pair[0].paper_id == pair[1].paper_id
     assert pair[0].section != pair[1].section
+
+
+def multi_hop(chunks, min_shared):
+    df = Counter({"we": 99, "the": 99, "on": 99, "report": 99})
+    return sample_sources(
+        chunks,
+        df,
+        {GoldenType.MULTI_HOP.value: 1},
+        seed=0,
+        rare_max_df=40,
+        mismatch_max_df=500,
+        multi_hop_min_shared=min_shared,
+    )
+
+
+def test_multi_hop_pairs_the_section_naming_the_same_things():
+    chunks = [
+        chunk("1.1#0", "cl", "we train GRPO policies on MathBench", section="Method"),
+        chunk("1.1#1", "cl", "the GRPO policies win on MathBench", section="Results"),
+        chunk("1.1#2", "cl", "we report funding and ethics", section="Ethics"),
+    ]
+    [source] = multi_hop(chunks, 3)
+    assert {c.chunk_id for c in source.chunks} == {"1.1#0", "1.1#1"}
+
+
+def test_a_chunk_without_a_related_section_is_never_paired():
+    chunks = [
+        chunk("1.1#0", "cl", "we train GRPO policies", section="Method"),
+        chunk("1.1#1", "cl", "we report funding and ethics", section="Ethics"),
+    ]
+    assert multi_hop(chunks, 2) == []
+
+
+def test_a_summary_section_is_never_half_of_a_pair():
+    chunks = [
+        chunk("1.1#0", "cl", "we train GRPO policies on MathBench", section="1 Introduction"),
+        chunk("1.1#1", "cl", "the GRPO policies win on MathBench", section="Results"),
+    ]
+    assert multi_hop(chunks, 3) == []
 
 
 def test_vocabulary_mismatch_bars_words_under_the_wider_bar_and_moves_nothing():
@@ -96,7 +137,7 @@ def test_vocabulary_mismatch_bars_words_under_the_wider_bar_and_moves_nothing():
     df = Counter({"train": 2000, "robot": 300, "grokking": 3, "grpo": 6})
     base = {GoldenType.EXACT_MATCH.value: 2}
     widened = {**base, GoldenType.VOCABULARY_MISMATCH.value: 2}
-    kw = dict(seed=3, rare_max_df=40, mismatch_max_df=500)
+    kw = dict(seed=3, rare_max_df=40, mismatch_max_df=500, multi_hop_min_shared=0)
     before = sample_sources(chunks, df, base, **kw)
     after = sample_sources(chunks, df, widened, **kw)
     assert [s.chunks for s in after[:2]] == [s.chunks for s in before]

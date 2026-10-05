@@ -2707,3 +2707,27 @@ OpenRouter before the next redraft.
 
 **Spec updated:** yes, D14 amendment (2026-10-05) for the drafter; the smoke
 model is not a spec decision (D3's prod agent is unchanged).
+
+## 2026-10-05 — golden set: ambiguity check, related multi-hop pairs, checkpointed redrafts (owner directive)
+
+**Context:** a counted question's expected answer was wrong as typed (CNF
+clauses answered as if Horn); multi-hop drafts failed `natural` 16 of 21 as
+two stapled questions; and three interrupted redrafts lost all their work
+because the drafter wrote only at the end.
+
+**Decision:** an `unambiguous` checker verdict, backfilled onto the committed
+GLM-drafted set rather than redrafting it (93 count, from 102); multi-hop
+pairs are body sections sharing at least three rare terms; each checked record
+is checkpointed; the checker's token cap rises from 3,000 to 6,000 (9 of 219
+replies came back empty or cut); a reply with no usage block fails one draft
+instead of the run.
+
+**Consequence:** the backfilled verdicts came from a one-verdict prompt with
+the grader's own wording, not the full grading call; the next full redraft
+grades them together. Related pairs lifted Space Bunny's multi-hop yield from
+4 to 6 of about 30: most drafts still join two questions with "and", so the
+type's brief is the next suspect.
+
+**Revisit when:** the next full redraft, or multi-hop stays under ten counted.
+
+**Spec updated:** yes, D14 amendment (2026-10-05).

@@ -1,17 +1,21 @@
 """The drafter's checks, with a stubbed model: no test calls a real API."""
 
 import json
+from collections import Counter
+from types import SimpleNamespace
 
 import pytest
-from askrag.config import get_settings
+from askrag.config import Settings, get_settings
 
 from evals.draft_golden_set import (
     FENCE,
+    OpenRouterClient,
     check_record,
     draft_prompt,
     lexical_rule,
     normalize,
     parse_json,
+    run_signature,
     spans_verbatim,
 )
 from evals.golden_set import GoldenType
@@ -87,6 +91,7 @@ def test_check_record_carries_every_verdict():
         "answer_correct": True,
         "closed_book_correct": False,
         "natural": True,
+        "unambiguous": True,
         "note": "",
     }
     client = StubClient("I don't know.", json.dumps(grade))
@@ -109,6 +114,7 @@ GRADE = {
     "answer_correct": True,
     "closed_book_correct": False,
     "natural": True,
+    "unambiguous": True,
     "note": "",
 }
 DRAFT = {
@@ -129,6 +135,14 @@ def test_every_type_counts_only_when_the_checker_finds_it_natural(type_, natural
     assert rec.counts() is natural
 
 
+def test_a_query_with_another_correct_answer_is_culled():
+    client = StubClient("I don't know.", json.dumps({**GRADE, "unambiguous": False}))
+    rec = check_record(source(), DRAFT, client, get_settings())
+    assert '"unambiguous"' in client.systems[1]
+    assert rec.checks.unambiguous is False
+    assert not rec.counts()
+
+
 def test_a_question_longer_than_a_search_query_is_culled():
     cap = get_settings().golden_question_max_words
     long_draft = {**DRAFT, "question": " ".join(["setting"] * (cap + 1))}
@@ -137,3 +151,19 @@ def test_a_question_longer_than_a_search_query_is_culled():
     )
     assert not rec.checks.question_within_cap
     assert not rec.counts()
+
+
+def test_a_checkpoint_is_reused_only_by_a_run_with_the_same_models_and_caps():
+    base = run_signature(Settings())
+    assert run_signature(Settings()) == base
+    assert run_signature(Settings(golden_draft_model="other/model")) != base
+    assert run_signature(Settings(golden_check_model="other/model")) != base
+    assert run_signature(Settings(golden_question_max_words=20)) != base
+
+
+def test_a_reply_without_usage_fails_one_draft_not_the_run():
+    reply = SimpleNamespace(usage=None, content=None)
+    sdk = SimpleNamespace(messages=SimpleNamespace(create=lambda **_: reply))
+    client = OpenRouterClient(sdk, Counter())  # ty: ignore[invalid-argument-type]
+    with pytest.raises(ValueError, match="no usage"):
+        client.complete("m", "system", "user", 10)

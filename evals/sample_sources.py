@@ -24,6 +24,11 @@ _WORD = re.compile(r"[a-z][a-z0-9-]{3,}")
 # A distinctive term an exact_match question can hinge on: an acronym, a
 # model or benchmark name — mixed case or digits inside, 3 to 20 characters
 # (LoRA, GRPO, SWE-bench, Qwen3). Plain capitalised words are not terms.
+# Sections that restate the whole paper. A multi_hop pair drawn from one is
+# answerable from that chunk alone, so neither side of a pair may be one.
+_SUMMARY_SECTION = re.compile(
+    r"abstract|introduction|conclu|summary|related work|literature review|__paper__", re.I
+)
 _TERM = re.compile(r"\b(?=[A-Za-z0-9-]*[A-Z][A-Za-z0-9-]*[A-Z0-9])[A-Z][A-Za-z0-9-]{2,19}\b")
 _SKIP_SECTIONS = ("reference", "bibliograph", "acknowledg", "__paper__")
 
@@ -149,6 +154,7 @@ def sample_sources(
     seed: int,
     rare_max_df: int,
     mismatch_max_df: int,
+    multi_hop_min_shared: int,
 ) -> list[Source]:
     rng = random.Random(seed)
     term_df: Counter[str] = Counter()
@@ -193,23 +199,37 @@ def sample_sources(
         for chunk in take(candidates, quota.get(type_, 0)):
             sources.append(Source(type_, (chunk,), rare_terms(chunk.text, df, rare_max_df)))
 
-    # multi_hop: a second prose chunk from the same paper, another section.
+    # multi_hop: two body chunks (no summary section) of one paper, in
+    # different sections, naming the same things: the one sharing the most rare terms, at least
+    # multi_hop_min_shared. Only chunks that have such a partner are sampled.
     by_paper: dict[str, list[SourceChunk]] = defaultdict(list)
-    for chunk in prose:
+    body = [c for c in prose if not _SUMMARY_SECTION.search(c.section)]
+    for chunk in body:
         by_paper[chunk.paper_id].append(chunk)
-    for first in take(prose, quota.get(GoldenType.MULTI_HOP, 0)):
-        partners = [
-            c
+    rare_of = {c.chunk_id: rare_terms(c.text, df, rare_max_df) for c in body}
+
+    def partners(first: SourceChunk) -> list[tuple[int, SourceChunk]]:
+        return [
+            (shared, c)
             for c in by_paper[first.paper_id]
-            if c.section != first.section and c.chunk_id not in used
+            if c.section != first.section
+            and c.chunk_id not in used
+            and (shared := len(rare_of[first.chunk_id] & rare_of[c.chunk_id]))
+            >= multi_hop_min_shared
         ]
-        if not partners:
+
+    pairable = [c for c in body if partners(c)]
+    for first in take(pairable, quota.get(GoldenType.MULTI_HOP, 0)):
+        ranked = partners(first)
+        if not ranked:
             continue
-        second = rng.choice(partners)
+        best = max(shared for shared, _ in ranked)
+        second = rng.choice([c for shared, c in ranked if shared == best])
         used.add(second.chunk_id)
         pair = (first, second)
-        rare = rare_terms(first.text, df, rare_max_df) | rare_terms(second.text, df, rare_max_df)
-        sources.append(Source(GoldenType.MULTI_HOP, pair, rare))
+        sources.append(
+            Source(GoldenType.MULTI_HOP, pair, rare_of[first.chunk_id] | rare_of[second.chunk_id])
+        )
 
     # vocabulary_mismatch: chunks that name a method, model or benchmark, so
     # a searcher who has not read the paper has to describe it. Sampled last,
