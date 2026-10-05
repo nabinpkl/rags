@@ -26,28 +26,29 @@ each question's expected chunks in the top k; paper recall counts any chunk of
 the expected paper.
 
 <!-- retrieval-evals:start -->
-93 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks, scored at the top 10 the agent reads. Run `b9a4726765fe`.
+93 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks, scored at the top 10 the agent reads. Run `492b61d7e3a5`.
 
 | Retrieval | Recall@10 | nDCG@10 | MRR | Paper recall@10 | Recall@50 | p50 latency |
 |---|---|---|---|---|---|---|
-| Hybrid (RRF) | 79% | 0.58 | 0.52 | 94% | 93% | 202 ms |
-| Keyword (BM25) | 78% | 0.54 | 0.48 | 96% | 89% | 92 ms |
-| Semantic (vector) | 74% | 0.52 | 0.46 | 88% | 82% | 109 ms |
-| Rewrite + hybrid | 65% | 0.44 | 0.39 | 91% | 84% | 5457 ms |
+| Hybrid + rerank | 87% | 0.71 | 0.67 | 99% | 93% | 153433 ms |
+| Hybrid (RRF) | 79% | 0.58 | 0.52 | 94% | 93% | 238 ms |
+| Keyword (BM25) | 78% | 0.54 | 0.48 | 96% | 89% | 98 ms |
+| Semantic (vector) | 74% | 0.52 | 0.46 | 88% | 82% | 141 ms |
+| Rewrite + hybrid | 65% | 0.44 | 0.39 | 91% | 84% | 5817 ms |
 
 Recall@10 by question type:
 
-| Question type | n | Hybrid (RRF) | Keyword (BM25) | Semantic (vector) | Rewrite + hybrid |
-|---|---|---|---|---|---|
-| single_hop | 26 | 100% | 96% | 92% | 81% |
-| exact_match | 9 | 89% | 100% | 78% | 89% |
-| multi_hop | 10 | 55% | 45% | 60% | 40% |
-| known_hard | 20 | 80% | 75% | 70% | 60% |
-| vocabulary_mismatch | 28 | 64% | 68% | 64% | 54% |
+| Question type | n | Hybrid + rerank | Hybrid (RRF) | Keyword (BM25) | Semantic (vector) | Rewrite + hybrid |
+|---|---|---|---|---|---|---|
+| single_hop | 26 | 100% | 100% | 96% | 92% | 81% |
+| exact_match | 9 | 100% | 89% | 100% | 78% | 89% |
+| multi_hop | 10 | 70% | 55% | 45% | 60% | 40% |
+| known_hard | 20 | 80% | 80% | 75% | 70% | 60% |
+| vocabulary_mismatch | 28 | 82% | 64% | 68% | 64% | 54% |
 
 vocabulary_mismatch questions may not use any word of their passage that appears in 500 or fewer chunks, so keyword search can match them only on common field words.
 
-Recall@50 is the most a reranker reordering the top 50 into the top 10 could reach. Rewrite + hybrid searches one model rewrite of the question; its latency includes the rewrite call.
+Recall@50 is the most a reranker reordering the top 50 into the top 10 could reach. Rewrite + hybrid searches one model rewrite of the question; its latency includes the rewrite call. Hybrid + rerank reorders hybrid's top 50 with a cross-encoder on the build host's CPU; its latency includes retrieving that pool.
 
 One question is 1.1 points at this size, so gaps under about 5 points are noise. Latency is the median per question on the build host; the semantic leg includes the embedding API call.
 <!-- retrieval-evals:end -->

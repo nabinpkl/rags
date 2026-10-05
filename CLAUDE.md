@@ -106,9 +106,10 @@ work is broken into GitHub issues.
   Golden set: `just golden` redrafts `evals/golden.jsonl` (model-checked, no
   human pass, D14 amendment 2026-09-30); `just evals-check` gates it;
   `just rewrites` writes one agent-model rewrite per question
-  (`evals/rewrites.jsonl`); `just eval` scores BM25, vector, hybrid and
-  rewrite + hybrid on it at the top 10 and top 50 (`--write-readme`
-  refreshes the README table). Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
+  (`evals/rewrites.jsonl`); `just eval` scores BM25, vector, hybrid,
+  hybrid + rerank and rewrite + hybrid on it at the top 10 and top 50
+  (`--write-readme` refreshes the README table; about 4.5 h on the build
+  host's CPU, so run it detached). Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
   `POST /api/chat`). Frontend (after #26): `pnpm build`, also run by the gate
   (#52 — `tsc` is not `next build` in export mode). After ANY route or

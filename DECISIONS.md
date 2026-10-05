@@ -2751,3 +2751,26 @@ the query with one rewrite is not.
 the rewrite is fused with the original query instead of replacing it.
 
 **Spec updated:** yes, D14 amendment and a D8 note (2026-10-05).
+
+## 2026-10-05 — the rerank stage is a local cross-encoder; measured, not enabled (owner directive)
+
+**Context:** the eval put hybrid at 79% recall@10 and 93% recall@50, so a
+reranker of the top 50 could add at most 14 points. D8 named Voyage rerank or
+an LLM listwise pass as candidates.
+
+**Decision:** a local cross-encoder through `sentence-transformers` (already a
+dependency, $0): Alibaba-NLP/gte-reranker-modernbert-base, Apache-2.0, pinned
+to revision f7481e6, reading whole chunks (1,280 tokens). The eval scores it
+as "Hybrid + rerank". cross-encoder/ms-marco-MiniLM-L6-v2 was also run as a
+fast baseline and is not kept.
+
+**Consequence:** recall@10 87% (from 79%), nDCG@10 0.71 (from 0.58); MiniLM
+scored 72%. On this shared 4-core host the model needs about 153 s per
+question, so `just eval` now runs about 4.5 hours and must run detached, and
+`rerank_enabled` stays False.
+
+**Revisit when:** a hosted reranker or GPU makes per-query latency
+sub-second (then measure it against this row), or the set grows enough to
+put intervals on the 8-point gain.
+
+**Spec updated:** yes, D8 amendment (2026-10-05).

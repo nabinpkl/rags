@@ -72,9 +72,10 @@ golden *ARGS:
 rewrites *ARGS:
     uv run --env-file backend/.env python -m evals.rewrite_queries {{ARGS}}
 
-# Retrieval evals (#18): keyword, semantic, hybrid and rewrite + hybrid over
-# the golden set, at the top 10 and the top 50. Embeds each question and its
-# rewrite once (a cent or so); `--write-readme` refreshes the
+# Retrieval evals (#18): keyword, semantic, hybrid, hybrid + rerank and
+# rewrite + hybrid over the golden set, at the top 10 and the top 50. Embeds
+# each question and its rewrite (a cent or so). The local reranker makes a run
+# take about 4.5 hours on the build host's CPU: run it detached (CLAUDE.md); `--write-readme` refreshes the
 # README's results block.
 eval *ARGS:
     uv run --env-file backend/.env python -m evals.run_retrieval_evals {{ARGS}}

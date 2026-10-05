@@ -304,6 +304,15 @@ class Settings(BaseSettings):
     # the top search_top_k. Recall here is the most any reordering can reach.
     eval_pool_k: int = 50
     rerank_enabled: bool = False  # ships only if evals justify it (D8)
+    # The cross-encoder the evals score (D8 amendment 2026-10-05): local,
+    # Apache-2.0, 149M parameters, CPU-sized for the build host. Pinned like
+    # the embedding model, so a model-card push cannot move the numbers.
+    rerank_model: str = "Alibaba-NLP/gte-reranker-modernbert-base"
+    rerank_model_revision: str = "f7481e6055501a30fb19d090657df9ec1f79ab2c"
+    # Query plus a whole chunk: chunks run to chunk_size_tokens (1,000), and
+    # the model reads 8,192, so nothing is cut short.
+    rerank_max_tokens: int = 1280
+    rerank_batch_size: int = 16
 
     # --- tools (§5) ----------------------------------------------------------
     # search_corpus clamps a model-supplied k to this ceiling — a pathological
