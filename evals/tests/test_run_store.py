@@ -8,7 +8,9 @@ from evals.run_store import Retrieved, append_run, load_run, run_path
 
 
 def got(n: int) -> Retrieved:
-    return Retrieved({"hybrid": [f"p#{n}"]}, {"hybrid": [f"p#{n}", "q#1"]}, {"hybrid": 0.5})
+    return Retrieved(
+        {"hybrid": [f"p#{n}"]}, {"hybrid": [f"p#{n}", "q#1"]}, {"hybrid": 0.5}, {"hybrid": 4e-08}
+    )
 
 
 def test_a_missing_file_has_nothing_scored(tmp_path: Path):

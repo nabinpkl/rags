@@ -2774,3 +2774,27 @@ sub-second (then measure it against this row), or the set grows enough to
 put intervals on the 8-point gain.
 
 **Spec updated:** yes, D8 amendment (2026-10-05).
+
+## 2026-10-05 — hosted reranking through OpenRouter, and cost per query in the evals (owner directive)
+
+**Context:** the local cross-encoder lifted recall@10 from 79% to 87% but
+took about 153 s per query on the build host. OpenRouter lists nine rerankers
+(Voyage, Cohere, Qwen, NVIDIA), all blocked by the account guardrail until
+the owner allowlisted voyageai/rerank-3-lite.
+
+**Decision:** `rerank_backend` chooses `openrouter` (default, Voyage
+rerank-3-lite) or `local`. Cost is taken from each provider reply
+(`usage.cost`) for the embedding, the rerank and the rewrite, recorded per
+question in the run store, and shown as mean cost per query in every row.
+Rate limits and 5xx retry with exponential backoff (6 attempts from 2 s).
+
+**Consequence:** run bf072fb0bfba: Voyage rerank 90% recall@10, nDCG@10
+0.79, 0.74 s and $0.00066 per query, ahead of the local model's 87%; a full
+eval takes about 3 minutes instead of 4.5 hours. The rewrites were
+regenerated to carry their cost, which moved the rewrite row from 65% to
+68% (MiMo is not deterministic).
+
+**Revisit when:** the reranker is wired into search_corpus (measure answer
+quality and turn cost with it), or a cheaper allowlisted reranker appears.
+
+**Spec updated:** yes, D8 amendment (2026-10-05).

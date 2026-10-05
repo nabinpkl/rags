@@ -10,6 +10,7 @@ from askrag.config import Settings
 from evals.golden_set import Difficulty, GoldenChecks, GoldenRecord, GoldenType
 from evals.run_retrieval_evals import (
     CONFIGS,
+    _usd,
     fingerprint,
     ndcg_at,
     paper_recall_at,
@@ -95,6 +96,7 @@ def test_score_refuses_an_empty_set():
 
 
 LATENCY = {c: 12.0 for c in CONFIGS}
+COST = {c: 0.0 if c == "bm25" else 0.00068 for c in CONFIGS}
 
 
 def test_render_ranks_configs_best_first_and_has_a_row_per_present_type():
@@ -106,8 +108,11 @@ def test_render_ranks_configs_best_first_and_has_a_row_per_present_type():
     rankings["q1"]["bm25"] = ["x#1"]
     pools = {r.id: {c: ["x#1", *r.expected_chunk_ids] for c in CONFIGS} for r in records}
     pools["q2"]["hybrid"] = ["r#1"]
-    table = render(records, rankings, pools, LATENCY, 10, 50, n_papers=2, n_chunks=10, run_id="abc")
-    assert "| Hybrid (RRF) | 100% | 1.00 | 1.00 | 100% | 75% | 12 ms |" in table
+    table = render(
+        records, rankings, pools, LATENCY, COST, 10, 50, n_papers=2, n_chunks=10, run_id="abc"
+    )
+    assert "| Hybrid (RRF) | 100% | 1.00 | 1.00 | 100% | 75% | 12 ms | $0.00068 |" in table
+    assert "| Keyword (BM25) | 50% | 0.50 | 0.50 | 50% | 100% | 12 ms | $0 |" in table
     assert "| Rewrite + hybrid | 100% |" in table
     assert "| Hybrid + rerank | 100% |" in table
     assert table.index("Hybrid (RRF) |") < table.index("Keyword (BM25) |")
@@ -147,7 +152,8 @@ def test_fingerprint_moves_with_the_set_its_rewrites_and_the_constants(tmp_path:
     assert fp(Settings(rrf_k=10)) != base
     assert fp(Settings(search_top_k=5)) != base
     assert fp(Settings(eval_pool_k=20)) != base
-    assert fp(Settings(rerank_model_revision="abc")) != base
+    assert fp(Settings(rerank_openrouter_model="cohere/rerank-4-fast")) != base
+    assert fp(Settings(rerank_backend="local")) != base
     assert fp(Settings(), 101) != base
     rewrites.write_text("b\n")
     assert fp(Settings()) != base
@@ -160,6 +166,14 @@ def test_render_explains_the_mismatch_row():
     records = [record("q1", ["p#1"], GoldenType.VOCABULARY_MISMATCH)]
     rankings = {"q1": {c: ["p#1"] for c in CONFIGS}}
     table = render(
-        records, rankings, rankings, LATENCY, 5, 50, n_papers=1, n_chunks=1, run_id="abc"
+        records, rankings, rankings, LATENCY, COST, 5, 50, n_papers=1, n_chunks=1, run_id="abc"
     )
     assert "only on common field words" in table
+
+
+@pytest.mark.parametrize(
+    ("usd", "shown"),
+    [(0.0, "$0"), (4.14e-08, "<$0.000001"), (0.000659, "$0.000659"), (4.32e-05, "$0.000043")],
+)
+def test_costs_print_as_plain_dollars(usd, shown):
+    assert _usd(usd) == shown

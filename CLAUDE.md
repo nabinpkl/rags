@@ -108,8 +108,9 @@ work is broken into GitHub issues.
   `just rewrites` writes one agent-model rewrite per question
   (`evals/rewrites.jsonl`); `just eval` scores BM25, vector, hybrid,
   hybrid + rerank and rewrite + hybrid on it at the top 10 and top 50
-  (`--write-readme` refreshes the README table; about 4.5 h on the build
-  host's CPU, so run it detached). Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
+  (`--write-readme` refreshes the README table; about 3 min and $0.06 with
+  the hosted reranker, hours with `rerank_backend=local`, so run that one
+  detached). Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
   `POST /api/chat`). Frontend (after #26): `pnpm build`, also run by the gate
   (#52 — `tsc` is not `next build` in export mode). After ANY route or

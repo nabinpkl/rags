@@ -43,7 +43,9 @@ def write(path: Path, *rewrites: Rewrite) -> Path:
 
 
 def rewrite(rid: str, question: str) -> Rewrite:
-    return Rewrite(id=rid, question=question, rewrite="field terms", model="m", seconds=1.0)
+    return Rewrite(
+        id=rid, question=question, rewrite="field terms", model="m", seconds=1.0, usd=1e-5
+    )
 
 
 def test_rewrites_load_by_record_id(tmp_path: Path):

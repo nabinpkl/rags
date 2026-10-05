@@ -22,11 +22,12 @@ RUNS_DIR = Path(__file__).parent / "runs"
 @dataclass(frozen=True)
 class Retrieved:
     """One question's rankings at k and at the pool depth, and the seconds
-    each config took."""
+    and billed dollars each config took."""
 
     rankings: dict[str, list[str]]
     pools: dict[str, list[str]]
     seconds: dict[str, float]
+    usd: dict[str, float]
 
 
 def run_path(run_id: str) -> Path:
@@ -41,7 +42,9 @@ def load_run(path: Path) -> dict[str, Retrieved]:
     for line in path.read_text().splitlines():
         if line.strip():
             entry = json.loads(line)
-            done[entry["id"]] = Retrieved(entry["rankings"], entry["pools"], entry["seconds"])
+            done[entry["id"]] = Retrieved(
+                entry["rankings"], entry["pools"], entry["seconds"], entry["usd"]
+            )
     return done
 
 

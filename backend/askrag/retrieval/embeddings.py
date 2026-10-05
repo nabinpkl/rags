@@ -30,11 +30,17 @@ class QueryEmbedder:
         self._slug = settings.embedding_model_slug
 
     def embed_query(self, text: str) -> list[float]:
+        return self.embed_query_priced(text)[0]
+
+    def embed_query_priced(self, text: str) -> tuple[list[float], float | None]:
+        """The vector and the provider's billed dollars (None where the
+        backend reports no price); the evals' per-query cost reads this."""
         tracer = telemetry.get_tracer("askrag.retrieval")
         with tracer.start_as_current_span("askrag.retrieval.embed_query") as span:
             span.set_attribute("askrag.model_slug", self._slug)
             try:
-                return self._backend.embed([text]).vectors[0]
+                result = self._backend.embed([text])
+                return result.vectors[0], result.usd
             except httpx.TransportError as exc:
                 # A genuine transport-level outage (connection refused, DNS,
                 # timeout — no HTTP response at all): translate into OUR

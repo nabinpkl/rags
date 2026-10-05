@@ -579,7 +579,7 @@ def test_openrouter_adapter_sends_its_contract_and_parses_response(monkeypatch):
                     {"embedding": [float(i)] * DIMS, "index": i} for i in range(len(body["input"]))
                 ],
                 "model": body["model"],
-                "usage": {"prompt_tokens": 91, "total_tokens": 91},
+                "usage": {"prompt_tokens": 91, "total_tokens": 91, "cost": 4e-08},
             },
         )
 
@@ -594,6 +594,7 @@ def test_openrouter_adapter_sends_its_contract_and_parses_response(monkeypatch):
         "dimensions": DIMS,
     }
     assert result.total_tokens == 91
+    assert result.usd == 4e-08
     assert result.vectors == [[0.0] * DIMS, [1.0] * DIMS]
 
 

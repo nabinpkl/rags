@@ -46,6 +46,7 @@ class Rewrite(BaseModel):
     rewrite: str
     model: str
     seconds: float
+    usd: float  # OpenRouter's billed cost for the call(s)
 
 
 def load_rewrites(records: list[GoldenRecord], path: Path = REWRITES_PATH) -> dict[str, Rewrite]:
@@ -76,9 +77,18 @@ def main(argv: list[str] | None = None) -> int:
 
     def rewrite(record: GoldenRecord) -> Rewrite:
         t0 = time.monotonic()
-        text = client.complete_nonempty(
-            settings.smoke_model, REWRITE_SYSTEM, record.question, _REWRITE_TOKENS
-        )
+        usd = 0.0
+        text = ""
+        # One retry on an empty reply, as complete_nonempty does; both bill.
+        for _ in range(2):
+            text, cost = client.complete_priced(
+                settings.smoke_model, REWRITE_SYSTEM, record.question, _REWRITE_TOKENS
+            )
+            if cost is None:
+                raise ValueError(f"{record.id}: the rewrite reply carried no cost")
+            usd += cost
+            if text.strip():
+                break
         text = " ".join(text.split()).strip("\"'")
         if not text:
             raise ValueError(f"{record.id}: empty rewrite")
@@ -88,6 +98,7 @@ def main(argv: list[str] | None = None) -> int:
             rewrite=text,
             model=settings.smoke_model,
             seconds=time.monotonic() - t0,
+            usd=usd,
         )
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:

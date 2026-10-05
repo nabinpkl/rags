@@ -408,6 +408,28 @@ the build host, which also serves the site, needs about three seconds per
 passage on CPU, so a live rerank needs either a hosted reranker or a GPU, and
 that is the next decision, not this one.
 
+**Amendment (2026-10-05, owner directive): a hosted reranker, priced per
+query.** The rerank stage has two scorers behind `rerank_backend`: `openrouter`
+(OpenRouter's /rerank, default `voyageai/rerank-3-lite`, $0.02 per million
+tokens) and `local` (the cross-encoder above, kept for comparison). The
+billed cost is the provider's own `usage.cost`, never a rate table. 429s and
+5xx are retried with backoff (the provider's shared project hit its
+tokens-per-minute limit on the third question). Every eval row now reports
+mean cost per query from the providers' billed figures (embedding, rerank,
+rewrite). Run `bf072fb0bfba`, 93 questions:
+
+| | Recall@10 | nDCG@10 | MRR | p50 latency | Cost / query |
+|---|---|---|---|---|---|
+| Hybrid + Voyage rerank-3-lite | 90% | 0.79 | 0.77 | 0.74 s | $0.00066 |
+| Hybrid + local gte-modernbert (run `492b61d7e3a5`) | 87% | 0.71 | 0.67 | 153 s | $0 |
+| Hybrid | 79% | 0.58 | 0.52 | 0.22 s | <$0.000001 |
+
+Hosted reranking takes 11 of the 14 points the top-50 pool allows, gaining
+most on vocabulary_mismatch (64 to 89%) and multi_hop (55 to 70%), for about
+half a second and a tenth of a cent per search. `rerank_enabled` stays False
+until the agent's answers are measured with it; a turn of about five searches
+would add about $0.003 to a $0.0067 turn.
+
 **Decision.** `search_corpus` runs vector search (Chroma) and BM25 (FTS5)
 in parallel, fuses with reciprocal rank fusion, applies metadata filters
 (category, year, facets — pushed into Chroma's `where` and SQL respectively),
