@@ -50,8 +50,11 @@ class Settings(BaseSettings):
     golden_quota: dict[str, int] = {
         "single_hop": 45,
         "exact_match": 35,
-        "multi_hop": 15,
-        "known_hard": 15,
+        # Short-query rule (2026-10-04): at 15 each, 4 multi_hop and 1
+        # known_hard survived the naturalness check; table-cell and
+        # paper-context questions do not read as searches.
+        "multi_hop": 35,
+        "known_hard": 45,
         "vocabulary_mismatch": 60,
     }
     golden_seed: int = 20260930
@@ -68,6 +71,10 @@ class Settings(BaseSettings):
     # "robot", "attack") stay usable, so the question reads like a person's,
     # while every word that would let BM25 single the chunk out is barred.
     golden_mismatch_max_shared_df: int = 500
+    # A golden question is what a researcher types into a paper search, not a
+    # prompt: the first set averaged 35 words of scene-setting no searcher
+    # writes (owner directive 2026-10-04). Longer drafts are culled.
+    golden_question_max_words: int = 12
     # LLM-judge (#17/#18/answer-eval issue): faithfulness + citation-accuracy
     # scoring on the full agent loop. A different model FAMILY than
     # agent_model (Haiku) by design — judging a model with itself masks the

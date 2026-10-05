@@ -2641,3 +2641,25 @@ cannot serve it.
 
 **Spec updated:** yes, §4c decision 2 amendment (2026-10-02) extended, and
 the repo layout's routes_landing.py line.
+
+## 2026-10-04 — golden questions are short search queries (owner directive)
+
+**Context:** the golden set averaged 35 words per question, written like
+prompts ("In the event-forecasting model's ablation that removes its time
+gate, by how many percentage points..."). Researchers type short queries, so
+the benchmark measured retrieval on input it will never see.
+
+**Decision:** every question is at most 12 words (`golden_question_max_words`),
+culled deterministically past that; the checker rules on naturalness for every
+type; table questions ask for a trend or comparison, not a cell; known_hard and
+multi_hop quotas rose to 45 and 35 because short versions of them cull hard.
+
+**Consequence:** 102 of 213 count, mean 9.6 words. Recall@5: BM25 64%, vector
+63%, hybrid 71%. The vocabulary_mismatch gap (36% vs 73% before) shrank to 48%
+vs 52%, within noise; the benchmarks page's finding moved from "semantic wins
+when the asker lacks the paper's words" to "neither wins alone; fusion does".
+
+**Revisit when:** a spot check finds counted queries that still read as written
+from the paper, or any type falls under ten counted questions.
+
+**Spec updated:** yes, D14 amendment (2026-10-04).

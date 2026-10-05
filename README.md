@@ -26,23 +26,23 @@ each question's expected chunks in the top k; paper recall counts any chunk of
 the expected paper.
 
 <!-- retrieval-evals:start -->
-96 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks. Run `e894ecb3baff`.
+102 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks. Run `b4779b8e72ac`.
 
 | Retrieval | Recall@5 | Recall@20 | MRR | Paper recall@5 | Paper recall@20 |
 |---|---|---|---|---|---|
-| Keyword (BM25) | 74% | 89% | 0.64 | 96% | 96% |
-| Semantic (vector) | 77% | 89% | 0.63 | 94% | 97% |
-| Hybrid (RRF) | 86% | 96% | 0.68 | 100% | 100% |
+| Keyword (BM25) | 64% | 84% | 0.49 | 90% | 98% |
+| Semantic (vector) | 63% | 79% | 0.45 | 84% | 91% |
+| Hybrid (RRF) | 71% | 91% | 0.56 | 96% | 98% |
 
 Recall@5 by question type:
 
 | Question type | n | Keyword (BM25) | Semantic (vector) | Hybrid (RRF) |
 |---|---|---|---|---|
-| single_hop | 30 | 93% | 87% | 97% |
-| exact_match | 23 | 91% | 87% | 96% |
-| multi_hop | 10 | 55% | 50% | 60% |
-| known_hard | 11 | 82% | 73% | 82% |
-| vocabulary_mismatch | 22 | 36% | 68% | 77% |
+| single_hop | 28 | 82% | 82% | 82% |
+| exact_match | 12 | 83% | 58% | 92% |
+| multi_hop | 10 | 25% | 40% | 40% |
+| known_hard | 23 | 70% | 65% | 70% |
+| vocabulary_mismatch | 29 | 48% | 52% | 62% |
 
 vocabulary_mismatch questions may not use any word of their passage that appears in 500 or fewer chunks, so keyword search can match them only on common field words; the row shows what semantic search recovers.
 

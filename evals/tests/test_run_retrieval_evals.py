@@ -22,10 +22,12 @@ CHECKS = GoldenChecks(
     passage_verbatim=True,
     passage_within_cap=True,
     lexical_rule=True,
+    question_within_cap=True,
     grounded=True,
     substantive=True,
     answer_correct=True,
     closed_book_correct=False,
+    natural=True,
     check_model="checker",
 )
 

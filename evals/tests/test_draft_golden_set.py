@@ -86,6 +86,7 @@ def test_check_record_carries_every_verdict():
         "substantive": True,
         "answer_correct": True,
         "closed_book_correct": False,
+        "natural": True,
         "note": "",
     }
     client = StubClient("I don't know.", json.dumps(grade))
@@ -107,28 +108,32 @@ GRADE = {
     "substantive": True,
     "answer_correct": True,
     "closed_book_correct": False,
+    "natural": True,
     "note": "",
 }
 DRAFT = {
-    "question": "Which setting makes small fine-tuned add-ons work best?",
+    "question": "which setting makes small fine-tuned add-ons work best",
     "answer": "rank 8",
     "spans": ["The rank r = 8 gives the best recall."],
     "difficulty": "medium",
 }
 
 
+@pytest.mark.parametrize("type_", [GoldenType.SINGLE_HOP, GoldenType.VOCABULARY_MISMATCH])
 @pytest.mark.parametrize("natural", [True, False])
-def test_vocabulary_mismatch_counts_only_when_the_checker_finds_it_natural(natural):
+def test_every_type_counts_only_when_the_checker_finds_it_natural(type_, natural):
     client = StubClient("I don't know.", json.dumps({**GRADE, "natural": natural}))
-    rec = check_record(source(GoldenType.VOCABULARY_MISMATCH), DRAFT, client, get_settings())
+    rec = check_record(source(type_), DRAFT, client, get_settings())
     assert '"natural"' in client.systems[1]
     assert rec.checks.natural is natural
     assert rec.counts() is natural
 
 
-def test_other_types_are_not_asked_about_naturalness():
-    client = StubClient("I don't know.", json.dumps(GRADE))
-    rec = check_record(source(), DRAFT, client, get_settings())
-    assert '"natural"' not in client.systems[1]
-    assert rec.checks.natural is None
-    assert rec.counts()
+def test_a_question_longer_than_a_search_query_is_culled():
+    cap = get_settings().golden_question_max_words
+    long_draft = {**DRAFT, "question": " ".join(["setting"] * (cap + 1))}
+    rec = check_record(
+        source(), long_draft, StubClient("I don't know.", json.dumps(GRADE)), get_settings()
+    )
+    assert not rec.checks.question_within_cap
+    assert not rec.counts()
