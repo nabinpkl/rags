@@ -19,8 +19,11 @@ hybrid. Here a vector failure raises. Fusion is the same `rrf_fuse` over the
 same per-leg depth, and hybrid latency is the sum of its legs because the
 live path runs them one after the other.
 
-Rerank has no row: the stage is not built (D8 makes it eval-gated, #19).
-The rewrite row's latency adds the rewrite call's recorded seconds.
+The rerank row reorders hybrid's top eval_pool_k into the top k with the
+pinned cross-encoder (D8 keeps it off the request path until these numbers
+justify it); its latency is the pool retrieval plus the rerank, on the build
+host's CPU. The rewrite row's latency adds the rewrite call's recorded
+seconds.
 """
 
 import argparse
@@ -41,6 +44,7 @@ from askrag.config import Settings, get_settings
 from askrag.retrieval import fts
 from askrag.retrieval.embeddings import QueryEmbedder
 from askrag.retrieval.hybrid_search import rrf_fuse
+from askrag.retrieval.rerank import Reranker
 from askrag.retrieval.vector_store import VectorStore
 
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, GoldenType, load_golden
@@ -55,6 +59,7 @@ CONFIGS: dict[str, str] = {
     "bm25": "Keyword (BM25)",
     "vector": "Semantic (vector)",
     "hybrid": "Hybrid (RRF)",
+    "rerank": "Hybrid + rerank",
     "rewrite": "Rewrite + hybrid",
 }
 
@@ -140,11 +145,23 @@ def make_retriever(
     settings: Settings, conn: sqlite3.Connection, k: int, pool_k: int
 ) -> Callable[[str, str], Retrieved]:
     """`retrieve(question, rewrite)`: the three methods on the question,
-    and hybrid on the rewrite."""
+    hybrid's pool reranked, and hybrid on the rewrite."""
     embedder = QueryEmbedder(settings)
     store = VectorStore(settings)
+    reranker = Reranker(settings)
 
-    def hybrid(query: str) -> tuple[dict[str, list[str]], dict[str, list[str]], dict[str, float]]:
+    def texts(chunk_ids: list[str]) -> list[tuple[str, str]]:
+        marks = ",".join("?" * len(chunk_ids))
+        rows = dict(
+            conn.execute(
+                f"SELECT chunk_id, text FROM chunks WHERE chunk_id IN ({marks})", chunk_ids
+            ).fetchall()
+        )
+        return [(c, rows[c]) for c in chunk_ids]
+
+    def hybrid(
+        query: str, *, rerank: bool = True
+    ) -> tuple[dict[str, list[str]], dict[str, list[str]], dict[str, float]]:
         t0 = time.perf_counter()
         bm25 = fts.search_bm25(conn, query, k)
         t1 = time.perf_counter()
@@ -155,18 +172,20 @@ def make_retriever(
         top = sorted(fused, key=lambda c: fused[c][0], reverse=True)[:k]
         t3 = time.perf_counter()
         bm25_pool = fts.search_bm25(conn, query, pool_k)
-        vector_pool = store.query(embedding, pool_k)
+        vector_pool = store.query(embedder.embed_query(query), pool_k)
         fused_pool = rrf_fuse({"bm25": bm25_pool, "vector": vector_pool}, settings.rrf_k)
         top_pool = sorted(fused_pool, key=lambda c: fused_pool[c][0], reverse=True)[:pool_k]
+        reranked = reranker.rerank(query, texts(top_pool), pool_k) if rerank else []
+        t5 = time.perf_counter()
         return (
-            {"bm25": bm25, "vector": vector, "hybrid": top},
-            {"bm25": bm25_pool, "vector": vector_pool, "hybrid": top_pool},
-            {"bm25": t1 - t0, "vector": t2 - t1, "hybrid": t3 - t0},
+            {"bm25": bm25, "vector": vector, "hybrid": top, "rerank": reranked[:k]},
+            {"bm25": bm25_pool, "vector": vector_pool, "hybrid": top_pool, "rerank": reranked},
+            {"bm25": t1 - t0, "vector": t2 - t1, "hybrid": t3 - t0, "rerank": t5 - t3},
         )
 
     def retrieve(question: str, rewrite: str) -> Retrieved:
         rankings, pools, seconds = hybrid(question)
-        rw_rankings, rw_pools, rw_seconds = hybrid(rewrite)
+        rw_rankings, rw_pools, rw_seconds = hybrid(rewrite, rerank=False)
         return Retrieved(
             rankings={**rankings, "rewrite": rw_rankings["hybrid"]},
             pools={**pools, "rewrite": rw_pools["hybrid"]},
@@ -199,6 +218,9 @@ def fingerprint(
         "rrf_k": settings.rrf_k,
         "k": settings.search_top_k,
         "pool_k": settings.eval_pool_k,
+        "rerank": settings.rerank_model,
+        "rerank_revision": settings.rerank_model_revision,
+        "rerank_max_tokens": settings.rerank_max_tokens,
     }
     blob = json.dumps(inputs, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:12]
@@ -264,7 +286,9 @@ def render(
         "",
         f"Recall@{pool_k} is the most a reranker reordering the top {pool_k} into"
         f" the top {k} could reach. Rewrite + hybrid searches one model rewrite of"
-        " the question; its latency includes the rewrite call.",
+        " the question; its latency includes the rewrite call. Hybrid + rerank"
+        f" reorders hybrid's top {pool_k} with a cross-encoder on the build host's"
+        " CPU; its latency includes retrieving that pool.",
         "",
         f"One question is {100 / len(records):.1f} points at this size, so gaps"
         " under about 5 points are noise. Latency is the median per question on"

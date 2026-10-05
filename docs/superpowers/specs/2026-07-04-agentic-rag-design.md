@@ -387,6 +387,27 @@ enabled. See DECISIONS.md 2026-07-05.
 *Amended 2026-10-05: the reranking ceiling is measured (D14 amendment of that
 date): hybrid recall@10 79%, recall@50 93%.*
 
+**Amendment (2026-10-05, owner directive): a local cross-encoder, measured.**
+The rerank stage is a local cross-encoder (`rerank_model`, pinned like the
+embedding model; `askrag/retrieval/rerank.py`), not Voyage or an LLM
+listwise pass: `sentence-transformers` is already a dependency, it costs $0,
+and it reads the query and the passage together, which is the thing an
+embedding cannot do. It reorders hybrid's top `eval_pool_k` (50) into the top
+10. Measured on 93 questions (run `492b61d7e3a5`):
+
+| | Recall@10 | nDCG@10 | Latency, build host |
+|---|---|---|---|
+| Hybrid | 79% | 0.58 | 0.24 s |
+| + gte-reranker-modernbert-base (2025, 149M, whole chunks) | 87% | 0.71 | 153 s |
+| + ms-marco-MiniLM-L6-v2 (2022, 22M, 512 tokens) | 72% | 0.55 | 9 s |
+
+The current model takes 8 of the 14 points the pool allows; its gains are on
+vocabulary_mismatch (64 to 82%) and multi_hop (55 to 70%). The older web-QA
+model loses ground, most on tables and math. `rerank_enabled` stays False:
+the build host, which also serves the site, needs about three seconds per
+passage on CPU, so a live rerank needs either a hosted reranker or a GPU, and
+that is the next decision, not this one.
+
 **Decision.** `search_corpus` runs vector search (Chroma) and BM25 (FTS5)
 in parallel, fuses with reciprocal rank fusion, applies metadata filters
 (category, year, facets — pushed into Chroma's `where` and SQL respectively),
