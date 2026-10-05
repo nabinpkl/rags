@@ -28,7 +28,7 @@
       --paper:#080c12; --panel:#111821; --panel-hover:#0d131b;
       --ink:#e8ebe8; --ink-2:#bcc5cb; --muted:#98a3aa;
       --line:#1f2833; --outline:#46576b;
-      --teal-soft:#12332e; --teal-soft-strong:#1b463f; --teal-ink:#57d4bd;
+      --teal-soft:#12332e; --teal-soft-strong:#1b463f; --teal-ink:#57d4bd; --teal:#12a38f;
       --amber-ink:#e0a44a;
       --bar:var(--muted);
     }
@@ -38,7 +38,7 @@
     --paper:#080c12; --panel:#111821; --panel-hover:#0d131b;
     --ink:#e8ebe8; --ink-2:#bcc5cb; --muted:#98a3aa;
     --line:#1f2833; --outline:#46576b;
-    --teal-soft:#12332e; --teal-soft-strong:#1b463f; --teal-ink:#57d4bd;
+    --teal-soft:#12332e; --teal-soft-strong:#1b463f; --teal-ink:#57d4bd; --teal:#12a38f;
     --amber-ink:#e0a44a;
     --bar:var(--muted);
   }
@@ -46,8 +46,9 @@
   *{box-sizing:border-box}
   html,body{overflow-x:clip}
   body{margin:0;font-family:var(--sans);font-size:14px;line-height:1.5;color:var(--ink);background:var(--paper)}
-  button{font:inherit;color:inherit;cursor:pointer}
-  a:focus-visible,button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  button,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  a:focus-visible,button:focus-visible,summary:focus-visible,select:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
   .num{font-variant-numeric:tabular-nums}
   .id{font-family:var(--mono);font-size:12px}
 
@@ -72,73 +73,71 @@
   .topbar{height:57px;display:flex;align-items:center;padding:0 24px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:2}
   .crumb{font-size:13px;color:var(--muted)}
   .crumb b{color:var(--ink);font-weight:600}
-  .page{max-width:1040px;padding:32px 24px 56px;display:flex;flex-direction:column;gap:40px}
+  .page{max-width:1040px;padding:32px 24px 56px;display:flex;flex-direction:column;gap:32px}
 
-  /* ── heading: what was measured, how, when ────────────────── */
   h1{font-size:26px;font-weight:700;line-height:1.2;margin:0 0 8px;letter-spacing:-.01em}
-  .meta{display:flex;flex-wrap:wrap;gap:4px 16px;margin:0 0 16px;padding:0;list-style:none;font-size:13px;color:var(--muted)}
-  .finding{font-size:16px;line-height:1.55;margin:0;max-width:64ch;text-wrap:pretty}
-  .finding b{font-weight:600}
-  h2{font-size:17px;font-weight:700;margin:0}
-  .sec-h{display:flex;justify-content:space-between;align-items:center;gap:12px 24px;flex-wrap:wrap;margin-bottom:12px}
-  .hint{font-size:13px;color:var(--muted);margin:10px 0 0;max-width:72ch}
+  .meta{display:flex;flex-wrap:wrap;gap:4px 16px;margin:0;padding:0;list-style:none;font-size:13px;color:var(--muted)}
+  h2{font-size:17px;font-weight:700;margin:0 0 12px}
+  .note{font-size:12.5px;color:var(--muted);margin:8px 0 0}
 
-  /* ── metric switch ────────────────────────────────────────── */
-  .seg{display:inline-flex;border:1px solid var(--outline);border-radius:6px;background:var(--panel);padding:2px;gap:2px}
-  .seg button{border:1px solid transparent;background:transparent;border-radius:4px;padding:6px 12px;min-height:32px;font-size:13px;color:var(--ink-2);transition:background-color .2s}
-  .seg button:hover{background:var(--panel-hover)}
-  .seg button[aria-pressed="true"]{border-color:var(--teal-ink);background:var(--teal-soft);color:var(--teal-ink);font-weight:600}
-
-  /* ── results table: the bar is drawn inside the cell ──────── */
-  .tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--outline);border-radius:6px}
-  table{border-collapse:collapse;width:100%;min-width:640px}
+  .card{background:var(--panel);border:1px solid var(--outline);border-radius:6px}
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%}
   th,td{padding:12px 16px;text-align:left;vertical-align:middle}
-  thead th{font-size:13px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--outline);white-space:nowrap}
-  thead th small{font-weight:400;margin-left:4px}
-  tbody + tbody tr:first-child > *{border-top:1px solid var(--line)}
-  tbody th{font-weight:600;font-size:14px}
-  tbody.focus tr.main{background:var(--teal-soft)}
-  tbody.all tr > *{border-top:1px solid var(--outline)}
-  tbody.all th{padding-left:44px}
-  /* The whole type label is the disclosure control, so the target is the
-     cell, not the 16px chevron. */
-  .disc{display:grid;grid-template-columns:16px minmax(0,1fr);gap:12px;align-items:start;width:100%;border:0;background:transparent;padding:0;text-align:left;font-weight:600;font-size:14px;border-radius:4px}
-  .disc svg{width:16px;height:16px;margin-top:2px;color:var(--muted);transition:transform .2s}
-  .disc[aria-expanded="true"] svg{transform:rotate(90deg);color:var(--ink)}
-  .disc:hover .name{text-decoration:underline;text-underline-offset:3px}
-  .disc .id{display:block;font-weight:400;color:var(--muted);margin-top:2px}
-  tr.about td{padding:0 16px 8px 44px;font-size:13px;color:var(--muted)}
-  tr.sample > *{padding-top:8px;padding-bottom:8px}
-  tr.sample td.q{padding-left:44px;font-size:13.5px;line-height:1.4;max-width:0}
-  tr.sample:last-child > *{padding-bottom:16px}
-  tbody.open tr.main > *{padding-bottom:6px}
-  .rank{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;font-size:13px}
-  .rank b{font-weight:400;text-align:right;white-space:nowrap}
-  .rank.hit b{color:var(--teal-ink);font-weight:700}
-  .rank span{color:var(--muted)}
-  td.n{color:var(--muted);text-align:right;width:48px}
-  td.v{width:19%}
-  .cell{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;gap:10px}
-  .cell b{font-weight:400;text-align:right}
-  .cell.best b{font-weight:700}
-  .track{height:8px;border-radius:2px;background:var(--line);overflow:hidden}
-  .track i{display:block;height:100%;background:var(--bar)}
-  .cell.best .track i{background:var(--teal-ink)}
+  thead th{font-size:12.5px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--outline);white-space:nowrap}
+  tbody tr + tr > *{border-top:1px solid var(--line)}
+  td.r,th.r{text-align:right}
+  abbr{text-decoration:underline dotted;text-underline-offset:3px;cursor:help}
 
-  /* ── joined rankings: two top-5 lists, a line per shared passage ── */
+  /* ── leaderboard ─────────────────────────────────────────── */
+  .board{min-width:720px}
+  .board tbody tr.lead{background:var(--teal-soft)}
+  .board .pos{width:32px;color:var(--muted);font-size:13px}
+  .board .method{font-weight:600;font-size:14.5px;white-space:nowrap}
+  .board .method small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+  .recall{display:grid;grid-template-columns:64px minmax(140px,1fr);align-items:center;gap:12px;width:100%}
+  .recall b{font-size:18px;font-weight:700;text-align:right}
+  .recall span.ci{display:block;font-size:11.5px;color:var(--muted);font-weight:400;text-align:right}
+  .scale{position:relative;height:16px}
+  .scale::before{content:"";position:absolute;left:0;right:0;top:7px;height:2px;background:var(--line)}
+  .scale i{position:absolute;top:3px;height:10px;border-radius:2px;background:var(--teal-soft-strong);border:1px solid var(--teal-ink)}
+  .scale u{position:absolute;top:0;width:3px;height:16px;margin-left:-1px;background:var(--teal-ink);border-radius:1px}
+  .lead .scale i{background:var(--teal-soft-strong)}
+  .board td.m{font-size:14px;white-space:nowrap}
+
+  /* ── matrix by query type ────────────────────────────────── */
+  .matrix{min-width:640px}
+  .matrix thead th{white-space:normal;vertical-align:bottom;line-height:1.3}
+  .matrix thead th small{display:block;font-weight:400}
+  .matrix td.cell{text-align:right;font-size:14px}
+  .matrix td.cell.best{font-weight:700}
+  .matrix th[scope="row"]{font-weight:600;white-space:nowrap}
+
+  /* ── disclosures ─────────────────────────────────────────── */
+  details.more{background:var(--panel);border:1px solid var(--outline);border-radius:6px}
+  details.more > summary{list-style:none;display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;font-weight:600;font-size:14.5px;border-radius:6px;transition:background-color .2s}
+  details.more > summary::-webkit-details-marker{display:none}
+  details.more > summary:hover{background:var(--panel-hover)}
+  details.more > summary svg{width:16px;height:16px;color:var(--muted);transition:transform .2s;flex-shrink:0}
+  details.more[open] > summary svg{transform:rotate(90deg);color:var(--ink)}
+  details.more > summary span{font-weight:400;color:var(--muted);font-size:13px}
+  details.more[open] > summary{border-bottom:1px solid var(--line);border-radius:6px 6px 0 0}
+  .inner{padding:16px}
+
+  /* examples: two top-5s joined by a line per shared passage */
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-  .tab{border:1px solid var(--outline);background:var(--panel);border-radius:6px;padding:8px 12px;min-height:40px;text-align:left;font-size:13px;line-height:1.3;max-width:260px;transition:background-color .2s}
+  .tab{border:1px solid var(--outline);background:var(--panel);border-radius:6px;padding:8px 12px;min-height:40px;text-align:left;font-size:13px;line-height:1.3;max-width:300px;transition:background-color .2s}
   .tab:hover{background:var(--panel-hover)}
   .tab[aria-selected="true"]{border-color:var(--teal-ink);background:var(--teal-soft)}
   .tab span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
   .tab[aria-selected="true"] span{color:var(--teal-ink)}
-  .ex{background:var(--panel);border:1px solid var(--outline);border-radius:6px}
-  .ex-q{padding:16px 20px;border-bottom:1px solid var(--line)}
-  .ex-q p{margin:0;font-size:15px;line-height:1.45;max-width:80ch}
-  .ex-q dl{display:flex;flex-wrap:wrap;gap:4px 20px;margin:10px 0 0;font-size:13px}
+  .ex{border:1px solid var(--line);border-radius:6px}
+  .ex-q{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .ex-q p{margin:0;font-size:15px;line-height:1.45}
+  .ex-q dl{display:flex;flex-wrap:wrap;gap:4px 20px;margin:8px 0 0;font-size:13px}
   .ex-q dt{color:var(--muted);display:inline}
   .ex-q dd{display:inline;margin:0 0 0 6px}
-  .lists{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);padding:12px 20px 16px}
+  .lists{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);padding:12px 16px 16px}
   .lists svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
   .lists svg path{fill:none;stroke:var(--teal-ink);stroke-width:1.5}
   .col h3{font-size:13px;font-weight:600;margin:0 0 6px;color:var(--ink-2)}
@@ -151,13 +150,24 @@
   .g1 .mark{border-color:var(--amber-ink);background:linear-gradient(90deg,var(--amber-ink) 50%,transparent 50%)}
   .t{font-size:13.5px;line-height:1.35;overflow-wrap:anywhere}
   .s{display:block;font-size:12px;color:var(--muted);margin-top:1px;overflow-wrap:anywhere}
-  .key{display:flex;gap:6px 18px;flex-wrap:wrap;padding:10px 20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .key{display:flex;gap:6px 18px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
   .key span{display:inline-flex;align-items:center;gap:6px}
   .key .mark{margin:0;width:11px;height:11px}
-  .key .g2,.key .g1{display:inline-flex}
 
-  /* ── run configuration, in the order a run file lists it ──── */
-  .run{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px;background:var(--panel);border:1px solid var(--outline);border-radius:6px;padding:4px 20px}
+  /* all queries */
+  .qbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:13px;color:var(--muted)}
+  .qbar select{border:1px solid var(--outline);background:var(--panel);border-radius:4px;padding:6px 8px;min-height:36px}
+  .queries{min-width:640px}
+  .queries td{padding:8px 12px;font-size:13.5px}
+  .queries thead th{padding:8px 12px}
+  .queries td.q{line-height:1.35}
+  .queries td.ty{color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .queries td.rk2{text-align:right;white-space:nowrap;width:84px}
+  .queries td.hit{color:var(--teal-ink);font-weight:700}
+  .queries td.miss{color:var(--muted)}
+
+  /* method */
+  .run{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px;margin:0}
   .run div{display:grid;grid-template-columns:132px minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px}
   .run dt{color:var(--muted)}
   .run dd{margin:0;overflow-wrap:anywhere}
@@ -171,14 +181,15 @@
     .run{grid-template-columns:minmax(0,1fr)}
   }
   @media (max-width:640px){
-    .page{padding:24px 16px 40px;gap:32px}
+    .page{padding:24px 16px 40px;gap:28px}
     .topbar{padding:0 16px}
     h1{font-size:22px}
-    .lists{grid-template-columns:minmax(0,1fr);gap:16px;padding:12px 12px 16px}
+    .lists{grid-template-columns:minmax(0,1fr);gap:16px;padding:12px}
     .lists .gap,.lists svg{display:none}
-    .ex-q{padding:14px 16px}
     .run div{grid-template-columns:minmax(0,1fr);gap:2px}
     .tab{max-width:none;flex:1 1 100%}
+    details.more > summary{flex-wrap:wrap;row-gap:2px}
+    details.more > summary span{flex-basis:100%;padding-left:26px}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -195,7 +206,7 @@
         <li><a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></svg>Benchmarks</a></li>
       </ul>
       <ul class="sub" aria-label="Benchmarks">
-        <li><a href="#" aria-current="page">Keyword vs semantic <span class="num">102</span></a></li>
+        <li><a href="#" aria-current="page">Retrieval <span class="num">102</span></a></li>
         <li><a href="#">Chunk size <span>not run</span></a></li>
         <li><a href="#">Reranking <span>not run</span></a></li>
         <li><a href="#">Agent answers <span>not run</span></a></li>
@@ -204,71 +215,79 @@
   </aside>
 
   <main class="canvas">
-    <div class="topbar"><span class="crumb">Benchmarks / <b>Keyword vs semantic</b></span></div>
+    <div class="topbar"><span class="crumb">Benchmarks / <b>Retrieval</b></span></div>
 
     <div class="page">
       <header>
-        <h1>Keyword vs semantic retrieval</h1>
-        <ul class="meta">
-          <li class="num">102 questions over 1,046 papers</li>
-          <li>Updated 5 Oct 2026</li>
-          <li>Run <span class="id">b4779b8e72ac</span></li>
-        </ul>
-        <p class="finding">On short queries neither search wins alone: keyword finds the passage in the top 5 <b class="num">64%</b> of the time, semantic <b class="num">63%</b>, both combined <b class="num">71%</b>.</p>
+        <h1>Retrieval benchmark</h1>
+        <ul class="meta" id="meta"></ul>
       </header>
 
-      <section aria-labelledby="t-h">
-        <div class="sec-h">
-          <h2 id="t-h">Results by question type</h2>
-          <div class="seg" role="group" aria-label="Metric">
-            <button type="button" data-m="r5" aria-pressed="true">Recall@5</button>
-            <button type="button" data-m="r20" aria-pressed="false">Recall@20</button>
-            <button type="button" data-m="mrr" aria-pressed="false">MRR</button>
-          </div>
-        </div>
-        <div class="tablewrap">
-          <table>
+      <section aria-labelledby="b-h">
+        <h2 id="b-h">Leaderboard</h2>
+        <div class="card scroll">
+          <table class="board">
             <thead><tr>
-              <th scope="col">Question type</th>
-              <th scope="col" class="num" style="text-align:right">n</th>
-              <th scope="col">Keyword <small>BM25</small></th>
-              <th scope="col">Semantic <small>vector</small></th>
-              <th scope="col">Hybrid <small>RRF</small></th>
+              <th scope="col" class="pos">#</th>
+              <th scope="col">Method</th>
+              <th scope="col" id="h-recall"></th>
+              <th scope="col" class="r" id="h-ndcg"></th>
+              <th scope="col" class="r"><abbr title="Mean reciprocal rank: 1 / rank of the first expected passage, 1.00 is always first">MRR</abbr></th>
+              <th scope="col" class="r" id="h-paper"></th>
+              <th scope="col" class="r"><abbr title="Median time per query on the build host; semantic includes the embedding API call, hybrid runs both searches">Latency</abbr></th>
             </tr></thead>
-            <tbody hidden></tbody>
+            <tbody id="board"></tbody>
           </table>
         </div>
-        <p class="hint" id="metric-note"></p>
+        <p class="note">Bars span the 95% interval; overlapping bars are a tie.</p>
       </section>
 
-      <section aria-labelledby="e-h">
-        <div class="sec-h"><h2 id="e-h">Five questions, both top 5s</h2></div>
-        <div class="tabs" role="tablist" aria-label="Example questions" id="tabs"></div>
-        <div class="ex" role="tabpanel" id="panel" aria-labelledby="e-h">
-          <div class="ex-q" id="exq"></div>
-          <div class="lists" id="lists"></div>
-          <div class="key" aria-hidden="true">
-            <span class="g2"><i class="mark"></i>the expected passage</span>
-            <span class="g1"><i class="mark"></i>another passage of the expected paper</span>
-            <span><i class="mark"></i>another paper</span>
-            <span>Line: both searches returned it</span>
-          </div>
+      <section aria-labelledby="m-h">
+        <h2 id="m-h" class="mh"></h2>
+        <div class="card scroll">
+          <table class="matrix">
+            <thead><tr id="matrix-head"></tr></thead>
+            <tbody id="matrix"></tbody>
+          </table>
         </div>
       </section>
 
-      <section aria-labelledby="r-h">
-        <div class="sec-h"><h2 id="r-h">Run configuration</h2></div>
-        <dl class="run">
-          <div><dt>Questions</dt><dd>102 counted of 213 drafted, <span class="id">evals/golden.jsonl</span></dd></div>
-          <div><dt>Checked by</dt><dd>drafted by <span class="id">z-ai/glm-5.3-flash</span>, checked by <span class="id">meta/muse-spark-1.3-contributor</span>; no human pass</dd></div>
-          <div><dt>Corpus</dt><dd class="num">1,046 arXiv cs papers, 51,932 passages</dd></div>
-          <div><dt>Chunking</dt><dd>section-aware, up to 1,000 tokens (<span class="id">cl100k_base</span>), 15% overlap</dd></div>
-          <div><dt>Keyword</dt><dd>SQLite FTS5 BM25, porter stemming, terms OR-joined</dd></div>
-          <div><dt>Semantic</dt><dd><span class="id">perplexity/pplx-embed-v1-0.6b</span>, 512 dims, cosine, Chroma HNSW</dd></div>
-          <div><dt>Hybrid</dt><dd>reciprocal rank fusion, <span class="id">k = 60</span>, over each leg's top 20</dd></div>
-          <div><dt>Relevance</dt><dd>one expected passage (two for multi-passage)</dd></div>
-        </dl>
-      </section>
+      <details class="more">
+        <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>Examples <span>five queries, both top 5s</span></summary>
+        <div class="inner">
+          <div class="tabs" role="tablist" aria-label="Example queries" id="tabs"></div>
+          <div class="ex" role="tabpanel" id="panel">
+            <div class="ex-q" id="exq"></div>
+            <div class="lists" id="lists"></div>
+            <div class="key" aria-hidden="true">
+              <span class="g2"><i class="mark"></i>expected passage</span>
+              <span class="g1"><i class="mark"></i>same paper, other passage</span>
+              <span><i class="mark"></i>other paper</span>
+              <span>Line: both returned it</span>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="more" id="all">
+        <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>All queries <span id="all-n"></span></summary>
+        <div class="inner">
+          <div class="qbar"><label for="qtype">Type</label><select id="qtype"></select><span id="qcount" class="num"></span></div>
+          <div class="scroll">
+            <table class="queries">
+              <thead><tr><th scope="col">Query</th><th scope="col">Type</th><th scope="col" class="r">Hybrid</th><th scope="col" class="r">Keyword</th><th scope="col" class="r">Semantic</th></tr></thead>
+              <tbody id="qrows"></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+
+      <details class="more">
+        <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>Method</summary>
+        <div class="inner">
+          <dl class="run" id="run"></dl>
+        </div>
+      </details>
 
       <footer>Thank you to arXiv for use of its open access interoperability. This service was not reviewed or approved by, nor does it necessarily express or reflect the policies or opinions of, arXiv. <a href="#">Report an issue</a> · <a href="#">Takedown request</a></footer>
     </div>
@@ -276,136 +295,99 @@
 </div>
 
 <script>
-const SCORES = {"table": [{"type": "vocabulary_mismatch", "n": 29, "bm25": {"r5": 0.4827586206896552, "r20": 0.7241379310344828, "mrr": 0.33427539893057134}, "vector": {"r5": 0.5172413793103449, "r20": 0.7241379310344828, "mrr": 0.3014483600690497}, "hybrid": {"r5": 0.6206896551724138, "r20": 0.8275862068965517, "mrr": 0.46113426803081975}}, {"type": "single_hop", "n": 28, "bm25": {"r5": 0.8214285714285714, "r20": 0.9642857142857143, "mrr": 0.6031746031746031}, "vector": {"r5": 0.8214285714285714, "r20": 0.9285714285714286, "mrr": 0.5846230158730158}, "hybrid": {"r5": 0.8214285714285714, "r20": 1.0, "mrr": 0.6604888167388168}}, {"type": "exact_match", "n": 12, "bm25": {"r5": 0.8333333333333334, "r20": 1.0, "mrr": 0.7182539682539683}, "vector": {"r5": 0.5833333333333334, "r20": 0.75, "mrr": 0.48638344226579516}, "hybrid": {"r5": 0.9166666666666666, "r20": 1.0, "mrr": 0.6800213675213675}}, {"type": "known_hard", "n": 23, "bm25": {"r5": 0.6956521739130435, "r20": 0.8260869565217391, "mrr": 0.4401138716356107}, "vector": {"r5": 0.6521739130434783, "r20": 0.782608695652174, "mrr": 0.44741606787642596}, "hybrid": {"r5": 0.6956521739130435, "r20": 0.9130434782608695, "mrr": 0.5257459505541346}}, {"type": "multi_hop", "n": 10, "bm25": {"r5": 0.25, "r20": 0.7, "mrr": 0.48714646464646466}, "vector": {"r5": 0.4, "r20": 0.7, "mrr": 0.4983766233766234}, "hybrid": {"r5": 0.4, "r20": 0.8, "mrr": 0.5160912698412699}}], "overall": {"bm25": {"r5": 0.6421568627450981, "r20": 0.8431372549019608, "mrr": 0.4921177134412429}, "vector": {"r5": 0.6274509803921569, "r20": 0.7941176470588235, "mrr": 0.453160627338828}, "hybrid": {"r5": 0.7058823529411765, "r20": 0.9117647058823529, "mrr": 0.5615677118921064}}, "n": 102};
-const SAMPLES = {"vocabulary_mismatch": [{"q": "what bound on a design matrix guarantees sparse regression works", "anchor": null, "rank": {"bm25": [null], "vector": [4], "hybrid": [10]}}, {"q": "what advantages does VB.NET have over C#", "anchor": null, "rank": {"bm25": [1], "vector": [null], "hybrid": [1]}}, {"q": "what is known about minimum spanning trees when point locations are uncertain", "anchor": null, "rank": {"bm25": [3], "vector": [5], "hybrid": [3]}}], "single_hop": [{"q": "how does minimizer uniqueness force a unique set of support constraints", "anchor": null, "rank": {"bm25": [null], "vector": [2], "hybrid": [6]}}, {"q": "is myopic policy throughput independent of initial belief", "anchor": null, "rank": {"bm25": [1], "vector": [8], "hybrid": [3]}}, {"q": "what is the reverse analysis method in neural network logic programming", "anchor": null, "rank": {"bm25": [4], "vector": [1], "hybrid": [2]}}], "exact_match": [{"q": "which papers apply deep RL to NPC behavior", "anchor": "NPC", "rank": {"bm25": [7], "vector": [3], "hybrid": [2]}}, {"q": "how many positive literals must a CNF clause contain", "anchor": "CNF", "rank": {"bm25": [3], "vector": [17], "hybrid": [2]}}, {"q": "what NP-hardness bounds for approximating TSP variants", "anchor": "NP-hardness", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}], "known_hard": [{"q": "do surface eigenvalues become more negative as n increases", "anchor": null, "rank": {"bm25": [null], "vector": [2], "hybrid": [10]}}, {"q": "which prompting approach handles harmful requests both safely and helpfully", "anchor": null, "rank": {"bm25": [4], "vector": [null], "hybrid": [10]}}, {"q": "does binary neuron learning produce extra rules beyond the conjunction", "anchor": null, "rank": {"bm25": [2], "vector": [1], "hybrid": [2]}}], "multi_hop": [{"q": "how do ACM citation patterns differ from random", "anchor": null, "rank": {"bm25": [8, 1], "vector": [4, 5], "hybrid": [6, 1]}}, {"q": "how does EMA assign requests to slices and trigger swaps", "anchor": null, "rank": {"bm25": [2, 8], "vector": [7, 1], "hybrid": [3, 2]}}, {"q": "how is soundness enforced in the proof schema calculus", "anchor": null, "rank": {"bm25": [1, 12], "vector": [1, 12], "hybrid": [1, 10]}}]};
-const EXAMPLES = [{"id": "vocabulary_mismatch-1108.5533#6", "type": "vocabulary_mismatch", "question": "what bound on a design matrix guarantees sparse regression works", "anchor": null, "expected": {"id": "1108.5533#6", "paper": "1108.5533", "section": "(5)", "title": "A Remark on the Lasso and the Dantzig Selector"}, "bm25": [{"id": "2608.12100#101", "paper": "2608.12100", "section": "7.3 Future Research Directions", "title": "Confidence Calibration of Deep Learning Systems", "grade": 0}, {"id": "2112.00029#40", "paper": "2112.00029", "section": "D.1 Applying masks before multiplication", "title": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models", "grade": 0}, {"id": "1707.01212#11", "paper": "1707.01212", "section": "B. Theoretical Guarantees", "title": "Efficient Data Representation by Selecting Prototypes with Importance Weights", "grade": 0}, {"id": "2609.29711#12", "paper": "2609.29711", "section": "2 Related Work", "title": "Decoupling Knowledge and Privacy: Post-Task Self-Distillation Replay for LLM Continual Learning", "grade": 0}, {"id": "2112.00029#31", "paper": "2112.00029", "section": "A Problem Formulation", "title": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models", "grade": 0}], "vector": [{"id": "2112.00029#31", "paper": "2112.00029", "section": "A Problem Formulation", "title": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models", "grade": 0}, {"id": "1108.5533#3", "paper": "1108.5533", "section": "1. Introduction", "title": "A Remark on the Lasso and the Dantzig Selector", "grade": 1}, {"id": "1108.5533#4", "paper": "1108.5533", "section": "1. Introduction", "title": "A Remark on the Lasso and the Dantzig Selector", "grade": 1}, {"id": "1108.5533#6", "paper": "1108.5533", "section": "(5)", "title": "A Remark on the Lasso and the Dantzig Selector", "grade": 2}, {"id": "2609.30192#34", "paper": "2609.30192", "section": "C.1 Setup", "title": "SAGE: Mitigating Long-Horizon Reasoning Biases via Topological Guidance", "grade": 0}], "rank": {"bm25": null, "vector": 4, "hybrid": 10}, "short": "what bound on a design matrix guarantees sparse regression works"}, {"id": "vocabulary_mismatch-1409.5000#4", "type": "vocabulary_mismatch", "question": "find a hidden group of densely connected nodes in a big network", "anchor": null, "expected": {"id": "1409.5000#4", "paper": "1409.5000", "section": "V. Fioriti _et al.", "title": "Identifying sparse and dense sub-graphs in large graphs with a fast algorithm"}, "bm25": [{"id": "1009.3469#2", "paper": "1009.3469", "section": "1 Introduction", "title": "Connectivity graphs of uncertainty regions", "grade": 0}, {"id": "2608.11612#69", "paper": "2608.11612", "section": "Case Study 1: Standard Newton-Schulz takes 2% of Kimi K2 …", "title": "Dion3: Full-Stack Orthogonal Updates", "grade": 0}, {"id": "2609.29951#6", "paper": "2609.29951", "section": "1 INTRODUCTION", "title": "Tracking States or Tracking Cosets? An Algebraic Account of Learned State Tracking", "grade": 0}, {"id": "1812.10455#0", "paper": "1812.10455", "section": "Title and abstract", "title": "Age of Information in Multihop Multicast Networks", "grade": 0}, {"id": "2609.30150#8", "paper": "2609.30150", "section": "2.3. Graph Modeling of the Railway Network", "title": "Graph-Based Inference and Topology-Aware Multi-Agent Reinforcement Learning for Large-Scale Railway Network Management", "grade": 0}], "vector": [{"id": "1409.5000#4", "paper": "1409.5000", "section": "V. Fioriti _et al.", "title": "Identifying sparse and dense sub-graphs in large graphs with a fast algorithm", "grade": 2}, {"id": "1409.5000#2", "paper": "1409.5000", "section": "Identifying sparse and dense sub-graphs in large graphs …", "title": "Identifying sparse and dense sub-graphs in large graphs with a fast algorithm", "grade": 1}, {"id": "1409.5000#7", "paper": "1409.5000", "section": "V. Fioriti _et al.", "title": "Identifying sparse and dense sub-graphs in large graphs with a fast algorithm", "grade": 1}, {"id": "1409.5000#0", "paper": "1409.5000", "section": "Title and abstract", "title": "Identifying sparse and dense sub-graphs in large graphs with a fast algorithm", "grade": 1}, {"id": "2003.01604#9", "paper": "2003.01604", "section": "3.3 A Natural Supervisory Signal: Hop Count", "title": "Self-Supervised Graph Representation Learning via Global Context Prediction", "grade": 0}], "rank": {"bm25": 9, "vector": 1, "hybrid": 1}, "short": "find a hidden group of densely connected nodes in a big network"}, {"id": "single_hop-0804.4071#5", "type": "single_hop", "question": "what is the reverse analysis method in neural network logic programming", "anchor": null, "expected": {"id": "0804.4071#5", "paper": "0804.4071", "section": "1.0 Introduction", "title": "Logic Mining Using Neural Networks"}, "bm25": [{"id": "0804.4071#0", "paper": "0804.4071", "section": "Title and abstract", "title": "Logic Mining Using Neural Networks", "grade": 1}, {"id": "0804.4071#4", "paper": "0804.4071", "section": "Abstract", "title": "Logic Mining Using Neural Networks", "grade": 1}, {"id": "0804.4071#6", "paper": "0804.4071", "section": "Key-words:", "title": "Logic Mining Using Neural Networks", "grade": 1}, {"id": "0804.4071#5", "paper": "0804.4071", "section": "1.0 Introduction", "title": "Logic Mining Using Neural Networks", "grade": 2}, {"id": "0804.4071#12", "paper": "0804.4071", "section": "6.0 CONCLUSION", "title": "Logic Mining Using Neural Networks", "grade": 1}], "vector": [{"id": "0804.4071#5", "paper": "0804.4071", "section": "1.0 Introduction", "title": "Logic Mining Using Neural Networks", "grade": 2}, {"id": "0804.4071#0", "paper": "0804.4071", "section": "Title and abstract", "title": "Logic Mining Using Neural Networks", "grade": 1}, {"id": "0804.4071#4", "paper": "0804.4071", "section": "Abstract", "title": "Logic Mining Using Neural Networks", "grade": 1}, {"id": "0804.4071#6", "paper": "0804.4071", "section": "Key-words:", "title": "Logic Mining Using Neural Networks", "grade": 1}, {"id": "0804.4071#12", "paper": "0804.4071", "section": "6.0 CONCLUSION", "title": "Logic Mining Using Neural Networks", "grade": 1}], "rank": {"bm25": 4, "vector": 1, "hybrid": 2}, "short": "what is the reverse analysis method in neural network logic programming"}, {"id": "exact_match-0804.4071#8", "type": "exact_match", "question": "how many positive literals must a CNF clause contain", "anchor": "CNF", "expected": {"id": "0804.4071#8", "paper": "0804.4071", "section": "3.0  Logic Programming", "title": "Logic Mining Using Neural Networks"}, "bm25": [{"id": "1009.3469#8", "paper": "1009.3469", "section": "The clause gadget", "title": "Connectivity graphs of uncertainty regions", "grade": 0}, {"id": "1009.3469#7", "paper": "1009.3469", "section": "Overview of the gadgets", "title": "Connectivity graphs of uncertainty regions", "grade": 0}, {"id": "0804.4071#8", "paper": "0804.4071", "section": "3.0  Logic Programming", "title": "Logic Mining Using Neural Networks", "grade": 2}, {"id": "1009.3469#9", "paper": "1009.3469", "section": "The variable gadget", "title": "Connectivity graphs of uncertainty regions", "grade": 0}, {"id": "2609.03633#95", "paper": "2609.03633", "section": "R1-Distill-14B / DEER / GSM8K (IDX=221)", "title": "</think> Doesn't Stop Reasoning: Analysis of Spurious CoT Termination", "grade": 0}], "vector": [{"id": "2009.08859#445", "paper": "2009.08859", "section": "Table A.140. Materials Science, Characterization and Testing", "title": "Principal Components of the Meaning", "grade": 0}, {"id": "1009.3469#16", "paper": "1009.3469", "section": "2.4.2 The clause gadget.", "title": "Connectivity graphs of uncertainty regions", "grade": 0}, {"id": "2608.12426#16", "paper": "2608.12426", "section": "models.", "title": "Large Language Models Can Follow Instructions, But Not Many at Once: Phase Transitions in Compositional Constraint Satisfaction", "grade": 0}, {"id": "2009.08859#442", "paper": "2009.08859", "section": "Table A.140. Materials Science, Characterization and Testing", "title": "Principal Components of the Meaning", "grade": 0}, {"id": "2009.08859#75", "paper": "2009.08859", "section": "Appendices", "title": "Principal Components of the Meaning", "grade": 0}], "rank": {"bm25": 3, "vector": 17, "hybrid": 2}, "short": "how many positive literals must a CNF clause contain"}, {"id": "exact_match-0912.0280#7", "type": "exact_match", "question": "when can the LME be computed directly", "anchor": "LME", "expected": {"id": "0912.0280#7", "paper": "0912.0280", "section": "2.2. How to Estimate Parameters given Discrete Observation …", "title": "Quantifying Uncertainties in Complex Systems"}, "bm25": [{"id": "2609.01654#11", "paper": "2609.01654", "section": "4.3 Loss Design for Multi-Event Scenarios", "title": "MELON: A Large-Scale Dataset for Multi-Event Text-to-Long-Video Retrieval", "grade": 0}, {"id": "2609.01654#12", "paper": "2609.01654", "section": "4.3 Loss Design for Multi-Event Scenarios", "title": "MELON: A Large-Scale Dataset for Multi-Event Text-to-Long-Video Retrieval", "grade": 0}, {"id": "2608.12888#15", "paper": "2608.12888", "section": "Baselines", "title": "When Your Agent Opens the Chat App: Agent-Controlled Search over Raw Chat Logs Rivals Structured Memory", "grade": 0}, {"id": "2608.12888#16", "paper": "2608.12888", "section": "Main Results: Precise Retrieval and Fact Tracking", "title": "When Your Agent Opens the Chat App: Agent-Controlled Search over Raw Chat Logs Rivals Structured Memory", "grade": 0}, {"id": "2608.12888#14", "paper": "2608.12888", "section": "Implementation Details", "title": "When Your Agent Opens the Chat App: Agent-Controlled Search over Raw Chat Logs Rivals Structured Memory", "grade": 0}], "vector": [{"id": "2108.12643#16", "paper": "2108.12643", "section": "4.4 Comparison of MMF and direct numeric calculations of …", "title": "Master memory function for delay-based reservoir computers with single-variable dynamics", "grade": 0}, {"id": "0912.0280#21", "paper": "0912.0280", "section": "4. Parameter Estimation for SDE Driven by α-Stable L´evy …", "title": "Quantifying Uncertainties in Complex Systems", "grade": 1}, {"id": "2609.01274#43", "paper": "2609.01274", "section": "A.4.9 V4: a linear base-only ridge for _𝛼_ math is …", "title": "From Base Rollouts to RL Reasoning: A Budgeted Search Perspective", "grade": 0}, {"id": "1808.00054#33", "paper": "1808.00054", "section": "Preview", "title": "Modeling Task Effects in Human Reading with Neural Network-based Attention", "grade": 0}, {"id": "1808.00054#34", "paper": "1808.00054", "section": "Preview", "title": "Modeling Task Effects in Human Reading with Neural Network-based Attention", "grade": 0}], "rank": {"bm25": 7, "vector": null, "hybrid": 13}, "short": "when can the LME be computed directly"}];
+const DATA = {"k": 10, "run_id": "f0a35e4c5ab3", "n": 102, "drafted": 213, "n_papers": 1046, "n_chunks": 51932, "board": [{"config": "hybrid", "recall": 0.7990196078431373, "lo": 0.7205882352941176, "hi": 0.8725490196078431, "ndcg": 0.5902814508681977, "mrr": 0.5339830376595083, "paper": 0.9411764705882353, "p50": 218.35459535941482}, {"config": "bm25", "recall": 0.7892156862745098, "lo": 0.7107843137254902, "hi": 0.8627450980392157, "ndcg": 0.5505410128095818, "mrr": 0.4885270774976657, "paper": 0.9509803921568627, "p50": 92.71604428067803}, {"config": "vector", "recall": 0.7254901960784313, "lo": 0.6421568627450981, "hi": 0.8137254901960784, "ndcg": 0.5084073673103114, "mrr": 0.44867335823218174, "paper": 0.8627450980392157, "p50": 117.90461791679263}], "by_type": [{"type": "single_hop", "n": 28, "bm25": 0.9642857142857143, "vector": 0.9285714285714286, "hybrid": 1.0}, {"type": "exact_match", "n": 12, "bm25": 1.0, "vector": 0.6666666666666666, "hybrid": 0.9166666666666666}, {"type": "vocabulary_mismatch", "n": 29, "bm25": 0.6551724137931034, "vector": 0.6206896551724138, "hybrid": 0.6206896551724138}, {"type": "known_hard", "n": 23, "bm25": 0.782608695652174, "vector": 0.6956521739130435, "hybrid": 0.8260869565217391}, {"type": "multi_hop", "n": 10, "bm25": 0.45, "vector": 0.6, "hybrid": 0.55}], "queries": [{"q": "benefits and drawbacks of a dedicated sustainability team", "type": "single_hop", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "can a consistent density estimator fail to converge in L1", "type": "single_hop", "rank": {"bm25": [6], "vector": [null], "hybrid": [10]}}, {"q": "do retrieved exemplars count against the thinking token budget", "type": "single_hop", "rank": {"bm25": [9], "vector": [9], "hybrid": [7]}}, {"q": "does codec width matter more at lower frame rates for ASR", "type": "single_hop", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "does convergence of the DG iterative schemes depend on the physical setting", "type": "single_hop", "rank": {"bm25": [2], "vector": [3], "hybrid": [2]}}, {"q": "fast prediction of linear memory capacity in reservoir computers", "type": "single_hop", "rank": {"bm25": [2], "vector": [2], "hybrid": [1]}}, {"q": "how could LLM score bias affect research funding and evaluation decisions", "type": "single_hop", "rank": {"bm25": [1], "vector": [2], "hybrid": [1]}}, {"q": "how does minimizer uniqueness force a unique set of support constraints", "type": "single_hop", "rank": {"bm25": [null], "vector": [2], "hybrid": [5]}}, {"q": "how does parallel section writing avoid consistency races", "type": "single_hop", "rank": {"bm25": [1], "vector": [2], "hybrid": [1]}}, {"q": "how does the pilot allocation algorithm use LOS interference", "type": "single_hop", "rank": {"bm25": [9], "vector": [3], "hybrid": [6]}}, {"q": "how effective are prefix attacks on LLM scratchpad reasoning", "type": "single_hop", "rank": {"bm25": [4], "vector": [5], "hybrid": [4]}}, {"q": "how many basis functions give stable kernel fits", "type": "single_hop", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "how many packets per second can virtual machine switching handle today", "type": "single_hop", "rank": {"bm25": [1], "vector": [3], "hybrid": [1]}}, {"q": "how much more energy does sending one bit take than computing", "type": "single_hop", "rank": {"bm25": [6], "vector": [10], "hybrid": [3]}}, {"q": "how sensitive is MRR to form and intent loss weights", "type": "single_hop", "rank": {"bm25": [2], "vector": [2], "hybrid": [2]}}, {"q": "is honest bidding a Bayesian Nash equilibrium among competing AI models", "type": "single_hop", "rank": {"bm25": [4], "vector": [1], "hybrid": [1]}}, {"q": "is myopic policy throughput independent of initial belief", "type": "single_hop", "rank": {"bm25": [1], "vector": [8], "hybrid": [3]}}, {"q": "weak duality principle for set dimensions via pointwise dimensions of measures", "type": "single_hop", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "what are the two main trajectories of visual instruction tuning", "type": "single_hop", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "what does the adaptive stochastic analysis framework aim to bound", "type": "single_hop", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "what is the observation space and reward in the climbing task", "type": "single_hop", "rank": {"bm25": [2], "vector": [3], "hybrid": [1]}}, {"q": "what is the reverse analysis method in neural network logic programming", "type": "single_hop", "rank": {"bm25": [4], "vector": [1], "hybrid": [2]}}, {"q": "what layer group size and slice granularity give best throughput", "type": "single_hop", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "what limitations does the BMI model evaluation have", "type": "single_hop", "rank": {"bm25": [3], "vector": [2], "hybrid": [2]}}, {"q": "what score does the SP algorithm use to rank candidate graphs", "type": "single_hop", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "when is a unification problem called almost linear", "type": "single_hop", "rank": {"bm25": [2], "vector": [1], "hybrid": [2]}}, {"q": "which cutting into 15 slices guarantees Bob a 5/9 gain", "type": "single_hop", "rank": {"bm25": [2], "vector": [2], "hybrid": [2]}}, {"q": "why fuse adjacent token representations before attention", "type": "single_hop", "rank": {"bm25": [4], "vector": [null], "hybrid": [9]}}, {"q": "does BIC hold under dual error", "type": "exact_match", "rank": {"bm25": [1], "vector": [null], "hybrid": [1]}}, {"q": "does NFL discussion overlap with earlier causal belief networks", "type": "exact_match", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "does SMN lower SER versus maximum likelihood receivers", "type": "exact_match", "rank": {"bm25": [1], "vector": [9], "hybrid": [3]}}, {"q": "how does switching SoA to AoS layout affect decoder cache misses", "type": "exact_match", "rank": {"bm25": [2], "vector": [3], "hybrid": [2]}}, {"q": "how many positive literals must a CNF clause contain", "type": "exact_match", "rank": {"bm25": [3], "vector": [null], "hybrid": [5]}}, {"q": "how much energy can configurable caches save IoT processors", "type": "exact_match", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "how much ShareGPT throughput does stale placement cost", "type": "exact_match", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "what encoder features simplify FPGA deployment", "type": "exact_match", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "what NP-hardness bounds for approximating TSP variants", "type": "exact_match", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "when can the LME be computed directly", "type": "exact_match", "rank": {"bm25": [7], "vector": [null], "hybrid": [null]}}, {"q": "which papers apply deep RL to NPC behavior", "type": "exact_match", "rank": {"bm25": [7], "vector": [3], "hybrid": [2]}}, {"q": "why can naive ATS be harmful for readers", "type": "exact_match", "rank": {"bm25": [2], "vector": [null], "hybrid": [3]}}, {"q": "benchmark LLM hacking agents when the target returns manipulated output", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [null], "hybrid": [null]}}, {"q": "can a simple online estimation rule generate heavy-tailed random search patterns", "type": "vocabulary_mismatch", "rank": {"bm25": [7], "vector": [null], "hybrid": [null]}}, {"q": "can an agent rewrite its own code to improve robot area coverage", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [null], "hybrid": [null]}}, {"q": "check whether one node can reach another in a large distributed graph", "type": "vocabulary_mismatch", "rank": {"bm25": [3], "vector": [3], "hybrid": [2]}}, {"q": "does model size change the best way to use multimodal embeddings", "type": "vocabulary_mismatch", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "does the optimal cost from noisy data bound the true system cost", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [1], "hybrid": [5]}}, {"q": "find a hidden group of densely connected nodes in a big network", "type": "vocabulary_mismatch", "rank": {"bm25": [9], "vector": [1], "hybrid": [1]}}, {"q": "gpu hours to pretrain small language models by context length", "type": "vocabulary_mismatch", "rank": {"bm25": [2], "vector": [2], "hybrid": [2]}}, {"q": "have an LLM change one value in a Kubernetes config without reformatting", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [9], "hybrid": [null]}}, {"q": "how accurately can a generative model match a population's full joint distribution", "type": "vocabulary_mismatch", "rank": {"bm25": [2], "vector": [3], "hybrid": [2]}}, {"q": "how compute and memory heavy are security apps on IoT devices", "type": "vocabulary_mismatch", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "how much cache capacity do reused LLM prompts actually need", "type": "vocabulary_mismatch", "rank": {"bm25": [1], "vector": [null], "hybrid": [3]}}, {"q": "how reliable is matching software names to online repositories", "type": "vocabulary_mismatch", "rank": {"bm25": [3], "vector": [3], "hybrid": [2]}}, {"q": "how to change valence arousal dominance of generated samples", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [null], "hybrid": [null]}}, {"q": "how to check whether model-generated code passes test cases", "type": "vocabulary_mismatch", "rank": {"bm25": [6], "vector": [null], "hybrid": [null]}}, {"q": "how to keep generated item embeddings on the unit sphere", "type": "vocabulary_mismatch", "rank": {"bm25": [6], "vector": [5], "hybrid": [2]}}, {"q": "how to rank candidate answer sentences by proximity to evidence words", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [7], "hybrid": [null]}}, {"q": "how to reduce training samples for complex signal networks", "type": "vocabulary_mismatch", "rank": {"bm25": [2], "vector": [3], "hybrid": [1]}}, {"q": "how to weight criteria when ranking grab points on real objects", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [null], "hybrid": [null]}}, {"q": "how well can one model call flag alignment failures", "type": "vocabulary_mismatch", "rank": {"bm25": [2], "vector": [1], "hybrid": [1]}}, {"q": "train one network to predict both full and partial segmentation", "type": "vocabulary_mismatch", "rank": {"bm25": [1], "vector": [2], "hybrid": [1]}}, {"q": "what advantages does VB.NET have over C#", "type": "vocabulary_mismatch", "rank": {"bm25": [1], "vector": [null], "hybrid": [1]}}, {"q": "what bound on a design matrix guarantees sparse regression works", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [4], "hybrid": [8]}}, {"q": "what is known about minimum spanning trees when point locations are uncertain", "type": "vocabulary_mismatch", "rank": {"bm25": [3], "vector": [5], "hybrid": [3]}}, {"q": "what small steps can a math proof be built from", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [null], "hybrid": [null]}}, {"q": "when two vision models disagree on an image label, who decides", "type": "vocabulary_mismatch", "rank": {"bm25": [null], "vector": [null], "hybrid": [null]}}, {"q": "which research topics get highest and lowest AI review scores", "type": "vocabulary_mismatch", "rank": {"bm25": [3], "vector": [9], "hybrid": [4]}}, {"q": "why does an LLM beat standard optimizers for hardware design search", "type": "vocabulary_mismatch", "rank": {"bm25": [2], "vector": [5], "hybrid": [1]}}, {"q": "why keep the audio encoder fixed instead of training it", "type": "vocabulary_mismatch", "rank": {"bm25": [8], "vector": [null], "hybrid": [null]}}, {"q": "do adaptive queries still leak sensitive inputs once LAT is on", "type": "known_hard", "rank": {"bm25": [3], "vector": [5], "hybrid": [2]}}, {"q": "do influence kernels differ between own and other birds' calls", "type": "known_hard", "rank": {"bm25": [null], "vector": [7], "hybrid": [10]}}, {"q": "do surface eigenvalues become more negative as n increases", "type": "known_hard", "rank": {"bm25": [null], "vector": [2], "hybrid": [6]}}, {"q": "does accuracy improve with more specialists covering the correct class", "type": "known_hard", "rank": {"bm25": [2], "vector": [2], "hybrid": [2]}}, {"q": "does approximate Cp select irrelevant features less often than original Cp", "type": "known_hard", "rank": {"bm25": [3], "vector": [1], "hybrid": [1]}}, {"q": "does binary neuron learning produce extra rules beyond the conjunction", "type": "known_hard", "rank": {"bm25": [2], "vector": [1], "hybrid": [2]}}, {"q": "does breaking norms affect correctness more than following them", "type": "known_hard", "rank": {"bm25": [8], "vector": [null], "hybrid": [null]}}, {"q": "does DCI put more images in validation or training", "type": "known_hard", "rank": {"bm25": [2], "vector": [null], "hybrid": [3]}}, {"q": "does let flattening commute with normal order reduction", "type": "known_hard", "rank": {"bm25": [7], "vector": [null], "hybrid": [null]}}, {"q": "does removing the time gate hurt accuracy and mcc", "type": "known_hard", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "does replacing the vmf kernel with rbf hurt results", "type": "known_hard", "rank": {"bm25": [2], "vector": [null], "hybrid": [3]}}, {"q": "does target node identification drop as graph average degree rises", "type": "known_hard", "rank": {"bm25": [3], "vector": [3], "hybrid": [4]}}, {"q": "does the HLP encoder beat state-of-the-art models with fewer parameters", "type": "known_hard", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "does the SFT template chosen change which evals gain skill", "type": "known_hard", "rank": {"bm25": [null], "vector": [2], "hybrid": [7]}}, {"q": "how do way and shot counts affect few-shot segmentation performance", "type": "known_hard", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "how do you count the components in a vector", "type": "known_hard", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "how much throughput is lost running fast packet I/O in a VM", "type": "known_hard", "rank": {"bm25": [5], "vector": [4], "hybrid": [4]}}, {"q": "is shortest path distance preserved by the dependency graph", "type": "known_hard", "rank": {"bm25": [3], "vector": [4], "hybrid": [1]}}, {"q": "what dominates area in flash vs DRAM compute-in-memory", "type": "known_hard", "rank": {"bm25": [1], "vector": [1], "hybrid": [1]}}, {"q": "which backend achieves the best average anomaly detection score", "type": "known_hard", "rank": {"bm25": [null], "vector": [null], "hybrid": [null]}}, {"q": "which computing paradigms offer efficiency as a benefit", "type": "known_hard", "rank": {"bm25": [1], "vector": [2], "hybrid": [1]}}, {"q": "which prompting approach handles harmful requests both safely and helpfully", "type": "known_hard", "rank": {"bm25": [4], "vector": [null], "hybrid": [5]}}, {"q": "which scene category has the lowest success rate", "type": "known_hard", "rank": {"bm25": [null], "vector": [null], "hybrid": [null]}}, {"q": "can a density be estimated without assuming a stochastic process", "type": "multi_hop", "rank": {"bm25": [null, 1], "vector": [7, 1], "hybrid": [10, 1]}}, {"q": "how did human evaluators score the tutoring dialogues", "type": "multi_hop", "rank": {"bm25": [null, 1], "vector": [null, 1], "hybrid": [null, 1]}}, {"q": "how do ACM citation patterns differ from random", "type": "multi_hop", "rank": {"bm25": [8, 1], "vector": [4, 5], "hybrid": [6, 1]}}, {"q": "how do routing delays and partitioning affect total circuit runtime", "type": "multi_hop", "rank": {"bm25": [10, null], "vector": [null, null], "hybrid": [null, null]}}, {"q": "how does EMA assign requests to slices and trigger swaps", "type": "multi_hop", "rank": {"bm25": [2, 8], "vector": [7, 1], "hybrid": [3, 2]}}, {"q": "how is NFL model output checked for acceptance", "type": "multi_hop", "rank": {"bm25": [null, 8], "vector": [null, null], "hybrid": [null, null]}}, {"q": "how is soundness enforced in the proof schema calculus", "type": "multi_hop", "rank": {"bm25": [1, null], "vector": [1, null], "hybrid": [1, null]}}, {"q": "parameter estimation for SDEs with fBM vs stable Levy noise", "type": "multi_hop", "rank": {"bm25": [null, null], "vector": [7, 8], "hybrid": [9, null]}}, {"q": "what happens to regret as the mutated swarm grows", "type": "multi_hop", "rank": {"bm25": [null, null], "vector": [null, null], "hybrid": [null, null]}}, {"q": "why does honest score reporting maximize payoff in data auctions", "type": "multi_hop", "rank": {"bm25": [null, null], "vector": [3, 2], "hybrid": [5, 3]}}], "examples": [{"question": "what bound on a design matrix guarantees sparse regression works", "type": "vocabulary_mismatch", "expected": {"id": "1108.5533#6", "paper": "1108.5533", "section": "(5)", "title": "A Remark on the Lasso and the Dantzig Selector"}, "bm25": [{"id": "2608.12100#101", "paper": "2608.12100", "section": "7.3 Future Research Directions", "title": "Confidence Calibration of Deep Learning Systems", "grade": 0}, {"id": "2112.00029#40", "paper": "2112.00029", "section": "D.1 Applying masks before multiplication", "title": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models", "grade": 0}, {"id": "1707.01212#11", "paper": "1707.01212", "section": "B. Theoretical Guarantees", "title": "Efficient Data Representation by Selecting Prototypes with Importance Weights", "grade": 0}, {"id": "2609.29711#12", "paper": "2609.29711", "section": "2 Related Work", "title": "Decoupling Knowledge and Privacy: Post-Task Self-Distillation Replay for LLM Continual Learning", "grade": 0}, {"id": "2112.00029#31", "paper": "2112.00029", "section": "A Problem Formulation", "title": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models", "grade": 0}], "vector": [{"id": "2112.00029#31", "paper": "2112.00029", "section": "A Problem Formulation", "title": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models", "grade": 0}, {"id": "1108.5533#3", "paper": "1108.5533", "section": "1. Introduction", "title": "A Remark on the Lasso and the Dantzig Selector", "grade": 1}, {"id": "1108.5533#4", "paper": "1108.5533", "section": "1. Introduction", "title": "A Remark on the Lasso and the Dantzig Selector", "grade": 1}, {"id": "1108.5533#6", "paper": "1108.5533", "section": "(5)", "title": "A Remark on the Lasso and the Dantzig Selector", "grade": 2}, {"id": "2609.30192#34", "paper": "2609.30192", "section": "C.1 Setup", "title": "SAGE: Mitigating Long-Horizon Reasoning Biases via Topological Guidance", "grade": 0}], "rank": {"bm25": null, "vector": 4, "hybrid": 8}}, {"question": "how many positive literals must a CNF clause contain", "type": "exact_match", "expected": {"id": "0804.4071#8", "paper": "0804.4071", "section": "3.0  Logic Programming", "title": "Logic Mining Using Neural Networks"}, "bm25": [{"id": "1009.3469#8", "paper": "1009.3469", "section": "The clause gadget", "title": "Connectivity graphs of uncertainty regions", "grade": 0}, {"id": "1009.3469#7", "paper": "1009.3469", "section": "Overview of the gadgets", "title": "Connectivity graphs of uncertainty regions", "grade": 0}, {"id": "0804.4071#8", "paper": "0804.4071", "section": "3.0  Logic Programming", "title": "Logic Mining Using Neural Networks", "grade": 2}, {"id": "1009.3469#9", "paper": "1009.3469", "section": "The variable gadget", "title": "Connectivity graphs of uncertainty regions", "grade": 0}, {"id": "2609.03633#95", "paper": "2609.03633", "section": "R1-Distill-14B / DEER / GSM8K (IDX=221)", "title": "</think> Doesn't Stop Reasoning: Analysis of Spurious CoT Termination", "grade": 0}], "vector": [{"id": "2009.08859#445", "paper": "2009.08859", "section": "Table A.140. Materials Science, Characterization and Testing", "title": "Principal Components of the Meaning", "grade": 0}, {"id": "1009.3469#16", "paper": "1009.3469", "section": "2.4.2 The clause gadget.", "title": "Connectivity graphs of uncertainty regions", "grade": 0}, {"id": "2608.12426#16", "paper": "2608.12426", "section": "models.", "title": "Large Language Models Can Follow Instructions, But Not Many at Once: Phase Transitions in Compositional Constraint Satisfaction", "grade": 0}, {"id": "2009.08859#442", "paper": "2009.08859", "section": "Table A.140. Materials Science, Characterization and Testing", "title": "Principal Components of the Meaning", "grade": 0}, {"id": "2009.08859#75", "paper": "2009.08859", "section": "Appendices", "title": "Principal Components of the Meaning", "grade": 0}], "rank": {"bm25": 3, "vector": null, "hybrid": 5}}, {"question": "is myopic policy throughput independent of initial belief", "type": "single_hop", "expected": {"id": "0712.0035#17", "paper": "0712.0035", "section": "A. Uniqueness of Steady-State Performance and Its Numerical …", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance"}, "bm25": [{"id": "0712.0035#17", "paper": "0712.0035", "section": "A. Uniqueness of Steady-State Performance and Its Numerical …", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 2}, {"id": "0712.0035#4", "paper": "0712.0035", "section": "B. Contribution", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 1}, {"id": "0712.0035#14", "paper": "0712.0035", "section": "B. Properties", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 1}, {"id": "0712.0035#10", "paper": "0712.0035", "section": "B. Myopic Policy", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 1}, {"id": "0712.0035#21", "paper": "0712.0035", "section": "VII. CONCLUSION AND FUTURE WORK", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 1}], "vector": [{"id": "0712.0035#14", "paper": "0712.0035", "section": "B. Properties", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 1}, {"id": "0712.0035#10", "paper": "0712.0035", "section": "B. Myopic Policy", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 1}, {"id": "0712.0035#16", "paper": "0712.0035", "section": "VI. PERFORMANCE OF MYOPIC SENSING", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 1}, {"id": "0712.0035#13", "paper": "0712.0035", "section": "A. Structure", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 1}, {"id": "0712.0035#12", "paper": "0712.0035", "section": "A. Structure", "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance", "grade": 1}], "rank": {"bm25": 1, "vector": 8, "hybrid": 3}}, {"question": "do influence kernels differ between own and other birds' calls", "type": "known_hard", "expected": {"id": "1601.05449#39", "paper": "1601.05449", "section": "Further plots from datasets", "title": "Detailed temporal structure of communication networks in groups of songbirds"}, "bm25": [{"id": "1601.05449#10", "paper": "1601.05449", "section": "Analyses", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}, {"id": "1601.05449#20", "paper": "1601.05449", "section": "Zebra Finch Call Types and their Use in Vocal Interactions", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}, {"id": "1601.05449#13", "paper": "1601.05449", "section": "All-Female Group ( _zf4f_ )", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}, {"id": "1601.05449#15", "paper": "1601.05449", "section": "Reanalysis of Gill _et al.", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}, {"id": "1601.05449#38", "paper": "1601.05449", "section": "Further plots from datasets", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}], "vector": [{"id": "1601.05449#17", "paper": "1601.05449", "section": "Reanalysis of Gill _et al.", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}, {"id": "1601.05449#15", "paper": "1601.05449", "section": "Reanalysis of Gill _et al.", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}, {"id": "1601.05449#13", "paper": "1601.05449", "section": "All-Female Group ( _zf4f_ )", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}, {"id": "1601.05449#20", "paper": "1601.05449", "section": "Zebra Finch Call Types and their Use in Vocal Interactions", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}, {"id": "1601.05449#18", "paper": "1601.05449", "section": "Discussion", "title": "Detailed temporal structure of communication networks in groups of songbirds", "grade": 1}], "rank": {"bm25": null, "vector": 7, "hybrid": 10}}, {"question": "which scene category has the lowest success rate", "type": "known_hard", "expected": {"id": "2608.30935#44", "paper": "2608.30935", "section": "D. Cross-Domain and Real-World Generalization", "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation"}, "bm25": [{"id": "2406.09246#59", "paper": "2406.09246", "section": "D.4 Additional Quantized Inference Experiments …", "title": "OpenVLA: An Open-Source Vision-Language-Action Model", "grade": 0}, {"id": "2608.11739#35", "paper": "2608.11739", "section": "5.5 Pick-and-Place Benchmark", "title": "G0.5: One Autoregressive Stream for Robot Reasoning and Action", "grade": 0}, {"id": "2608.30935#26", "paper": "2608.30935", "section": "D. INSIGHT-Bench", "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation", "grade": 1}, {"id": "2609.02391#41", "paper": "2609.02391", "section": "C.3 Distribution by Communicative Context", "title": "PolERo: Studying Political Evasion in Romanian", "grade": 0}, {"id": "2608.13417#11", "paper": "2608.13417", "section": "3.2 Process Capability Results", "title": "Beyond Final Scores: A Systematic Evaluation of Agents for Long-Horizon AI Research and Development", "grade": 0}], "vector": [{"id": "2608.11888#16", "paper": "2608.11888", "section": "TABLE III", "title": "Agent Skills Can Be Harmful: An Empirical Study of Skill-Induced Failures in LLM Agents", "grade": 0}, {"id": "2608.30281#32", "paper": "2608.30281", "section": "D.1 Diverse Challenging Scenarios", "title": "SELECT: SELEctive Context Transfer for Class-Incremental Semantic Segmentation", "grade": 0}, {"id": "2609.03597#15", "paper": "2609.03597", "section": "5.1 A reasoning floor: five categories at zero", "title": "KhatianDoc: A Human-Verified Benchmark Diagnosing Multimodal LLM Failure on Bengali Legal Land Records", "grade": 0}, {"id": "2609.28431#41", "paper": "2609.28431", "section": "C.3 Generalization Evaluation", "title": "LiMA: Bridging Long-term Imagination to Real-time Dexterous Manipulation via Asynchronous Diffusion", "grade": 0}, {"id": "2609.01548#116", "paper": "2609.01548", "section": "G.5 SDARE-Bench Task II Stigma Presence by Scenario Category", "title": "SDARE-Bench: Evaluating Large Language Models on Conversational Stigma Detection and Response in Dyadic and Group Dialogue", "grade": 0}], "rank": {"bm25": null, "vector": null, "hybrid": null}}]};
 
+const METHODS = {
+  hybrid: ["Hybrid", "keyword + semantic, RRF"],
+  bm25: ["Keyword", "BM25"],
+  vector: ["Semantic", "pplx-embed, 512 dims"],
+};
 const TYPES = {
-  vocabulary_mismatch: "Describes the problem, not the paper's terms",
-  single_hop: "Plain question about one passage",
-  exact_match: "Names a specific term",
-  known_hard: "Answer is in a table or equation",
-  multi_hop: "Needs two passages",
+  single_hop: ["Plain lookup", "Asks what one passage says"],
+  exact_match: ["Named term", "Names an acronym, model or benchmark"],
+  vocabulary_mismatch: ["Unfamiliar wording", "Shares no word with its passage that appears in fewer than 500 passages, as someone who has not read the paper"],
+  known_hard: ["Table or math", "Answered by a table or an equation"],
+  multi_hop: ["Two passages", "Needs two passages of one paper; finding one scores half"],
 };
-const ABOUT = {
-  vocabulary_mismatch: "Shares no word with its passage that appears in fewer than 500 passages.",
-  multi_hop: "Finding one of the two passages scores half.",
-};
-const LEGS = ["bm25", "vector", "hybrid"];
-const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>';
-const expanded = new Set();
-const NOTES = {
-  r5: "Expected passages in the top 5. One question moves the 10-question row 10 points.",
-  r20: "Expected passages in the top 20.",
-  mrr: "1 / rank of the first expected passage; 1.00 is always first.",
-};
-
-const fmt = (m, v) => (m === "mrr" ? v.toFixed(2) : Math.round(v * 100) + "%");
-const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-
-function cells(scores, m) {
-  const vals = LEGS.map((l) => scores[l][m]);
-  const top = Math.max(...vals);
-  return vals
-    .map((v) => {
-      const best = Math.round(v * 100) === Math.round(top * 100);
-      return `<td class="v"><div class="cell${best ? " best" : ""}"><b class="num">${fmt(m, v)}</b><span class="track"><i style="width:${(v * 100).toFixed(1)}%"></i></span></div></td>`;
-    })
-    .join("");
-}
-
-// A rank for a sample row; a two-passage question shows both ranks, and it
-// counts as a hit in the top 5 when either passage is there.
-function rankCell(ranks) {
-  const hit = ranks.some((r) => r && r <= 5);
-  const text = ranks.map((r) => (r ? ordinal(r) : "\u2013")).join(", ");
-  const miss = ranks.every((r) => !r);
-  return `<td><div class="rank${hit ? " hit" : ""}"><b class="num">${text}</b>${miss ? "<span>not in top 20</span>" : ""}</div></td>`;
-}
-
-function typeBody(r, m) {
-  const isOpen = expanded.has(r.type);
-  const cls = [r.type === "vocabulary_mismatch" ? "focus" : "", isOpen ? "open" : ""].join(" ").trim();
-  const id = "s-" + r.type;
-  const samples = SAMPLES[r.type]
-    .map((s, i) => `<tr class="sample"${!ABOUT[r.type] && i === 0 ? ` id="${id}"` : ""}${isOpen ? "" : " hidden"}><td class="q" colspan="2">${esc(s.q)}</td>${LEGS.map((l) => rankCell(s.rank[l])).join("")}</tr>`)
-    .join("");
-  return (
-    `<tbody${cls ? ` class="${cls}"` : ""}>` +
-    `<tr class="main"><th scope="row"><button type="button" class="disc" aria-expanded="${isOpen}" aria-controls="${id}" data-type="${r.type}">${CHEVRON}<span><span class="name">${TYPES[r.type]}</span><span class="id">${r.type}</span></span></button></th>` +
-    `<td class="n num">${r.n}</td>${cells(r, m)}</tr>` +
-    (ABOUT[r.type] ? `<tr class="about" id="${id}"${isOpen ? "" : " hidden"}><td colspan="5">${ABOUT[r.type]}</td></tr>` : "") +
-    samples +
-    `</tbody>`
-  );
-}
-
-let metric = "r5";
-function renderTable(m) {
-  metric = m;
-  const table = document.querySelector("table");
-  table.querySelectorAll("tbody").forEach((b) => b.remove());
-  const html =
-    SCORES.table.map((r) => typeBody(r, m)).join("") +
-    `<tbody class="all"><tr><th scope="row">All questions</th><td class="n num">${SCORES.n}</td>${cells(SCORES.overall, m)}</tr></tbody>`;
-  table.insertAdjacentHTML("beforeend", html);
-  document.getElementById("metric-note").textContent = NOTES[m];
-}
-
-document.querySelector("table").addEventListener("click", (ev) => {
-  const b = ev.target.closest(".disc");
-  if (!b) return;
-  const t = b.dataset.type;
-  expanded.has(t) ? expanded.delete(t) : expanded.add(t);
-  renderTable(metric);
-  document.querySelector(`.disc[data-type="${t}"]`).focus();
-});
-
-document.querySelectorAll(".seg button").forEach((b) =>
-  b.addEventListener("click", () => {
-    document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-    renderTable(b.dataset.m);
-  }),
-);
-
+const k = DATA.k;
+const pct = (v) => Math.round(v * 100) + "%";
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const ordinal = (n) => n + (n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th");
-const placed = (r) => (r ? ordinal(r) : "not in top 20");
+const date = new Date("2026-10-05T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+document.getElementById("meta").innerHTML = [
+  `${DATA.n} queries`,
+  `${DATA.n_papers.toLocaleString()} papers, ${DATA.n_chunks.toLocaleString()} passages`,
+  `scored at the top ${k} the agent reads`,
+  date,
+  `run <span class="id">${DATA.run_id}</span>`,
+].map((x) => `<li class="num">${x}</li>`).join("");
+
+document.getElementById("h-recall").innerHTML = `<abbr title="Share of expected passages found in the top ${k}">Recall@${k}</abbr>`;
+document.getElementById("h-ndcg").innerHTML = `<abbr title="Ranking quality of the top ${k}: 1.00 means the expected passage is always first">nDCG@${k}</abbr>`;
+document.getElementById("h-paper").innerHTML = `<abbr title="Share of queries with any passage of the expected paper in the top ${k}">Paper@${k}</abbr>`;
+
+const best = (key, lower) => DATA.board.reduce((a, b) => (lower ? b[key] < a[key] : b[key] > a[key]) ? b : a)[key];
+document.getElementById("board").innerHTML = DATA.board.map((b, i) => {
+  const [name, sub] = METHODS[b.config];
+  const strong = (key, text, lower) => (b[key] === best(key, lower) ? `<b>${text}</b>` : text);
+  return `<tr${i === 0 ? ' class="lead"' : ""}>
+    <td class="pos num">${i + 1}</td>
+    <th scope="row" class="method">${name}<small>${sub}</small></th>
+    <td><div class="recall"><b class="num">${pct(b.recall)}<span class="ci">${pct(b.lo)}–${pct(b.hi)}</span></b>
+      <span class="scale" role="img" aria-label="95% interval ${pct(b.lo)} to ${pct(b.hi)}"><i style="left:${b.lo * 100}%;width:${(b.hi - b.lo) * 100}%"></i><u style="left:${b.recall * 100}%"></u></span></div></td>
+    <td class="m r num">${strong("ndcg", b.ndcg.toFixed(2))}</td>
+    <td class="m r num">${strong("mrr", b.mrr.toFixed(2))}</td>
+    <td class="m r num">${strong("paper", pct(b.paper))}</td>
+    <td class="m r num">${strong("p50", Math.round(b.p50) + " ms", true)}</td>
+  </tr>`;
+}).join("");
+
+document.querySelector(".mh").textContent = `Recall@${k} by query type`;
+const order = DATA.board.map((b) => b.config);
+document.getElementById("matrix-head").innerHTML =
+  `<th scope="col">Method</th>` +
+  DATA.by_type.map((t) => `<th scope="col" class="r"><abbr title="${esc(TYPES[t.type][1])}">${TYPES[t.type][0]}</abbr><small class="num">${t.n} queries</small></th>`).join("");
+document.getElementById("matrix").innerHTML = order.map((c) =>
+  `<tr><th scope="row">${METHODS[c][0]}</th>` +
+  DATA.by_type.map((t) => {
+    const top = Math.max(...order.map((x) => t[x]));
+    const v = t[c];
+    const shade = `background:color-mix(in oklab, var(--teal) ${Math.round(v * 30)}%, var(--panel))`;
+    return `<td class="cell num${Math.round(v * 100) === Math.round(top * 100) ? " best" : ""}" style="${shade}">${pct(v)}</td>`;
+  }).join("") + `</tr>`,
+).join("");
+
+/* examples */
+const placed = (r) => (r ? ordinal(r) : `not in top ${k}`);
 function outcome(e) {
-  const k = e.rank.bm25 && e.rank.bm25 <= 5, s = e.rank.vector && e.rank.vector <= 5;
-  return k && s ? "Both find it" : k ? "Keyword finds it" : s ? "Semantic finds it" : "Neither finds it";
+  const kw = e.rank.bm25, se = e.rank.vector;
+  return kw && se ? "Both find it" : kw ? "Keyword finds it" : se ? "Semantic finds it" : "Neither finds it";
 }
-
-function item(x, i) {
-  return `<li class="g${x.grade}" data-id="${esc(x.id)}"><span class="rk num">${i + 1}</span><i class="mark"></i><span class="t">${esc(x.title)}<span class="s">${esc(x.section)}</span></span></li>`;
-}
-
+const item = (x, i) => `<li class="g${x.grade}" data-id="${esc(x.id)}"><span class="rk num">${i + 1}</span><i class="mark"></i><span class="t">${esc(x.title)}<span class="s">${esc(x.section)}</span></span></li>`;
 let current = 0;
 function renderExample(i) {
   current = i;
-  const e = EXAMPLES[i];
-  document.querySelectorAll(".tab").forEach((t, j) => {
-    t.setAttribute("aria-selected", String(j === i));
-    t.tabIndex = j === i ? 0 : -1;
-  });
+  const e = DATA.examples[i];
+  document.querySelectorAll(".tab").forEach((t, j) => { t.setAttribute("aria-selected", String(j === i)); t.tabIndex = j === i ? 0 : -1; });
   document.getElementById("panel").setAttribute("aria-labelledby", "tab-" + i);
   document.getElementById("exq").innerHTML =
     `<p>${esc(e.question)}</p><dl>` +
     `<div><dt>Expected</dt><dd>${esc(e.expected.title)}, ${esc(e.expected.section)}</dd></div>` +
+    `<div><dt>Hybrid</dt><dd class="num">${placed(e.rank.hybrid)}</dd></div>` +
     `<div><dt>Keyword</dt><dd class="num">${placed(e.rank.bm25)}</dd></div>` +
-    `<div><dt>Semantic</dt><dd class="num">${placed(e.rank.vector)}</dd></div>` +
-    `<div><dt>Hybrid</dt><dd class="num">${placed(e.rank.hybrid)}</dd></div></dl>`;
+    `<div><dt>Semantic</dt><dd class="num">${placed(e.rank.vector)}</dd></div></dl>`;
   document.getElementById("lists").innerHTML =
     `<svg aria-hidden="true"></svg>` +
-    `<div class="col" id="lk"><h3>Keyword (BM25)</h3><ol>${e.bm25.map(item).join("")}</ol></div>` +
+    `<div class="col" id="lk"><h3>Keyword</h3><ol>${e.bm25.map(item).join("")}</ol></div>` +
     `<div class="gap"></div>` +
-    `<div class="col" id="lv"><h3>Semantic (vector)</h3><ol>${e.vector.map(item).join("")}</ol></div>`;
+    `<div class="col" id="lv"><h3>Semantic</h3><ol>${e.vector.map(item).join("")}</ol></div>`;
   drawLinks();
 }
-
 function drawLinks() {
   const box = document.getElementById("lists");
   const svg = box.querySelector("svg");
-  if (getComputedStyle(svg).display === "none") return;
+  if (!svg || getComputedStyle(svg).display === "none" || !box.offsetParent) return;
   const base = box.getBoundingClientRect();
   const paths = [];
   box.querySelectorAll("#lk li").forEach((a) => {
@@ -419,26 +401,53 @@ function drawLinks() {
   });
   svg.innerHTML = paths.join("");
 }
-
 const tabs = document.getElementById("tabs");
-tabs.innerHTML = EXAMPLES.map(
-  (e, i) => `<button type="button" class="tab" role="tab" id="tab-${i}" aria-controls="panel">${esc(e.short)}<span>${outcome(e)}</span></button>`,
-).join("");
+tabs.innerHTML = DATA.examples.map((e, i) =>
+  `<button type="button" class="tab" role="tab" id="tab-${i}" aria-controls="panel">${esc(e.question)}<span>${outcome(e)}</span></button>`).join("");
 tabs.querySelectorAll(".tab").forEach((t, i) => {
   t.addEventListener("click", () => renderExample(i));
   t.addEventListener("keydown", (ev) => {
     const d = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
     if (!d) return;
-    const j = (current + d + EXAMPLES.length) % EXAMPLES.length;
+    const j = (current + d + DATA.examples.length) % DATA.examples.length;
     renderExample(j);
     tabs.children[j].focus();
   });
 });
-
-renderTable("r5");
 renderExample(0);
+document.querySelectorAll("details.more").forEach((d) => d.addEventListener("toggle", drawLinks));
 window.addEventListener("resize", drawLinks);
-document.fonts && document.fonts.ready.then(drawLinks);
+
+/* all queries */
+document.getElementById("all-n").textContent = `${DATA.n}, with where each method ranked the expected passage`;
+const sel = document.getElementById("qtype");
+sel.innerHTML = `<option value="">All types</option>` + Object.entries(TYPES).map(([v, [l]]) => `<option value="${v}">${l}</option>`).join("");
+function rankTd(ranks) {
+  const hit = ranks.some((r) => r);
+  return `<td class="rk2 num ${hit ? "hit" : "miss"}">${ranks.map((r) => (r ? ordinal(r) : "–")).join(", ")}</td>`;
+}
+function renderQueries() {
+  const rows = DATA.queries.filter((q) => !sel.value || q.type === sel.value);
+  document.getElementById("qcount").textContent = `${rows.length} queries`;
+  document.getElementById("qrows").innerHTML = rows.map((q) =>
+    `<tr><td class="q">${esc(q.q)}</td><td class="ty">${TYPES[q.type][0]}</td>${["hybrid", "bm25", "vector"].map((c) => rankTd(q.rank[c])).join("")}</tr>`).join("");
+}
+sel.addEventListener("change", renderQueries);
+renderQueries();
+
+/* method */
+document.getElementById("run").innerHTML = [
+  ["Queries", `${DATA.n} counted of ${DATA.drafted} drafted, at most 12 words, <span class="id">evals/golden.jsonl</span>`],
+  ["Checked by", `drafted by <span class="id">z-ai/glm-5.3-flash</span>, checked by <span class="id">meta/muse-spark-1.3-contributor</span>; no human pass`],
+  ["Relevance", "one expected passage per query (two for two-passage queries)"],
+  ["Corpus", `${DATA.n_papers.toLocaleString()} arXiv cs papers, ${DATA.n_chunks.toLocaleString()} passages`],
+  ["Chunking", `section-aware, up to 1,000 tokens (<span class="id">cl100k_base</span>), 15% overlap`],
+  ["Keyword", "SQLite FTS5 BM25, porter stemming, terms OR-joined"],
+  ["Semantic", `<span class="id">perplexity/pplx-embed-v1-0.6b</span>, 512 dims, cosine, Chroma HNSW`],
+  ["Hybrid", `reciprocal rank fusion, <span class="id">k = 60</span>, over each search's top ${k}`],
+  ["Interval", "95% bootstrap over queries, 4,000 resamples"],
+  ["Latency", "median per query on the build host"],
+].map(([t, d]) => `<div><dt>${t}</dt><dd>${d}</dd></div>`).join("");
 </script>
 </body>
 </html>
