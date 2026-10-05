@@ -1,6 +1,7 @@
 """The retrieval eval's metrics, table and README splice (#18). Rankings are
 handed in, so nothing here touches the index or the embedding API."""
 
+import math
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from evals.golden_set import Difficulty, GoldenChecks, GoldenRecord, GoldenType
 from evals.run_retrieval_evals import (
     CONFIGS,
     fingerprint,
+    ndcg_at,
     paper_recall_at,
     recall_at,
     reciprocal_rank,
@@ -57,9 +59,18 @@ def test_recall_gives_partial_credit_for_one_of_two_hops():
     assert recall_at(["p#1", "x#1"], ["p#1", "p#9"], 5) == 0.5
 
 
-def test_reciprocal_rank_uses_the_first_expected_hit():
-    assert reciprocal_rank(["x#1", "p#2", "p#1"], ["p#1", "p#2"]) == 0.5
-    assert reciprocal_rank(["x#1"], ["p#1"]) == 0.0
+def test_reciprocal_rank_uses_the_first_expected_hit_inside_k():
+    assert reciprocal_rank(["x#1", "p#2", "p#1"], ["p#1", "p#2"], 10) == 0.5
+    assert reciprocal_rank(["x#1"], ["p#1"], 10) == 0.0
+    assert reciprocal_rank(["x#1", "p#1"], ["p#1"], 1) == 0.0
+
+
+def test_ndcg_is_one_at_the_top_and_discounts_lower_ranks():
+    assert ndcg_at(["p#1", "x#1"], ["p#1"], 10) == 1.0
+    assert ndcg_at(["x#1", "p#1"], ["p#1"], 10) == pytest.approx(1 / math.log2(3))
+    assert ndcg_at(["x#1", "p#1"], ["p#1"], 1) == 0.0
+    # two expected chunks, one found first: DCG 1 against an ideal of 1 + 1/log2(3)
+    assert ndcg_at(["p#1", "x#1"], ["p#1", "p#2"], 10) == pytest.approx(1 / (1 + 1 / math.log2(3)))
 
 
 def test_paper_recall_accepts_any_chunk_of_the_paper():
@@ -70,30 +81,36 @@ def test_paper_recall_accepts_any_chunk_of_the_paper():
 def test_score_averages_over_records():
     records = [record("q1", ["p#1"]), record("q2", ["r#1"])]
     rankings = {"q1": {"bm25": ["p#1"]}, "q2": {"bm25": ["x#1", "r#1"]}}
-    s = score(records, rankings, "bm25", [1, 5])
+    assert score(records, rankings, "bm25", 1).recall == 0.5
+    s = score(records, rankings, "bm25", 5)
     assert s.n == 2
-    assert s.recall == {1: 0.5, 5: 1.0}
+    assert s.recall == 1.0
     assert s.mrr == pytest.approx(0.75)
 
 
 def test_score_refuses_an_empty_set():
     with pytest.raises(ValueError):
-        score([], {}, "bm25", [5])
+        score([], {}, "bm25", 5)
 
 
-def test_render_has_a_row_per_config_and_a_row_per_present_type():
+LATENCY = {c: 12.0 for c in CONFIGS}
+
+
+def test_render_ranks_configs_best_first_and_has_a_row_per_present_type():
     records = [
         record("q1", ["p#1"]),
         record("q2", ["r#1", "r#4"], GoldenType.MULTI_HOP),
     ]
     rankings = {r.id: {c: list(r.expected_chunk_ids) for c in CONFIGS} for r in records}
-    table = render(records, rankings, [5, 20], n_papers=2, n_chunks=10, run_id="abc")
-    for label in CONFIGS.values():
-        assert f"| {label} | 100% | 100% | 1.00 | 100% | 100% |" in table
+    rankings["q1"]["bm25"] = ["x#1"]
+    table = render(records, rankings, LATENCY, 10, n_papers=2, n_chunks=10, run_id="abc")
+    assert "| Hybrid (RRF) | 100% | 1.00 | 1.00 | 100% | 12 ms |" in table
+    assert table.index("Hybrid (RRF) |") < table.index("Keyword (BM25) |")
     assert "| multi_hop | 1 |" in table
     assert "known_hard" not in table
     assert "common field words" not in table
     assert "model-checked" in table
+    assert "top 10 the agent reads" in table
 
 
 README = "intro\n<!-- retrieval-evals:start -->\nold\n<!-- retrieval-evals:end -->\noutro\n"
@@ -118,6 +135,7 @@ def test_fingerprint_moves_with_the_set_and_the_fusion_constant(tmp_path: Path):
     base = fingerprint(Settings(), golden, 100)
     assert fingerprint(Settings(), golden, 100) == base
     assert fingerprint(Settings(rrf_k=10), golden, 100) != base
+    assert fingerprint(Settings(search_top_k=5), golden, 100) != base
     assert fingerprint(Settings(), golden, 101) != base
     golden.write_text("b\n")
     assert fingerprint(Settings(), golden, 100) != base
@@ -126,5 +144,5 @@ def test_fingerprint_moves_with_the_set_and_the_fusion_constant(tmp_path: Path):
 def test_render_explains_the_mismatch_row():
     records = [record("q1", ["p#1"], GoldenType.VOCABULARY_MISMATCH)]
     rankings = {"q1": {c: ["p#1"] for c in CONFIGS}}
-    table = render(records, rankings, [5], n_papers=1, n_chunks=1, run_id="abc")
+    table = render(records, rankings, LATENCY, 5, n_papers=1, n_chunks=1, run_id="abc")
     assert "only on common field words" in table

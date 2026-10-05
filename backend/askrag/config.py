@@ -286,12 +286,10 @@ class Settings(BaseSettings):
 
     # --- retrieval (D8; defaults until measured) --------------------------
     rrf_k: int = 60
+    # Also the retrieval evals' cutoff (#18): they score the k the agent
+    # reads, since recall past it describes passages the agent never sees.
     search_top_k: int = 10
     rerank_enabled: bool = False  # ships only if evals justify it (D8)
-    # Retrieval evals (#18): recall is reported at each of these cutoffs, and
-    # every leg retrieves to the largest, so hybrid fuses what a search with
-    # k = max(eval_recall_ks) would fuse.
-    eval_recall_ks: tuple[int, ...] = (5, 20)
 
     # --- tools (§5) ----------------------------------------------------------
     # search_corpus clamps a model-supplied k to this ceiling — a pathological
