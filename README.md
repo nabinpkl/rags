@@ -26,27 +26,27 @@ each question's expected chunks in the top k; paper recall counts any chunk of
 the expected paper.
 
 <!-- retrieval-evals:start -->
-102 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks. Run `b4779b8e72ac`.
+102 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks, scored at the top 10 the agent reads. Run `f0a35e4c5ab3`.
 
-| Retrieval | Recall@5 | Recall@20 | MRR | Paper recall@5 | Paper recall@20 |
+| Retrieval | Recall@10 | nDCG@10 | MRR | Paper recall@10 | p50 latency |
 |---|---|---|---|---|---|
-| Keyword (BM25) | 64% | 84% | 0.49 | 90% | 98% |
-| Semantic (vector) | 63% | 79% | 0.45 | 84% | 91% |
-| Hybrid (RRF) | 71% | 91% | 0.56 | 96% | 98% |
+| Hybrid (RRF) | 80% | 0.59 | 0.53 | 94% | 231 ms |
+| Keyword (BM25) | 79% | 0.55 | 0.49 | 95% | 94 ms |
+| Semantic (vector) | 73% | 0.51 | 0.45 | 86% | 130 ms |
 
-Recall@5 by question type:
+Recall@10 by question type:
 
-| Question type | n | Keyword (BM25) | Semantic (vector) | Hybrid (RRF) |
+| Question type | n | Hybrid (RRF) | Keyword (BM25) | Semantic (vector) |
 |---|---|---|---|---|
-| single_hop | 28 | 82% | 82% | 82% |
-| exact_match | 12 | 83% | 58% | 92% |
-| multi_hop | 10 | 25% | 40% | 40% |
-| known_hard | 23 | 70% | 65% | 70% |
-| vocabulary_mismatch | 29 | 48% | 52% | 62% |
+| single_hop | 28 | 100% | 96% | 93% |
+| exact_match | 12 | 92% | 100% | 67% |
+| multi_hop | 10 | 55% | 45% | 60% |
+| known_hard | 23 | 83% | 78% | 70% |
+| vocabulary_mismatch | 29 | 62% | 66% | 62% |
 
-vocabulary_mismatch questions may not use any word of their passage that appears in 500 or fewer chunks, so keyword search can match them only on common field words; the row shows what semantic search recovers.
+vocabulary_mismatch questions may not use any word of their passage that appears in 500 or fewer chunks, so keyword search can match them only on common field words.
 
-One question is 1.0 points at this size, so gaps under about 5 points are noise.
+One question is 1.0 points at this size, so gaps under about 5 points are noise. Latency is the median per question on the build host; the semantic leg includes the embedding API call.
 <!-- retrieval-evals:end -->
 
 `backend/` and `frontend/` land per the spec's milestones; this README grows

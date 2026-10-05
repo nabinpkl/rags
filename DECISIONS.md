@@ -2663,3 +2663,26 @@ when the asker lacks the paper's words" to "neither wins alone; fusion does".
 from the paper, or any type falls under ten counted questions.
 
 **Spec updated:** yes, D14 amendment (2026-10-04).
+
+## 2026-10-05 — retrieval evals score the top 10 the agent reads (owner directive)
+
+**Context:** the benchmark reported recall@5 and @20 over a fusion of each
+leg's top 20, but the agent reads the top `search_top_k` (10) fused from each
+leg's top 10, so no reported number described what ships. Practice for RAG
+retrieval benchmarks is recall at the k the application uses, with nDCG@10 as
+the ranking metric BEIR and MTEB report.
+
+**Decision:** one cutoff, k = `search_top_k`, for depth and every metric;
+nDCG@k and median latency added; `eval_recall_ks` deleted; README rows ranked
+by recall@k. The benchmarks page leads with that ranked table and 95%
+bootstrap intervals, puts recall per query type beside it, and folds
+examples, every query's ranks and the method into closed disclosures.
+
+**Consequence:** recall@10 hybrid 80% (72-87%), BM25 79%, vector 73%; the
+intervals overlap, which the page states instead of a headline sentence.
+
+**Revisit when:** `search_top_k` changes (rerun at the new k), or the set grows
+enough that the intervals separate.
+
+**Spec updated:** yes, D14 amendment (2026-10-05).
+

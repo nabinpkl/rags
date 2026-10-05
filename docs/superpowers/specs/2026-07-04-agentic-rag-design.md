@@ -825,6 +825,22 @@ fusion is what earns its place.
 **Revisit when (2026-10-04).** A spot check finds counted queries that still
 read as written from the paper, or a type falls under ten counted questions.
 
+**Amendment (2026-10-05, owner directive): scored at the depth the agent
+reads.** Retrieval evals scored recall@5 and @20 and fused each leg's top 20,
+while the agent reads `search_top_k` (10) from a fusion of each leg's top 10:
+the numbers described a configuration that does not ship. The runner now
+scores at k = `search_top_k` only, retrieves each leg to that depth, and
+reports recall@k, nDCG@k (binary relevance, as BEIR and MTEB report
+retrieval), MRR within k, paper recall@k and median per-query latency;
+`eval_recall_ks` is deleted. The README lists configurations ranked by
+recall@k.
+
+Measured (run `f0a35e4c5ab3`, 102 queries): recall@10 hybrid 80%, BM25 79%,
+vector 73%; nDCG@10 0.59, 0.55, 0.51; median latency 218, 93 and 118 ms. The
+95% bootstrap intervals on recall overlap for all three (hybrid 72-87%), so the
+set ranks them but cannot separate them; growing it is the D14 revisit
+trigger, not a reason to report the gaps as findings.
+
 ---
 
 ### D15. Operational telemetry: OpenTelemetry, JSON-first, built in from the start
