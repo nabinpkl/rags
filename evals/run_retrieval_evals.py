@@ -49,6 +49,7 @@ from askrag.retrieval.vector_store import VectorStore
 
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, GoldenType, load_golden
 from evals.rewrite_queries import REWRITES_PATH, load_rewrites
+from evals.run_store import Retrieved, append_run, load_run, run_path
 
 README_PATH = Path(__file__).parent.parent / "README.md"
 _MARKER_START = "<!-- retrieval-evals:start -->"
@@ -129,16 +130,6 @@ def score(
         mrr=mean(lambda r: reciprocal_rank(ranked[r.id], r.expected_chunk_ids, k)),
         paper_recall=mean(lambda r: paper_recall_at(ranked[r.id], r.expected_paper_id, k)),
     )
-
-
-@dataclass(frozen=True)
-class Retrieved:
-    """One question's rankings at k and at the pool depth, and the seconds
-    each config took at k."""
-
-    rankings: dict[str, list[str]]
-    pools: dict[str, list[str]]
-    seconds: dict[str, float]
 
 
 def make_retriever(
@@ -321,22 +312,27 @@ def main(argv: list[str] | None = None) -> int:
     try:
         n_chunks = conn.execute("SELECT count(*) FROM chunks").fetchone()[0]
         n_papers = conn.execute("SELECT count(DISTINCT paper_id) FROM chunks").fetchone()[0]
-        retrieve = make_retriever(settings, conn, k, pool_k)
-        rankings: dict[str, dict[str, list[str]]] = {}
-        pools: dict[str, dict[str, list[str]]] = {}
-        seconds: dict[str, list[float]] = {c: [] for c in CONFIGS}
-        for i, r in enumerate(records, start=1):
+        run_id = fingerprint(settings, GOLDEN_PATH, n_chunks)
+        path = run_path(run_id)
+        done = load_run(path)
+        todo = [r for r in records if r.id not in done]
+        print(f"run {run_id}: {len(done)} questions on file, {len(todo)} to score", file=sys.stderr)
+        # Built only when there is work: it loads the reranker.
+        retrieve = make_retriever(settings, conn, k, pool_k) if todo else None
+        for i, r in enumerate(todo, start=1):
+            assert retrieve is not None
             got = retrieve(r.question, rewrites[r.id].rewrite)
-            rankings[r.id], pools[r.id] = got.rankings, got.pools
-            for c in CONFIGS:
-                seconds[c].append(got.seconds[c])
-            seconds["rewrite"][-1] += rewrites[r.id].seconds
-            print(f"\r{i}/{len(records)}", end="", file=sys.stderr, flush=True)
+            seconds_r = {**got.seconds, "rewrite": got.seconds["rewrite"] + rewrites[r.id].seconds}
+            done[r.id] = Retrieved(got.rankings, got.pools, seconds_r)
+            append_run(path, r.id, done[r.id])
+            print(f"\r{i}/{len(todo)}", end="", file=sys.stderr, flush=True)
         print(file=sys.stderr)
     finally:
         conn.close()
 
-    run_id = fingerprint(settings, GOLDEN_PATH, n_chunks)
+    rankings = {r.id: done[r.id].rankings for r in records}
+    pools = {r.id: done[r.id].pools for r in records}
+    seconds = {c: [done[r.id].seconds[c] for r in records] for c in CONFIGS}
     latency = {c: p50_ms(seconds[c]) for c in CONFIGS}
     table = render(
         records,
