@@ -75,8 +75,10 @@ rewrites *ARGS:
 # Retrieval evals (#18): keyword, semantic, hybrid, hybrid + rerank and
 # rewrite + hybrid over the golden set, at the top 10 and the top 50. Embeds
 # each question and its rewrite (a cent or so). The local reranker makes a run
-# take about 4.5 hours on the build host's CPU: run it detached (CLAUDE.md); `--write-readme` refreshes the
-# README's results block.
+# take about 4.5 hours on the build host's CPU: run it detached (CLAUDE.md).
+# Each question is saved to evals/runs/<run id>.jsonl as it is scored, so a
+# killed run resumes and a finished one re-renders in seconds.
+# `--write-readme` refreshes the README's results block.
 eval *ARGS:
     uv run --env-file backend/.env python -m evals.run_retrieval_evals {{ARGS}}
 
