@@ -104,8 +104,11 @@ def test_render_ranks_configs_best_first_and_has_a_row_per_present_type():
     ]
     rankings = {r.id: {c: list(r.expected_chunk_ids) for c in CONFIGS} for r in records}
     rankings["q1"]["bm25"] = ["x#1"]
-    table = render(records, rankings, LATENCY, 10, n_papers=2, n_chunks=10, run_id="abc")
-    assert "| Hybrid (RRF) | 100% | 1.00 | 1.00 | 100% | 12 ms |" in table
+    pools = {r.id: {c: ["x#1", *r.expected_chunk_ids] for c in CONFIGS} for r in records}
+    pools["q2"]["hybrid"] = ["r#1"]
+    table = render(records, rankings, pools, LATENCY, 10, 50, n_papers=2, n_chunks=10, run_id="abc")
+    assert "| Hybrid (RRF) | 100% | 1.00 | 1.00 | 100% | 75% | 12 ms |" in table
+    assert "| Rewrite + hybrid | 100% |" in table
     assert table.index("Hybrid (RRF) |") < table.index("Keyword (BM25) |")
     assert "| multi_hop | 1 |" in table
     assert "known_hard" not in table
@@ -130,20 +133,31 @@ def test_splice_fails_without_markers():
         splice_readme("no markers here", "t\n")
 
 
-def test_fingerprint_moves_with_the_set_and_the_fusion_constant(tmp_path: Path):
-    golden = tmp_path / "golden.jsonl"
+def test_fingerprint_moves_with_the_set_its_rewrites_and_the_constants(tmp_path: Path):
+    golden, rewrites = tmp_path / "golden.jsonl", tmp_path / "rewrites.jsonl"
     golden.write_text("a\n")
-    base = fingerprint(Settings(), golden, 100)
-    assert fingerprint(Settings(), golden, 100) == base
-    assert fingerprint(Settings(rrf_k=10), golden, 100) != base
-    assert fingerprint(Settings(search_top_k=5), golden, 100) != base
-    assert fingerprint(Settings(), golden, 101) != base
+    rewrites.write_text("a\n")
+
+    def fp(settings: Settings, n_chunks: int = 100) -> str:
+        return fingerprint(settings, golden, n_chunks, rewrites)
+
+    base = fp(Settings())
+    assert fp(Settings()) == base
+    assert fp(Settings(rrf_k=10)) != base
+    assert fp(Settings(search_top_k=5)) != base
+    assert fp(Settings(eval_pool_k=20)) != base
+    assert fp(Settings(), 101) != base
+    rewrites.write_text("b\n")
+    assert fp(Settings()) != base
+    rewrites.write_text("a\n")
     golden.write_text("b\n")
-    assert fingerprint(Settings(), golden, 100) != base
+    assert fp(Settings()) != base
 
 
 def test_render_explains_the_mismatch_row():
     records = [record("q1", ["p#1"], GoldenType.VOCABULARY_MISMATCH)]
     rankings = {"q1": {c: ["p#1"] for c in CONFIGS}}
-    table = render(records, rankings, LATENCY, 5, n_papers=1, n_chunks=1, run_id="abc")
+    table = render(
+        records, rankings, rankings, LATENCY, 5, 50, n_papers=1, n_chunks=1, run_id="abc"
+    )
     assert "only on common field words" in table

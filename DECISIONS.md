@@ -2731,3 +2731,23 @@ type's brief is the next suspect.
 **Revisit when:** the next full redraft, or multi-hop stays under ten counted.
 
 **Spec updated:** yes, D14 amendment (2026-10-05).
+
+## 2026-10-05 — the eval measures the reranking ceiling and one query rewrite (owner directive)
+
+**Context:** the next question is which primitive does the agent's work:
+reordering what search already found (a reranker) or changing the query
+(rewriting). Neither had a number.
+
+**Decision:** every row reports recall@50 beside recall@10, and a fourth row
+scores hybrid over one rewrite of each question by `smoke_model`, generated
+by `just rewrites` into a committed file and refused when stale.
+
+**Consequence:** run `b9a4726765fe`: hybrid recall@10 79%, recall@50 93%
+(a 14-point ceiling for any reranker of the top 50); rewrite + hybrid 65%,
+3 questions helped and 18 hurt. A reranker remains worth measuring; replacing
+the query with one rewrite is not.
+
+**Revisit when:** a reranker is built (score it against the 93% ceiling), or
+the rewrite is fused with the original query instead of replacing it.
+
+**Spec updated:** yes, D14 amendment and a D8 note (2026-10-05).
