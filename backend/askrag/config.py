@@ -35,13 +35,17 @@ class Settings(BaseSettings):
     agent_usd_per_mtok_cache_read: float = 0.10
     # --- eval harness model ids (D14 amendment; issue #79 prefactor) -------
     # Golden set (D14 amendment 2026-09-30): no human pass, so the drafter and
-    # the checker are different FAMILIES (Z.ai, Meta) — the checker is the only
-    # thing standing between a model and its own questions. OpenRouter slugs,
-    # called through OpenRouter's Anthropic-compatible endpoint; both pass the
-    # account's OpenRouter guardrail, which blocks the Anthropic, Google and
-    # OpenAI slugs (probed 2026-09-30). Both are reasoning models: their
-    # max_tokens must leave room for thinking or the reply comes back empty.
-    golden_draft_model: str = "z-ai/glm-5.3-flash"
+    # the checker are different models, and neither is `smoke_model`, the
+    # agent the set measures — the checker is the only thing standing between
+    # a model and its own questions. OpenRouter slugs, called through
+    # OpenRouter's Anthropic-compatible endpoint; all three are on the
+    # account's guardrail allowlist (probed 2026-10-05). The drafter is a
+    # stealth model, free and temporary: fine for a one-off whose output is
+    # committed. openai/gpt-oss-120b drafted a full set at 54 counted of 197
+    # (2026-10-05), paraphrasing spans and asking about paper internals. Both
+    # are reasoning models: max_tokens must leave room for thinking or the
+    # reply is empty.
+    golden_draft_model: str = "stealth/space-bunny-alpha"
     golden_check_model: str = "meta/muse-spark-1.3-contributor"
     golden_api_base_url: str = "https://openrouter.ai/api"
     # Candidates drafted per GoldenType. More are drafted than kept: the checks
@@ -118,10 +122,11 @@ class Settings(BaseSettings):
     )
     # Smoke-only model, routed through OpenRouter when agent_api_base_url is
     # set. Prod agent stays `agent_model` (Haiku, D3) regardless.
-    # Version-pinned (not the floating `deepseek-v4-flash` alias): a smoke
-    # model that silently changes under us turns "the loop still works" into
-    # an unrepeatable observation.
-    smoke_model: str = "deepseek/deepseek-v4-flash-0731"
+    # Version-pinned (not a floating `-latest` alias): a smoke model that
+    # silently changes under us turns "the loop still works" into an
+    # unrepeatable observation. DeepSeek V4 Flash until the account's
+    # guardrail dropped it (2026-10-05).
+    smoke_model: str = "xiaomi/mimo-v2.6-flash"
 
     # --- ingest: extraction (D6) -------------------------------------------
     extract_workers: int = 8  # process pool size; extraction is CPU-bound C
