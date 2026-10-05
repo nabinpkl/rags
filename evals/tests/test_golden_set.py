@@ -20,10 +20,12 @@ PASSING = dict(
     passage_verbatim=True,
     passage_within_cap=True,
     lexical_rule=True,
+    question_within_cap=True,
     grounded=True,
     substantive=True,
     answer_correct=True,
     closed_book_correct=False,
+    natural=True,
     check_model="checker",
 )
 
@@ -53,11 +55,13 @@ def test_a_record_passing_every_check_counts():
         {"passage_verbatim": False},
         {"passage_within_cap": False},
         {"lexical_rule": False},
+        {"question_within_cap": False},
         {"grounded": False},
         {"substantive": False},
         {"answer_correct": False},
         # answerable closed-book: it would test the model, not retrieval
         {"closed_book_correct": True},
+        {"natural": False},
     ],
 )
 def test_any_failed_check_culls(failed):

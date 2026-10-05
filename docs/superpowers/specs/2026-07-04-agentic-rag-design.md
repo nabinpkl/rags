@@ -804,6 +804,27 @@ until those go would buy a lower BM25 number with questions nobody types.
 the vector leg's (the type stops separating them), or a spot check finds more
 than two in ten counted questions unnatural.
 
+**Amendment (2026-10-04, owner directive): questions are search queries.** The
+set's questions averaged 35 words of scene-setting ("In the paper's transfer
+learning setup, which optimizer...") that no one types into a paper search.
+Every question is now at most `golden_question_max_words` (12) words, checked
+deterministically, and the checker's `natural` verdict is asked of every type,
+not only `vocabulary_mismatch`: false for a query that reads as written from the
+paper (table numbers, "the authors", context only the paper supplies). Table
+questions ask for the trend or comparison a table shows, not a cell. Short
+table and two-passage queries cull hard (1 of 15 and 4 of 15 survived), so
+their quotas rose to 45 and 35.
+
+Measured (run `b4779b8e72ac`, 102 counted of 213, mean 9.6 words): recall@5 is
+BM25 64%, vector 63%, hybrid 71%; on `vocabulary_mismatch` 48%, 52%, 62%. The
+first amendment's 36%-vs-73% gap on that type came largely from question
+length: a 35-word question carries enough paraphrase for the vector leg and
+too many common words for BM25. On realistic queries neither leg wins alone and
+fusion is what earns its place.
+
+**Revisit when (2026-10-04).** A spot check finds counted queries that still
+read as written from the paper, or a type falls under ten counted questions.
+
 ---
 
 ### D15. Operational telemetry: OpenTelemetry, JSON-first, built in from the start

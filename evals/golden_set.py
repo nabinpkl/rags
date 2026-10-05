@@ -45,13 +45,14 @@ class GoldenChecks(BaseModel):
     passage_verbatim: bool  # expected_passage sits inside its chunk
     passage_within_cap: bool  # at most quote_max_words (§6c)
     lexical_rule: bool  # exact_match names its anchor; others avoid rare terms
+    question_within_cap: bool  # at most golden_question_max_words
     grounded: bool  # checker: the passage alone answers the question
     substantive: bool  # checker: technical content, not venue/author trivia
     answer_correct: bool  # checker: the drafted answer is right by the passage
     closed_book_correct: bool  # checker answered it WITHOUT the passage
-    # checker: a person would really type this, not a contrived rewording of a
-    # term they would know. Asked of vocabulary_mismatch only; None elsewhere.
-    natural: bool | None = None
+    # checker: a researcher would really type this into a paper search, not a
+    # prompt written from the paper or a contrived rewording of a known term
+    natural: bool
     check_model: str
     note: str = ""
 
@@ -83,11 +84,12 @@ class GoldenRecord(BaseModel):
             c.passage_verbatim
             and c.passage_within_cap
             and c.lexical_rule
+            and c.question_within_cap
             and c.grounded
             and c.substantive
             and c.answer_correct
             and not c.closed_book_correct
-            and c.natural is not False
+            and c.natural
         )
 
 
