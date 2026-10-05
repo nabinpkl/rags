@@ -44,7 +44,7 @@ from askrag.config import Settings, get_settings
 from askrag.retrieval import fts
 from askrag.retrieval.embeddings import QueryEmbedder
 from askrag.retrieval.hybrid_search import rrf_fuse
-from askrag.retrieval.rerank import Reranker
+from askrag.retrieval.rerank import Reranked, Reranker
 from askrag.retrieval.vector_store import VectorStore
 
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, GoldenType, load_golden
@@ -150,13 +150,13 @@ def make_retriever(
         )
         return [(c, rows[c]) for c in chunk_ids]
 
-    def hybrid(
-        query: str, *, rerank: bool = True
-    ) -> tuple[dict[str, list[str]], dict[str, list[str]], dict[str, float]]:
+    def hybrid(query: str, *, rerank: bool = True) -> Retrieved:
         t0 = time.perf_counter()
         bm25 = fts.search_bm25(conn, query, k)
         t1 = time.perf_counter()
-        embedding = embedder.embed_query(query)
+        embedding, embed_usd = embedder.embed_query_priced(query)
+        if embed_usd is None:
+            raise RuntimeError("the embedding reply carried no cost")
         vector = store.query(embedding, k)
         t2 = time.perf_counter()
         fused = rrf_fuse({"bm25": bm25, "vector": vector}, settings.rrf_k)
@@ -166,21 +166,31 @@ def make_retriever(
         vector_pool = store.query(embedder.embed_query(query), pool_k)
         fused_pool = rrf_fuse({"bm25": bm25_pool, "vector": vector_pool}, settings.rrf_k)
         top_pool = sorted(fused_pool, key=lambda c: fused_pool[c][0], reverse=True)[:pool_k]
-        reranked = reranker.rerank(query, texts(top_pool), pool_k) if rerank else []
+        reranked = reranker.rerank(query, texts(top_pool), pool_k) if rerank else Reranked([], 0.0)
         t5 = time.perf_counter()
-        return (
-            {"bm25": bm25, "vector": vector, "hybrid": top, "rerank": reranked[:k]},
-            {"bm25": bm25_pool, "vector": vector_pool, "hybrid": top_pool, "rerank": reranked},
-            {"bm25": t1 - t0, "vector": t2 - t1, "hybrid": t3 - t0, "rerank": t5 - t3},
+        ranked = reranked.chunk_ids
+        # One embedding per query, as the live path reuses it; the pool's
+        # second embedding call above exists only to time the pool honestly.
+        return Retrieved(
+            rankings={"bm25": bm25, "vector": vector, "hybrid": top, "rerank": ranked[:k]},
+            pools={"bm25": bm25_pool, "vector": vector_pool, "hybrid": top_pool, "rerank": ranked},
+            seconds={"bm25": t1 - t0, "vector": t2 - t1, "hybrid": t3 - t0, "rerank": t5 - t3},
+            usd={
+                "bm25": 0.0,
+                "vector": embed_usd,
+                "hybrid": embed_usd,
+                "rerank": embed_usd + reranked.usd,
+            },
         )
 
     def retrieve(question: str, rewrite: str) -> Retrieved:
-        rankings, pools, seconds = hybrid(question)
-        rw_rankings, rw_pools, rw_seconds = hybrid(rewrite, rerank=False)
+        got = hybrid(question)
+        rw = hybrid(rewrite, rerank=False)
         return Retrieved(
-            rankings={**rankings, "rewrite": rw_rankings["hybrid"]},
-            pools={**pools, "rewrite": rw_pools["hybrid"]},
-            seconds={**seconds, "rewrite": rw_seconds["hybrid"]},
+            rankings={**got.rankings, "rewrite": rw.rankings["hybrid"]},
+            pools={**got.pools, "rewrite": rw.pools["hybrid"]},
+            seconds={**got.seconds, "rewrite": rw.seconds["hybrid"]},
+            usd={**got.usd, "rewrite": rw.usd["hybrid"]},
         )
 
     return retrieve
@@ -209,12 +219,25 @@ def fingerprint(
         "rrf_k": settings.rrf_k,
         "k": settings.search_top_k,
         "pool_k": settings.eval_pool_k,
-        "rerank": settings.rerank_model,
-        "rerank_revision": settings.rerank_model_revision,
-        "rerank_max_tokens": settings.rerank_max_tokens,
+        "rerank_backend": settings.rerank_backend,
+        "rerank": (
+            settings.rerank_openrouter_model
+            if settings.rerank_backend == "openrouter"
+            else [settings.rerank_model, settings.rerank_model_revision, settings.rerank_max_tokens]
+        ),
     }
     blob = json.dumps(inputs, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:12]
+
+
+def _usd(value: float) -> str:
+    """Dollars, two significant figures in plain decimals; anything under a
+    millionth (a query embedding is about $0.00000004) reads as that bound."""
+    if value == 0:
+        return "$0"
+    if value < 1e-6:
+        return "<$0.000001"
+    return f"${value:.6f}".rstrip("0")
 
 
 def _pct(value: float) -> str:
@@ -226,6 +249,7 @@ def render(
     rankings: dict[str, dict[str, list[str]]],
     pools: dict[str, dict[str, list[str]]],
     latency_ms: dict[str, float],
+    cost_usd: dict[str, float],
     k: int,
     pool_k: int,
     *,
@@ -244,14 +268,15 @@ def render(
         f" top {k} the agent reads. Run `{run_id}`.",
         "",
         f"| Retrieval | Recall@{k} | nDCG@{k} | MRR | Paper recall@{k} | Recall@{pool_k}"
-        " | p50 latency |",
-        "|---|---|---|---|---|---|---|",
+        " | p50 latency | Cost / query |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for c in ranked:
         s = scores[c]
         lines.append(
             f"| {CONFIGS[c]} | {_pct(s.recall)} | {s.ndcg:.2f} | {s.mrr:.2f}"
-            f" | {_pct(s.paper_recall)} | {_pct(pool_recall[c])} | {latency_ms[c]:.0f} ms |"
+            f" | {_pct(s.paper_recall)} | {_pct(pool_recall[c])} | {latency_ms[c]:.0f} ms"
+            f" | {_usd(cost_usd[c])} |"
         )
 
     types = [t for t in GoldenType if any(r.type == t for r in records)]
@@ -283,7 +308,9 @@ def render(
         "",
         f"One question is {100 / len(records):.1f} points at this size, so gaps"
         " under about 5 points are noise. Latency is the median per question on"
-        " the build host; the semantic leg includes the embedding API call.",
+        " the build host; the semantic leg includes the embedding API call. Cost is"
+        " the mean per question that the providers billed: the embedding, the"
+        " rerank and the rewrite call.",
     ]
     return "\n".join(lines) + "\n"
 
@@ -322,8 +349,13 @@ def main(argv: list[str] | None = None) -> int:
         for i, r in enumerate(todo, start=1):
             assert retrieve is not None
             got = retrieve(r.question, rewrites[r.id].rewrite)
-            seconds_r = {**got.seconds, "rewrite": got.seconds["rewrite"] + rewrites[r.id].seconds}
-            done[r.id] = Retrieved(got.rankings, got.pools, seconds_r)
+            rw = rewrites[r.id]
+            done[r.id] = Retrieved(
+                got.rankings,
+                got.pools,
+                {**got.seconds, "rewrite": got.seconds["rewrite"] + rw.seconds},
+                {**got.usd, "rewrite": got.usd["rewrite"] + rw.usd},
+            )
             append_run(path, r.id, done[r.id])
             print(f"\r{i}/{len(todo)}", end="", file=sys.stderr, flush=True)
         print(file=sys.stderr)
@@ -334,11 +366,13 @@ def main(argv: list[str] | None = None) -> int:
     pools = {r.id: done[r.id].pools for r in records}
     seconds = {c: [done[r.id].seconds[c] for r in records] for c in CONFIGS}
     latency = {c: p50_ms(seconds[c]) for c in CONFIGS}
+    cost = {c: statistics.mean(done[r.id].usd[c] for r in records) for c in CONFIGS}
     table = render(
         records,
         rankings,
         pools,
         latency,
+        cost,
         k,
         pool_k,
         n_papers=n_papers,

@@ -304,9 +304,20 @@ class Settings(BaseSettings):
     # the top search_top_k. Recall here is the most any reordering can reach.
     eval_pool_k: int = 50
     rerank_enabled: bool = False  # ships only if evals justify it (D8)
-    # The cross-encoder the evals score (D8 amendment 2026-10-05): local,
-    # Apache-2.0, 149M parameters, CPU-sized for the build host. Pinned like
-    # the embedding model, so a model-card push cannot move the numbers.
+    # Where reranking runs (D8 amendment 2026-10-05). "openrouter": a hosted
+    # reranker through OpenRouter's /rerank, about 1 s and $0.0007 for 50
+    # passages. "local": the pinned cross-encoder below on this host's CPU,
+    # about 150 s for the same 50, so it is for comparison, not serving.
+    rerank_backend: Literal["local", "openrouter"] = "openrouter"
+    rerank_openrouter_model: str = "voyageai/rerank-3-lite"
+    rerank_request_timeout_seconds: float = 60.0
+    # A 429 or 5xx is retried with exponential backoff: the hosted reranker's
+    # upstream project is shared, and its tokens-per-minute limit tripped on
+    # the third eval question (2026-10-05). Past the last attempt it raises.
+    rerank_max_attempts: int = 6
+    rerank_backoff_base_seconds: float = 2.0
+    # The local cross-encoder: Apache-2.0, 149M parameters. Pinned like the
+    # embedding model, so a model-card push cannot move the numbers.
     rerank_model: str = "Alibaba-NLP/gte-reranker-modernbert-base"
     rerank_model_revision: str = "f7481e6055501a30fb19d090657df9ec1f79ab2c"
     # Query plus a whole chunk: chunks run to chunk_size_tokens (1,000), and

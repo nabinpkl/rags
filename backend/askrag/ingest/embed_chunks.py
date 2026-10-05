@@ -135,11 +135,14 @@ class ChunkText:
 class BatchEmbedding:
     """One embed call's result: vectors in input order + billed tokens.
 
-    Local backends bill nothing and report total_tokens=0.
+    Local backends bill nothing and report total_tokens=0. `usd` is the
+    provider's own billed figure where it reports one (OpenRouter's
+    `usage.cost`), 0 for local, None where the provider sends no price.
     """
 
     vectors: list[list[float]]
     total_tokens: int
+    usd: float | None = None
 
 
 @dataclass(frozen=True)
@@ -341,9 +344,11 @@ class OpenRouterEmbeddings:
         # `index` is authoritative for order: the contract is order-preserving
         # by index, not by position in the array.
         items = sorted(payload["data"], key=lambda item: item["index"])
+        cost = payload["usage"].get("cost")
         return BatchEmbedding(
             vectors=[item["embedding"] for item in items],
             total_tokens=payload["usage"]["prompt_tokens"],
+            usd=float(cost) if isinstance(cost, int | float) else None,
         )
 
 
@@ -414,7 +419,9 @@ class LocalEmbeddings:
             batch_size=self._encode_batch_size,
             normalize_embeddings=True,
         )
-        return BatchEmbedding(vectors=[list(map(float, v)) for v in vectors], total_tokens=0)
+        return BatchEmbedding(
+            vectors=[list(map(float, v)) for v in vectors], total_tokens=0, usd=0.0
+        )
 
 
 def make_backend(
@@ -556,6 +563,7 @@ def _embed_splitting(
         return BatchEmbedding(
             vectors=left.vectors + right.vectors,
             total_tokens=left.total_tokens + right.total_tokens,
+            usd=None if left.usd is None or right.usd is None else left.usd + right.usd,
         )
 
 
