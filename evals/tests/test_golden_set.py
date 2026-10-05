@@ -26,6 +26,7 @@ PASSING = dict(
     answer_correct=True,
     closed_book_correct=False,
     natural=True,
+    unambiguous=True,
     check_model="checker",
 )
 
@@ -62,6 +63,7 @@ def test_a_record_passing_every_check_counts():
         # answerable closed-book: it would test the model, not retrieval
         {"closed_book_correct": True},
         {"natural": False},
+        {"unambiguous": False},
     ],
 )
 def test_any_failed_check_culls(failed):

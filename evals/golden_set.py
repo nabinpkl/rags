@@ -53,6 +53,9 @@ class GoldenChecks(BaseModel):
     # checker: a researcher would really type this into a paper search, not a
     # prompt written from the paper or a contrived rewording of a known term
     natural: bool
+    # checker: the expected answer is not wrong for the query as typed, as it
+    # is when it holds only for a special case the query leaves unnamed
+    unambiguous: bool
     check_model: str
     note: str = ""
 
@@ -90,6 +93,7 @@ class GoldenRecord(BaseModel):
             and c.answer_correct
             and not c.closed_book_correct
             and c.natural
+            and c.unambiguous
         )
 
 

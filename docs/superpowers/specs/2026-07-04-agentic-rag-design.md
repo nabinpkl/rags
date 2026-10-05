@@ -744,7 +744,8 @@ and a record counts on the checks alone. `verified` leaves the record shape;
 each record carries its `checks` instead. Issue #17's human pass and the
 judge-vs-human agreement slice above are both dropped.
 
-- **Drafter / checker.** GLM 5.3 Flash (Z.ai) drafts (`golden_draft_model`);
+- **Drafter / checker.** GLM 5.3 Flash (Z.ai) drafts (`golden_draft_model`;
+  replaced 2026-10-05, see that amendment);
   Muse Spark 1.3 contributor (Meta) checks (`golden_check_model`), both through
   OpenRouter, chosen by the owner: the account's guardrail blocks the
   Anthropic, Google and OpenAI slugs, and these two cost cents. A different
@@ -840,6 +841,35 @@ vector 73%; nDCG@10 0.59, 0.55, 0.51; median latency 218, 93 and 118 ms. The
 95% bootstrap intervals on recall overlap for all three (hybrid 72-87%), so the
 set ranks them but cannot separate them; growing it is the D14 revisit
 trigger, not a reason to report the gaps as findings.
+
+**Amendment (2026-10-05, owner directive): an ambiguity check, related
+multi-hop pairs, and a new drafter.** A dry run of the agent against the set
+found a counted question whose expected answer is wrong as typed: "how many
+positive literals must a CNF clause contain", answered "one", which holds only
+for Horn clauses. Short queries invite this.
+
+- **Ambiguity check.** The checker also rules on `unambiguous`: false only when
+  the expected answer would be wrong for the query as typed, because it holds
+  for a special case the query does not name. A query answered by one paper's
+  specific result stays in; an earlier wording that also culled those removed
+  187 of 209. The committed set keeps its GLM-drafted questions and had this
+  one verdict backfilled (one checker call per record, same wording), which
+  culled 9 of 102; a record the checker never answered is culled, not passed.
+  The set counts 93.
+- **Related multi-hop pairs.** A pair is two body chunks of one paper (no
+  abstract, introduction, conclusion or related work, which restate the whole
+  paper) in different sections, sharing at least
+  `golden_multi_hop_min_shared_terms` (3) rare terms. Random pairs gave
+  unrelated facts that only a two-part question joins.
+- **Drafter.** The account's guardrail dropped GLM 5.3 Flash. A full redraft
+  counted 54 with gpt-oss-120b (paraphrased spans, questions about paper
+  internals) and 83 with Space Bunny Alpha (stealth, free), against the GLM
+  set's 93 after backfill; Space Bunny is the drafter for the next redraft.
+  The drafter, the checker and the agent (`smoke_model`) are three different
+  models, so no model writes or grades the test it takes.
+- **Checkpointed redrafts.** Each checked record is appended to a progress
+  file under a signature of models, prompts and caps; a killed run resumes,
+  and a run with failed drafts keeps the file so a rerun retries only those.
 
 ---
 

@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     # "robot", "attack") stay usable, so the question reads like a person's,
     # while every word that would let BM25 single the chunk out is barred.
     golden_mismatch_max_shared_df: int = 500
+    # A multi_hop pair shares at least this many rare terms (df at most
+    # golden_rare_term_max_df): the same method, model or dataset named in two
+    # sections, so one natural query can need both. Random same-paper pairs
+    # gave unrelated facts that only a stapled two-part question joins, and
+    # the checker culled 16 of 21 as unnatural (2026-10-05).
+    golden_multi_hop_min_shared_terms: int = 3
     # A golden question is what a researcher types into a paper search, not a
     # prompt: the first set averaged 35 words of scene-setting no searcher
     # writes (owner directive 2026-10-04). Longer drafts are culled.
