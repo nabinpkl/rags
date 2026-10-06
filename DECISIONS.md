@@ -2806,7 +2806,7 @@ was approved for the app. Its numbers come from a committed eval run file;
 they change only when someone reruns `just eval` and commits. The API image
 ships `backend/` only, not `evals/` or its run files.
 
-**Decision:** `evals/export_benchmarks.py` (`just bench-data`) builds the
+**Decision:** `evals/publish_results.py` (`just eval-publish`) builds the
 page's data from the committed run file, the golden set and `corpus.db`
 (titles and section names) and writes `frontend/lib/benchmarks/retrieval.json`,
 which `/benchmarks` imports at build time. The local-reranker row comes from
@@ -2819,7 +2819,12 @@ on commit).
 
 **Consequence:** the page works with the API down and costs nothing per view;
 the README table and the page both derive from the same run file. A new
-eval run needs `just bench-data` and a frontend rebuild to appear.
+eval run needs `just eval-publish` and a frontend rebuild to appear.
+
+**Amendment (same day):** `just eval` no longer writes the README; it
+scores and prints. `just eval-publish` writes both the README block and the
+page's JSON from the run file alone, so publishing never re-runs retrieval
+and the two outputs always come from the same run.
 
 **Revisit when:** results need to update without a commit (scheduled evals),
 or the local-reranker row is rerun with the run store, which removes the

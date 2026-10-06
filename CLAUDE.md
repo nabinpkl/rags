@@ -108,10 +108,11 @@ work is broken into GitHub issues.
   `just rewrites` writes one agent-model rewrite per question
   (`evals/rewrites.jsonl`); `just eval` scores BM25, vector, hybrid,
   hybrid + rerank and rewrite + hybrid on it at the top 10 and top 50
-  (`--write-readme` refreshes the README table; about 3 min and $0.06 with
-  the hosted reranker, hours with `rerank_backend=local`, so run that one
-  detached); `just bench-data` exports the committed run to
-  `frontend/lib/benchmarks/retrieval.json` for `/benchmarks`. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
+  (about 3 min and $0.06 with the hosted reranker, hours with
+  `rerank_backend=local`, so run that one detached); `just eval-publish`
+  writes the finished run to the README table and to
+  `frontend/lib/benchmarks/retrieval.json` for `/benchmarks`, without
+  re-running anything. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
   `POST /api/chat`). Frontend (after #26): `pnpm build`, also run by the gate
   (#52 — `tsc` is not `next build` in export mode). After ANY route or
@@ -131,7 +132,7 @@ work is broken into GitHub issues.
   2026-09-16), the citation counts at `/citations`, arXiv's category
   census at `/trends`, the RAG demo at `/demo`
   (indexed papers, reader, agent), and the retrieval eval at `/benchmarks`
-  (static, from `just bench-data`).
+  (static, from `just eval-publish`).
 - Deploy (#81): `just deploy` (compose up; ingress on loopback), `just
   deploy-tailnet` (publish via the host's tailscaled), plus `deploy-logs`,
   `deploy-down`, `deploy-reseed`. Runbook: `deploy/README.md`.

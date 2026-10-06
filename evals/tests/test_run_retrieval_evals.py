@@ -1,4 +1,4 @@
-"""The retrieval eval's metrics, table and README splice (#18). Rankings are
+"""The retrieval eval's metrics and table (#18). Rankings are
 handed in, so nothing here touches the index or the embedding API."""
 
 import math
@@ -18,7 +18,6 @@ from evals.run_retrieval_evals import (
     reciprocal_rank,
     render,
     score,
-    splice_readme,
 )
 
 CHECKS = GoldenChecks(
@@ -121,22 +120,6 @@ def test_render_ranks_configs_best_first_and_has_a_row_per_present_type():
     assert "common field words" not in table
     assert "model-checked" in table
     assert "top 10 the agent reads" in table
-
-
-README = "intro\n<!-- retrieval-evals:start -->\nold\n<!-- retrieval-evals:end -->\noutro\n"
-
-
-def test_splice_replaces_only_the_marked_block():
-    out = splice_readme(README, "new table\n")
-    assert out == (
-        "intro\n<!-- retrieval-evals:start -->\nnew table\n<!-- retrieval-evals:end -->\noutro\n"
-    )
-    assert splice_readme(out, "new table\n") == out
-
-
-def test_splice_fails_without_markers():
-    with pytest.raises(ValueError):
-        splice_readme("no markers here", "t\n")
 
 
 def test_fingerprint_moves_with_the_set_its_rewrites_and_the_constants(tmp_path: Path):

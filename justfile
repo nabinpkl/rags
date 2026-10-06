@@ -75,19 +75,18 @@ rewrites *ARGS:
 # Retrieval evals (#18): keyword, semantic, hybrid, hybrid + rerank and
 # rewrite + hybrid over the golden set, at the top 10 and the top 50. With the
 # default hosted reranker a run takes about 3 minutes and $0.06; with
-# rerank_backend=local it takes about 4.5 hours on this CPU, so run that
+# rerank_backend=local it takes about 4.5 hours on a 4-core Arm server, so run that
 # detached (CLAUDE.md). Each question is saved to evals/runs/<run id>.jsonl
 # as it is scored, so a killed run resumes and a finished one re-renders in
-# seconds.
-# `--write-readme` refreshes the README's results block.
+# seconds. Prints the table; it never writes the README.
 eval *ARGS:
     uv run --env-file backend/.env python -m evals.run_retrieval_evals {{ARGS}}
 
-# The /benchmarks page's data (DECISIONS.md 2026-10-06): rewrites
-# frontend/lib/benchmarks/retrieval.json from the committed run file. No
-# retrieval and no model calls; run after `just eval` and commit both.
-bench-data:
-    uv run --env-file backend/.env python -m evals.export_benchmarks
+# Publish the finished run (DECISIONS.md 2026-10-06): the README's results
+# block and frontend/lib/benchmarks/retrieval.json for /benchmarks, from the
+# run file alone. No retrieval and no model calls; commit both outputs.
+eval-publish:
+    uv run --env-file backend/.env python -m evals.publish_results
 
 # Frontend gate: lint + typecheck + tests + generated-types drift + the export.
 # CI installs deps first (see ci.yml); locally, run `pnpm install` in frontend/ once.

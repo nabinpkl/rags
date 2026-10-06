@@ -9,7 +9,7 @@ import { BENCHMARK } from "@/lib/benchmarks/retrieval-benchmark";
 
 /** How well each retrieval method finds the passage that answers a question.
  * A STATIC route that reads no API (§4c decision 2 amendment 2026-10-06):
- * the data is the committed eval run, exported by `just bench-data`. */
+ * the data is the committed eval run, published by `just eval-publish`. */
 export default function BenchmarksPage() {
   const data = BENCHMARK;
   const updated = new Date(`${data.exported}T00:00:00`).toLocaleDateString("en-GB", {
