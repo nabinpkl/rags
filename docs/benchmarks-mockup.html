@@ -234,7 +234,7 @@
               <th scope="col" class="r"><abbr title="Mean reciprocal rank: 1 / rank of the first expected passage, 1.00 is always first">MRR</abbr></th>
               <th scope="col" class="r" id="h-paper"></th>
               <th scope="col" class="r" id="h-pool"></th>
-              <th scope="col" class="r"><abbr title="Median time per query on the build host; semantic includes the embedding API call, hybrid runs both searches, rerank includes the reranker call, rewrite includes the model call">Latency</abbr></th>
+              <th scope="col" class="r"><abbr title="Median time per query on a 4-core Arm server (Neoverse N1, no GPU); semantic includes the embedding API call, hybrid runs both searches, rerank includes the reranker call, rewrite includes the model call">Latency</abbr></th>
               <th scope="col" class="r"><abbr title="Mean per query, as billed by the providers: the embedding, the rerank and the rewrite call">Cost</abbr></th>
             </tr></thead>
             <tbody id="board"></tbody>
@@ -300,7 +300,7 @@ const DATA = {"k": 10, "pool_k": 50, "rerank_model": "voyageai/rerank-3-lite", "
 
 const METHODS = {
   rerank: ["Hybrid + rerank", "Voyage rerank-3-lite, top 50"],
-  rerank_local: ["Hybrid + local rerank", "gte-modernbert, this CPU"],
+  rerank_local: ["Hybrid + local rerank", "gte-modernbert, 4-core Arm CPU"],
   hybrid: ["Hybrid", "keyword + semantic, RRF"],
   bm25: ["Keyword", "BM25"],
   vector: ["Semantic", "pplx-embed, 512 dims"],
@@ -459,10 +459,10 @@ document.getElementById("run").innerHTML = [
   ["Keyword", "SQLite FTS5 BM25, porter stemming, terms OR-joined"],
   ["Semantic", `<span class="id">perplexity/pplx-embed-v1-0.6b</span>, 512 dims, cosine, Chroma HNSW`],
   ["Hybrid", `reciprocal rank fusion, <span class="id">k = 60</span>, over each search's top ${k}`],
-  ["Rerank", `<span class="id">${DATA.rerank_model}</span> through OpenRouter over hybrid's top ${DATA.pool_k}; local: <span class="id">Alibaba-NLP/gte-reranker-modernbert-base</span> on this CPU, run <span class="id">492b61d7e3a5</span>`],
+  ["Rerank", `<span class="id">${DATA.rerank_model}</span> through OpenRouter over hybrid's top ${DATA.pool_k}; local: <span class="id">Alibaba-NLP/gte-reranker-modernbert-base</span> on a 4-core Arm CPU, no GPU, run <span class="id">492b61d7e3a5</span>`],
   ["Rewrite", `one rewrite per query by <span class="id">xiaomi/mimo-v2.6-flash</span>, the agent's model, then hybrid`],
   ["Interval", "95% bootstrap over queries, 4,000 resamples"],
-  ["Latency", "median per query on the build host"],
+  ["Latency", "median per query on a 4-core Arm server (Neoverse N1), no GPU"],
   ["Cost", "mean per query, from each provider's billed figure"],
 ].map(([t, d]) => `<div><dt>${t}</dt><dd>${d}</dd></div>`).join("");
 </script>
