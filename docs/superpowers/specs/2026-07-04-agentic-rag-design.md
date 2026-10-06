@@ -1378,7 +1378,12 @@ Three layout decisions resolved here, deliberately:
    `landing_cohort_min_share`. Same day: `/trends` holds the category census
    (the one count over what arXiv posted rather than what we hold), and the
    "just indexed" list and its `GET /api/latest` are deleted, since Explore
-   sorted newest already lists the same papers.)* Static export (D13) plus 6,460
+   sorted newest already lists the same papers. Amended again 2026-10-06:
+   `/benchmarks` shows the retrieval eval. It is the one route that reads no
+   API: `evals/export_benchmarks.py` writes the committed run's scores to
+   `frontend/lib/benchmarks/retrieval.json` and the page imports it, because
+   the numbers change only when an eval run is committed. Titles and section
+   names only, never passage text (§6c).)* Static export (D13) plus 6,460
    papers makes `paper/[id]/page.tsx` the wrong tool (it would SSG 6,460
    pages or fight `generateStaticParams`). The app is one shell; the open
    paper is a search param (`/?paper=2606.12345&page=4`), owned by the

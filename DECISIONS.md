@@ -2798,3 +2798,31 @@ regenerated to carry their cost, which moved the rewrite row from 65% to
 quality and turn cost with it), or a cheaper allowlisted reranker appears.
 
 **Spec updated:** yes, D8 amendment (2026-10-05).
+
+## 2026-10-06 — the benchmarks page reads a committed export, not the API (owner directive)
+
+**Context:** the retrieval benchmark mockup (`docs/benchmarks-mockup.html`)
+was approved for the app. Its numbers come from a committed eval run file;
+they change only when someone reruns `just eval` and commits. The API image
+ships `backend/` only, not `evals/` or its run files.
+
+**Decision:** `evals/export_benchmarks.py` (`just bench-data`) builds the
+page's data from the committed run file, the golden set and `corpus.db`
+(titles and section names) and writes `frontend/lib/benchmarks/retrieval.json`,
+which `/benchmarks` imports at build time. The local-reranker row comes from
+run 492b61d7e3a5, which kept only totals, so the exporter carries it as a
+pinned row with that run id, shown in the page's Method list.
+
+**Rejected:** a `GET /api/benchmarks` route (it would put `evals/` and the run
+files in the API image and add a response schema for a file that changes only
+on commit).
+
+**Consequence:** the page works with the API down and costs nothing per view;
+the README table and the page both derive from the same run file. A new
+eval run needs `just bench-data` and a frontend rebuild to appear.
+
+**Revisit when:** results need to update without a commit (scheduled evals),
+or the local-reranker row is rerun with the run store, which removes the
+pinned row.
+
+**Spec updated:** yes, §4c decision 2 amendment (2026-10-06).
