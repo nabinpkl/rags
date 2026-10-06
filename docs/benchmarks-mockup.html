@@ -91,7 +91,7 @@
   abbr:hover{text-decoration-color:currentColor}
 
   /* ── leaderboard ─────────────────────────────────────────── */
-  .board{min-width:800px}
+  .board{min-width:880px}
   .board tbody tr.lead{background:var(--teal-soft)}
   .board .pos{width:32px;color:var(--muted);font-size:13px}
   .board .method{font-weight:600;font-size:14.5px;white-space:nowrap}
@@ -257,6 +257,7 @@
               <th scope="col">Method</th>
               <th scope="col" id="h-recall"></th>
               <th scope="col" class="r" id="h-ndcg"></th>
+              <th scope="col" class="r"><abbr title="Mean reciprocal rank: 1 / rank of the first expected passage, 1.00 is always first">MRR</abbr></th>
               <th scope="col" class="r" id="h-paper"></th>
               <th scope="col" class="r" id="h-pool"></th>
               <th scope="col" class="r"><abbr title="Median time per query on a 4-core Arm server (Neoverse N1, no GPU); semantic includes the embedding API call, hybrid runs both searches, rerank includes the reranker call, rewrite includes the model call">Latency</abbr></th>
@@ -372,6 +373,7 @@ document.getElementById("board").innerHTML = DATA.board.map((b, i) => {
       : `<b class="num">${pct(b.recall)}<span class="ci">${pct(b.lo)}–${pct(b.hi)}</span></b>
       <span class="scale" role="img" aria-label="95% interval ${pct(b.lo)} to ${pct(b.hi)}"><i style="left:${b.lo * 100}%;width:${(b.hi - b.lo) * 100}%"></i><u style="left:${b.recall * 100}%"></u></span>`}</div></td>
     <td class="m r num">${strong("ndcg", b.ndcg.toFixed(2))}</td>
+    <td class="m r num">${strong("mrr", b.mrr.toFixed(2))}</td>
     <td class="m r num">${strong("paper", pct(b.paper))}</td>
     <td class="m r num">${strong("pool", pct(b.pool))}</td>
     <td class="m r num">${strong("p50", ms(b.p50), true)}</td>
