@@ -1,0 +1,2633 @@
+{
+ "run_id": "bf072fb0bfba",
+ "exported": "2026-10-06",
+ "drafted": 213,
+ "n_papers": 1046,
+ "n_chunks": 51932,
+ "draft_models": [
+  "z-ai/glm-5.3-flash"
+ ],
+ "check_models": [
+  "meta/muse-spark-1.3-contributor"
+ ],
+ "rewrite_models": [
+  "xiaomi/mimo-v2.6-flash"
+ ],
+ "embedding_model": "perplexity/pplx-embed-v1-0.6b",
+ "embedding_dims": 512,
+ "chunk_size_tokens": 1000,
+ "chunk_overlap_ratio": 0.15,
+ "rrf_k": 60,
+ "rerank_model": "voyageai/rerank-3-lite",
+ "local_rerank_model": "Alibaba-NLP/gte-reranker-modernbert-base",
+ "local_rerank_run_id": "492b61d7e3a5",
+ "bootstrap_resamples": 4000,
+ "hardware": "4-core Arm server (Neoverse N1), no GPU",
+ "k": 10,
+ "pool_k": 50,
+ "n": 93,
+ "board": [
+  {
+   "config": "rerank",
+   "recall": 0.9032258064516129,
+   "lo": 0.8440860215053764,
+   "hi": 0.956989247311828,
+   "ndcg": 0.7938475000512902,
+   "mrr": 0.7675029868578256,
+   "paper": 0.989247311827957,
+   "pool": 0.9301075268817204,
+   "p50_ms": 734.9857771769166,
+   "usd": 0.0006594235268817205,
+   "run_id": null
+  },
+  {
+   "config": "rerank_local",
+   "recall": 0.87,
+   "lo": null,
+   "hi": null,
+   "ndcg": 0.71,
+   "mrr": 0.67,
+   "paper": 0.99,
+   "pool": 0.93,
+   "p50_ms": 153433,
+   "usd": 0.0,
+   "run_id": "492b61d7e3a5"
+  },
+  {
+   "config": "hybrid",
+   "recall": 0.7903225806451613,
+   "lo": 0.7043010752688172,
+   "hi": 0.8709677419354839,
+   "ndcg": 0.5773217787930125,
+   "mrr": 0.520784263526199,
+   "paper": 0.9354838709677419,
+   "pool": 0.9301075268817204,
+   "p50_ms": 215.52656777203083,
+   "usd": 4.1376344086021506e-08,
+   "run_id": null
+  },
+  {
+   "config": "bm25",
+   "recall": 0.7795698924731183,
+   "lo": 0.6989247311827957,
+   "hi": 0.8548387096774194,
+   "ndcg": 0.5426091101221616,
+   "mrr": 0.48293650793650794,
+   "paper": 0.956989247311828,
+   "pool": 0.8924731182795699,
+   "p50_ms": 97.02480677515268,
+   "usd": 0.0,
+   "run_id": null
+  },
+  {
+   "config": "vector",
+   "recall": 0.7419354838709677,
+   "lo": 0.6505376344086021,
+   "hi": 0.8279569892473119,
+   "ndcg": 0.5207190850277245,
+   "mrr": 0.460731353473289,
+   "paper": 0.8817204301075269,
+   "pool": 0.8225806451612904,
+   "p50_ms": 114.82257209718227,
+   "usd": 4.1376344086021506e-08,
+   "run_id": null
+  },
+  {
+   "config": "rewrite",
+   "recall": 0.6774193548387096,
+   "lo": 0.5806451612903226,
+   "hi": 0.7688172043010753,
+   "ndcg": 0.4569047081703358,
+   "mrr": 0.39966291175968593,
+   "paper": 0.9032258064516129,
+   "pool": 0.9139784946236559,
+   "p50_ms": 5039.552848786116,
+   "usd": 4.31716688172043e-05,
+   "run_id": null
+  }
+ ],
+ "by_type": [
+  {
+   "type": "single_hop",
+   "n": 26,
+   "recall": {
+    "bm25": 0.9615384615384616,
+    "vector": 0.9230769230769231,
+    "hybrid": 1.0,
+    "rerank": 1.0,
+    "rewrite": 0.8461538461538461,
+    "rerank_local": 1.0
+   }
+  },
+  {
+   "type": "exact_match",
+   "n": 9,
+   "recall": {
+    "bm25": 1.0,
+    "vector": 0.7777777777777778,
+    "hybrid": 0.8888888888888888,
+    "rerank": 1.0,
+    "rewrite": 0.8888888888888888,
+    "rerank_local": 1.0
+   }
+  },
+  {
+   "type": "vocabulary_mismatch",
+   "n": 28,
+   "recall": {
+    "bm25": 0.6785714285714286,
+    "vector": 0.6428571428571429,
+    "hybrid": 0.6428571428571429,
+    "rerank": 0.8928571428571429,
+    "rewrite": 0.5357142857142857,
+    "rerank_local": 0.82
+   }
+  },
+  {
+   "type": "known_hard",
+   "n": 20,
+   "recall": {
+    "bm25": 0.75,
+    "vector": 0.7,
+    "hybrid": 0.8,
+    "rerank": 0.85,
+    "rewrite": 0.6,
+    "rerank_local": 0.8
+   }
+  },
+  {
+   "type": "multi_hop",
+   "n": 10,
+   "recall": {
+    "bm25": 0.45,
+    "vector": 0.6,
+    "hybrid": 0.55,
+    "rerank": 0.7,
+    "rewrite": 0.6,
+    "rerank_local": 0.7
+   }
+  }
+ ],
+ "queries": [
+  {
+   "question": "benefits and drawbacks of a dedicated sustainability team",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "can a consistent density estimator fail to converge in L1",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     6
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     10
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     9
+    ]
+   }
+  },
+  {
+   "question": "do retrieved exemplars count against the thinking token budget",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     9
+    ],
+    "vector": [
+     9
+    ],
+    "hybrid": [
+     7
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "does codec width matter more at lower frame rates for ASR",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "does convergence of the DG iterative schemes depend on the physical setting",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     3
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     8
+    ]
+   }
+  },
+  {
+   "question": "fast prediction of linear memory capacity in reservoir computers",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "how could LLM score bias affect research funding and evaluation decisions",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "how does minimizer uniqueness force a unique set of support constraints",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     5
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     5
+    ]
+   }
+  },
+  {
+   "question": "how does parallel section writing avoid consistency races",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "how does the pilot allocation algorithm use LOS interference",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     9
+    ],
+    "vector": [
+     3
+    ],
+    "hybrid": [
+     6
+    ],
+    "rerank": [
+     6
+    ],
+    "rewrite": [
+     4
+    ]
+   }
+  },
+  {
+   "question": "how effective are prefix attacks on LLM scratchpad reasoning",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     4
+    ],
+    "vector": [
+     5
+    ],
+    "hybrid": [
+     4
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     7
+    ]
+   }
+  },
+  {
+   "question": "how many basis functions give stable kernel fits",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "how much more energy does sending one bit take than computing",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     6
+    ],
+    "vector": [
+     10
+    ],
+    "hybrid": [
+     3
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how sensitive is MRR to form and intent loss weights",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     3
+    ]
+   }
+  },
+  {
+   "question": "is myopic policy throughput independent of initial belief",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     8
+    ],
+    "hybrid": [
+     3
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     5
+    ]
+   }
+  },
+  {
+   "question": "weak duality principle for set dimensions via pointwise dimensions of measures",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "what are the two main trajectories of visual instruction tuning",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "what does the adaptive stochastic analysis framework aim to bound",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "what is the observation space and reward in the climbing task",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     3
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "what is the reverse analysis method in neural network logic programming",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     4
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "what layer group size and slice granularity give best throughput",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "what limitations does the BMI model evaluation have",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     3
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "what score does the SP algorithm use to rank candidate graphs",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "when is a unification problem called almost linear",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "which cutting into 15 slices guarantees Bob a 5/9 gain",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "why fuse adjacent token representations before attention",
+   "type": "single_hop",
+   "rank": {
+    "bm25": [
+     4
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     9
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "does NFL discussion overlap with earlier causal belief networks",
+   "type": "exact_match",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     4
+    ]
+   }
+  },
+  {
+   "question": "does SMN lower SER versus maximum likelihood receivers",
+   "type": "exact_match",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     9
+    ],
+    "hybrid": [
+     3
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     3
+    ]
+   }
+  },
+  {
+   "question": "how much energy can configurable caches save IoT processors",
+   "type": "exact_match",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "how much ShareGPT throughput does stale placement cost",
+   "type": "exact_match",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "what encoder features simplify FPGA deployment",
+   "type": "exact_match",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "what NP-hardness bounds for approximating TSP variants",
+   "type": "exact_match",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "when can the LME be computed directly",
+   "type": "exact_match",
+   "rank": {
+    "bm25": [
+     7
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "which papers apply deep RL to NPC behavior",
+   "type": "exact_match",
+   "rank": {
+    "bm25": [
+     7
+    ],
+    "vector": [
+     3
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     6
+    ]
+   }
+  },
+  {
+   "question": "why can naive ATS be harmful for readers",
+   "type": "exact_match",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     3
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     5
+    ]
+   }
+  },
+  {
+   "question": "can a simple online estimation rule generate heavy-tailed random search patterns",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     7
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "can an agent rewrite its own code to improve robot area coverage",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "check whether one node can reach another in a large distributed graph",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     3
+    ],
+    "vector": [
+     3
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     4
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "does model size change the best way to use multimodal embeddings",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     9
+    ]
+   }
+  },
+  {
+   "question": "does the optimal cost from noisy data bound the true system cost",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     5
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     5
+    ]
+   }
+  },
+  {
+   "question": "find a hidden group of densely connected nodes in a big network",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     9
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     6
+    ]
+   }
+  },
+  {
+   "question": "gpu hours to pretrain small language models by context length",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "have an LLM change one value in a Kubernetes config without reformatting",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     9
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     5
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how accurately can a generative model match a population's full joint distribution",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     3
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how compute and memory heavy are security apps on IoT devices",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     5
+    ]
+   }
+  },
+  {
+   "question": "how much cache capacity do reused LLM prompts actually need",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     3
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how reliable is matching software names to online repositories",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     3
+    ],
+    "vector": [
+     3
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     5
+    ]
+   }
+  },
+  {
+   "question": "how to change valence arousal dominance of generated samples",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     null
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how to check whether model-generated code passes test cases",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     6
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how to keep generated item embeddings on the unit sphere",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     6
+    ],
+    "vector": [
+     5
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "how to rank candidate answer sentences by proximity to evidence words",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     7
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how to reduce training samples for complex signal networks",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     3
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "how to weight criteria when ranking grab points on real objects",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how well can one model call flag alignment failures",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     3
+    ]
+   }
+  },
+  {
+   "question": "train one network to predict both full and partial segmentation",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "what advantages does VB.NET have over C#",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     7
+    ]
+   }
+  },
+  {
+   "question": "what bound on a design matrix guarantees sparse regression works",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     4
+    ],
+    "hybrid": [
+     8
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "what is known about minimum spanning trees when point locations are uncertain",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     3
+    ],
+    "vector": [
+     5
+    ],
+    "hybrid": [
+     3
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     6
+    ]
+   }
+  },
+  {
+   "question": "what small steps can a math proof be built from",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     null
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "when two vision models disagree on an image label, who decides",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     null
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "which research topics get highest and lowest AI review scores",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     3
+    ],
+    "vector": [
+     9
+    ],
+    "hybrid": [
+     4
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "why does an LLM beat standard optimizers for hardware design search",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     5
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     8
+    ]
+   }
+  },
+  {
+   "question": "why keep the audio encoder fixed instead of training it",
+   "type": "vocabulary_mismatch",
+   "rank": {
+    "bm25": [
+     8
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "do adaptive queries still leak sensitive inputs once LAT is on",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     3
+    ],
+    "vector": [
+     5
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     3
+    ]
+   }
+  },
+  {
+   "question": "do influence kernels differ between own and other birds' calls",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     7
+    ],
+    "hybrid": [
+     10
+    ],
+    "rerank": [
+     5
+    ],
+    "rewrite": [
+     10
+    ]
+   }
+  },
+  {
+   "question": "do surface eigenvalues become more negative as n increases",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     6
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "does accuracy improve with more specialists covering the correct class",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "does approximate Cp select irrelevant features less often than original Cp",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     3
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "does binary neuron learning produce extra rules beyond the conjunction",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     2
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "does breaking norms affect correctness more than following them",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     8
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     4
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "does let flattening commute with normal order reduction",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     7
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "does removing the time gate hurt accuracy and mcc",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "does replacing the vmf kernel with rbf hurt results",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     2
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     3
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "does target node identification drop as graph average degree rises",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     3
+    ],
+    "vector": [
+     3
+    ],
+    "hybrid": [
+     4
+    ],
+    "rerank": [
+     4
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "does the SFT template chosen change which evals gain skill",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     7
+    ],
+    "rerank": [
+     2
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how do way and shot counts affect few-shot segmentation performance",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     6
+    ]
+   }
+  },
+  {
+   "question": "how do you count the components in a vector",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "how much throughput is lost running fast packet I/O in a VM",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     5
+    ],
+    "vector": [
+     4
+    ],
+    "hybrid": [
+     4
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     2
+    ]
+   }
+  },
+  {
+   "question": "what dominates area in flash vs DRAM compute-in-memory",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     1
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "which backend achieves the best average anomaly detection score",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     null
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "which computing paradigms offer efficiency as a benefit",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     1
+    ],
+    "vector": [
+     2
+    ],
+    "hybrid": [
+     1
+    ],
+    "rerank": [
+     1
+    ],
+    "rewrite": [
+     1
+    ]
+   }
+  },
+  {
+   "question": "which prompting approach handles harmful requests both safely and helpfully",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     4
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     5
+    ],
+    "rerank": [
+     null
+    ],
+    "rewrite": [
+     null
+    ]
+   }
+  },
+  {
+   "question": "which scene category has the lowest success rate",
+   "type": "known_hard",
+   "rank": {
+    "bm25": [
+     null
+    ],
+    "vector": [
+     null
+    ],
+    "hybrid": [
+     null
+    ],
+    "rerank": [
+     null
+    ],
+    "rewrite": [
+     8
+    ]
+   }
+  },
+  {
+   "question": "can a density be estimated without assuming a stochastic process",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     null,
+     1
+    ],
+    "vector": [
+     7,
+     1
+    ],
+    "hybrid": [
+     10,
+     1
+    ],
+    "rerank": [
+     5,
+     1
+    ],
+    "rewrite": [
+     10,
+     1
+    ]
+   }
+  },
+  {
+   "question": "how did human evaluators score the tutoring dialogues",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     null,
+     1
+    ],
+    "vector": [
+     null,
+     1
+    ],
+    "hybrid": [
+     null,
+     1
+    ],
+    "rerank": [
+     null,
+     1
+    ],
+    "rewrite": [
+     null,
+     1
+    ]
+   }
+  },
+  {
+   "question": "how do ACM citation patterns differ from random",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     8,
+     1
+    ],
+    "vector": [
+     4,
+     5
+    ],
+    "hybrid": [
+     6,
+     1
+    ],
+    "rerank": [
+     1,
+     4
+    ],
+    "rewrite": [
+     2,
+     5
+    ]
+   }
+  },
+  {
+   "question": "how do routing delays and partitioning affect total circuit runtime",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     10,
+     null
+    ],
+    "vector": [
+     null,
+     null
+    ],
+    "hybrid": [
+     null,
+     null
+    ],
+    "rerank": [
+     4,
+     null
+    ],
+    "rewrite": [
+     7,
+     null
+    ]
+   }
+  },
+  {
+   "question": "how does EMA assign requests to slices and trigger swaps",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     2,
+     8
+    ],
+    "vector": [
+     7,
+     1
+    ],
+    "hybrid": [
+     3,
+     2
+    ],
+    "rerank": [
+     2,
+     3
+    ],
+    "rewrite": [
+     5,
+     8
+    ]
+   }
+  },
+  {
+   "question": "how is NFL model output checked for acceptance",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     null,
+     8
+    ],
+    "vector": [
+     null,
+     null
+    ],
+    "hybrid": [
+     null,
+     null
+    ],
+    "rerank": [
+     null,
+     5
+    ],
+    "rewrite": [
+     null,
+     null
+    ]
+   }
+  },
+  {
+   "question": "how is soundness enforced in the proof schema calculus",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     1,
+     null
+    ],
+    "vector": [
+     1,
+     null
+    ],
+    "hybrid": [
+     1,
+     null
+    ],
+    "rerank": [
+     1,
+     null
+    ],
+    "rewrite": [
+     1,
+     null
+    ]
+   }
+  },
+  {
+   "question": "parameter estimation for SDEs with fBM vs stable Levy noise",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     null,
+     null
+    ],
+    "vector": [
+     7,
+     8
+    ],
+    "hybrid": [
+     9,
+     null
+    ],
+    "rerank": [
+     9,
+     10
+    ],
+    "rewrite": [
+     null,
+     7
+    ]
+   }
+  },
+  {
+   "question": "what happens to regret as the mutated swarm grows",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     null,
+     null
+    ],
+    "vector": [
+     null,
+     null
+    ],
+    "hybrid": [
+     null,
+     null
+    ],
+    "rerank": [
+     null,
+     null
+    ],
+    "rewrite": [
+     null,
+     null
+    ]
+   }
+  },
+  {
+   "question": "why does honest score reporting maximize payoff in data auctions",
+   "type": "multi_hop",
+   "rank": {
+    "bm25": [
+     null,
+     null
+    ],
+    "vector": [
+     3,
+     2
+    ],
+    "hybrid": [
+     5,
+     3
+    ],
+    "rerank": [
+     3,
+     2
+    ],
+    "rewrite": [
+     7,
+     2
+    ]
+   }
+  }
+ ],
+ "examples": [
+  {
+   "question": "what bound on a design matrix guarantees sparse regression works",
+   "type": "vocabulary_mismatch",
+   "expected": {
+    "id": "1108.5533#6",
+    "paper": "1108.5533",
+    "section": "(5)",
+    "title": "A Remark on the Lasso and the Dantzig Selector"
+   },
+   "rank": {
+    "bm25": null,
+    "vector": 4,
+    "hybrid": 8,
+    "rerank": 1,
+    "rewrite": null
+   },
+   "hybrid": [
+    {
+     "id": "2112.00029#31",
+     "paper": "2112.00029",
+     "section": "A Problem Formulation",
+     "title": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models",
+     "grade": 0
+    },
+    {
+     "id": "2112.00029#40",
+     "paper": "2112.00029",
+     "section": "D.1 Applying masks before multiplication",
+     "title": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models",
+     "grade": 0
+    },
+    {
+     "id": "2608.12100#101",
+     "paper": "2608.12100",
+     "section": "7.3 Future Research Directions",
+     "title": "Confidence Calibration of Deep Learning Systems",
+     "grade": 0
+    },
+    {
+     "id": "1108.5533#3",
+     "paper": "1108.5533",
+     "section": "1. Introduction",
+     "title": "A Remark on the Lasso and the Dantzig Selector",
+     "grade": 1
+    },
+    {
+     "id": "1707.01212#11",
+     "paper": "1707.01212",
+     "section": "B. Theoretical Guarantees",
+     "title": "Efficient Data Representation by Selecting Prototypes with Importance Weights",
+     "grade": 0
+    }
+   ],
+   "rerank": [
+    {
+     "id": "1108.5533#6",
+     "paper": "1108.5533",
+     "section": "(5)",
+     "title": "A Remark on the Lasso and the Dantzig Selector",
+     "grade": 2
+    },
+    {
+     "id": "1108.5533#3",
+     "paper": "1108.5533",
+     "section": "1. Introduction",
+     "title": "A Remark on the Lasso and the Dantzig Selector",
+     "grade": 1
+    },
+    {
+     "id": "1108.5533#9",
+     "paper": "1108.5533",
+     "section": "3. An overview of the standard results",
+     "title": "A Remark on the Lasso and the Dantzig Selector",
+     "grade": 1
+    },
+    {
+     "id": "1108.5533#5",
+     "paper": "1108.5533",
+     "section": "(5)",
+     "title": "A Remark on the Lasso and the Dantzig Selector",
+     "grade": 1
+    },
+    {
+     "id": "2107.02847#12",
+     "paper": "2107.02847",
+     "section": "2.1 Preliminaries",
+     "title": "Transfer Learning in Information Criteria-based Feature Selection",
+     "grade": 0
+    }
+   ]
+  },
+  {
+   "question": "when can the LME be computed directly",
+   "type": "exact_match",
+   "expected": {
+    "id": "0912.0280#7",
+    "paper": "0912.0280",
+    "section": "2.2. How to Estimate Parameters given Discrete Observation. Given the practical difficulty in",
+    "title": "Quantifying Uncertainties in Complex Systems"
+   },
+   "rank": {
+    "bm25": 7,
+    "vector": null,
+    "hybrid": null,
+    "rerank": 1,
+    "rewrite": null
+   },
+   "hybrid": [
+    {
+     "id": "2609.01654#11",
+     "paper": "2609.01654",
+     "section": "4.3 Loss Design for Multi-Event Scenarios",
+     "title": "MELON: A Large-Scale Dataset for Multi-Event Text-to-Long-Video Retrieval",
+     "grade": 0
+    },
+    {
+     "id": "2108.12643#16",
+     "paper": "2108.12643",
+     "section": "4.4 Comparison of MMF and direct numeric calculations of the memory capacity",
+     "title": "Master memory function for delay-based reservoir computers with single-variable dynamics",
+     "grade": 0
+    },
+    {
+     "id": "2609.01654#12",
+     "paper": "2609.01654",
+     "section": "4.3 Loss Design for Multi-Event Scenarios",
+     "title": "MELON: A Large-Scale Dataset for Multi-Event Text-to-Long-Video Retrieval",
+     "grade": 0
+    },
+    {
+     "id": "0912.0280#21",
+     "paper": "0912.0280",
+     "section": "4. Parameter Estimation for SDE Driven by α-Stable L´evy Motion",
+     "title": "Quantifying Uncertainties in Complex Systems",
+     "grade": 1
+    },
+    {
+     "id": "2608.12888#15",
+     "paper": "2608.12888",
+     "section": "Baselines",
+     "title": "When Your Agent Opens the Chat App: Agent-Controlled Search over Raw Chat Logs Rivals Structured Memory",
+     "grade": 0
+    }
+   ],
+   "rerank": [
+    {
+     "id": "0912.0280#7",
+     "paper": "0912.0280",
+     "section": "2.2. How to Estimate Parameters given Discrete Observation. Given the practical difficulty in",
+     "title": "Quantifying Uncertainties in Complex Systems",
+     "grade": 2
+    },
+    {
+     "id": "2108.12643#15",
+     "paper": "2108.12643",
+     "section": "4.3 Direct simulation of the reservoir and memory capacity",
+     "title": "Master memory function for delay-based reservoir computers with single-variable dynamics",
+     "grade": 0
+    },
+    {
+     "id": "2609.01573#42",
+     "paper": "2609.01573",
+     "section": "E.4 Ablation Study 4: Low-Budget Regime",
+     "title": "Scaling Near-Optimal SFT-RL Annotation Budget Allocation from Small to Large LLMs",
+     "grade": 0
+    },
+    {
+     "id": "2411.10487#25",
+     "paper": "2411.10487",
+     "section": "Drawbacks:",
+     "title": "Architectural Patterns for Designing Quantum Artificial Intelligence Systems",
+     "grade": 0
+    },
+    {
+     "id": "2108.12643#16",
+     "paper": "2108.12643",
+     "section": "4.4 Comparison of MMF and direct numeric calculations of the memory capacity",
+     "title": "Master memory function for delay-based reservoir computers with single-variable dynamics",
+     "grade": 0
+    }
+   ]
+  },
+  {
+   "question": "is myopic policy throughput independent of initial belief",
+   "type": "single_hop",
+   "expected": {
+    "id": "0712.0035#17",
+    "paper": "0712.0035",
+    "section": "A. Uniqueness of Steady-State Performance and Its Numerical Evaluation",
+    "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance"
+   },
+   "rank": {
+    "bm25": 1,
+    "vector": 8,
+    "hybrid": 3,
+    "rerank": 1,
+    "rewrite": 5
+   },
+   "hybrid": [
+    {
+     "id": "0712.0035#14",
+     "paper": "0712.0035",
+     "section": "B. Properties",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 1
+    },
+    {
+     "id": "0712.0035#10",
+     "paper": "0712.0035",
+     "section": "B. Myopic Policy",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 1
+    },
+    {
+     "id": "0712.0035#17",
+     "paper": "0712.0035",
+     "section": "A. Uniqueness of Steady-State Performance and Its Numerical Evaluation",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 2
+    },
+    {
+     "id": "0712.0035#4",
+     "paper": "0712.0035",
+     "section": "B. Contribution",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 1
+    },
+    {
+     "id": "0712.0035#16",
+     "paper": "0712.0035",
+     "section": "VI. PERFORMANCE OF MYOPIC SENSING",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 1
+    }
+   ],
+   "rerank": [
+    {
+     "id": "0712.0035#17",
+     "paper": "0712.0035",
+     "section": "A. Uniqueness of Steady-State Performance and Its Numerical Evaluation",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 2
+    },
+    {
+     "id": "0712.0035#14",
+     "paper": "0712.0035",
+     "section": "B. Properties",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 1
+    },
+    {
+     "id": "0712.0035#25",
+     "paper": "0712.0035",
+     "section": "APPENDIX C: PROOF OF THEOREM 2",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 1
+    },
+    {
+     "id": "0712.0035#18",
+     "paper": "0712.0035",
+     "section": "B. Analytical Characterization of Throughput",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 1
+    },
+    {
+     "id": "0712.0035#12",
+     "paper": "0712.0035",
+     "section": "A. Structure",
+     "title": "On Myopic Sensing for Multi-Channel Opportunistic Access: Structure, Optimality, and Performance",
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "question": "which prompting approach handles harmful requests both safely and helpfully",
+   "type": "known_hard",
+   "expected": {
+    "id": "2608.12821#45",
+    "paper": "2608.12821",
+    "section": "E.2 Safe-Response Helpfulness Evaluation Prompt",
+    "title": "HiRoute: Hierarchical Routed Prompt Tuning for Safety Alignment of Large Language Models"
+   },
+   "rank": {
+    "bm25": 4,
+    "vector": null,
+    "hybrid": 5,
+    "rerank": null,
+    "rewrite": null
+   },
+   "hybrid": [
+    {
+     "id": "2608.12821#4",
+     "paper": "2608.12821",
+     "section": "1 Introduction",
+     "title": "HiRoute: Hierarchical Routed Prompt Tuning for Safety Alignment of Large Language Models",
+     "grade": 1
+    },
+    {
+     "id": "2303.08774#151",
+     "paper": "2303.08774",
+     "section": "3.1 Model Mitigations",
+     "title": "GPT-4 Technical Report",
+     "grade": 0
+    },
+    {
+     "id": "2608.30980#237",
+     "paper": "2608.30980",
+     "section": "[1] Audit task / seed.",
+     "title": "Evaluating and Improving LLM Self-Modeling",
+     "grade": 0
+    },
+    {
+     "id": "2608.13580#144",
+     "paper": "2608.13580",
+     "section": "10.3 Safety via Prompting",
+     "title": "Jais 2: A Family of Arabic-Centric Open Large Language Models",
+     "grade": 0
+    },
+    {
+     "id": "2608.12821#45",
+     "paper": "2608.12821",
+     "section": "E.2 Safe-Response Helpfulness Evaluation Prompt",
+     "title": "HiRoute: Hierarchical Routed Prompt Tuning for Safety Alignment of Large Language Models",
+     "grade": 2
+    }
+   ],
+   "rerank": [
+    {
+     "id": "2608.12821#3",
+     "paper": "2608.12821",
+     "section": "Abstract",
+     "title": "HiRoute: Hierarchical Routed Prompt Tuning for Safety Alignment of Large Language Models",
+     "grade": 1
+    },
+    {
+     "id": "2608.12821#4",
+     "paper": "2608.12821",
+     "section": "1 Introduction",
+     "title": "HiRoute: Hierarchical Routed Prompt Tuning for Safety Alignment of Large Language Models",
+     "grade": 1
+    },
+    {
+     "id": "2608.12821#0",
+     "paper": "2608.12821",
+     "section": "Title and abstract",
+     "title": "HiRoute: Hierarchical Routed Prompt Tuning for Safety Alignment of Large Language Models",
+     "grade": 1
+    },
+    {
+     "id": "2608.12821#41",
+     "paper": "2608.12821",
+     "section": "D Representative Safety-Response Comparisons",
+     "title": "HiRoute: Hierarchical Routed Prompt Tuning for Safety Alignment of Large Language Models",
+     "grade": 1
+    },
+    {
+     "id": "2608.12821#5",
+     "paper": "2608.12821",
+     "section": "1 Introduction",
+     "title": "HiRoute: Hierarchical Routed Prompt Tuning for Safety Alignment of Large Language Models",
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "question": "which scene category has the lowest success rate",
+   "type": "known_hard",
+   "expected": {
+    "id": "2608.30935#44",
+    "paper": "2608.30935",
+    "section": "D. Cross-Domain and Real-World Generalization",
+    "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation"
+   },
+   "rank": {
+    "bm25": null,
+    "vector": null,
+    "hybrid": null,
+    "rerank": null,
+    "rewrite": 8
+   },
+   "hybrid": [
+    {
+     "id": "2608.30935#26",
+     "paper": "2608.30935",
+     "section": "D. INSIGHT-Bench",
+     "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation",
+     "grade": 1
+    },
+    {
+     "id": "2406.09246#59",
+     "paper": "2406.09246",
+     "section": "D.4 Additional Quantized Inference Experiments: Disentangling Policy Performance and Model Inference Speed",
+     "title": "OpenVLA: An Open-Source Vision-Language-Action Model",
+     "grade": 0
+    },
+    {
+     "id": "2608.11888#16",
+     "paper": "2608.11888",
+     "section": "TABLE III",
+     "title": "Agent Skills Can Be Harmful: An Empirical Study of Skill-Induced Failures in LLM Agents",
+     "grade": 0
+    },
+    {
+     "id": "2608.11739#35",
+     "paper": "2608.11739",
+     "section": "5.5 Pick-and-Place Benchmark",
+     "title": "G0.5: One Autoregressive Stream for Robot Reasoning and Action",
+     "grade": 0
+    },
+    {
+     "id": "2608.30281#32",
+     "paper": "2608.30281",
+     "section": "D.1 Diverse Challenging Scenarios",
+     "title": "SELECT: SELEctive Context Transfer for Class-Incremental Semantic Segmentation",
+     "grade": 0
+    }
+   ],
+   "rerank": [
+    {
+     "id": "2608.30935#25",
+     "paper": "2608.30935",
+     "section": "D. INSIGHT-Bench",
+     "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation",
+     "grade": 1
+    },
+    {
+     "id": "2608.30935#26",
+     "paper": "2608.30935",
+     "section": "D. INSIGHT-Bench",
+     "title": "LightNav-0: Eliciting VLM Spatial Intelligence for Generalist Embodied Navigation",
+     "grade": 1
+    },
+    {
+     "id": "2608.30536#16",
+     "paper": "2608.30536",
+     "section": "TABLE II",
+     "title": "Behavior-Skill: A Fine-Grained Benchmark for Evaluating Vision-Language-Action Policies in Long-Horizon Tasks",
+     "grade": 0
+    },
+    {
+     "id": "2608.30856#50",
+     "paper": "2608.30856",
+     "section": "I Non-Compliance Rate by Harm Category and Model",
+     "title": "You Shouldn't Have Asked: A Pragmatics-Inspired Taxonomy for Evaluating LLM Refusals",
+     "grade": 0
+    },
+    {
+     "id": "2609.00469#29",
+     "paper": "2609.00469",
+     "section": "C. Per-category results",
+     "title": "SAM3-LoRA: Parameter-Efficient Adaptation of a Concept-Promptable Foundation Model for Multi-Class Structural Defect Segmentation",
+     "grade": 0
+    }
+   ]
+  }
+ ]
+}
