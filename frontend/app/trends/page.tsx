@@ -27,7 +27,7 @@ export default function TrendsPage() {
     <DashboardShell current="trends" trail={<li className="text-ink font-medium">Trends</li>}>
       <div className="pt-2 pb-1">
         <h1 className="font-serif text-ink max-w-[24ch] text-[clamp(1.7rem,3.4vw,2.35rem)] leading-[1.1] font-bold text-balance">
-          What computer science is publishing
+          Category trends
         </h1>
         <p className="text-ink-2 mt-3 max-w-[60ch] text-[15px] leading-snug">
           Share of every cs paper arXiv announced, by primary category.

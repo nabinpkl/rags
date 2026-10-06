@@ -1,7 +1,7 @@
 import type { LandingResponse } from "@/lib/api-client";
 import { formatIdMonth } from "@/lib/id-month";
 
-/** The page's question and one line of scope. Corpus totals are absent on
+/** The page's name and one line of scope. Corpus totals are absent on
  * purpose: they size our pile, not the finding. How much of each month we
  * hold is stated on Explore, beside the list it scopes.
  */
@@ -9,7 +9,7 @@ export function Hero({ stats }: { stats: LandingResponse["stats"] }) {
   return (
     <div className="pt-2 pb-1">
       <h1 className="font-serif text-ink max-w-[24ch] text-[clamp(1.7rem,3.4vw,2.35rem)] leading-[1.1] font-bold text-balance">
-        What is computer science building on right now?
+        Citation counts
       </h1>
       <p className="text-ink-2 mt-3 max-w-[60ch] text-[15px] leading-snug">
         The arXiv work cited most by cs papers posted {formatCohort(stats)}.
