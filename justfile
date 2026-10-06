@@ -83,6 +83,12 @@ rewrites *ARGS:
 eval *ARGS:
     uv run --env-file backend/.env python -m evals.run_retrieval_evals {{ARGS}}
 
+# The /benchmarks page's data (DECISIONS.md 2026-10-06): rewrites
+# frontend/lib/benchmarks/retrieval.json from the committed run file. No
+# retrieval and no model calls; run after `just eval` and commit both.
+bench-data:
+    uv run --env-file backend/.env python -m evals.export_benchmarks
+
 # Frontend gate: lint + typecheck + tests + generated-types drift + the export.
 # CI installs deps first (see ci.yml); locally, run `pnpm install` in frontend/ once.
 #
