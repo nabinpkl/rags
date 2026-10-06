@@ -130,7 +130,8 @@ work is broken into GitHub issues.
   whole-catalog filter, the one list that is not indexed-only, D16 amendment
   2026-09-16), the citation counts at `/citations`, arXiv's category
   census at `/trends`, the RAG demo at `/demo`
-  (indexed papers, reader, agent).
+  (indexed papers, reader, agent), and the retrieval eval at `/benchmarks`
+  (static, from `just bench-data`).
 - Deploy (#81): `just deploy` (compose up; ingress on loopback), `just
   deploy-tailnet` (publish via the host's tailscaled), plus `deploy-logs`,
   `deploy-down`, `deploy-reseed`. Runbook: `deploy/README.md`.
