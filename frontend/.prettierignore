@@ -2,3 +2,4 @@ lib/api-types.gen.ts
 out/
 .next/
 pnpm-lock.yaml
+lib/benchmarks/retrieval.json

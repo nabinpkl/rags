@@ -26,7 +26,11 @@ export type BoardRow = {
 export type TypeRecall = { type: string; n: number; recall: Record<string, number> };
 
 /** Rank of each expected passage (two for a two-passage query); null is a miss. */
-export type QueryRanks = { question: string; type: string; rank: Record<string, (number | null)[]> };
+export type QueryRanks = {
+  question: string;
+  type: string;
+  rank: Record<string, (number | null)[]>;
+};
 
 export type Passage = { id: string; paper: string; section: string; title: string };
 
@@ -92,7 +96,10 @@ export const QUERY_TYPES: Record<string, { name: string; detail: string }> = {
       "Shares no word with its passage that appears in fewer than 500 passages, as someone who has not read the paper",
   },
   known_hard: { name: "Table or math", detail: "Answered by a table or an equation" },
-  multi_hop: { name: "Two passages", detail: "Needs two passages of one paper; finding one scores half" },
+  multi_hop: {
+    name: "Two passages",
+    detail: "Needs two passages of one paper; finding one scores half",
+  },
 };
 
 /** The per-query columns, in the board's order of strength. */
