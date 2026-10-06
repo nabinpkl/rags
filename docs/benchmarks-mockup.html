@@ -124,35 +124,45 @@
   details.more[open] > summary{border-bottom:1px solid var(--line);border-radius:6px 6px 0 0}
   .inner{padding:16px}
 
-  /* examples: two top-5s joined by a line per shared passage */
-  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-  .tab{border:1px solid var(--outline);background:var(--panel);border-radius:6px;padding:8px 12px;min-height:40px;text-align:left;font-size:13px;line-height:1.3;max-width:300px;transition:background-color .2s}
-  .tab:hover{background:var(--panel-hover)}
-  .tab[aria-selected="true"]{border-color:var(--teal-ink);background:var(--teal-soft)}
-  .tab span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
-  .tab[aria-selected="true"] span{color:var(--teal-ink)}
+  /* examples: a rank strip per query, then two top-5s joined by a line per shared passage */
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .tab{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 12px;min-height:36px;flex:1 1 0;min-width:0;font-size:13px;color:var(--ink-2);transition:background-color .2s,border-color .2s}
+  .tab:hover{background:var(--panel-hover);border-color:var(--outline)}
+  .tab[aria-selected="true"]{border-color:var(--teal-ink);background:var(--teal-soft);color:var(--ink);font-weight:600}
+  .tab .q1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .tab svg{width:15px;height:15px;flex-shrink:0;color:var(--teal-ink)}
+  .tab svg.no{color:var(--muted)}
   .ex{border:1px solid var(--line);border-radius:6px}
-  .ex-q{padding:14px 16px;border-bottom:1px solid var(--line)}
-  .ex-q p{margin:0;font-size:15px;line-height:1.45}
-  .ex-q dl{display:flex;flex-wrap:wrap;gap:4px 20px;margin:8px 0 0;font-size:13px}
-  .ex-q dt{color:var(--muted);display:inline}
-  .ex-q dd{display:inline;margin:0 0 0 6px}
-  .lists{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);padding:12px 16px 16px}
+  .ex-q{padding:20px 20px 16px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--line)}
+  .ex-q .qt{margin:0;font-size:17px;font-weight:600;line-height:1.35;text-wrap:balance}
+  .where{display:flex;align-items:center;gap:8px;margin:0;font-size:13px;color:var(--muted);min-width:0}
+  .where svg{width:15px;height:15px;flex-shrink:0}
+  .where b{font-weight:400;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .ranks{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:4px 0 0;padding:0;list-style:none;border:1px solid var(--line);border-radius:6px}
+  .ranks li{display:flex;flex-direction:column;gap:2px;padding:8px 12px}
+  .ranks li + li{border-left:1px solid var(--line)}
+  .ranks span{font-size:12px;color:var(--muted)}
+  .ranks b{font-size:20px;font-weight:700;line-height:1.2;color:var(--teal-ink)}
+  .ranks .miss b{color:var(--muted);font-weight:400}
+  .lists{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);padding:16px 20px}
   .lists svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
   .lists svg path{fill:none;stroke:var(--teal-ink);stroke-width:1.5}
-  .col h3{font-size:13px;font-weight:600;margin:0 0 6px;color:var(--ink-2)}
-  .col ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-  .col li{display:grid;grid-template-columns:20px 14px minmax(0,1fr);gap:8px;align-items:start;padding:6px 8px;border-radius:4px;min-height:52px}
+  .col h3{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px 8px;color:var(--muted)}
+  .col ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  .col li{display:grid;grid-template-columns:16px 12px minmax(0,1fr);gap:8px;align-items:start;padding:6px 8px;border-radius:4px}
   .col li.g2{background:var(--teal-soft)}
-  .rk{font-size:12px;color:var(--muted);text-align:right;padding-top:1px}
-  .mark{width:12px;height:12px;border-radius:50%;margin-top:4px;border:2px solid var(--muted)}
+  .rk{font-size:12px;color:var(--muted);text-align:right;padding-top:2px}
+  .mark{width:12px;height:12px;border-radius:50%;margin-top:4px;border:2px solid var(--outline)}
   .g2 .mark{background:var(--teal-ink);border-color:var(--teal-ink)}
   .g1 .mark{border-color:var(--amber-ink);background:linear-gradient(90deg,var(--amber-ink) 50%,transparent 50%)}
-  .t{font-size:13.5px;line-height:1.35;overflow-wrap:anywhere}
-  .s{display:block;font-size:12px;color:var(--muted);margin-top:1px;overflow-wrap:anywhere}
-  .key{display:flex;gap:6px 18px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .t{min-width:0;font-size:13.5px;line-height:1.4}
+  .pt{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .s{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cont .s{font-size:13px;color:var(--ink-2)}
+  .key{display:flex;gap:6px 20px;flex-wrap:wrap;padding:10px 20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
   .key span{display:inline-flex;align-items:center;gap:6px}
   .key .mark{margin:0;width:11px;height:11px}
+  .key .ln{width:18px;height:2px;background:var(--teal-ink);border-radius:1px}
 
   /* all queries */
   .qbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:13px;color:var(--muted)}
@@ -185,9 +195,14 @@
     .topbar{padding:0 16px}
     h1{font-size:22px}
     .lists{grid-template-columns:minmax(0,1fr);gap:16px;padding:12px}
+    .ex-q{padding:16px 12px 12px}
+    .ranks li{padding:8px 4px;align-items:center}
+    .ranks span{font-size:11px}
+    .ranks b{font-size:17px}
     .lists .gap,.lists svg{display:none}
     .run div{grid-template-columns:minmax(0,1fr);gap:2px}
-    .tab{max-width:none;flex:1 1 100%}
+    .tab{flex:1 1 100%}
+    .key{padding:10px 12px}
     details.more > summary{flex-wrap:wrap;row-gap:2px}
     details.more > summary span{flex-basis:100%;padding-left:26px}
   }
@@ -254,7 +269,7 @@
       </section>
 
       <details class="more">
-        <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>Examples <span>five queries, both top 5s</span></summary>
+        <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>Examples <span>5 queries</span></summary>
         <div class="inner">
           <div class="tabs" role="tablist" aria-label="Example queries" id="tabs"></div>
           <div class="ex" role="tabpanel" id="panel">
@@ -264,7 +279,7 @@
               <span class="g2"><i class="mark"></i>expected passage</span>
               <span class="g1"><i class="mark"></i>same paper, other passage</span>
               <span><i class="mark"></i>other paper</span>
-              <span>Line: both returned it</span>
+              <span><i class="ln"></i>returned by both</span>
             </div>
           </div>
         </div>
@@ -373,12 +388,27 @@ document.getElementById("matrix").innerHTML = order.map((c) =>
 ).join("");
 
 /* examples */
-const placed = (r) => (r ? ordinal(r) : `not in top ${k}`);
+const placed = (r) => (r ? ordinal(r) : "–");
+const ICON = {
+  both: '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+  one: '<path d="M20 6 9 17l-5-5"/>',
+  none: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+};
 function outcome(e) {
   const kw = e.rank.bm25, se = e.rank.vector;
-  return kw && se ? "Both find it" : kw ? "Keyword finds it" : se ? "Semantic finds it" : "Neither finds it";
+  return kw && se ? ["both", "Keyword and semantic both find it"]
+    : kw ? ["one", "Only keyword finds it"]
+    : se ? ["one", "Only semantic finds it"]
+    : ["none", "Neither keyword nor semantic finds it"];
 }
-const item = (x, i) => `<li class="g${x.grade}" data-id="${esc(x.id)}"><span class="rk num">${i + 1}</span><i class="mark"></i><span class="t">${esc(x.title)}<span class="s">${esc(x.section)}</span></span></li>`;
+const svg = (k, cls = "") => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k] || k}</svg>`;
+const STRIP = [["rerank", "Rerank"], ["hybrid", "Hybrid"], ["bm25", "Keyword"], ["vector", "Semantic"], ["rewrite", "Rewrite"]];
+// A run of passages from one paper prints the title once; the rows after it show only their section.
+const item = (x, i, all) => {
+  const cont = i > 0 && all[i - 1].paper === x.paper;
+  const head = cont ? "" : `<span class="pt" title="${esc(x.title)}">${esc(x.title)}</span>`;
+  return `<li class="g${x.grade}${cont ? " cont" : ""}" data-id="${esc(x.id)}"><span class="rk num">${i + 1}</span><i class="mark"></i><span class="t">${head}<span class="s" title="${esc(x.section)}">${esc(x.section)}</span></span></li>`;
+};
 let current = 0;
 function renderExample(i) {
   current = i;
@@ -386,11 +416,10 @@ function renderExample(i) {
   document.querySelectorAll(".tab").forEach((t, j) => { t.setAttribute("aria-selected", String(j === i)); t.tabIndex = j === i ? 0 : -1; });
   document.getElementById("panel").setAttribute("aria-labelledby", "tab-" + i);
   document.getElementById("exq").innerHTML =
-    `<p>${esc(e.question)}</p><dl>` +
-    `<div><dt>Expected</dt><dd>${esc(e.expected.title)}, ${esc(e.expected.section)}</dd></div>` +
-    `<div><dt>Hybrid</dt><dd class="num">${placed(e.rank.hybrid)}</dd></div>` +
-    `<div><dt>Keyword</dt><dd class="num">${placed(e.rank.bm25)}</dd></div>` +
-    `<div><dt>Semantic</dt><dd class="num">${placed(e.rank.vector)}</dd></div></dl>`;
+    `<p class="qt">${esc(e.question)}</p>` +
+    `<ul class="ranks" aria-label="Rank of the expected passage">${STRIP.map(([c, l]) =>
+      `<li class="${e.rank[c] ? "hit" : "miss"}"><span>${l}</span><b class="num" aria-label="${e.rank[c] ? ordinal(e.rank[c]) : `not in top ${k}`}">${placed(e.rank[c])}</b></li>`).join("")}</ul>` +
+    `<p class="where">${svg('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>')}<b title="${esc(e.expected.title)}, ${esc(e.expected.section)}">${esc(e.expected.title)}, ${esc(e.expected.section)}</b></p>`;
   document.getElementById("lists").innerHTML =
     `<svg aria-hidden="true"></svg>` +
     `<div class="col" id="lk"><h3>Keyword</h3><ol>${e.bm25.map(item).join("")}</ol></div>` +
@@ -417,7 +446,7 @@ function drawLinks() {
 }
 const tabs = document.getElementById("tabs");
 tabs.innerHTML = DATA.examples.map((e, i) =>
-  `<button type="button" class="tab" role="tab" id="tab-${i}" aria-controls="panel">${esc(e.question)}<span>${outcome(e)}</span></button>`).join("");
+  `<button type="button" class="tab" role="tab" id="tab-${i}" aria-controls="panel" title="${esc(e.question)}: ${outcome(e)[1]}">${svg(outcome(e)[0], outcome(e)[0] === "none" ? "no" : "")}<span class="q1">${esc(e.question)}</span></button>`).join("");
 tabs.querySelectorAll(".tab").forEach((t, i) => {
   t.addEventListener("click", () => renderExample(i));
   t.addEventListener("keydown", (ev) => {
