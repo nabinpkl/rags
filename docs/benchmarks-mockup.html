@@ -130,8 +130,10 @@
   .tab:hover{background:var(--panel-hover);border-color:var(--outline)}
   .tab[aria-selected="true"]{border-color:var(--teal-ink);background:var(--teal-soft);color:var(--ink);font-weight:600}
   .tab .q1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-  .tab svg{width:15px;height:15px;flex-shrink:0;color:var(--teal-ink)}
-  .tab svg.no{color:var(--muted)}
+  .mv{display:inline-flex;align-items:center;gap:2px;margin-left:auto;flex-shrink:0;padding:2px 6px;border-radius:4px;font-size:12px;font-weight:600;color:var(--muted)}
+  .mv svg{width:12px;height:12px}
+  .mv.up{background:var(--teal-soft-strong);color:var(--teal-ink)}
+  .mv.none{font-weight:400}
   .ex{border:1px solid var(--line);border-radius:6px}
   .ex-q{padding:20px 20px 16px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--line)}
   .ex-q .qt{margin:0;font-size:17px;font-weight:600;line-height:1.35;text-wrap:balance}
@@ -165,16 +167,23 @@
   .key .ln{width:18px;height:2px;background:var(--teal-ink);border-radius:1px}
 
   /* all queries */
-  .qbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:13px;color:var(--muted)}
+  .qbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin-bottom:12px;font-size:13px;color:var(--muted)}
+  .qkey{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;margin-left:auto;font-size:12px}
+  .qkey span{display:inline-flex;align-items:center;gap:6px}
+  .rc{font-style:normal;display:inline-grid;place-items:center;min-width:24px;height:22px;padding:0 6px;border-radius:4px;font-size:12px;font-weight:600;line-height:1}
+  .rc.r1{background:var(--teal-ink);color:var(--panel)}
+  .rc.r3{background:var(--teal-soft-strong);color:var(--teal-ink)}
+  .rc.r10{background:var(--teal-soft);color:var(--teal-ink);font-weight:400}
+  .rc.miss{color:var(--muted);font-weight:400}
   .qbar select{border:1px solid var(--outline);background:var(--panel);border-radius:4px;padding:6px 8px;min-height:36px}
   .queries{min-width:640px}
   .queries td{padding:8px 12px;font-size:13.5px}
   .queries thead th{padding:8px 12px}
   .queries td.q{line-height:1.35}
   .queries td.ty{color:var(--muted);font-size:12.5px;white-space:nowrap}
-  .queries td.rk2{text-align:right;white-space:nowrap;width:84px}
-  .queries td.hit{color:var(--teal-ink);font-weight:700}
-  .queries td.miss{color:var(--muted)}
+  .queries td.rk2{text-align:center;white-space:nowrap;width:76px}
+  .queries td.rk2 .rc + .rc{margin-left:4px}
+  .queries th.c{text-align:center}
 
   /* method */
   .run{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px;margin:0}
@@ -288,10 +297,10 @@
       <details class="more" id="all">
         <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>All queries <span id="all-n"></span></summary>
         <div class="inner">
-          <div class="qbar"><label for="qtype">Type</label><select id="qtype"></select><span id="qcount" class="num"></span></div>
+          <div class="qbar"><label for="qtype">Type</label><select id="qtype"></select><span id="qcount" class="num"></span><span class="qkey" aria-hidden="true"><span><i class="rc r1 num">1</i>first</span><span><i class="rc r3 num">3</i>2nd–3rd</span><span><i class="rc r10 num">7</i>4th–10th</span><span><i class="rc miss">–</i>missed</span></span></div>
           <div class="scroll">
             <table class="queries">
-              <thead><tr><th scope="col">Query</th><th scope="col">Type</th><th scope="col" class="r">Rerank</th><th scope="col" class="r">Hybrid</th><th scope="col" class="r">Keyword</th><th scope="col" class="r">Semantic</th><th scope="col" class="r">Rewrite</th></tr></thead>
+              <thead><tr><th scope="col">Query</th><th scope="col">Type</th><th scope="col" class="c">Rerank</th><th scope="col" class="c">Hybrid</th><th scope="col" class="c">Keyword</th><th scope="col" class="c">Semantic</th><th scope="col" class="c">Rewrite</th></tr></thead>
               <tbody id="qrows"></tbody>
             </table>
           </div>
@@ -389,19 +398,15 @@ document.getElementById("matrix").innerHTML = order.map((c) =>
 
 /* examples */
 const placed = (r) => (r ? ordinal(r) : "–");
-const ICON = {
-  both: '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
-  one: '<path d="M20 6 9 17l-5-5"/>',
-  none: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
-};
-function outcome(e) {
-  const kw = e.rank.bm25, se = e.rank.vector;
-  return kw && se ? ["both", "Keyword and semantic both find it"]
-    : kw ? ["one", "Only keyword finds it"]
-    : se ? ["one", "Only semantic finds it"]
-    : ["none", "Neither keyword nor semantic finds it"];
+// What the reranker did to hybrid's ranking of the expected passage.
+function moved(e) {
+  const h = e.rank.hybrid, r = e.rank.rerank;
+  const said = `hybrid ${h ? ordinal(h) : "missed"}, rerank ${r ? ordinal(r) : "missed"}`;
+  if (!h && !r) return [`<span class="mv none">missed</span>`, said];
+  const cls = r && (!h || r < h) ? "up" : r === h ? "same" : "none";
+  return [`<span class="mv ${cls} num">${h || "–"}${svg('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>')}${r || "–"}</span>`, said];
 }
-const svg = (k, cls = "") => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k] || k}</svg>`;
+const svg = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${k}</svg>`;
 const STRIP = [["rerank", "Rerank"], ["hybrid", "Hybrid"], ["bm25", "Keyword"], ["vector", "Semantic"], ["rewrite", "Rewrite"]];
 // A run of passages from one paper prints the title once; the rows after it show only their section.
 const item = (x, i, all) => {
@@ -446,7 +451,7 @@ function drawLinks() {
 }
 const tabs = document.getElementById("tabs");
 tabs.innerHTML = DATA.examples.map((e, i) =>
-  `<button type="button" class="tab" role="tab" id="tab-${i}" aria-controls="panel" title="${esc(e.question)}: ${outcome(e)[1]}">${svg(outcome(e)[0], outcome(e)[0] === "none" ? "no" : "")}<span class="q1">${esc(e.question)}</span></button>`).join("");
+  `<button type="button" class="tab" role="tab" id="tab-${i}" aria-controls="panel" title="${esc(e.question)}: ${moved(e)[1]}"><span class="q1">${esc(e.question)}</span>${moved(e)[0]}</button>`).join("");
 tabs.querySelectorAll(".tab").forEach((t, i) => {
   t.addEventListener("click", () => renderExample(i));
   t.addEventListener("keydown", (ev) => {
@@ -462,13 +467,14 @@ document.querySelectorAll("details.more").forEach((d) => d.addEventListener("tog
 window.addEventListener("resize", drawLinks);
 
 /* all queries */
-document.getElementById("all-n").textContent = `${DATA.n}, with where each method ranked the expected passage`;
+document.getElementById("all-n").textContent = `${DATA.n} queries`;
 const sel = document.getElementById("qtype");
 sel.innerHTML = `<option value="">All types</option>` + Object.entries(TYPES).map(([v, [l]]) => `<option value="${v}">${l}</option>`).join("");
-function rankTd(ranks) {
-  const hit = ranks.some((r) => r);
-  return `<td class="rk2 num ${hit ? "hit" : "miss"}">${ranks.map((r) => (r ? ordinal(r) : "–")).join(", ")}</td>`;
-}
+const chip = (r) => (r
+  ? `<i class="rc num ${r === 1 ? "r1" : r <= 3 ? "r3" : "r10"}" title="${ordinal(r)}">${r}</i>`
+  : `<i class="rc miss" title="not in top ${k}">–</i>`);
+// Two-passage queries carry one chip per expected passage.
+const rankTd = (ranks) => `<td class="rk2">${ranks.map(chip).join("")}</td>`;
 function renderQueries() {
   const rows = DATA.queries.filter((q) => !sel.value || q.type === sel.value);
   document.getElementById("qcount").textContent = `${rows.length} queries`;
