@@ -5,14 +5,13 @@ import { Leaderboard } from "@/components/benchmarks/leaderboard";
 import { MethodNotes } from "@/components/benchmarks/method-notes";
 import { TypeMatrix } from "@/components/benchmarks/type-matrix";
 import { DashboardShell } from "@/components/shell/dashboard-shell";
-import { BENCHMARK, method, pct } from "@/lib/benchmarks/retrieval-benchmark";
+import { BENCHMARK } from "@/lib/benchmarks/retrieval-benchmark";
 
 /** How well each retrieval method finds the passage that answers a question.
  * A STATIC route that reads no API (§4c decision 2 amendment 2026-10-06):
  * the data is the committed eval run, exported by `just bench-data`. */
 export default function BenchmarksPage() {
   const data = BENCHMARK;
-  const top = data.board[0];
   const updated = new Date(`${data.exported}T00:00:00`).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
@@ -25,8 +24,8 @@ export default function BenchmarksPage() {
       trail={<li className="text-ink font-medium">Benchmarks</li>}
     >
       <div className="pt-2 pb-1">
-        <h1 className="font-serif text-ink max-w-[28ch] text-[clamp(1.7rem,3.4vw,2.35rem)] leading-[1.1] font-bold text-balance">
-          {method(top.config).name} finds the right passage for {pct(top.recall)} of questions
+        <h1 className="font-serif text-ink max-w-[24ch] text-[clamp(1.7rem,3.4vw,2.35rem)] leading-[1.1] font-bold text-balance">
+          Retrieval benchmark
         </h1>
         <p className="text-ink-2 mt-3 max-w-[62ch] text-[15px] leading-snug">
           {data.n} questions over {data.n_papers.toLocaleString("en")} arXiv cs papers, scored at
