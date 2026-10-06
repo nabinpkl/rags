@@ -1,6 +1,6 @@
 import raw from "@/lib/benchmarks/retrieval.json";
 
-/** The retrieval benchmark, as `just bench-data` exported it from the
+/** The retrieval benchmark, as `just eval-publish` wrote it from the
  * committed eval run (DECISIONS.md 2026-10-06). Imported at build time: the
  * numbers change only when a run is committed, so the page reads no API.
  *

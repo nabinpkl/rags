@@ -30,7 +30,6 @@ import argparse
 import hashlib
 import json
 import math
-import re
 import sqlite3
 import statistics
 import sys
@@ -50,10 +49,6 @@ from askrag.retrieval.vector_store import VectorStore
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, GoldenType, load_golden
 from evals.rewrite_queries import REWRITES_PATH, load_rewrites
 from evals.run_store import Retrieved, append_run, load_run, run_path
-
-README_PATH = Path(__file__).parent.parent / "README.md"
-_MARKER_START = "<!-- retrieval-evals:start -->"
-_MARKER_END = "<!-- retrieval-evals:end -->"
 
 # Row order and labels of the table; the keys are what `retrieve` returns.
 CONFIGS: dict[str, str] = {
@@ -315,21 +310,38 @@ def render(
     return "\n".join(lines) + "\n"
 
 
-def splice_readme(readme: str, table: str) -> str:
-    """Replace the text between the markers; the markers must already exist,
-    so a README edit that drops them fails instead of growing a second table."""
-    pattern = re.compile(re.escape(_MARKER_START) + r".*?" + re.escape(_MARKER_END), re.S)
-    if len(pattern.findall(readme)) != 1:
-        raise ValueError(f"README needs exactly one {_MARKER_START} ... {_MARKER_END} block")
-    return pattern.sub(lambda _: f"{_MARKER_START}\n{table}{_MARKER_END}", readme)
+def report(
+    records: Sequence[GoldenRecord],
+    done: dict[str, Retrieved],
+    k: int,
+    pool_k: int,
+    *,
+    n_papers: int,
+    n_chunks: int,
+    run_id: str,
+) -> str:
+    """The results table for a finished run, from its saved questions alone."""
+    rankings = {r.id: done[r.id].rankings for r in records}
+    pools = {r.id: done[r.id].pools for r in records}
+    latency = {c: p50_ms([done[r.id].seconds[c] for r in records]) for c in CONFIGS}
+    cost = {c: statistics.mean(done[r.id].usd[c] for r in records) for c in CONFIGS}
+    return render(
+        records,
+        rankings,
+        pools,
+        latency,
+        cost,
+        k,
+        pool_k,
+        n_papers=n_papers,
+        n_chunks=n_chunks,
+        run_id=run_id,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    parser.add_argument(
-        "--write-readme", action="store_true", help="replace the README's results block"
-    )
-    args = parser.parse_args(argv)
+    parser.parse_args(argv)
     settings = get_settings()
     k, pool_k = settings.search_top_k, settings.eval_pool_k
     records = load_golden(GOLDEN_PATH)
@@ -362,27 +374,11 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         conn.close()
 
-    rankings = {r.id: done[r.id].rankings for r in records}
-    pools = {r.id: done[r.id].pools for r in records}
-    seconds = {c: [done[r.id].seconds[c] for r in records] for c in CONFIGS}
-    latency = {c: p50_ms(seconds[c]) for c in CONFIGS}
-    cost = {c: statistics.mean(done[r.id].usd[c] for r in records) for c in CONFIGS}
-    table = render(
-        records,
-        rankings,
-        pools,
-        latency,
-        cost,
-        k,
-        pool_k,
-        n_papers=n_papers,
-        n_chunks=n_chunks,
-        run_id=run_id,
+    print(
+        report(records, done, k, pool_k, n_papers=n_papers, n_chunks=n_chunks, run_id=run_id),
+        end="",
     )
-    print(table, end="")
-    if args.write_readme:
-        README_PATH.write_text(splice_readme(README_PATH.read_text(), table))
-        print(f"wrote {README_PATH.name}", file=sys.stderr)
+    print("`just eval-publish` writes this run to the README and /benchmarks", file=sys.stderr)
     return 0
 
 

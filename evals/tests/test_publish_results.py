@@ -1,13 +1,13 @@
-"""The benchmarks page's export (§4c decision 2 amendment 2026-10-06). A run
-is handed in as Retrieved records and titles come from a stub, so nothing
-here touches corpus.db or a provider."""
+"""Publishing a run to the README and the benchmarks page (§4c decision 2
+amendment 2026-10-06). A run is handed in as Retrieved records and titles
+come from a stub, so nothing here touches corpus.db or a provider."""
 
 import random
 
 import pytest
 
-from evals.export_benchmarks import LOCAL_RERANK, bootstrap_ci, build, rank_of
 from evals.golden_set import Difficulty, GoldenChecks, GoldenRecord, GoldenType
+from evals.publish_results import LOCAL_RERANK, bootstrap_ci, build, rank_of, splice_readme
 from evals.run_retrieval_evals import CONFIGS
 from evals.run_store import Retrieved
 
@@ -126,3 +126,19 @@ def test_bootstrap_interval_brackets_the_mean_and_is_seeded():
     lo, hi = bootstrap_ci(values, random.Random(1))
     assert lo < 0.7 < hi
     assert (lo, hi) == bootstrap_ci(values, random.Random(1))
+
+
+README = "intro\n<!-- retrieval-evals:start -->\nold\n<!-- retrieval-evals:end -->\noutro\n"
+
+
+def test_splice_replaces_only_the_marked_block():
+    out = splice_readme(README, "new table\n")
+    assert out == (
+        "intro\n<!-- retrieval-evals:start -->\nnew table\n<!-- retrieval-evals:end -->\noutro\n"
+    )
+    assert splice_readme(out, "new table\n") == out
+
+
+def test_splice_fails_without_markers():
+    with pytest.raises(ValueError):
+        splice_readme("no markers here", "t\n")

@@ -1380,7 +1380,7 @@ Three layout decisions resolved here, deliberately:
    "just indexed" list and its `GET /api/latest` are deleted, since Explore
    sorted newest already lists the same papers. Amended again 2026-10-06:
    `/benchmarks` shows the retrieval eval. It is the one route that reads no
-   API: `evals/export_benchmarks.py` writes the committed run's scores to
+   API: `evals/publish_results.py` (`just eval-publish`) writes the committed run's scores to
    `frontend/lib/benchmarks/retrieval.json` and the page imports it, because
    the numbers change only when an eval run is committed. Titles and section
    names only, never passage text (§6c).)* Static export (D13) plus 6,460

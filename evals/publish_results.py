@@ -1,6 +1,8 @@
-"""The benchmarks page's data, from the committed eval run: `just bench-data`.
+"""Publish a finished eval run: `just eval-publish`.
 
-Writes `frontend/lib/benchmarks/retrieval.json`, which `/benchmarks` imports
+Reads only the committed run file (no retrieval, no model calls) and writes
+the README's results block and `frontend/lib/benchmarks/retrieval.json`,
+which `/benchmarks` imports
 at build time (§4c decision 2 amendment 2026-10-06; DECISIONS.md
 2026-10-06). Everything comes from the run file the README table came from,
 so the page and the README cannot disagree: the leaderboard with 95%
@@ -18,6 +20,7 @@ than read from a file.
 import argparse
 import json
 import random
+import re
 import sqlite3
 import statistics
 import sys
@@ -31,10 +34,13 @@ from askrag.config import Settings, get_settings
 
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, GoldenType, load_golden
 from evals.rewrite_queries import REWRITES_PATH, load_rewrites
-from evals.run_retrieval_evals import CONFIGS, fingerprint, p50_ms, recall_at, score
+from evals.run_retrieval_evals import CONFIGS, fingerprint, p50_ms, recall_at, report, score
 from evals.run_store import Retrieved, load_run, run_path
 
 EXPORT_PATH = Path(__file__).parent.parent / "frontend" / "lib" / "benchmarks" / "retrieval.json"
+README_PATH = Path(__file__).parent.parent / "README.md"
+_MARKER_START = "<!-- retrieval-evals:start -->"
+_MARKER_END = "<!-- retrieval-evals:end -->"
 
 # Where the latencies were measured; the page names it (never "this host").
 HARDWARE = "4-core Arm server (Neoverse N1), no GPU"
@@ -251,6 +257,15 @@ def build(
     }
 
 
+def splice_readme(readme: str, table: str) -> str:
+    """Replace the text between the markers; the markers must already exist,
+    so a README edit that drops them fails instead of growing a second table."""
+    pattern = re.compile(re.escape(_MARKER_START) + r".*?" + re.escape(_MARKER_END), re.S)
+    if len(pattern.findall(readme)) != 1:
+        raise ValueError(f"README needs exactly one {_MARKER_START} ... {_MARKER_END} block")
+    return pattern.sub(lambda _: f"{_MARKER_START}\n{table}{_MARKER_END}", readme)
+
+
 def chunk_meta(conn: sqlite3.Connection) -> ChunkMeta:
     def meta(chunk_id: str) -> dict[str, str]:
         row = conn.execute(
@@ -304,7 +319,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.parse_args(argv)
     settings = get_settings()
     if settings.rerank_backend != "openrouter":
-        raise SystemExit("export reads the hosted-rerank run; set rerank_backend=openrouter")
+        raise SystemExit("publish reads the hosted-rerank run; set rerank_backend=openrouter")
     records = load_golden(GOLDEN_PATH)
     conn = db.connect_corpus(None)
     try:
@@ -319,11 +334,23 @@ def main(argv: list[str] | None = None) -> int:
             pool_k=settings.eval_pool_k,
             facts={"run_id": run_id, **run_facts(settings, records, conn)},
         )
+        # build() has already refused a run missing a question, so the README
+        # never gets a table over part of a run either.
+        table = report(
+            records,
+            done,
+            settings.search_top_k,
+            settings.eval_pool_k,
+            n_papers=int(data["n_papers"]),  # ty: ignore[invalid-argument-type]
+            n_chunks=n_chunks,
+            run_id=run_id,
+        )
     finally:
         conn.close()
+    README_PATH.write_text(splice_readme(README_PATH.read_text(), table))
     EXPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     EXPORT_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
-    print(f"wrote {EXPORT_PATH} from run {run_id}", file=sys.stderr)
+    print(f"wrote {README_PATH.name} and {EXPORT_PATH.name} from run {run_id}", file=sys.stderr)
     return 0
 
 
