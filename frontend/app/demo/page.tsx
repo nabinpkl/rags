@@ -85,6 +85,7 @@ function Demo() {
     <CatalogView
       view="demo"
       pinnedHolding="indexed"
+      heading={{ title: "RAG Demo", subtitle: "Subset of CS papers that are indexed for the demo." }}
       readerHref={readerHref}
       barEnd={<AgentButton />}
       reader={paper ? <PaperSplitView /> : undefined}

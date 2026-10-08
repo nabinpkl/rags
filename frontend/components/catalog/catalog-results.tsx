@@ -38,7 +38,7 @@ function destination(
  * reading its own input back. */
 function describe(state: CatalogFilterState, topic: string | null): string {
   const parts = [
-    state.holding === "indexed" ? "Papers the agent can read" : "Papers",
+    state.holding === "indexed" ? "Indexed papers" : "Papers",
     // The topic's arXiv name where the facets have arrived with one, so the
     // heading reads as the row the reader pressed rather than as its code.
     state.category ? (topic ?? state.category) : null,
@@ -84,6 +84,7 @@ export function CatalogResults({
   scrollElement,
   readerHref,
   rememberAs,
+  heading,
 }: {
   papers: CatalogPaper[];
   total: number;
@@ -99,6 +100,9 @@ export function CatalogResults({
   /** The scroll-memory key, one per view, so leaving one list and returning
    * to the other does not land the reader at the first list's position. */
   rememberAs: string;
+  /** A fixed page name in place of the filter said back, for a view whose
+   * scope is pinned and so is the page's identity (the demo). */
+  heading?: { title: string; subtitle: string };
 }) {
   // Here rather than in the list: the list unmounts while a new filter's
   // first page loads, and the reset to the top has to happen then, not once
@@ -123,9 +127,12 @@ export function CatalogResults({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-4">
-        <h1 className="font-serif text-ink min-w-0 text-[22px] leading-[1.2] font-semibold text-balance">
-          {describe(state, topic)}
-        </h1>
+        <div className="min-w-0">
+          <h1 className="font-serif text-ink text-[22px] leading-[1.2] font-semibold text-balance">
+            {heading ? heading.title : describe(state, topic)}
+          </h1>
+          {heading && <p className="text-muted mt-1 text-[13.5px]">{heading.subtitle}</p>}
+        </div>
         <p className="text-muted shrink-0 font-mono text-[11px] tracking-[0.08em] tabular-nums uppercase">
           {loading && papers.length === 0 ? "counting" : `${total.toLocaleString()} found`}
         </p>
