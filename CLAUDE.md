@@ -71,6 +71,10 @@ work is broken into GitHub issues.
   trigger), no human sign-off.
 - Any deviation from a spec decision needs a new/updated decision record in
   the spec — no silent architecture drift.
+- UI headings are plain nouns naming the page or section ("RAG Demo",
+  "Retrieval benchmark", "Category trends"), never a verb phrase or a
+  description ("Papers the agent can read") and never a finding. Scope or
+  explanation goes in a subtitle under the heading.
 
 ## Hard constraints (violating these is a security/legal bug)
 

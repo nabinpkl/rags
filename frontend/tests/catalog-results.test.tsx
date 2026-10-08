@@ -74,6 +74,25 @@ describe("CatalogResults", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Papers · quant-ph");
   });
 
+  it("prints a fixed page name and subtitle in place of the filter when given one", () => {
+    render(
+      <CatalogResults
+        papers={[paper()]}
+        total={1}
+        state={{ ...EMPTY_FILTER, holding: "indexed", category: "cs.RO" }}
+        topic="Robotics"
+        loading={false}
+        page={LAST_PAGE}
+        scrollElement={scroller()}
+        readerHref={(id) => `/demo?paper=${id}`}
+        rememberAs="demo"
+        heading={{ title: "RAG Demo", subtitle: "Indexed for the demo." }}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^RAG Demo$/);
+    expect(screen.getByText("Indexed for the demo.")).toBeInTheDocument();
+  });
+
   it("drops the category chip while a topic filter is on, since every card would repeat it", () => {
     const props = {
       papers: [paper({ primary_category: "cs.RO" })],

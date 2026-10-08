@@ -33,6 +33,7 @@ export function CatalogView({
   aside,
   barEnd,
   reader,
+  heading,
 }: {
   view: "explore" | "demo";
   readerHref: (arxivId: string) => string;
@@ -41,6 +42,7 @@ export function CatalogView({
   barEnd?: ReactNode;
   /** Rendered in place of the list while a paper is open. */
   reader?: ReactNode;
+  heading?: { title: string; subtitle: string };
 }) {
   const { state, change, papers, facets } = useCatalogQuery({ pinnedHolding });
   const overlay = useUiShellStore((s) => s.overlay);
@@ -158,6 +160,7 @@ export function CatalogView({
                     scrollElement={canvas}
                     readerHref={readerHref}
                     rememberAs={view}
+                    heading={heading}
                   />
                 )}
               </div>
