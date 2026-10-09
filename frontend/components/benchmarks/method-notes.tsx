@@ -25,7 +25,7 @@ export function MethodNotes({ data }: { data: RetrievalBenchmark }) {
       "Checked by",
       <>
         drafted by {list(data.draft_models)}, checked by {list(data.check_models)}, ambiguous
-        answers culled; no human pass
+        answers culled
       </>,
     ],
     ["Relevance", "one expected passage per query (two for two-passage queries)"],
