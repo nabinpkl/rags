@@ -86,6 +86,20 @@ describe("agent-session-store — status is one discriminated union", () => {
     expect(useAgentSessionStore.getState().turns[0].answer).toBe("the answer");
   });
 
+  it("starts a new paragraph when text resumes after tool steps, not mid-stream", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("q");
+    applyEvent({ type: "text", text: "Let me check." });
+    applyEvent({ type: "text", text: " One more line." });
+    applyEvent({ type: "tool_call", name: "search_corpus", args: { query: "x" } });
+    applyEvent({ type: "tool_result_summary", name: "search_corpus", ok: true, error: null });
+    applyEvent({ type: "text", text: "Two papers" });
+    applyEvent({ type: "text", text: " qualify." });
+    expect(useAgentSessionStore.getState().turns[0].answer).toBe(
+      "Let me check. One more line.\n\nTwo papers qualify.",
+    );
+  });
+
   it("setCapped drives status directly", () => {
     useAgentSessionStore.getState().setCapped("budget exceeded");
     expect(useAgentSessionStore.getState().status).toEqual({
@@ -344,5 +358,20 @@ describe("agent-session-store — forward-compat", () => {
     startTurn("q");
     const futureEvent = { type: "some_future_event" } as unknown as SseEvent;
     expect(() => applyEvent(futureEvent)).not.toThrow();
+  });
+});
+
+describe("agent-session-store — a transcript belongs to one scope", () => {
+  it("records the scope a turn was asked under, and reset clears it", () => {
+    useAgentSessionStore.getState().startTurn("about Qwen3", "2505.09388");
+    expect(useAgentSessionStore.getState().scope).toBe("2505.09388");
+
+    useAgentSessionStore.getState().reset();
+    expect(useAgentSessionStore.getState().scope).toBeNull();
+  });
+
+  it("defaults to the whole indexed set when no claim is named", () => {
+    useAgentSessionStore.getState().startTurn("anything");
+    expect(useAgentSessionStore.getState().scope).toBeNull();
   });
 });

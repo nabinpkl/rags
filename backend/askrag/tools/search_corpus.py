@@ -50,12 +50,25 @@ class SearchCorpusResult:
 def run(
     args: SearchCorpusArgs,
     *,
+    scope: tuple[str, ...] | None = None,
     searcher: HybridSearch | None = None,
     settings: Settings | None = None,
 ) -> SearchCorpusResult:
+    """`scope` is set by the ROUTE, never by the model.
+
+    It is absent from `SearchCorpusArgs` on purpose: a model-authored paper-id
+    list would be a scope the model could widen, which is not a scope. A turn
+    entered from a landing-page claim carries that claim's indexed papers here,
+    and no argument the model writes can reach past them.
+    """
     settings = settings if settings is not None else get_settings()
     searcher = searcher if searcher is not None else HybridSearch(settings)
     k = min(args.k, settings.search_corpus_max_k)
-    filters = Filters(category=args.category, year_min=args.year_min, year_max=args.year_max)
+    filters = Filters(
+        category=args.category,
+        year_min=args.year_min,
+        year_max=args.year_max,
+        paper_ids=scope,
+    )
     chunks = searcher.search(args.query, filters=filters, k=k)
     return SearchCorpusResult(chunks=tuple(chunks))

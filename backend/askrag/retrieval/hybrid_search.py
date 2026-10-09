@@ -63,6 +63,10 @@ class Filters:
     category: str | None = None
     year_min: int | None = None
     year_max: int | None = None
+    # A scope, not a filter: `None` means unscoped, an EMPTY tuple means
+    # nothing is in scope. Set server-side from a landing-page claim, never
+    # by the model — see routes_chat's scope handling (§5/§6).
+    paper_ids: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -117,6 +121,7 @@ class VectorStoreLike(Protocol):
         category: str | None = None,
         year_min: int | None = None,
         year_max: int | None = None,
+        paper_ids: tuple[str, ...] | None = None,
     ) -> list[str]: ...
 
 
@@ -164,6 +169,7 @@ class HybridSearch:
                     category=filters.category,
                     year_min=filters.year_min,
                     year_max=filters.year_max,
+                    paper_ids=filters.paper_ids,
                 )
             except _VECTOR_LEG_OPERATIONAL_ERRORS:
                 # Fail-soft BY DESIGN (D8): a dead vector leg degrades to
@@ -184,6 +190,7 @@ class HybridSearch:
                         category=filters.category,
                         year_min=filters.year_min,
                         year_max=filters.year_max,
+                        paper_ids=filters.paper_ids,
                     )
                 fused = rrf_fuse(legs, settings.rrf_k)
                 ranked = sorted(fused.items(), key=lambda kv: kv[1][0], reverse=True)[:top_k]

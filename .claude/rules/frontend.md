@@ -30,6 +30,13 @@ Only askRAG-specific facts live here:
   conditional: a selected control that stops reacting to the pointer reads as
   disabled. Palette tokens for hover states are in `globals.css` alongside the
   colours they step from.
+- **Viewport breakpoints decide dock-vs-drawer; container queries decide
+  layout inside a region.** `md:`/`lg:` (`lib/breakpoints.ts`) only say where
+  a shell panel sits. Anything that reflows inside the explorer or the viewer
+  keys on its own width (`@container` on the region root, `@xl:`/`@3xl:` on
+  the children): the docked rail and agent panel take up to 636px of the
+  viewport, so a 1040px window leaves the list narrower than a phone, and a
+  viewport breakpoint laid it out as a five-column table with a 98px title.
 - **Next.js is static-export here (D13), and this diverges deliberately from
   sibling repos** (chatbot is SSR/RSC): `output: 'export'`, no server actions, no
   dynamic route segments; URL state via search params (`?paper=`). This section is

@@ -3,15 +3,15 @@
 // link-back. Child regions (arxiv-pdf-frame.tsx, cited-excerpts-pane.tsx)
 // are mocked out: their own behavior is covered by their own test files;
 // this file is about the split-view's layout/header contract and the
-// #29 wiring gap (citationsByPaper -> usePaperDetail's chunk ids).
+// #29 wiring gap (citationsByPaper -> the detail hook's chunk ids).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PaperSplitView } from "@/components/viewer/paper-split-view";
 import { useViewerStore } from "@/stores/viewer-store";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
-import { usePaperDetail } from "@/hooks/use-paper-detail";
+import { useViewerPaper } from "@/hooks/use-viewer-paper";
 
-vi.mock("@/hooks/use-paper-detail");
+vi.mock("@/hooks/use-viewer-paper");
 vi.mock("@/components/viewer/arxiv-pdf-frame", () => ({
   ArxivPdfFrame: ({ arxivId, version }: { arxivId: string; version: string | null }) => (
     <div data-testid="pdf-frame">
@@ -23,21 +23,21 @@ vi.mock("@/components/viewer/cited-excerpts-pane", () => ({
   CitedExcerptsPane: () => <div data-testid="excerpts-pane" />,
 }));
 
-const usePaperDetailMock = vi.mocked(usePaperDetail);
+const useViewerPaperMock = vi.mocked(useViewerPaper);
 
-function mockDetail(overrides: Partial<ReturnType<typeof usePaperDetail>> = {}) {
-  usePaperDetailMock.mockReturnValue({
+function mockDetail(overrides: Partial<ReturnType<typeof useViewerPaper>> = {}) {
+  useViewerPaperMock.mockReturnValue({
     data: undefined,
     isPending: false,
     isError: false,
     ...overrides,
-  } as ReturnType<typeof usePaperDetail>);
+  } as ReturnType<typeof useViewerPaper>);
 }
 
 beforeEach(() => {
   useViewerStore.getState().reset();
   useAgentSessionStore.getState().reset();
-  usePaperDetailMock.mockReset();
+  useViewerPaperMock.mockReset();
 });
 
 describe("PaperSplitView", () => {
@@ -74,21 +74,14 @@ describe("PaperSplitView", () => {
     useViewerStore.getState().setPaper("1409.7842");
     mockDetail({
       data: {
-        arxiv_id: "1409.7842",
         title: "A complete KALDI recipe",
         authors: "A. Ali",
-        abstract: "",
-        categories: "cs.CL",
         primary_category: "cs.CL",
         year: 2014,
-        published: "2014-01-01",
-        venue: null,
-        license: null,
         version: "v3",
-        facets: {},
-        n_chunks: 10,
         excerpts: [],
         excerpts_truncated: false,
+        indexed: true,
       },
     });
     render(<PaperSplitView />);
@@ -99,21 +92,14 @@ describe("PaperSplitView", () => {
     useViewerStore.getState().setPaper("1409.7842");
     mockDetail({
       data: {
-        arxiv_id: "1409.7842",
         title: "t",
         authors: "a",
-        abstract: "",
-        categories: "cs.CL",
         primary_category: "cs.CL",
         year: 2014,
-        published: "2014-01-01",
-        venue: null,
-        license: null,
         version: null,
-        facets: {},
-        n_chunks: 1,
         excerpts: [],
         excerpts_truncated: false,
+        indexed: true,
       },
     });
     render(<PaperSplitView />);
@@ -129,7 +115,7 @@ describe("PaperSplitView", () => {
     expect(useViewerStore.getState().paper).toBeNull();
   });
 
-  it("passes the session's captured chunk_ids for the open paper to usePaperDetail (#29 wiring gap)", () => {
+  it("passes the session's captured chunk_ids for the open paper to the detail hook (#29 wiring gap)", () => {
     useViewerStore.getState().setPaper("1409.7842");
     useAgentSessionStore.setState({
       citationsByPaper: new Map([["1409.7842", ["c1", "c2"]]]),
@@ -137,6 +123,23 @@ describe("PaperSplitView", () => {
     mockDetail();
     render(<PaperSplitView />);
 
-    expect(usePaperDetailMock).toHaveBeenCalledWith("1409.7842", ["c1", "c2"]);
+    expect(useViewerPaperMock).toHaveBeenCalledWith("1409.7842", ["c1", "c2"]);
+  });
+});
+
+// The split keys on the viewer's OWN width (`@container` + `@3xl:`), not the
+// viewport's: with the agent panel docked, a 1040px window leaves this region
+// 620px, and a viewport breakpoint gave the PDF 300px beside a 320px pane of
+// "no excerpts yet".
+describe("PaperSplitView layout", () => {
+  it("lays out the PDF|excerpts split by its own width, not the viewport", () => {
+    useViewerStore.getState().setPaper("1409.7842");
+    mockDetail({ isPending: true });
+    const { container } = render(<PaperSplitView />);
+
+    expect(container.firstElementChild?.className).toMatch(/@container/);
+    const disclosure = screen.getByRole("button", { name: /cited excerpts/i });
+    expect(disclosure.className).toMatch(/@3xl:hidden/);
+    expect(disclosure.className).not.toMatch(/\bmd:/);
   });
 });

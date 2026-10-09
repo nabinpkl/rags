@@ -277,6 +277,43 @@ trigger: a paid embeddings tier enters the budget, #18 evals show a paid or
 larger model retrieves meaningfully better on this corpus, or #16's measured
 query-time CPU latency on the target VPS is unacceptable.
 
+**Amendment (2026-09-18, owner directive).** The default backend is
+**`perplexity/pplx-embed-v1-0.6b` at 512d via OpenRouter** (`embedding_backend
+= "openrouter"`); the local nomic path and the parked Voyage path both remain
+selectable. Two facts moved the decision. **Coverage:** 144 of the 811 papers
+with chunks had no vectors at all, the foundations among them, so they were
+retrievable by BM25 only — and closing that locally is 2.6 CPU hours at a
+measured 0.66 chunks/s, with a full re-embed at 16.9. Through the API the
+whole corpus took 679s and $0.0849, which removes CPU time as the reason the
+indexed set stays small. **Retrieval:** on the 33,931 chunks both models
+cover, with identical queries and cosine in both spaces, exact-chunk recall@10
+went 0.718 → 0.837 and MRR@10 0.539 → 0.656 (n=667, ten to thirteen points on
+every metric, top-10 overlap 3.5/10).
+
+Two honest caveats on that number. The previous amendment's revisit trigger
+named **#18's evals**, which do not exist yet; what fired it was a
+**proxy** — one mid-chunk 30-word span per paper retrieving its own chunk —
+whose query text appears verbatim in the target, and which scores the vector
+leg alone rather than the hybrid the app serves. And the swap puts a network
+call in the query path where a local model stood: measured 107 ms/query
+against 264 ms locally, with D8's fail-soft boundary degrading to BM25-only on
+a transport error (confirmed in practice). Per-model artifact keying is what
+makes this reversible: the nomic collection stays in Chroma beside the new
+one, so rollback is one env var.
+
+New operational invariant: an API embedding backend is **paced, not just
+retried**. Perplexity rate-limits upstream of OpenRouter, and the five 429s in
+the bulk run all traced to a cold-start burst, so `ingest/token_bucket.py`
+reserves tokens forward in time and banks nothing — an idle stretch earns no
+credit for a later burst. Batch caps come from the provider's own errors (512
+items, 120,000 tokens per request), not its docs, which state none.
+
+**Revisit when (this amendment).** #17/#18 land and the hand-verified golden
+set disagrees with the proxy above; or the query-path network dependency costs
+more in latency or failed turns than the recall gain is worth; or a
+same-model hosted option appears that would let vectors be topped up rather
+than rebuilt.
+
 ---
 
 ### D6. PDF extraction: PyMuPDF4LLM, with a skip list, not a GPU parser
@@ -347,6 +384,52 @@ enabled. See DECISIONS.md 2026-07-05.
 
 ### D8. Retrieval: hybrid (vector + BM25 + RRF), filters pushed down; rerank only if evals demand it
 
+*Amended 2026-10-05: the reranking ceiling is measured (D14 amendment of that
+date): hybrid recall@10 79%, recall@50 93%.*
+
+**Amendment (2026-10-05, owner directive): a local cross-encoder, measured.**
+The rerank stage is a local cross-encoder (`rerank_model`, pinned like the
+embedding model; `askrag/retrieval/rerank.py`), not Voyage or an LLM
+listwise pass: `sentence-transformers` is already a dependency, it costs $0,
+and it reads the query and the passage together, which is the thing an
+embedding cannot do. It reorders hybrid's top `eval_pool_k` (50) into the top
+10. Measured on 93 questions (run `492b61d7e3a5`):
+
+| | Recall@10 | nDCG@10 | Latency, build host |
+|---|---|---|---|
+| Hybrid | 79% | 0.58 | 0.24 s |
+| + gte-reranker-modernbert-base (2025, 149M, whole chunks) | 87% | 0.71 | 153 s |
+| + ms-marco-MiniLM-L6-v2 (2022, 22M, 512 tokens) | 72% | 0.55 | 9 s |
+
+The current model takes 8 of the 14 points the pool allows; its gains are on
+vocabulary_mismatch (64 to 82%) and multi_hop (55 to 70%). The older web-QA
+model loses ground, most on tables and math. `rerank_enabled` stays False:
+the build host, which also serves the site, needs about three seconds per
+passage on CPU, so a live rerank needs either a hosted reranker or a GPU, and
+that is the next decision, not this one.
+
+**Amendment (2026-10-05, owner directive): a hosted reranker, priced per
+query.** The rerank stage has two scorers behind `rerank_backend`: `openrouter`
+(OpenRouter's /rerank, default `voyageai/rerank-3-lite`, $0.02 per million
+tokens) and `local` (the cross-encoder above, kept for comparison). The
+billed cost is the provider's own `usage.cost`, never a rate table. 429s and
+5xx are retried with backoff (the provider's shared project hit its
+tokens-per-minute limit on the third question). Every eval row now reports
+mean cost per query from the providers' billed figures (embedding, rerank,
+rewrite). Run `bf072fb0bfba`, 93 questions:
+
+| | Recall@10 | nDCG@10 | MRR | p50 latency | Cost / query |
+|---|---|---|---|---|---|
+| Hybrid + Voyage rerank-3-lite | 90% | 0.79 | 0.77 | 0.74 s | $0.00066 |
+| Hybrid + local gte-modernbert (run `492b61d7e3a5`) | 87% | 0.71 | 0.67 | 153 s | $0 |
+| Hybrid | 79% | 0.58 | 0.52 | 0.22 s | <$0.000001 |
+
+Hosted reranking takes 11 of the 14 points the top-50 pool allows, gaining
+most on vocabulary_mismatch (64 to 89%) and multi_hop (55 to 70%), for about
+half a second and a tenth of a cent per search. `rerank_enabled` stays False
+until the agent's answers are measured with it; a turn of about five searches
+would add about $0.003 to a $0.0067 turn.
+
 **Decision.** `search_corpus` runs vector search (Chroma) and BM25 (FTS5)
 in parallel, fuses with reciprocal rank fusion, applies metadata filters
 (category, year, facets — pushed into Chroma's `where` and SQL respectively),
@@ -387,7 +470,8 @@ when authors revise. **Validated 2026-07-04**: pinned URLs serve 200/pdf
 with no redirects, superseded old versions remain permanently retrievable,
 and withdrawn papers still serve PDFs at pinned URLs (no stub/404 to handle).
 99.5% of corpus rows have a version; the 31 NULL rows fall back to the
-unpinned URL until backfilled via one batched arXiv API call during ingest.
+unpinned URL until backfilled from the Kaggle snapshot's `versions` array
+during ingest (D18 — local, no network).
 Alongside it, a **cited-excerpts pane** (our extraction, display-capped per
 §6c — not a full-text mirror) shows the chunks the agent cited with
 highlights and page anchors. The 11.6 GB corpus never deploys; prod ships
@@ -506,8 +590,9 @@ free tier → Turnstile everywhere.
 ### D12. Frozen corpus snapshot in prod; the update pipeline stays offline
 
 **Decision.** Prod serves a build-stamped snapshot (`corpus 2026-07`,
-shown in the footer). The existing `update` recipe keeps working locally;
-refreshing prod = re-run ingest → upload new SQLite file → restart.
+shown in the footer). The OAI-based `update` recipe is retired under D18
+(no code path may touch export.arxiv.org); refreshing prod = re-run ingest
+→ upload new SQLite file → restart.
 
 **Why.** Live updates would drag the whole ingest chain (download → extract →
 chunk → embed → index) onto the VPS, force concurrent writes (breaking D4's
@@ -526,6 +611,15 @@ refreshes being a 30-minute chore.
 **Revisit when.** The project pivots from portfolio to product, or manual
 refreshes exceed monthly cadence — then build the pipeline *as* the next
 portfolio chapter (it's D4's pgvector trigger too).
+
+**Amendment (2026-08-27, landing page).** The snapshot is now defined as *the
+papers this month's page points at* (D16's amendment: `select_frontier.py`'s
+manifest), refreshed on a monthly manual cadence — pull the month, extract
+text, recompute citations, derive the frontier, chunk and embed it, rebuild.
+**No VPS cron; D12's rejection of one stands unchanged**, and there is still
+no serve-time freshness. What the amendment buys is that "stale" now has a
+size: the page's own window banner states the id-months it covers, derived
+from the citing side of the graph rather than written down anywhere.
 
 ---
 
@@ -690,6 +784,158 @@ retrieval subset per PR (§10 CI), while the LLM-judged Layers 2–3 run on dema
 scorer would catch drift the on-demand traces-replay misses; or the judge-vs-
 human slice shows weak agreement (rework the rubric before trusting numbers).
 
+**Amendment (2026-09-30, owner directive): no human verification pass.** The
+golden set is drafted by one model and checked by a model of another family,
+and a record counts on the checks alone. `verified` leaves the record shape;
+each record carries its `checks` instead. Issue #17's human pass and the
+judge-vs-human agreement slice above are both dropped.
+
+- **Drafter / checker.** GLM 5.3 Flash (Z.ai) drafts (`golden_draft_model`;
+  replaced 2026-10-05, see that amendment);
+  Muse Spark 1.3 contributor (Meta) checks (`golden_check_model`), both through
+  OpenRouter, chosen by the owner: the account's guardrail blocks the
+  Anthropic, Google and OpenAI slugs, and these two cost cents. A different
+  family on the checking side is the whole defence against a model grading
+  its own questions.
+- **What a record must pass.** Deterministic: the `expected_passage` is a
+  verbatim span of the named chunk and at most 50 words (§6c); an
+  `exact_match` question contains its anchor term; any other question shares
+  none of the chunk's rare terms, so it cannot be a BM25 gimme; an anchor term
+  must recur in two papers, so a running header cannot become one. Checker:
+  the passage alone answers the question, the question is about technical
+  content rather than venue or authors, the drafted answer is right by the
+  passage, and the question cannot be answered closed-book.
+- **Ground truth is anchored twice.** `expected_chunk_ids` are the current
+  `paper#seq` ids, which move whenever chunking constants do (#19); the
+  verbatim passage is what survives that. The integrity test fails the moment
+  a passage stops sitting inside its chunk, and a re-anchor pass fixes the
+  ids from the passages.
+- **Named in every number.** Results from this set are reported as
+  model-checked, never as human-verified.
+
+**Risks accepted.** Checker and drafter can share blind spots, so some records
+will be wrong in ways neither model sees; uniqueness (no *other* chunk also
+answers the question) is not checked, which understates recall where a
+question has several answering chunks. Paper-level recall is reported beside
+chunk-level recall for that reason.
+
+**Revisit when (this amendment).** Two retrieval configurations land within
+five points of each other on a decision that matters; or a spot check of
+twenty records finds more than two wrong.
+
+**Amendment (2026-10-01, owner directive): a vocabulary-mismatch type.** The
+first retrieval run (#18) put BM25 at 97% recall@5 on single_hop: barring only
+words in at most 40 chunks left questions sharing mid-frequency words with their
+chunk, so the set could not show where semantic retrieval earns its place. A
+fifth type, `vocabulary_mismatch`, holds the question a person types when they
+have the problem a passage addresses but not the paper's terms. Its sources are
+chunks that name a method, model or benchmark (the anchored pool, sampled after
+every other type so no existing source moves). Its lexical rule bars every word
+the chunk shares that sits in at most `golden_mismatch_max_shared_df` (500)
+chunks, so everyday field words stay usable and the question still reads like a
+person's. Because a drafter obeying that rule can write a question no one would
+type, the checker also rules on `natural`: false for a stilted question or a
+roundabout rewording of a term the asker would know ("malicious text that
+hijacks a model" for prompt injection). The verdict is asked of this type only
+and is `None` on the others. BM25's score on this type is held down by the
+rule and is reported that way, never as a finding about BM25; the type
+measures what the vector leg recovers when the searcher lacks the paper's
+words, and whether fusion keeps it.
+
+Measured on the first draft (60 candidates, 22 counted): recall@5 is BM25 36%,
+vector 73%, hybrid 77%. Every BM25 hit came through field words the rule
+allows on purpose ("regression", "channel", "diffusion"); tightening the bar
+until those go would buy a lower BM25 number with questions nobody types.
+
+**Revisit when (2026-10-01).** BM25 recall@5 on `vocabulary_mismatch` reaches
+the vector leg's (the type stops separating them), or a spot check finds more
+than two in ten counted questions unnatural.
+
+**Amendment (2026-10-04, owner directive): questions are search queries.** The
+set's questions averaged 35 words of scene-setting ("In the paper's transfer
+learning setup, which optimizer...") that no one types into a paper search.
+Every question is now at most `golden_question_max_words` (12) words, checked
+deterministically, and the checker's `natural` verdict is asked of every type,
+not only `vocabulary_mismatch`: false for a query that reads as written from the
+paper (table numbers, "the authors", context only the paper supplies). Table
+questions ask for the trend or comparison a table shows, not a cell. Short
+table and two-passage queries cull hard (1 of 15 and 4 of 15 survived), so
+their quotas rose to 45 and 35.
+
+Measured (run `b4779b8e72ac`, 102 counted of 213, mean 9.6 words): recall@5 is
+BM25 64%, vector 63%, hybrid 71%; on `vocabulary_mismatch` 48%, 52%, 62%. The
+first amendment's 36%-vs-73% gap on that type came largely from question
+length: a 35-word question carries enough paraphrase for the vector leg and
+too many common words for BM25. On realistic queries neither leg wins alone and
+fusion is what earns its place.
+
+**Revisit when (2026-10-04).** A spot check finds counted queries that still
+read as written from the paper, or a type falls under ten counted questions.
+
+**Amendment (2026-10-05, owner directive): scored at the depth the agent
+reads.** Retrieval evals scored recall@5 and @20 and fused each leg's top 20,
+while the agent reads `search_top_k` (10) from a fusion of each leg's top 10:
+the numbers described a configuration that does not ship. The runner now
+scores at k = `search_top_k` only, retrieves each leg to that depth, and
+reports recall@k, nDCG@k (binary relevance, as BEIR and MTEB report
+retrieval), MRR within k, paper recall@k and median per-query latency;
+`eval_recall_ks` is deleted. The README lists configurations ranked by
+recall@k.
+
+Measured (run `f0a35e4c5ab3`, 102 queries): recall@10 hybrid 80%, BM25 79%,
+vector 73%; nDCG@10 0.59, 0.55, 0.51; median latency 218, 93 and 118 ms. The
+95% bootstrap intervals on recall overlap for all three (hybrid 72-87%), so the
+set ranks them but cannot separate them; growing it is the D14 revisit
+trigger, not a reason to report the gaps as findings.
+
+**Amendment (2026-10-05, owner directive): an ambiguity check, related
+multi-hop pairs, and a new drafter.** A dry run of the agent against the set
+found a counted question whose expected answer is wrong as typed: "how many
+positive literals must a CNF clause contain", answered "one", which holds only
+for Horn clauses. Short queries invite this.
+
+- **Ambiguity check.** The checker also rules on `unambiguous`: false only when
+  the expected answer would be wrong for the query as typed, because it holds
+  for a special case the query does not name. A query answered by one paper's
+  specific result stays in; an earlier wording that also culled those removed
+  187 of 209. The committed set keeps its GLM-drafted questions and had this
+  one verdict backfilled (one checker call per record, same wording), which
+  culled 9 of 102; a record the checker never answered is culled, not passed.
+  The set counts 93.
+- **Related multi-hop pairs.** A pair is two body chunks of one paper (no
+  abstract, introduction, conclusion or related work, which restate the whole
+  paper) in different sections, sharing at least
+  `golden_multi_hop_min_shared_terms` (3) rare terms. Random pairs gave
+  unrelated facts that only a two-part question joins.
+- **Drafter.** The account's guardrail dropped GLM 5.3 Flash. A full redraft
+  counted 54 with gpt-oss-120b (paraphrased spans, questions about paper
+  internals) and 83 with Space Bunny Alpha (stealth, free), against the GLM
+  set's 93 after backfill; Space Bunny is the drafter for the next redraft.
+  The drafter, the checker and the agent (`smoke_model`) are three different
+  models, so no model writes or grades the test it takes.
+- **Checkpointed redrafts.** Each checked record is appended to a progress
+  file under a signature of models, prompts and caps; a killed run resumes,
+  and a run with failed drafts keeps the file so a rerun retries only those.
+
+**Amendment (2026-10-05, owner directive): the reranking ceiling and a
+rewrite row.** Before building a reranker (D8) or crediting the agent's
+query rewriting, the runner measures each in isolation. Every row also
+reports recall at `eval_pool_k` (50), retrieved separately with each leg at
+that depth: the most a reranker reordering that pool into the top 10 could
+reach. A fourth row runs hybrid over one rewrite of the question by the
+agent's own model (`just rewrites`, committed as `evals/rewrites.jsonl` so
+`just eval` stays free of model calls; the runner refuses rewrites of
+questions that have since changed).
+
+Measured (run `b9a4726765fe`, 93 queries): hybrid recall@10 79% and
+recall@50 93%, so a perfect reranker could add at most 14 points. One
+rewrite then hybrid: recall@10 65%; it changed the outcome on 21 questions,
+helping 3 and hurting 18, by generalising into field terms that match other
+papers and by expanding acronyms wrongly. The set's questions are written
+from their passages, which favours the original wording, so the row does not
+show that rewriting hurts real searches; it shows that one rewrite replacing
+the query is not the agent's advantage here.
+
 ---
 
 ### D15. Operational telemetry: OpenTelemetry, JSON-first, built in from the start
@@ -766,13 +1012,232 @@ same bug, unconditionally, needing no tool call to surface).
 ops change behavior for the agent too (they share `count_scalar`/
 `count_grouped`/`INDEXED_PREDICATE` with `GET /api/facets`) — intentional,
 since the agent can only retrieve indexed papers via `search_corpus`/
-`read_paper`. `paper_facets` needs no scope: it reports a specific,
-caller-known paper id's real `n_chunks` (0 for an unindexed one), already
-honest by construction.
+`read_paper`. `paper_facets` and `drive_ui`'s `open_paper`/`set_filters`
+checks are scoped too (tightened 2026-09-30, when the RAG demo view made
+"the agent knows only the indexed papers" a stated product property): an id
+or category with no indexed papers is refused as unknown. Before that,
+`paper_facets` answered any catalog id, which let the agent read a title and
+venue for a paper it could not search, and `open_paper` could put an unreadable
+paper in front of the reader.
 
 **Revisit when.** #15's full ingest runs: the predicate then matches ~all
 6,460 papers and every total self-corrects with no code change — this was
 designed to converge, not to be swapped out.
+
+**Amendment (2026-08-27, landing page).** The RULE is unchanged; what changed
+is why the scope is affordable and how counts relate to lists.
+
+- The indexed set is no longer an arbitrary prefix of the corpus. It is
+  *derived from the landing page's own claims*: `ingest/select_frontier.py`
+  emits the top-N cited works plus a capped, newest-first sample of each
+  one's citers, and exactly those papers are chunked and embedded. Every link
+  the page offers is therefore answerable **by construction** — a stronger
+  property than "most of the corpus is indexed", and the reason the scope is
+  no longer a bug being tolerated.
+- `routes_landing.py` counts over `citations` WITHOUT `INDEXED_PREDICATE`,
+  and this is deliberate: **a count of citations is not an offer of
+  retrieval.** 1,174 papers really do cite Qwen3 whether or not we hold their
+  text. What D16 forbids is the app surfacing a paper it cannot retrieve, so
+  every LIST those routes return is restricted to indexed papers while the
+  COUNTS stay honest totals. The page reads "8 of 1,174" and all 8 open. No
+  `readable` flag reaches the wire, no two-tier UI, no badges — unchanged.
+- `cited_works` is a separate table from `papers` for the same reason: a
+  `papers` row means "we hold this text and can retrieve it", a `cited_works`
+  row means "the Kaggle catalog describes it". Merging them would let a work
+  nothing can read surface wherever a readable paper can.
+
+**Amendment (2026-09-13, home-as-dashboard; superseded 2026-10-02, see §4c
+decision 2: Explore is `/`, the dashboard is `/citations`).** The front door keeps its
+composition and gains two sections, both fed by `routes_landing.py` under the
+same rule: `GET /api/coverage` (per id-month holdings — counts, so honest
+totals with no indexed restriction) and `GET /api/latest` (newest papers — a
+list, so `INDEXED_PREDICATE`-restricted; fresh but unindexed papers appear on
+their own once the index run covers them). No new route: the dashboard IS `/`,
+which is why the amendment lives here and not in §4c.
+
+**Amendment (2026-09-15, count-vs-claim rule).** The count-vs-list rule above
+governs what the API may OFFER. It says nothing about what the page may
+CLAIM, and the page overclaimed: "we pulled every cs paper arXiv posted in
+the window", where the window was `min/max(citing id-month)` and the real
+coverage was 94% of July 2026, 49% of August, 5% of September. So the rule
+gains a second half: **every count is a count of what we hold, and any
+sentence that turns one into a claim about the literature carries the
+catalog's own denominator beside it.** `catalog_months` (from
+`ingest/kaggle_seed.count_cs_papers_by_id_month`) is that denominator;
+`papers.has_text` is the parse rate's; the "window" becomes a cohort derived
+by a stated rule (`landing_cohort_min_share`). A denominator the snapshot
+cannot supply is reported as unknown, never borrowed. See DECISIONS.md
+2026-09-15.
+
+**Amendment (2026-09-16, the census panels).** With July and August 2026
+collected to 99.95% and 99.99% of the catalog, two panels may describe arXiv
+rather than the corpus, which no earlier panel was allowed to do:
+`GET /api/census/categories` (primary-category share per month) and
+`GET /api/census/uptake` (work from one month already cited by the next).
+Both are gated on `landing_census_min_coverage` (0.9), and a cohort month
+below it is returned in `excluded` and named on the page rather than dropped:
+a month missing from a chart of the field's output reads as a month the field
+went quiet, when what stopped was our collecting. September 2026 is that
+month today — the mirror's folder for it stops at 2609.04203. The
+count-vs-list rule is untouched: these are counts, and a row opens the same
+foundation detail whose citer list stays indexed-only.
+
+**Amendment (2026-09-16, the catalog route).** This one relaxes the rule, and
+says exactly where. `GET /api/catalog/papers` (route `/papers`) lists the WHOLE
+`papers` table, indexed or not, and each row carries an `indexed` boolean on
+the wire — the field the original decision refused.
+
+What made the refusal right was that the app had one promise, retrieval, and
+a two-tier UI would have let a reader reason about papers it could never
+serve. The catalog page makes a different and smaller promise: what arXiv
+posted and what we hold of it. That promise is true of all 65,503 rows, and
+it is the only surface where the 64,692 unreadable ones stop being a number
+on the dashboard and become papers a reader can reach. So:
+
+- The scope widens and the affordance narrows TOGETHER. An indexed row opens
+  the reader; every other row opens arxiv.org, version-pinned (§6b). The
+  boolean exists to route the row, not to rank it, and there is no badge, no
+  second tier of styling, no "upgrade" path.
+- **The agent's surface is untouched.** `facets.INDEXED_PREDICATE` still
+  scopes browse, `GET /api/facets`, `GET /api/papers`, `GET /api/papers/{id}`
+  and every `query_metadata` op. `routes_catalog.py` builds its own WHERE and
+  never calls `facets.where_clause`, so nothing the model can reach widened.
+- Nothing on this path loads a model. The filter is SQL over `papers` plus
+  BM25 over `papers_fts` (title + abstract), a new external-content FTS5 table
+  in `_write_corpus_db`. Titles and abstracts come from the Kaggle snapshot
+  and exist for every row, which is why this surface can cover the table when
+  retrieval cannot. §6c is unaffected: no chunk text is read here.
+
+This is the "found" versus "readable" distinction the revisit trigger below
+anticipated, arriving one tier early and only for human-facing lists. The tool
+contracts still do not have to make it. See DECISIONS.md 2026-09-16.
+
+**Revisit when.** A breadth tier lands (abstract-level index over all cs
+history). A paper matched at abstract level *cannot be quoted* — we hold no
+text for it — so the tool contracts would then have to distinguish "found"
+from "readable", which this decision currently does not have to.
+
+---
+
+### D17. Withdrawn (2026-10-02, owner directive): PDFs are kept
+
+D17 made PDFs transient: fetch, extract, delete, keep only text and citation
+edges. It was never implemented, and the owner withdrew it on 2026-10-02.
+PDFs fetched from the GCS mirror stay under `corpus/pdfs/`. D19 depends on
+that, since card images render from the PDFs we hold, and keeping them means a
+chunker or extractor change re-runs over local bytes instead of a download
+pass. §6b is unchanged: holding a PDF for internal processing is not serving,
+proxying or caching it to anyone, and no PDF leaves our infrastructure.
+
+The cost is disk, about 4 MB per paper (a month of cs is about 50 GB), and the
+volume, not transfer, is now what bounds how many months we hold. The number
+stays so that D18 and later keep theirs.
+
+---
+
+### D18. No code path touches export.arxiv.org; versions backfill from the seed
+
+**Decision (2026-09-13).** Ingest reads only the Kaggle snapshot (ids +
+metadata) and the GCS mirror (PDF bytes). Three former `export.arxiv.org`
+consumers are gone: the OAI-PMH harvest, the arXiv PDF scraper (including the
+GCS-miss fallback), and the index build's version-backfill query. NULL-version
+rows backfill from the snapshot's own `versions` array instead — same pinning,
+no network. The `update`/`oai-*` collector recipes are dead with them; monthly
+freshness is a manual Kaggle snapshot + GCS-mirror pull (the D12 amendment's
+cadence, unchanged).
+
+**Why.** A routine index rebuild was 429/503-gated by a single 31-id metadata
+query — arXiv throttles the whole IP, and one throttled host should never hold
+a local build hostage. The scraper lanes were already vestigial (every pull
+since August has been seed + GCS), and the OAI lane's one unique value,
+incremental freshness, is not worth a second network master: the snapshot
+lands monthly and the mirror syncs weekly, which covers the page's monthly
+cadence with room to spare.
+
+**Alternatives rejected.** *Keep OAI for metadata only* (preserves incremental
+pulls, but keeps the throttle dependency alive for the smallest gain — the
+monthly snapshot already carries the same fields); *retry/backoff on the
+backfill query* (treats the symptom; the next throttle lands mid-build
+again); *leave NULL versions unpinned* (weakens D9's pinning guarantee for 31
+rows to save a seed pass that costs seconds via early-exit).
+
+**Revisit when.** The Kaggle snapshot stops shipping (then freshness needs a
+new source anyway), or arXiv publishes a bulk metadata endpoint with stated
+limits — a documented allowance is a different fact from today's best-effort
+tolerance.
+
+### D19. A card image for every paper, rendered on demand and cached as a file
+
+**Decision (2026-09-16).** `/papers` shows a small crop of each paper beside
+its title. `ingest/render_thumbnails.py` renders it from the PDF we already
+hold: the first image placed large enough on a page to be a figure rather
+than a logo, else the top half of page one. Output is a 320px JPEG at
+`corpus/thumbs/{arxiv_id}.jpg`.
+
+**The cache is the file, and there is nothing else.** No manifest, no
+`papers.thumbnail` column, no field on the wire. Caddy serves
+`/thumbs/{id}.jpg` off disk and falls through to `GET /api/thumb/{id}` on a
+miss; that route renders the crop, writes it into the same tree, and returns
+the bytes, so every later request is a static file again. `just thumbnails`
+warms the backlog in bulk and is an optimisation, never a prerequisite. The
+property this buys: a new month of papers shows pictures the moment its PDFs
+land — no reindex, no batch run standing between the data and the page.
+
+**Nothing fetches arxiv.org to build a card.** Thirty cards would be thirty
+requests per render, and from arXiv's side that is a scraper. The image comes
+from our own PDF, every time. See CLAUDE.md's hard constraints.
+
+**The licence governs the card, not the file.**
+
+| Licence | Papers | What the card owes |
+|---|---|---|
+| arXiv `nonexclusive-distrib` | 36,560 | A link back to arxiv.org for the paper itself. No notice: the crop is fair use, not a grant. |
+| CC BY, BY-SA | 22,956 | Attribution (title, authors, source link) plus the licence named and linked. |
+| CC BY-NC-SA, BY-NC-ND | 5,233 | The same, and askRAG must stay non-commercial. |
+| CC0 / public domain | 551 | Nothing. |
+
+The card already carried title, authors and a version-pinned link to
+arxiv.org; the licence notice is what this decision adds
+(`lib/license-label.ts`, `catalog-results.tsx`). **We never host the PDF
+download** — that part of §6b rule 3 is unchanged and is the line that
+actually matters.
+
+**Why fair use covers the default-licence majority.** A low-resolution crop
+shown beside a link back to the source is the indexing use *Kelly v. Arriba
+Soft* (9th Cir. 2003) and *Perfect 10 v. Amazon.com* (9th Cir. 2007) both
+held to be fair: transformative, low-resolution, serving reference rather
+than consumption. `thumbnail_width` is therefore a compliance setting as much
+as a layout one — raising it toward a readable page is the change that breaks
+the argument.
+
+**Alternatives rejected.** *Render in the reader's browser from arxiv.org*
+(needs no licence reasoning, but is exactly the fan-out the hard constraint
+forbids); *gate the file on the licence* (the first version of this decision:
+images for the 26,253 CC papers and a grey glyph for the other 39,250, which
+read §6b's reasoning past what it protects and made a worse column than the
+question is hard); *a manifest plus a `papers.thumbnail` column* (also tried:
+it made a card image wait on a corpus rebuild, which is the coupling the
+on-demand path exists to remove); *a generated placeholder for every paper*
+(a coloured square per category is the glyph we already have, with more
+bytes); *ship no images* (65,503 rows of text, and a figure is the fastest
+thing a reader judges a paper by).
+
+**Consequence, and it is the sharpest one here.** The api container now
+mounts `pdfs/` read-only, where its ABSENCE used to be the guarantee that no
+serving path could reach an e-print. That guarantee moves from the mount to
+the code: `routes_thumbnails.py` is the only reader, it validates the id
+against a literal arXiv-id pattern before building a path, and it returns a
+rendered JPEG and never the source. `test_routes_thumbnails.py` asserts both.
+The web container mounts the thumbnail cache read-only and nothing else.
+**askRAG carrying ads, a paid tier, or an enterprise plan would put the 5,233
+NC papers out of licence**, which is a product constraint no code path can
+check.
+
+**Revisit when.** askRAG stops being non-commercial (then the NC rows' crops
+come down before anything ships), arXiv states a position on derived images
+(a documented allowance or refusal replaces this reading), or a rightsholder
+objects to a specific paper (§6b's takedown path already covers it, and
+deleting one JPEG is the whole remedy).
 
 ---
 
@@ -892,7 +1357,33 @@ Three layout decisions resolved here, deliberately:
    README section adjusted). Root stays clean: three top-level codebases
    (`collector/`, `backend/`, `frontend/`), one data directory, one deploy
    directory, docs.
-2. **No dynamic routes in the frontend.** Static export (D13) plus 6,460
+2. **No dynamic routes in the frontend.** *(Amended 2026-08-27: no DYNAMIC
+   routes — a second STATIC route is compatible and now exists. The landing
+   page is `/`, the app shell moved unchanged to `/app`. Both are prerendered
+   by the export; neither needs `generateStaticParams`. The rule was always
+   about not SSG-ing 6,460 pages, not about page count. Amended again
+   2026-09-30: the routes are `/` (overview), `/papers` (the whole catalog)
+   and `/demo` (the indexed papers with the reader and the agent), all
+   static. `/app` is gone: its list and filter rail were a second list
+   implementation over the same papers, and the demo reuses the catalog's.
+   The open paper is `/demo?paper=<id>&page=<n>`; viewer-store owns only
+   those two keys, and the list's filter in the same URL is owned by the
+   catalog, so the agent's `set_filters` writes the URL rather than the
+   store. Amended again 2026-10-02: Explore is the home page. The routes
+   are `/` (the whole catalog, filtered), `/citations` (the counted
+   overview, renamed) and `/demo`. `/papers` is gone with no redirect: the
+   site is tailnet-only and pre-launch. The share of each cohort month we
+   hold moved from the citations hero to Explore's top bar, and
+   `/api/coverage` names the cohort's months so the client never re-derives
+   `landing_cohort_min_share`. Same day: `/trends` holds the category census
+   (the one count over what arXiv posted rather than what we hold), and the
+   "just indexed" list and its `GET /api/latest` are deleted, since Explore
+   sorted newest already lists the same papers. Amended again 2026-10-06:
+   `/benchmarks` shows the retrieval eval. It is the one route that reads no
+   API: `evals/publish_results.py` (`just eval-publish`) writes the committed run's scores to
+   `frontend/lib/benchmarks/retrieval.json` and the page imports it, because
+   the numbers change only when an eval run is committed. Titles and section
+   names only, never passage text (§6c).)* Static export (D13) plus 6,460
    papers makes `paper/[id]/page.tsx` the wrong tool (it would SSG 6,460
    pages or fight `generateStaticParams`). The app is one shell; the open
    paper is a search param (`/?paper=2606.12345&page=4`), owned by the
@@ -918,6 +1409,7 @@ rags/
 │   ├── pyproject.toml               # uv-managed, uv.lock committed
 │   ├── justfile                     # collector recipes; root justfile delegates here
 │   ├── arxiv_ingest.py              # discovery + download + arxiv.db index (already built)
+│   ├── fetch_ids.py                 # download a NAMED id list (the frontier manifest), vs the discovery paths above
 │   ├── test_arxiv_ingest.py
 │   ├── test_diverse.py
 │   └── README.md                    # collector usage (formerly the root README)
@@ -943,6 +1435,9 @@ rags/
 │   │   ├── api/
 │   │   │   ├── app.py               # FastAPI assembly: routers, CORS, lifespan (opens stores once), static admin
 │   │   │   ├── routes_explorer.py   # GET /api/papers, /api/papers/{id}, /api/facets — browse/filter/search
+│   │   │   ├── routes_catalog.py    # GET /api/catalog/papers, /api/catalog/facets — the whole papers table, filtered (D16 amendment 2026-09-16)
+│   │   │   ├── routes_landing.py    # GET /api/landing, /api/foundations/{id}, /api/coverage — the citation graph Citations ranks (D16 amendment)
+│   │   │   ├── routes_census.py     # GET /api/census/categories, /api/census/uptake — what arXiv posted, for months held above `landing_census_min_coverage`
 │   │   │   ├── routes_chat.py       # POST /api/chat — budget gate → agent loop → SSE stream; replay mode when capped
 │   │   │   ├── routes_admin.py      # GET /admin — basic-auth spend/trace dashboard (D13)
 │   │   │   └── sse_events.py        # the SSE event vocabulary: thinking|tool_call|tool_result_summary|ui_action|text|cost|done — single source, mirrored by frontend lib/sse.ts
@@ -965,9 +1460,15 @@ rags/
 │   │   │   ├── fts.py               # FTS5/BM25 query construction and escaping
 │   │   │   └── embeddings.py        # embedding API client, one function for corpus batch + query single (D5)
 │   │   ├── ingest/
-│   │   │   ├── extract_pdfs.py      # pdfs/ → corpus/extracted/*.json + skiplist.json (PyMuPDF4LLM, D6)
+│   │   │   ├── kaggle_seed.py       # streaming reader for corpus/archive.zip — one member name; targeted lookups + the per-month cs census
+│   │   │   ├── extract_text.py      # pdfs/ → corpus/text/{YYMM}/*.txt (PyMuPDF page text); `--months` scopes a top-up
+│   │   │   ├── extract_citations.py # corpus/text/**/*.txt → citations.tsv (the landing page's every number)
+│   │   │   ├── resolve_cited_works.py # citations.tsv + archive.zip → cited_works.jsonl (works we cite but do not hold)
+│   │   │   ├── select_frontier.py   # THE MANIFEST: citations.tsv → frontier.json; also `--verify` (D16 amendment)
+│   │   │   ├── extract_pdfs.py      # pdfs/ → corpus/extracted/*.json + skiplist.json (PyMuPDF4LLM, D6); `--frontier` scopes to the manifest
 │   │   │   ├── chunk_papers.py      # extracted/ → section-aware ~1k-token page-anchored chunks (D7)
 │   │   │   ├── embed_chunks.py      # chunks → vectors/<model_slug>.parquet, local (default) or Voyage backend, batched, resumable (D5)
+│   │   │   ├── render_thumbnails.py # pdfs/ → thumbs/{id}.jpg, on demand or in bulk (D19)
 │   │   │   ├── build_indexes.py     # chunks + vectors → corpus.db (FTS5) + chroma/, shared chunk ids (D4)
 │   │   │   └── ingest_stats.py      # per-stage report: counts, sizes, skip reasons, snapshot datestamp (D12)
 │   │   ├── sandbox/
@@ -997,9 +1498,16 @@ rags/
 │   ├── tsconfig.json                # strict
 │   ├── app/                         # Next.js App Router — one shell, no dynamic routes (decision 2 above)
 │   │   ├── layout.tsx               # root layout: fonts, theme, providers (TanStack QueryClient)
-│   │   ├── page.tsx                 # the app: explorer + viewer + agent panel composition
+│   │   ├── page.tsx                 # THE LANDING PAGE: counted citations, no input box in the critical path
+│   │   ├── app/page.tsx             # the app: explorer + viewer + agent panel composition
 │   │   └── globals.css              # Tailwind v4 entry + design tokens
 │   ├── components/
+│   │   ├── landing/
+│   │   │   ├── hero-stats.tsx       # the four counted facts + the cohort and its catalog share, derived from the graph
+│   │   │   ├── foundations-table.tsx # the ranking that survives a rerun — counts, no clustering
+│   │   │   ├── foundation-detail.tsx # the evidence: co-cited works + the INDEXED citers ("8 of 1,174", D16)
+│   │   │   ├── methods-note.tsx     # how the numbers are made, and what they are not
+│   │   │   └── holdings-chart.tsx   # how much of each month we hold, against the catalog's own count (D16 amendment 2026-09-15)
 │   │   ├── explorer/
 │   │   │   ├── paper-table.tsx      # TanStack Table + Virtual over /api/papers; row click → viewer store
 │   │   │   ├── facet-filters.tsx    # category/year/facet controls; writes viewer store filter state
@@ -1024,6 +1532,7 @@ rags/
 │   │   ├── api-types.gen.ts         # openapi-typescript output — GENERATED, never hand-edited
 │   │   ├── sse.ts                   # fetch-event-source wrapper; discriminated union mirroring sse_events.py
 │   │   ├── breakpoints.ts           # the md/lg thresholds JS needs, paired with the Tailwind classes (#83)
+│   │   ├── arxiv-links.ts           # the ONE place arxiv.org URLs are built — version-pinned (D9/§6b)
 │   │   └── utils.ts                 # cn() only (see naming rules)
 │   ├── stores/
 │   │   ├── agent-session-store.ts   # zustand: messages, timeline events, budget/replay state
@@ -1195,10 +1704,10 @@ and license pages. These are adopted constraints, not optional:
    bulk full text for download does not. Display posture (summaries,
    snippet limits) is specified in §6c.
 7. **Ingest-side rate limits** (visitors' organic PDF traffic has no stated
-   limit — "interactive use by human users" is arXiv's stated first
-   priority): legacy API/OAI ≤ 1 request per 3 s single-connection;
-   harvesting only via export.arxiv.org, bursts ≤ 4 req/s with 1 s sleep.
-   The collector already complies.
+    limit — "interactive use by human users" is arXiv's stated first
+    priority): moot since D18 — no code path requests anything from
+    export.arxiv.org, so there is nothing left to pace. (Historical note: the
+    legacy API/OAI allowance was ≤ 1 request per 3 s single-connection.)
 8. **Courtesy:** arXiv asks to be told when products launch — do that at
    deploy (milestone 6 checklist).
 
@@ -1218,6 +1727,19 @@ text). Risk management, not legal advice; each rule tagged by its basis.
 | **No full-text pane for default-license papers.** The reading surface is the arXiv-served PDF (D9); our pane shows cited excerpts + navigation anchors only | Follows from the no-serving rule — displaying full extracted text is redistribution re-typeset |
 | Per-paper `license` field carried from the Kaggle seed into `corpus.db` at ingest; CC0/CC-BY papers *may* show fuller text with attribution (v2 option, not v1 scope); the "vast majority" default-license papers get the caps above | Conservative choice; the metadata provides the field for exactly this |
 | Takedown path: a contact link, and removal of a paper's summaries/excerpts from the index on author objection | Conservative choice mirroring Semantic Scholar et al. |
+
+**Clarification (2026-08-28, DECISIONS.md; issue #36):** row 4 caps quotes at
+50 words and 3 per paper, but never said what COUNTS as a quote, and the floor
+decides whether the rule is usable. It is `config.quote_min_words` (15): a
+verbatim run shorter than that is shared terminology, not an excerpt. Measured
+on a live turn — at a 6-word floor a faithful Qwen3 answer tripped the 3-quote
+limit nine times on phrases like "increasing the proportion of STEM, coding,
+reasoning", and the remediation shredded the paragraph. Row 4's stated targets
+are substantial verbatim quotes and sequential-excerpt section reconstruction;
+neither is reachable in runs that short, so enforcing there costs faithfulness
+and buys no protection. Enforcement lives in `askrag/api/answer_guard.py`, and
+over-budget or over-length runs are elided with "[…]" rather than a policy
+sentence, so the surviving prose still reads.
 
 **Clarification (2026-07-06, DECISIONS.md; issue #58):** row 1 and row 4 are
 two different enforcement points, not one. `read_paper` (row 1) is the

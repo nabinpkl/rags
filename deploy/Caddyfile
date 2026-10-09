@@ -31,6 +31,32 @@
 		}
 	}
 
+	# --- paper thumbnails -------------------------------------------------
+	# 320px crops of the PDFs we hold, one per paper (D19). Cached as files
+	# and rendered on the first request for one: a hit is served straight off
+	# disk here, a miss falls through to the api, which renders it, writes it
+	# into this same tree, and returns the bytes. Every later request for
+	# that paper is a file again.
+	#
+	# Nothing on this path proxies arxiv.org and no PDF is reachable through
+	# it — that is the §6b line, not the size of the image.
+	handle_path /thumbs/* {
+		root * /srv/thumbs
+		@cached file
+		handle @cached {
+			file_server
+			header Cache-Control "public, max-age=604800, immutable"
+		}
+		handle {
+			# No slash before {path}: handle_path has already stripped
+			# /thumbs, so {path} still starts with one and spelling
+			# another produces /api/thumb//<id>.jpg, which matches no
+			# route and 404s every uncached card.
+			rewrite * /api/thumb{path}
+			reverse_proxy api:8000
+		}
+	}
+
 	# --- static export ----------------------------------------------------
 	handle {
 		root * /srv
@@ -54,10 +80,12 @@
 		# connect-src/frame-src name arxiv.org because the viewer's PDF
 		# bytes go browser -> arxiv.org DIRECTLY and never through us
 		# (D9/§6b); if this policy ever needs a PDF host of our own, that
-		# is a compliance bug, not a CSP fix. 'unsafe-inline' on scripts is
+		# is a compliance bug, not a CSP fix. export.arxiv.org appears
+		# nowhere here by D18: no code path may touch it, client-side
+		# included. 'unsafe-inline' on scripts is
 		# forced by the static export's inline bootstrap — a nonce needs a
 		# server that renders HTML, which D13 deliberately does not run.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' https://arxiv.org https://export.arxiv.org; frame-src https://arxiv.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' https://arxiv.org; frame-src https://arxiv.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 	}
 
 	# Immutable build assets; everything else stays revalidated so a redeploy

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import { cn } from "@/lib/utils";
+import { arxivAbsUrl, arxivPdfUrl } from "@/lib/arxiv-links";
 
 // D9's fallback ladder, isolated to this one file — the named seam spec §4d
 // calls out ("`arxiv-pdf-frame.tsx` isolates the D9 fallback ladder"), so a
@@ -42,13 +43,6 @@ function loadPdfjs() {
   return pdfjsModulePromise;
 }
 
-/** D9/§6b: version-pinned whenever we have one (`version` from the detail
- * endpoint, e.g. "v3"); NULL falls back to the unpinned URL — never any
- * origin but arxiv.org, never our own server. */
-export function arxivPdfUrl(arxivId: string, version: string | null): string {
-  return `https://arxiv.org/pdf/${arxivId}${version ?? ""}`;
-}
-
 interface ArxivPdfFrameProps {
   arxivId: string;
   version: string | null;
@@ -64,7 +58,7 @@ interface ArxivPdfFrameProps {
 export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
   const idv = `${arxivId}${version ?? ""}`;
   const url = arxivPdfUrl(arxivId, version);
-  const absUrl = `https://arxiv.org/abs/${arxivId}`;
+  const absUrl = arxivAbsUrl(arxivId, version);
   const targetPage = page ?? 1;
 
   const [rung, setRung] = useState<Rung>(DEFAULT_RUNG);
@@ -88,8 +82,15 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
   const gotoPage = useCallback((n: number, instant: boolean) => {
     const clamped = Math.min(Math.max(1, n), numPagesRef.current);
     const div = pagesRef.current?.querySelector<HTMLDivElement>(`[data-page="${clamped}"]`);
-    if (div) {
-      div.scrollIntoView({ block: "start", behavior: instant ? "auto" : "smooth" });
+    const wrap = wrapRef.current;
+    if (div && wrap) {
+      // Scrolls THIS pane, not every scrollport above it: `scrollIntoView`
+      // walks the ancestor chain, so opening page 1 inside the dashboard's
+      // detail view scrolled the canvas too and took the paper's heading and
+      // citation panels off screen. `wrap` is the page divs' offsetParent
+      // (it is the only positioned box between them), so offsetTop is
+      // already this scroller's coordinate space.
+      wrap.scrollTo({ top: div.offsetTop, behavior: instant ? "auto" : "smooth" });
       div.classList.remove("jumpflash");
       void div.offsetWidth; // restart the CSS animation on repeat jumps to the same page
       div.classList.add("jumpflash");
@@ -264,11 +265,11 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
     // loop pushed the excerpts pane past the viewport and put a horizontal
     // scrollbar on the whole page; the pane is scrollable, so it is free to
     // shrink below its content.
-    <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-[#3c4650]">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-surround">
       {/* Bounded on BOTH sides and allowed to wrap: unbounded, the provenance
           line and the rung button ran off a 390px screen and collided with
           the scrollbar. */}
-      <div className="text-machine-text absolute top-2.5 right-2.5 left-2.5 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded bg-black/60 px-2.5 py-1 font-mono text-[10.5px]">
+      <div className="text-surround-text absolute top-2.5 right-2.5 left-2.5 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded bg-black/60 px-2.5 py-1 font-mono text-[10.5px]">
         <span>
           arxiv.org/pdf/<b className="text-teal">{idv}</b>
           {rung === 2 && !loading ? ` p.${displayPage}` : ""}
@@ -276,12 +277,17 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
         {/* Provenance, kept in plain words: the point a reader cares about is
             that the file comes from arXiv itself, not that we don't proxy it
             (§6b, which is our constraint to keep, not their vocabulary). */}
-        <span>— loaded straight from arXiv</span>
+        {/* Dropped on a phone: it wrapped the bar to two lines over the top
+            of the first page. The header's "open on arXiv" link carries
+            the §6b provenance at every width. */}
+        <span className="hidden sm:inline">— loaded straight from arXiv</span>
         <button
           type="button"
           onClick={toggleRung}
           title="Switch how this PDF is displayed"
-          className="border-machine-line text-machine-muted hover:border-teal hover:text-teal rounded border px-1.5 py-0.5 font-mono text-[9.5px]"
+          // `text-surround-text`, not `-muted`: muted on the dark bar read as
+          // a disabled control, and nobody presses a control that looks off.
+          className="border-surround-muted text-surround-text hover:border-teal hover:text-teal rounded border px-2 py-1 font-mono text-[9.5px]"
         >
           {/* Names the ACTION, not the current rung: a label reading "reader
               view" next to a reader view can't be told from a status. */}
@@ -309,29 +315,31 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
           >
             <div ref={pagesRef} />
             {loading && (
-              <div className="text-machine-text absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[11px]">
+              <div className="text-surround-text absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[11px]">
                 loading from arxiv.org…
               </div>
             )}
           </div>
           {!loading && (
-            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded bg-black/60 px-2.5 py-1">
+            // The arrows are 36px square: a thumb target, not a glyph's ink.
+            // The bar's padding is theirs, not the container's.
+            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded bg-black/60 px-1">
               <button
                 type="button"
                 aria-label="Previous page"
                 onClick={() => gotoPage(displayPage - 1, false)}
-                className="text-machine-text hover:text-teal px-1.5 text-[15px]"
+                className="text-surround-text hover:text-teal flex h-9 w-9 items-center justify-center text-[17px]"
               >
                 ‹
               </button>
-              <span className="text-machine-text font-mono text-[10.5px]">
+              <span className="text-surround-text font-mono text-[10.5px]">
                 p.{displayPage} / {numPages}
               </span>
               <button
                 type="button"
                 aria-label="Next page"
                 onClick={() => gotoPage(displayPage + 1, false)}
-                className="text-machine-text hover:text-teal px-1.5 text-[15px]"
+                className="text-surround-text hover:text-teal flex h-9 w-9 items-center justify-center text-[17px]"
               >
                 ›
               </button>
@@ -343,7 +351,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
       {rung === 3 && (
         <div
           className={cn(
-            "text-machine-text absolute top-1/2 left-1/2 max-w-[280px] -translate-x-1/2 -translate-y-1/2",
+            "text-surround-text absolute top-1/2 left-1/2 max-w-[280px] -translate-x-1/2 -translate-y-1/2",
             "rounded bg-black/70 px-4 py-3 text-center text-[12px] leading-relaxed",
           )}
         >
@@ -352,7 +360,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
             href={absUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-teal hover:text-machine-text ml-1 underline"
+            className="text-teal hover:text-surround-text ml-1 underline"
           >
             open on arXiv ↗
           </a>

@@ -12,10 +12,11 @@ indexes are derived artifacts — corpus.db is written to a tmp file and
 renamed, the Chroma collection is deleted and recreated. No incremental
 machinery.
 
-Network: exactly ONE batched export.arxiv.org query call backfilling the
-NULL-version paper rows (D9 sanctions this — metadata only; version-pinned
-PDF URLs need it). Ids the API does not return keep a NULL version and fall
-back to the unpinned URL (D9); the build never fails on backfill gaps.
+Network: none. The build is fully offline: NULL-version paper rows backfill
+from the Kaggle snapshot's `versions` array (D9 pinning without the former
+batched export.arxiv.org query, retired under D18). Ids the snapshot does not
+carry keep a NULL version and fall back to the unpinned URL (D9); the build
+never fails on backfill gaps.
 
 Telemetry (D15): askrag.ingest.build_indexes run span with per-stage counts.
 """
@@ -25,29 +26,27 @@ import json
 import logging
 import sqlite3
 import sys
-import xml.etree.ElementTree as ET
-import zipfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from types import MappingProxyType
 from typing import cast
 
 import chromadb
 import chromadb.config
 import chromadb.errors
-import httpx
 
 from askrag import telemetry
+from askrag.category_names import unnamed_cs_codes
 from askrag.config import get_settings
+from askrag.ingest import kaggle_seed
 from askrag.ingest.embed_chunks import read_vectors
+from askrag.ingest.extract_citations import read_citations
+from askrag.ingest.latex_text import latex_to_text
+from askrag.ingest.resolve_cited_works import CitedWorkRow, read_cited_works
 
 _log = logging.getLogger("askrag.ingest.build_indexes")
-
-# Protocol facts, not tunables.
-_EXPORT_ARXIV_QUERY_URL = "https://export.arxiv.org/api/query"
-_ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
-_SEED_MEMBER = "arxiv-metadata-oai-snapshot.json"
 
 
 class IndexBuildError(Exception):
@@ -72,6 +71,12 @@ class PaperRow:
     author_novelty: float | None
     revisions: int | None
     venue_rigor: int | None
+    # Did this paper's text reach the reference parser? The landing page's
+    # parse rate is 16,893 of the 20,733 papers we EXTRACTED TEXT FROM (81%),
+    # not of the 57,206 catalog rows we hold metadata for — quoting the
+    # second denominator turned "never collected" into "failed to parse"
+    # and printed 30% against ourselves.
+    has_text: bool = False
 
     @property
     def primary_category(self) -> str:
@@ -108,6 +113,13 @@ class BuildStats:
     versions_missing: int = 0
     licenses_found: int = 0
     chroma_count: int = 0
+    cited_works: int = 0
+    citations: int = 0
+    papers_with_text: int = 0
+    catalog_months: int = 0
+    # Only a metadata-only build leaves this above zero: chunks written to
+    # corpus.db that the vector store does not carry yet.
+    chunks_without_vectors: int = 0
 
 
 def _read_papers(arxiv_db: Path) -> list[PaperRow]:
@@ -126,9 +138,12 @@ def _read_papers(arxiv_db: Path) -> list[PaperRow]:
     return [
         PaperRow(
             arxiv_id=r["arxiv_id"],
-            title=r["title"] or "",
-            authors=r["authors"] or "",
-            abstract=r["abstract"] or "",
+            # The catalog is LaTeX (latex_text.py); corpus.db is what the UI
+            # and the agent read, so the conversion happens at THIS boundary
+            # and arxiv.db keeps its source bytes.
+            title=latex_to_text(r["title"] or ""),
+            authors=latex_to_text(r["authors"] or ""),
+            abstract=latex_to_text(r["abstract"] or ""),
             categories=r["categories"] or "",
             published=r["published"] or "",
             version=r["version"] or None,
@@ -163,6 +178,21 @@ def _read_chunks(chunks_path: Path) -> list[ChunkRow]:
     return chunks
 
 
+def read_extracted_text_ids(text_dir: Path) -> set[str]:
+    """Which papers we hold extracted text for, from the tree the parser read.
+
+    `extract_citations` globs this same tree, so this set IS the parser's
+    input: every paper in it was offered to the reference parser, and every
+    paper outside it never was. The page's parse rate needs that distinction
+    (`PaperRow.has_text`) — 20,733 papers have text against 57,206 catalog
+    rows, and using the catalog as the denominator reported a 30% parse rate
+    for a parser that actually yields 81%.
+    """
+    if not text_dir.exists():
+        return set()
+    return {path.stem for path in text_dir.glob("*/*.txt")}
+
+
 def read_seed_licenses(seed_zip: Path, wanted_ids: set[str]) -> dict[str, str]:
     """One streaming pass over the Kaggle snapshot -> {arxiv_id: license URL}.
 
@@ -170,55 +200,41 @@ def read_seed_licenses(seed_zip: Path, wanted_ids: set[str]) -> dict[str, str]:
     issue #14 acceptance); the seed is 5+ GB uncompressed, so this never
     materializes it.
     """
-    licenses: dict[str, str] = {}
-    with zipfile.ZipFile(seed_zip) as zf, zf.open(_SEED_MEMBER) as fh:
-        for raw in fh:
-            record = json.loads(raw)
-            arxiv_id = record.get("id", "")
-            if arxiv_id in wanted_ids and record.get("license"):
-                licenses[arxiv_id] = record["license"]
-                if len(licenses) == len(wanted_ids):
-                    break
-    return licenses
+    return {
+        record["id"]: record["license"]
+        for record in kaggle_seed.iter_records(seed_zip, wanted_ids)
+        if record.get("license")
+    }
 
 
-def fetch_versions(
-    ids: list[str],
-    timeout_seconds: float,
-    transport: httpx.BaseTransport | None = None,
-) -> dict[str, str]:
-    """ONE batched export.arxiv.org query -> {arxiv_id: latest version} (D9).
+def read_seed_versions(seed_zip: Path, wanted_ids: set[str]) -> dict[str, str]:
+    """{arxiv_id: latest version} for NULL-version rows, from the snapshot (D18).
 
-    `transport` is the test seam (httpx.MockTransport) — tests never touch
-    the network.
+    Local early-exit lookup: seconds for a handful of ids, no network, so a
+    throttled arXiv can never gate a local build again.
     """
-    if not ids:
-        return {}
-    with httpx.Client(transport=transport, timeout=timeout_seconds) as client:
-        response = client.get(
-            _EXPORT_ARXIV_QUERY_URL,
-            params={"id_list": ",".join(ids), "max_results": len(ids)},
-        )
-        response.raise_for_status()
     versions: dict[str, str] = {}
-    # Entity-expansion (billion-laughs) and XXE both require a DTD; Atom
-    # never carries one, so a DTD here is an attack or a broken response —
-    # refuse it instead of pulling in defusedxml for one offline call to a
-    # pinned trusted host.
-    if "<!DOCTYPE" in response.text:
-        raise IndexBuildError("version backfill response contains a DTD — refusing to parse")
-    root = ET.fromstring(response.text)  # noqa: S314 — DTD rejected above
-    for entry in root.findall("atom:entry", _ATOM_NS):
-        entry_id = entry.findtext("atom:id", "", _ATOM_NS)
-        # Entry id ends ".../abs/<arxiv_id>v<N>"; the suffix is the latest version.
-        tail = entry_id.rsplit("/", 1)[-1]
-        arxiv_id, sep, version = tail.rpartition("v")
-        if sep and arxiv_id in ids and version.isdigit():
-            versions[arxiv_id] = f"v{version}"
+    for record in kaggle_seed.iter_records(seed_zip, wanted_ids):
+        version = kaggle_seed.latest_version(record)
+        if version:
+            versions[record["id"]] = version
     return versions
 
 
-def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRow]) -> None:
+def _write_corpus_db(
+    db_path: Path,
+    papers: list[PaperRow],
+    chunks: list[ChunkRow],
+    cited_works: Sequence[CitedWorkRow] = (),
+    citations: Sequence[tuple[str, str]] = (),
+    catalog_months: Mapping[str, int] = MappingProxyType({}),
+) -> None:
+    """Write the deployable corpus.db.
+
+    The citation tables default to empty because a corpus built before
+    extract_citations ran is a legitimate (landing-page-less) artifact, not a
+    caller mistake — `run` always passes them explicitly.
+    """
     # tmp + rename: a killed build never leaves a half-written corpus.db that
     # a read-only server would then trust (same contract as every ingest stage).
     tmp = db_path.with_suffix(db_path.suffix + ".tmp")
@@ -247,7 +263,24 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
                 niche_idf        REAL,
                 author_novelty   REAL,
                 revisions        INTEGER,
-                venue_rigor      INTEGER
+                venue_rigor      INTEGER,
+                -- 1 => we extracted this paper's text, so it reached the
+                -- reference parser. The parse rate on the landing page is
+                -- counted over these rows, never over every catalog row.
+                has_text         INTEGER NOT NULL
+                -- No thumbnail column: a card image is cached as a file and
+                -- rendered on first request (D19), so the corpus build has
+                -- nothing to say about which papers have one.
+            );
+            -- Title and abstract of EVERY paper, indexed or not: the catalog
+            -- filter (/api/catalog) searches the whole table, and the Kaggle
+            -- snapshot carries an abstract for every row, so this is the one
+            -- text surface that does not depend on having extracted a PDF.
+            -- Separate from chunks_fts, which indexes retrieved chunk text and
+            -- exists only for the 811 papers the agent can read (D16).
+            CREATE VIRTUAL TABLE papers_fts USING fts5(
+                title, abstract, content=papers, content_rowid=rowid,
+                tokenize='porter unicode61'
             );
             CREATE TABLE chunks (
                 chunk_id   TEXT PRIMARY KEY,
@@ -264,11 +297,50 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
             CREATE VIRTUAL TABLE chunks_fts USING fts5(
                 text, content=chunks, content_rowid=rowid, tokenize='porter unicode61'
             );
+            -- Catalog metadata for works our papers CITE. Separate from
+            -- `papers` on purpose: a `papers` row means we hold the text and
+            -- can retrieve it, a `cited_works` row means we know only what the
+            -- Kaggle catalog says. Merging them would let a work nothing can
+            -- read surface wherever a readable paper can.
+            CREATE TABLE cited_works (
+                arxiv_id         TEXT PRIMARY KEY,
+                title            TEXT,           -- NULL => catalog had no record
+                authors          TEXT,
+                primary_category TEXT,
+                year             INTEGER,
+                version          TEXT            -- NULL => unpinned arxiv.org URL (D9)
+            );
+            CREATE TABLE citations (
+                citing_id TEXT NOT NULL REFERENCES papers(arxiv_id),
+                cited_id  TEXT NOT NULL REFERENCES cited_works(arxiv_id),
+                PRIMARY KEY (citing_id, cited_id)
+            ) WITHOUT ROWID;
+            -- The landing page's every query reads by cited_id ("who cites
+            -- this?"); the PK already covers the citing_id direction.
+            CREATE INDEX citations_cited ON citations(cited_id);
+            -- There is deliberately NO (arxiv_id, year) covering index on
+            -- cited_works. One was tried for the cited-year histogram and
+            -- measured on a quiet box (2026-08-28, 162k edges): without
+            -- ANALYZE the planner ignored it entirely (110 ms either way);
+            -- with ANALYZE it used it and still bought nothing (91.3 vs
+            -- 91.4 ms). The 17% that ANALYZE below does buy comes from the
+            -- join order, not from any index. Re-measure before adding one.
+
+            -- How many cs papers the Kaggle catalog lists per id-month: the
+            -- DENOMINATOR the landing page had no way to state. Without it
+            -- the page said "every cs paper arXiv posted", which measured
+            -- 94% for July 2026, 49% for August and 5% for September.
+            -- Catalog-wide, not scoped to what we hold, and cs-primary to
+            -- match how the collector selected papers.
+            CREATE TABLE catalog_months (
+                month     TEXT PRIMARY KEY,   -- id-month, e.g. "2607"
+                cs_papers INTEGER NOT NULL
+            );
             CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
         )
         conn.executemany(
-            "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 (
                     p.arxiv_id,
@@ -287,6 +359,7 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
                     p.author_novelty,
                     p.revisions,
                     p.venue_rigor,
+                    int(p.has_text),
                 )
                 for p in papers
             ],
@@ -298,7 +371,22 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
                 for c in chunks
             ],
         )
+        conn.execute(
+            "INSERT INTO papers_fts(rowid, title, abstract)"
+            " SELECT rowid, title, abstract FROM papers"
+        )
         conn.execute("INSERT INTO chunks_fts(rowid, text) SELECT rowid, text FROM chunks")
+        # cited_works before citations: the FK on cited_id is enforced (PRAGMA
+        # foreign_keys=ON above), so the referenced rows must already exist.
+        conn.executemany(
+            "INSERT INTO cited_works VALUES (?,?,?,?,?,?)",
+            [
+                (w.arxiv_id, w.title, w.authors, w.primary_category, w.year, w.version)
+                for w in cited_works
+            ],
+        )
+        conn.executemany("INSERT INTO citations VALUES (?,?)", citations)
+        conn.executemany("INSERT INTO catalog_months VALUES (?,?)", sorted(catalog_months.items()))
         # Snapshot stamp (D12): the footer's "corpus YYYY-MM" and ingest_stats
         # read this instead of guessing from file mtimes.
         built_at = datetime.now(tz=UTC).isoformat(timespec="seconds")
@@ -306,6 +394,11 @@ def _write_corpus_db(db_path: Path, papers: list[PaperRow], chunks: list[ChunkRo
             "INSERT INTO meta VALUES (?,?)",
             [("built_at", built_at), ("snapshot", built_at[:7])],
         )
+        # Without stats the planner drives the cited-year histogram from the
+        # citations side and takes 110 ms; with them it flips the join and
+        # takes 91 ms (measured 2026-08-28). The snapshot is frozen (D12), so
+        # these stats never go stale between builds.
+        conn.execute("ANALYZE")
         conn.commit()
     finally:
         conn.close()
@@ -316,6 +409,10 @@ def _validate_inputs(
     chunk_ids_embedded: list[str],
     chunks: list[ChunkRow],
     papers_by_id: dict[str, PaperRow],
+    cited_works: Sequence[CitedWorkRow] = (),
+    citations: Sequence[tuple[str, str]] = (),
+    *,
+    require_every_chunk_embedded: bool = True,
 ) -> None:
     """Every input invariant, checked BEFORE any artifact is written.
 
@@ -323,6 +420,28 @@ def _validate_inputs(
     untouched (review finding #55-1): validate-then-write, never the reverse.
     `read_vectors`' slug/provenance refusal runs earlier still, at read time.
     """
+    dangling_citing = sorted({a for a, _ in citations} - papers_by_id.keys())
+    if dangling_citing:
+        raise IndexBuildError(
+            f"{len(dangling_citing)} citation(s) come from a paper missing in arxiv.db "
+            f"(first: {dangling_citing[0]}) — citations.tsv built from a different "
+            "text tree than the collector db?"
+        )
+    dangling_cited = sorted({b for _, b in citations} - {w.arxiv_id for w in cited_works})
+    if dangling_cited:
+        raise IndexBuildError(
+            f"{len(dangling_cited)} cited id(s) missing from cited_works.jsonl "
+            f"(first: {dangling_cited[0]}) — stale cited_works, rerun resolve_cited_works"
+        )
+    unnamed = unnamed_cs_codes(
+        {p.primary_category for p in papers_by_id.values()}
+        | {w.primary_category for w in cited_works if w.primary_category}
+    )
+    if unnamed:
+        raise IndexBuildError(
+            f"{len(unnamed)} cs category code(s) have no name (first: {unnamed[0]}) "
+            "— add them to askrag/category_names.py from arXiv's taxonomy page"
+        )
     orphans = sorted({c.paper_id for c in chunks} - papers_by_id.keys())
     if orphans:
         raise IndexBuildError(
@@ -336,7 +455,7 @@ def _validate_inputs(
             f"{len(missing)} embedded chunk_ids missing from chunks.jsonl "
             f"(first: {missing[0]}) — stale parquet or stale chunks?"
         )
-    if len(chunk_ids_embedded) != len(chunks):
+    if require_every_chunk_embedded and len(chunk_ids_embedded) != len(chunks):
         raise IndexBuildError(
             f"vectors parquet holds {len(chunk_ids_embedded)} vectors but chunks.jsonl "
             f"holds {len(chunks)} chunks — re-run embed_chunks before indexing"
@@ -390,6 +509,7 @@ def _load_chroma(
 
 def run(
     arxiv_db: Path,
+    text_dir: Path,
     chunks_path: Path,
     vectors_parquet: Path,
     seed_zip: Path,
@@ -398,31 +518,70 @@ def run(
     collection_name: str,
     *,
     add_batch_size: int,
-    backfill_timeout_seconds: float,
-    backfill_transport: httpx.BaseTransport | None = None,
+    # Optional: a corpus built before extract_citations ran is a legitimate
+    # (landing-page-less) artifact, so absent paths mean "no citation graph"
+    # rather than a caller mistake.
+    citations_path: Path | None = None,
+    cited_works_path: Path | None = None,
+    without_vectors: bool = False,
 ) -> BuildStats:
-    """Rebuild corpus.db + the per-model Chroma collection from ingest artifacts."""
+    """Rebuild corpus.db + the per-model Chroma collection from ingest artifacts.
+
+    `without_vectors` rebuilds corpus.db ALONE and leaves the Chroma
+    collection exactly as it is. It exists because the two artifacts age at
+    different speeds: the page's numbers are metadata (papers, citations, the
+    catalog census) and a month of new papers reaches them in minutes, while
+    embedding those same papers is hours of CPU on this box (measured
+    2026-09-16: ~1,000 chunks/hour). The cost is stated rather than hidden —
+    chunks written without a vector are counted, logged, and searchable by
+    keyword but not by vector until a full build runs. See DECISIONS.md
+    2026-09-16.
+    """
     tracer = telemetry.get_tracer("askrag.ingest")
     stats = BuildStats()
     with tracer.start_as_current_span("askrag.ingest.build_indexes") as span:
         papers = _read_papers(arxiv_db)
+        with_text = read_extracted_text_ids(text_dir)
+        papers = [replace(p, has_text=p.arxiv_id in with_text) for p in papers]
+        stats.papers_with_text = sum(1 for p in papers if p.has_text)
         chunks = _read_chunks(chunks_path)
+        # The citation graph is optional input: a corpus built before
+        # extract_citations ran still produces a valid (landing-page-less)
+        # index pair, and says so rather than shipping silently empty tables.
+        have_citations = citations_path is not None and citations_path.exists()
+        citations = read_citations(citations_path) if have_citations else []
+        cited_works = (
+            read_cited_works(cited_works_path)
+            if cited_works_path is not None and cited_works_path.exists()
+            else []
+        )
+        if not citations:
+            _log.warning(
+                f"no citation edges at {citations_path or '<unset>'} — corpus.db will carry empty "
+                "citations/cited_works tables and the landing page will have nothing to rank"
+            )
         stats.papers, stats.chunks = len(papers), len(chunks)
+        stats.citations, stats.cited_works = len(citations), len(cited_works)
 
-        # ALL validation precedes any write or network/seed stage: a failed
+        # ALL validation precedes any write or seed stage: a failed
         # build leaves the previous artifact generation untouched, and bad
         # inputs fail before the 5.4 GB seed pass (review finding #55-1).
         table = read_vectors(vectors_parquet, expected_slug=collection_name)
         embedded_ids = table["chunk_id"].to_pylist()
-        _validate_inputs(embedded_ids, chunks, {p.arxiv_id: p for p in papers})
+        _validate_inputs(
+            embedded_ids,
+            chunks,
+            {p.arxiv_id: p for p in papers},
+            cited_works,
+            citations,
+            require_every_chunk_embedded=not without_vectors,
+        )
 
         licenses = read_seed_licenses(seed_zip, {p.arxiv_id for p in papers})
         stats.licenses_found = len(licenses)
 
-        null_version_ids = [p.arxiv_id for p in papers if not p.version]
-        backfilled = fetch_versions(
-            null_version_ids, backfill_timeout_seconds, transport=backfill_transport
-        )
+        null_version_ids = {p.arxiv_id for p in papers if not p.version}
+        backfilled = read_seed_versions(seed_zip, null_version_ids)
         stats.versions_backfilled = len(backfilled)
         stats.versions_missing = len(null_version_ids) - len(backfilled)
         if stats.versions_missing:
@@ -441,24 +600,43 @@ def run(
         ]
         papers_by_id = {p.arxiv_id: p for p in papers}
 
-        _write_corpus_db(corpus_db, papers, chunks)
-        stats.chroma_count = _load_chroma(
-            chroma_dir,
-            collection_name,
-            embedded_ids,
-            table["vector"].to_pylist(),
-            {c.chunk_id: c for c in chunks},
-            papers_by_id,
-            add_batch_size,
-        )
+        # A FULL pass over the snapshot (~85 s), unlike the two targeted
+        # lookups above: this is the catalog's own per-month total, so there
+        # is no id set to stop early on. It runs after validation with the
+        # other seed reads, never before them.
+        catalog_months = kaggle_seed.count_cs_papers_by_id_month(seed_zip)
+        stats.catalog_months = len(catalog_months)
 
-        # THE acceptance invariant (issue #14): the two stores hold the same
-        # chunk set or the artifact pair is not shippable.
-        if stats.chroma_count != stats.chunks:
-            raise IndexBuildError(
-                f"chunks table has {stats.chunks} rows but chroma collection "
-                f"'{collection_name}' has {stats.chroma_count}"
+        _write_corpus_db(corpus_db, papers, chunks, cited_works, citations, catalog_months)
+        if without_vectors:
+            stats.chunks_without_vectors = len(chunks) - len(set(embedded_ids))
+            # Loud, because this is the one build that ships the two stores
+            # out of step on purpose: a silent version of it would look like
+            # a vector index that had quietly stopped finding new papers.
+            _log.warning(
+                f"metadata-only build: {stats.chunks_without_vectors} of {len(chunks)} chunks "
+                f"have no vector yet. corpus.db is current; chroma '{collection_name}' is "
+                "untouched, so those papers answer to keyword search only until a full "
+                "build runs"
             )
+        else:
+            stats.chroma_count = _load_chroma(
+                chroma_dir,
+                collection_name,
+                embedded_ids,
+                table["vector"].to_pylist(),
+                {c.chunk_id: c for c in chunks},
+                papers_by_id,
+                add_batch_size,
+            )
+
+            # THE acceptance invariant (issue #14): the two stores hold the
+            # same chunk set or the artifact pair is not shippable.
+            if stats.chroma_count != stats.chunks:
+                raise IndexBuildError(
+                    f"chunks table has {stats.chunks} rows but chroma collection "
+                    f"'{collection_name}' has {stats.chroma_count}"
+                )
 
         span.set_attribute("askrag.model_slug", collection_name)
         span.set_attribute("askrag.papers", stats.papers)
@@ -466,12 +644,19 @@ def run(
         span.set_attribute("askrag.versions_backfilled", stats.versions_backfilled)
         span.set_attribute("askrag.versions_missing", stats.versions_missing)
         span.set_attribute("askrag.licenses_found", stats.licenses_found)
+        span.set_attribute("askrag.cited_works", stats.cited_works)
+        span.set_attribute("askrag.citations", stats.citations)
+        span.set_attribute("askrag.papers_with_text", stats.papers_with_text)
+        span.set_attribute("askrag.catalog_months", stats.catalog_months)
 
     _log.info(
         f"build_indexes: {stats.papers} papers, {stats.chunks} chunks -> {corpus_db.name} "
         f"+ chroma '{collection_name}' ({stats.chroma_count}); "
         f"versions backfilled {stats.versions_backfilled} (missing {stats.versions_missing}), "
-        f"licenses {stats.licenses_found}"
+        f"licenses {stats.licenses_found}; "
+        f"{stats.citations} citations over {stats.cited_works} cited works; "
+        f"{stats.papers_with_text} papers with extracted text, "
+        f"catalog census over {stats.catalog_months} id-months"
     )
     return stats
 
@@ -480,18 +665,26 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     telemetry.init(settings)
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    parser.parse_args(argv)
+    parser.add_argument(
+        "--without-vectors",
+        action="store_true",
+        help="rebuild corpus.db alone, leaving the vector store as it is (see the run docstring)",
+    )
+    args = parser.parse_args(argv)
     try:
         run(
             arxiv_db=settings.arxiv_db_path,
+            text_dir=settings.text_dir,
             chunks_path=settings.chunks_jsonl_path,
             vectors_parquet=settings.vectors_parquet_path,
             seed_zip=settings.kaggle_seed_path,
+            citations_path=settings.citations_path,
+            cited_works_path=settings.cited_works_path,
             corpus_db=settings.corpus_db_path,
             chroma_dir=settings.chroma_dir,
             collection_name=settings.embedding_model_slug,
             add_batch_size=settings.chroma_add_batch_size,
-            backfill_timeout_seconds=settings.version_backfill_timeout_seconds,
+            without_vectors=args.without_vectors,
         )
         return 0
     finally:

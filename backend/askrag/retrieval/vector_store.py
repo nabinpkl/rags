@@ -62,8 +62,14 @@ class VectorStore:
         category: str | None = None,
         year_min: int | None = None,
         year_max: int | None = None,
+        paper_ids: tuple[str, ...] | None = None,
     ) -> list[str]:
         """Nearest chunk_ids; filters push into Chroma's where clause (D8)."""
+        if paper_ids is not None and not paper_ids:
+            # Empty scope = nothing in scope (see fts.search_bm25). Chroma
+            # would reject an empty $in, and returning unscoped results here
+            # would silently widen a scope the caller deliberately narrowed.
+            return []
         clauses: list[dict] = []
         if category is not None:
             clauses.append({"category": category})
@@ -71,6 +77,8 @@ class VectorStore:
             clauses.append({"year": {"$gte": year_min}})
         if year_max is not None:
             clauses.append({"year": {"$lte": year_max}})
+        if paper_ids:
+            clauses.append({"paper_id": {"$in": list(paper_ids)}})
         where = clauses[0] if len(clauses) == 1 else {"$and": clauses} if clauses else None
         tracer = telemetry.get_tracer("askrag.retrieval")
         with tracer.start_as_current_span("askrag.retrieval.vector") as span:

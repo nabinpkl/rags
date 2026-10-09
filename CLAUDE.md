@@ -4,7 +4,8 @@
 coordinator session and changes like code (commits, reviewable diffs). Budget:
 150 lines hard ceiling. History lives in git, never in this file. -->
 
-Public portfolio project: agentic RAG over 6,460 arXiv CS papers (11.6 GB).
+Public portfolio project: agentic RAG over a sample of arXiv CS (65,503
+catalog rows, 29,027 with text, 811 indexed; densest in Jul-Aug 2026).
 The agent is a side panel that feeds itself (tools, not context-stuffing),
 on a hand-built loop, deployed for ≤$22/mo. Currently pre-code: spec is done,
 work is broken into GitHub issues.
@@ -17,7 +18,9 @@ work is broken into GitHub issues.
   engineering principles (§4d). If code and spec disagree, the spec wins;
   if the spec is wrong, change the spec first (it's a numbered decision).
 - **Map**: `docs/architecture.html`. **Look & feel**: `docs/mockup.html`
-  (the PDF.js continuous-scroll viewer there is the reference behavior).
+  (the PDF.js continuous-scroll viewer there is the reference behavior) and
+  `docs/landing-mockup.html` (the Citations page's original mockup; the live
+  page has since cut its copy, so it is layout reference only).
 - **Work**: issues #9–#39 on nabinpkl/rags, board
   https://github.com/users/nabinpkl/projects/2
 
@@ -35,6 +38,15 @@ work is broken into GitHub issues.
   one persistent implementor builds on `issue-<n>-<slug>` branches, one
   persistent reviewer files verdicts, coordinator merges. Role briefs:
   `.claude/briefs/`. Only the coordinator merges or moves board cards.
+- **Commit each arc without being asked.** An arc is one coherent decision
+  landed with its tests and doc fallout; when it is complete and `just check`
+  is green, commit it. Do not wait for permission and do not let arcs pile up
+  in a dirty worktree. Pushing is still asked for explicitly.
+- **A job that may run past 2 hours runs detached, never as a harness
+  background task** (those are killed at 2 h): `setsid nohup <cmd> >>
+  corpus/<job>_<date>.log 2>&1 < /dev/null & disown`, so it outlives the
+  session. Watch it by PID (`kill -0 <pid>`), not `pgrep -f`, which matches
+  the watcher's own command line.
 - Decisions the spec doesn't cover stop the work: log in `DECISIONS.md`,
   amend the spec in the same PR (see sdlc.md).
 - New dependencies pass the gate in `docs/sdlc.md` (popular, actively
@@ -59,12 +71,31 @@ work is broken into GitHub issues.
   trigger), no human sign-off.
 - Any deviation from a spec decision needs a new/updated decision record in
   the spec — no silent architecture drift.
+- UI headings are plain nouns naming the page or section ("RAG Demo",
+  "Retrieval benchmark", "Category trends"), never a verb phrase or a
+  description ("Papers the agent can read") and never a finding. Scope or
+  explanation goes in a subtitle under the heading.
+- UI text and visuals tell one coherent story of what was done and what it
+  shows. State what is there ("checked by X, ambiguous answers culled"),
+  never what was skipped ("no human pass"); an absence earns space only when
+  it changes how a number reads.
 
 ## Hard constraints (violating these is a security/legal bug)
 
+- **Never touch export.arxiv.org from any code path** (D18): no OAI
+  harvests, no arXiv PDF scraping, no version-backfill queries. Ingest reads
+  only the Kaggle snapshot + the GCS mirror; versions backfill from the seed.
 - **Never serve, proxy, or cache arXiv PDFs or bulk full text from our
   infrastructure** (§6b). PDFs reach users only via their browser fetching
   arxiv.org, always **version-pinned** (`…/pdf/<id>v<N>`).
+- **Nothing fans out to arxiv.org — the frontend included.** One reader
+  opening one paper is one request; a list, grid, hover-prefetch, poll, or
+  retry loop that touches arxiv.org is a scraper from arXiv's side, whoever
+  wrote it. A React effect with a wrong dep array turns thirty visible cards
+  into thirty requests per render, so treat any arxiv.org fetch outside the
+  viewer's single open paper as a bug to remove, not to rate-limit. Card
+  images are rendered from the PDFs we already hold (D19), never fetched or
+  screenshotted from arxiv.org at view time.
 - **No UI/API path returns full paper text** for default-license papers
   (§6c): quotes ≤50 words, ≤3 per paper per answer, server-enforced.
 - Agent tools are **read-only by construction**; `query_metadata` accepts
@@ -79,10 +110,37 @@ work is broken into GitHub issues.
 - Collector: `just status`, `just diverse`, etc. (recipes in
   `collector/justfile`, uv-managed; root `justfile` delegates). Corpus
   artifacts live under `corpus/` (gitignored).
-- Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`,
-  `just eval`. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
+- Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`.
+  Golden set: `just golden` redrafts `evals/golden.jsonl` (model-checked, no
+  human pass, D14 amendment 2026-09-30); `just evals-check` gates it;
+  `just rewrites` writes one agent-model rewrite per question
+  (`evals/rewrites.jsonl`); `just eval` scores BM25, vector, hybrid,
+  hybrid + rerank and rewrite + hybrid on it at the top 10 and top 50
+  (about 3 min and $0.06 with the hosted reranker, hours with
+  `rerank_backend=local`, so run that one detached); `just eval-publish`
+  writes the finished run to the README table and to
+  `frontend/lib/benchmarks/retrieval.json` for `/benchmarks`, without
+  re-running anything. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
-  `POST /api/chat`). Frontend (after #26): `pnpm build`, `pnpm gen:api`.
+  `POST /api/chat`). Frontend (after #26): `pnpm build`, also run by the gate
+  (#52 — `tsc` is not `next build` in export mode). After ANY route or
+  response-model change run `just gen-openapi` — `just check` catches type
+  drift but not schema drift, because `openapi.json` is typegen's input.
+- Landing pipeline, in order: `just text --months <YYMM>…` (PDFs → the flat
+  text tree; scope it, an unscoped run pulls the pre-2026 facet sample into
+  the citation graph) → `just citations` (extract + resolve the citation
+  graph) → `just frontier` (derive the index manifest, fetch and extract its
+  papers) → `just index` (chunk, embed, rebuild corpus.db + chroma).
+  `just thumbnails` stands outside that order: card images render on first
+  request and cache as files (D19), so the recipe only warms the backlog. The
+  manifest in `corpus/frontier.json` IS the page's scope — widen it via
+  `frontier_top_cited`/`frontier_citers_per_work` in `config.py`, and expect a
+  re-embed. Frontend routes: Explore at `/` (home: the
+  whole-catalog filter, the one list that is not indexed-only, D16 amendment
+  2026-09-16), the citation counts at `/citations`, arXiv's category
+  census at `/trends`, the RAG demo at `/demo`
+  (indexed papers, reader, agent), and the retrieval eval at `/benchmarks`
+  (static, from `just eval-publish`).
 - Deploy (#81): `just deploy` (compose up; ingress on loopback), `just
   deploy-tailnet` (publish via the host's tailscaled), plus `deploy-logs`,
   `deploy-down`, `deploy-reseed`. Runbook: `deploy/README.md`.

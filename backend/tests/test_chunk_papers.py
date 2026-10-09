@@ -305,3 +305,14 @@ def test_split_bold_heading_does_not_shift_labels(tmp_path):
     beta_chunks = [c for c in body if c.section == "Beta"]
     assert beta_chunks
     assert all(SENT.strip() in c.text for c in beta_chunks)
+
+
+def test_a_paper_quoting_a_control_token_is_countable():
+    """tiktoken raises on a literal "<|endofprompt|>" unless told otherwise.
+
+    Papers about language models quote those strings — one frontier paper
+    killed a whole chunking run this way before `disallowed_special=()`.
+    """
+    text = "the special token <|endofprompt|> marks the end"
+
+    assert chunk_papers.count_tokens(text, "cl100k_base") > 0

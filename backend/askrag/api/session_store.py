@@ -24,10 +24,12 @@ from askrag.config import Settings, get_settings
 @dataclass(frozen=True)
 class SessionEntry:
     """One session's live state: the running message history threaded
-    between turns, and when it was last touched (the TTL clock)."""
+    between turns, when it was last touched (the TTL clock), and the scope
+    that history was produced under."""
 
     messages: list[Any]
     last_seen: float
+    scope: str | None = None
 
 
 class SessionStore:
@@ -51,18 +53,28 @@ class SessionStore:
         for sid in expired:
             del self._sessions[sid]
 
-    def get_or_create(self, session_id: str) -> list[Any]:
+    def get_or_create(self, session_id: str, scope: str | None = None) -> list[Any]:
         """Return a copy of the session's message history — empty if the
-        session is new or has expired. Evicts every expired session first,
-        so an access always sees TTL-current state."""
+        session is new, has expired, OR was built under a different scope.
+
+        The scope reset is load-bearing, not tidiness. Prior turns carry TOOL
+        RESULTS, i.e. text from whatever papers those turns retrieved. Reusing
+        them across a scope change would let a question asked about one
+        landing-page claim be answered from another claim's papers — the tool
+        scope would hold while the CONTEXT leaked around it. Multi-turn within
+        one scope is unaffected, which is the case that matters."""
         self._evict_expired()
         entry = self._sessions.get(session_id)
-        return list(entry.messages) if entry is not None else []
+        if entry is None or entry.scope != scope:
+            return []
+        return list(entry.messages)
 
-    def save(self, session_id: str, messages: list[Any]) -> None:
-        """Persist one turn's updated history and refresh the TTL clock."""
+    def save(self, session_id: str, messages: list[Any], scope: str | None = None) -> None:
+        """Persist one turn's updated history, its scope, and the TTL clock."""
         self._evict_expired()
-        self._sessions[session_id] = SessionEntry(messages=messages, last_seen=self._clock())
+        self._sessions[session_id] = SessionEntry(
+            messages=messages, last_seen=self._clock(), scope=scope
+        )
 
     def __len__(self) -> int:
         return len(self._sessions)

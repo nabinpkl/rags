@@ -22,6 +22,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from askrag import db
+from askrag.facets import INDEXED_PREDICATE
 
 
 class DriveUiError(Exception):
@@ -56,9 +57,11 @@ class SetFiltersArgs(_DriveUiAction):
     model_config = ConfigDict(extra="forbid")
 
     action: Literal["set_filters"] = "set_filters"
+    # The one filter the RAG demo's list exposes to the agent. It had
+    # year_min/year_max while the /app explorer had a year rail; the catalog
+    # filters by id-month instead, and a field the UI cannot show would let a
+    # confirmed call change nothing on screen. None clears the category.
     category: str | None = None
-    year_min: int | None = None
-    year_max: int | None = None
 
 
 _ActionUnion = Annotated[
@@ -70,10 +73,15 @@ class DriveUiArgs(RootModel[_ActionUnion]):
     """Model-facing input: validates + dispatches on `action` alone."""
 
 
+# Both checks are scoped to the indexed set (D16): the agent may only steer the
+# reader to papers it can read, and only to categories that leave the list it
+# is steering non-empty.
 def _require_paper_exists(conn: sqlite3.Connection, paper_id: str) -> None:
-    row = conn.execute("SELECT 1 FROM papers WHERE arxiv_id = ?", (paper_id,)).fetchone()
+    row = conn.execute(
+        f"SELECT 1 FROM papers WHERE arxiv_id = ? AND {INDEXED_PREDICATE}", (paper_id,)
+    ).fetchone()
     if row is None:
-        raise DriveUiError(f"no paper with id {paper_id!r} in corpus.db")
+        raise DriveUiError(f"no indexed paper with id {paper_id!r}")
 
 
 def _require_page_exists(conn: sqlite3.Connection, paper_id: str, page: int) -> None:
@@ -87,10 +95,11 @@ def _require_page_exists(conn: sqlite3.Connection, paper_id: str, page: int) -> 
 
 def _require_category_exists(conn: sqlite3.Connection, category: str) -> None:
     row = conn.execute(
-        "SELECT 1 FROM papers WHERE primary_category = ? LIMIT 1", (category,)
+        f"SELECT 1 FROM papers WHERE primary_category = ? AND {INDEXED_PREDICATE} LIMIT 1",
+        (category,),
     ).fetchone()
     if row is None:
-        raise DriveUiError(f"no paper has category {category!r} in corpus.db")
+        raise DriveUiError(f"no indexed paper has category {category!r}")
 
 
 def run(

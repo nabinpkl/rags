@@ -6,6 +6,10 @@ type CitedExcerpt = components["schemas"]["CitedExcerpt"];
 interface CitedExcerptsPaneProps {
   excerpts: CitedExcerpt[];
   excerptsTruncated: boolean;
+  /** Whether we hold this paper's text (use-viewer-paper.ts). The viewer can
+   * open any arXiv paper's PDF; only an indexed one can be asked about, and
+   * this pane is where that difference is visible. */
+  indexed: boolean;
   onJumpToPage: (page: number) => void;
 }
 
@@ -25,6 +29,7 @@ function sectionAnchorId(chunkId: string): string {
 export function CitedExcerptsPane({
   excerpts,
   excerptsTruncated,
+  indexed,
   onJumpToPage,
 }: CitedExcerptsPaneProps) {
   const sections = useMemo(() => {
@@ -52,19 +57,25 @@ export function CitedExcerptsPane({
       aria-label="Cited excerpts"
       className="border-line bg-panel h-full min-h-0 overflow-y-auto p-3.5"
     >
-      {/* Below `md:` the pane sits inside a disclosure whose button already
-          says "Cited excerpts" (paper-split-view.tsx); repeating it there
-          reads as two headings for one section. */}
-      <h3 className="text-muted mb-1 hidden font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase md:block">
+      {/* In the stacked layout (paper-split-view.tsx's `@container`, below
+          `@3xl`) the pane sits inside a disclosure whose button already says
+          "Cited excerpts"; repeating it there reads as two headings for one
+          section. */}
+      <h3 className="text-muted mb-1 hidden font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase @3xl:block">
         Cited excerpts
       </h3>
       {/* The two numbers stay (§6c is the reason this pane is capped at all,
           and saying so is the honest thing) — but as a sentence, not as the
-          spec's inequality notation. */}
-      <p className="text-muted mb-3.5 text-[11px] leading-relaxed">
-        Quotes are limited to 50 words, and 3 per paper per answer. Read the full paper on the left
-        — this panel shows only the passages the agent quoted.
-      </p>
+          spec's inequality notation. "In the PDF viewer", not "on the left":
+          on a phone the viewer is above this pane. Not shown for a paper we
+          hold no text for: there is nothing to quote, so a quota reads as a
+          promise. */}
+      {indexed && (
+        <p className="text-muted mb-3.5 text-[11px] leading-relaxed">
+          Quotes are limited to 50 words, and 3 per paper per answer. Read the full paper in the PDF
+          viewer — this panel shows only the passages the agent quoted.
+        </p>
+      )}
 
       {sections.length > 0 && (
         <div className="mb-3.5 flex flex-wrap gap-1.5">
@@ -82,8 +93,12 @@ export function CitedExcerptsPane({
       )}
 
       {excerpts.length === 0 ? (
-        <p className="text-muted text-[12px]">
-          No cited excerpts yet — ask the agent about this paper.
+        // Not-indexed is not "nothing yet": asking would return nothing, now
+        // or ever, and the reader cannot tell the two states apart by looking.
+        <p className="text-muted text-[12px] leading-relaxed">
+          {indexed
+            ? "No cited excerpts yet — ask the agent about this paper."
+            : "This paper is cited by the corpus but its text is not indexed, so the agent cannot read or quote it. The PDF is arXiv's, fetched by your browser."}
         </p>
       ) : (
         <div>

@@ -1,784 +1,1594 @@
 {
-  "openapi": "3.1.0",
-  "info": {
-    "title": "askRAG API",
-    "version": "0.1.0"
-  },
-  "paths": {
-    "/api/chat": {
-      "post": {
-        "summary": "Post Chat",
-        "operationId": "post_chat_api_chat_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChatRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
+    "openapi": "3.1.0",
+    "info": {
+        "title": "askRAG API",
+        "version": "0.1.0"
     },
-    "/api/papers": {
-      "get": {
-        "summary": "List Papers",
-        "operationId": "list_papers_api_papers_get",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Q"
-            }
-          },
-          {
-            "name": "category",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Category"
-            }
-          },
-          {
-            "name": "year_from",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Year From"
-            }
-          },
-          {
-            "name": "year_to",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Year To"
-            }
-          },
-          {
-            "name": "facets",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Facets"
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "relevance",
-                    "year_desc",
-                    "year_asc",
-                    "title_asc"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Sort"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PapersResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/papers/{paper_id}": {
-      "get": {
-        "summary": "Get Paper",
-        "operationId": "get_paper_api_papers__paper_id__get",
-        "parameters": [
-          {
-            "name": "paper_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Paper Id"
-            }
-          },
-          {
-            "name": "chunks",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "comma-separated chunk_ids for the capped cited-excerpt lookup",
-              "title": "Chunks"
-            },
-            "description": "comma-separated chunk_ids for the capped cited-excerpt lookup"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaperDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/facets": {
-      "get": {
-        "summary": "Get Facets",
-        "operationId": "get_facets_api_facets_get",
-        "parameters": [
-          {
-            "name": "category",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Category"
-            }
-          },
-          {
-            "name": "year_from",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Year From"
-            }
-          },
-          {
-            "name": "year_to",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Year To"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FacetsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "components": {
-    "schemas": {
-      "ChatRequest": {
-        "properties": {
-          "question": {
-            "type": "string",
-            "title": "Question"
-          },
-          "session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Session Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "question"
-        ],
-        "title": "ChatRequest"
-      },
-      "CitedExcerpt": {
-        "properties": {
-          "chunk_id": {
-            "type": "string",
-            "title": "Chunk Id"
-          },
-          "section": {
-            "type": "string",
-            "title": "Section"
-          },
-          "page_start": {
-            "type": "integer",
-            "title": "Page Start"
-          },
-          "page_end": {
-            "type": "integer",
-            "title": "Page End"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          }
-        },
-        "type": "object",
-        "required": [
-          "chunk_id",
-          "section",
-          "page_start",
-          "page_end",
-          "text"
-        ],
-        "title": "CitedExcerpt"
-      },
-      "FacetBucketOut": {
-        "properties": {
-          "value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "value",
-          "count"
-        ],
-        "title": "FacetBucketOut"
-      },
-      "FacetDimension": {
-        "properties": {
-          "buckets": {
-            "items": {
-              "$ref": "#/components/schemas/FacetBucketOut"
-            },
-            "type": "array",
-            "title": "Buckets"
-          },
-          "truncated": {
-            "type": "boolean",
-            "title": "Truncated"
-          }
-        },
-        "type": "object",
-        "required": [
-          "buckets",
-          "truncated"
-        ],
-        "title": "FacetDimension"
-      },
-      "FacetsResponse": {
-        "properties": {
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "category": {
-            "$ref": "#/components/schemas/FacetDimension"
-          },
-          "year": {
-            "$ref": "#/components/schemas/FacetDimension"
-          },
-          "license": {
-            "$ref": "#/components/schemas/FacetDimension"
-          },
-          "venue": {
-            "$ref": "#/components/schemas/FacetDimension"
-          }
-        },
-        "type": "object",
-        "required": [
-          "total",
-          "category",
-          "year",
-          "license",
-          "venue"
-        ],
-        "title": "FacetsResponse"
-      },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
-      "PaperDetailResponse": {
-        "properties": {
-          "arxiv_id": {
-            "type": "string",
-            "title": "Arxiv Id"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "authors": {
-            "type": "string",
-            "title": "Authors"
-          },
-          "abstract": {
-            "type": "string",
-            "title": "Abstract"
-          },
-          "categories": {
-            "type": "string",
-            "title": "Categories"
-          },
-          "primary_category": {
-            "type": "string",
-            "title": "Primary Category"
-          },
-          "year": {
-            "type": "integer",
-            "title": "Year"
-          },
-          "published": {
-            "type": "string",
-            "title": "Published"
-          },
-          "venue": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Venue"
-          },
-          "license": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "License"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version"
-          },
-          "facets": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "object",
-            "title": "Facets"
-          },
-          "n_chunks": {
-            "type": "integer",
-            "title": "N Chunks"
-          },
-          "excerpts": {
-            "items": {
-              "$ref": "#/components/schemas/CitedExcerpt"
-            },
-            "type": "array",
-            "title": "Excerpts"
-          },
-          "excerpts_truncated": {
-            "type": "boolean",
-            "title": "Excerpts Truncated"
-          }
-        },
-        "type": "object",
-        "required": [
-          "arxiv_id",
-          "title",
-          "authors",
-          "abstract",
-          "categories",
-          "primary_category",
-          "year",
-          "published",
-          "venue",
-          "license",
-          "version",
-          "facets",
-          "n_chunks",
-          "excerpts",
-          "excerpts_truncated"
-        ],
-        "title": "PaperDetailResponse"
-      },
-      "PaperListItem": {
-        "properties": {
-          "arxiv_id": {
-            "type": "string",
-            "title": "Arxiv Id"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "authors": {
-            "type": "string",
-            "title": "Authors"
-          },
-          "abstract": {
-            "type": "string",
-            "title": "Abstract"
-          },
-          "primary_category": {
-            "type": "string",
-            "title": "Primary Category"
-          },
-          "year": {
-            "type": "integer",
-            "title": "Year"
-          },
-          "venue": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Venue"
-          },
-          "license": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "License"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score"
-          },
-          "facets": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "number"
+    "paths": {
+        "/api/chat": {
+            "post": {
+                "summary": "Post Chat",
+                "operationId": "post_chat_api_chat_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ChatRequest"
+                            }
+                        }
                     },
-                    {
-                      "type": "integer"
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
                     },
-                    {
-                      "type": "null"
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
                     }
-                  ]
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Facets"
-          }
-        },
-        "type": "object",
-        "required": [
-          "arxiv_id",
-          "title",
-          "authors",
-          "abstract",
-          "primary_category",
-          "year",
-          "venue",
-          "license",
-          "version",
-          "score"
-        ],
-        "title": "PaperListItem"
-      },
-      "PapersResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/PaperListItem"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          },
-          "total": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "next_cursor",
-          "total"
-        ],
-        "title": "PapersResponse"
-      },
-      "ValidationError": {
-        "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
                 }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
-          }
+            }
         },
-        "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError"
-      }
+        "/api/papers/{paper_id}": {
+            "get": {
+                "summary": "Get Paper",
+                "operationId": "get_paper_api_papers__paper_id__get",
+                "parameters": [
+                    {
+                        "name": "paper_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Paper Id"
+                        }
+                    },
+                    {
+                        "name": "chunks",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "comma-separated chunk_ids for the capped cited-excerpt lookup",
+                            "title": "Chunks"
+                        },
+                        "description": "comma-separated chunk_ids for the capped cited-excerpt lookup"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaperDetailResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/landing": {
+            "get": {
+                "summary": "Get Landing",
+                "description": "The whole front page in one call \u2014 it is one static composition.\n\n`limit` defaults to `frontier_top_cited` because that setting IS the\nmanifest select_frontier.py indexed against: a smaller default would\nsilently hide foundations whose papers we fetched, chunked and embedded,\nand a larger one would list foundations with no indexed citers behind them.",
+                "operationId": "get_landing_api_landing_get",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                    "maximum": 200,
+                                    "minimum": 1
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Limit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LandingResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/foundations/{arxiv_id}": {
+            "get": {
+                "summary": "Get Foundation",
+                "operationId": "get_foundation_api_foundations__arxiv_id__get",
+                "parameters": [
+                    {
+                        "name": "arxiv_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Arxiv Id"
+                        }
+                    },
+                    {
+                        "name": "co_cited_limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 50,
+                            "minimum": 1,
+                            "default": 8,
+                            "title": "Co Cited Limit"
+                        }
+                    },
+                    {
+                        "name": "citers_limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                    "maximum": 50,
+                                    "minimum": 1
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Citers Limit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FoundationDetailResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/coverage": {
+            "get": {
+                "summary": "Get Coverage",
+                "description": "How much of each month we hold \u2014 the provenance panel's whole input.",
+                "operationId": "get_coverage_api_coverage_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CoverageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/census/categories": {
+            "get": {
+                "summary": "Get Category Census",
+                "description": "What arXiv cs posted, by primary category, in the months we hold whole.",
+                "operationId": "get_category_census_api_census_categories_get",
+                "parameters": [
+                    {
+                        "name": "top",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 20,
+                            "minimum": 1,
+                            "default": 8,
+                            "title": "Top"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CategoryCensusResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/census/uptake": {
+            "get": {
+                "summary": "Get Uptake",
+                "description": "Work from one complete month that the next complete month already cites.",
+                "operationId": "get_uptake_api_census_uptake_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UptakeResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/catalog/papers": {
+            "get": {
+                "summary": "List Catalog Papers",
+                "description": "Every paper the catalog knows, filtered. Indexed and not, together.",
+                "operationId": "list_catalog_papers_api_catalog_papers_get",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "maxLength": 200
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Q"
+                        }
+                    },
+                    {
+                        "name": "category",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "maxLength": 32
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Category"
+                        }
+                    },
+                    {
+                        "name": "month",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "id-month, e.g. 2608",
+                            "title": "Month"
+                        },
+                        "description": "id-month, e.g. 2608"
+                    },
+                    {
+                        "name": "holding",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "enum": [
+                                "all",
+                                "text",
+                                "indexed"
+                            ],
+                            "type": "string",
+                            "default": "all",
+                            "title": "Holding"
+                        }
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "enum": [
+                                "relevance",
+                                "newest",
+                                "oldest",
+                                "cited"
+                            ],
+                            "type": "string",
+                            "default": "newest",
+                            "title": "Sort"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Offset"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CatalogPapersResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/catalog/facets": {
+            "get": {
+                "summary": "Get Catalog Facets",
+                "description": "How many papers each category and each month would give under this filter.",
+                "operationId": "get_catalog_facets_api_catalog_facets_get",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "maxLength": 200
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Q"
+                        }
+                    },
+                    {
+                        "name": "category",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "maxLength": 32
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Category"
+                        }
+                    },
+                    {
+                        "name": "month",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Month"
+                        }
+                    },
+                    {
+                        "name": "holding",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "enum": [
+                                "all",
+                                "text",
+                                "indexed"
+                            ],
+                            "type": "string",
+                            "default": "all",
+                            "title": "Holding"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CatalogFacetsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/thumb/{arxiv_id}": {
+            "get": {
+                "summary": "Get Thumbnail",
+                "description": "One paper's card image, rendering it if this is the first request.",
+                "operationId": "get_thumbnail_api_thumb__arxiv_id__get",
+                "parameters": [
+                    {
+                        "name": "arxiv_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Arxiv Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "image/jpeg": {}
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "CatalogBucket": {
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "title": "Value"
+                    },
+                    "papers": {
+                        "type": "integer",
+                        "title": "Papers"
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "value",
+                    "papers"
+                ],
+                "title": "CatalogBucket"
+            },
+            "CatalogFacetsResponse": {
+                "properties": {
+                    "holdings": {
+                        "items": {
+                            "$ref": "#/components/schemas/CatalogBucket"
+                        },
+                        "type": "array",
+                        "title": "Holdings"
+                    },
+                    "categories": {
+                        "items": {
+                            "$ref": "#/components/schemas/CatalogBucket"
+                        },
+                        "type": "array",
+                        "title": "Categories"
+                    },
+                    "months": {
+                        "items": {
+                            "$ref": "#/components/schemas/CatalogBucket"
+                        },
+                        "type": "array",
+                        "title": "Months"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "title": "Total"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "holdings",
+                    "categories",
+                    "months",
+                    "total"
+                ],
+                "title": "CatalogFacetsResponse",
+                "description": "Counts for the three dimensions the filter offers as lists.\n\nEach dimension is counted with every OTHER filter applied but not its own,\nso the numbers answer \"what would I get if I picked this instead\", which\nis the question a reader is asking when they look at the list."
+            },
+            "CatalogPaper": {
+                "properties": {
+                    "arxiv_id": {
+                        "type": "string",
+                        "title": "Arxiv Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "authors": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Authors"
+                    },
+                    "abstract": {
+                        "type": "string",
+                        "title": "Abstract"
+                    },
+                    "primary_category": {
+                        "type": "string",
+                        "title": "Primary Category"
+                    },
+                    "published": {
+                        "type": "string",
+                        "title": "Published"
+                    },
+                    "version": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Version"
+                    },
+                    "has_text": {
+                        "type": "boolean",
+                        "title": "Has Text"
+                    },
+                    "indexed": {
+                        "type": "boolean",
+                        "title": "Indexed"
+                    },
+                    "cited_by": {
+                        "type": "integer",
+                        "title": "Cited By"
+                    },
+                    "license": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "License"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "arxiv_id",
+                    "title",
+                    "authors",
+                    "abstract",
+                    "primary_category",
+                    "published",
+                    "version",
+                    "has_text",
+                    "indexed",
+                    "cited_by",
+                    "license"
+                ],
+                "title": "CatalogPaper",
+                "description": "One paper as the catalog knows it, plus what we hold of it.\n\n`indexed` is what decides where a row can send the reader, so it is a\nfield rather than something the client infers from a count."
+            },
+            "CatalogPapersResponse": {
+                "properties": {
+                    "papers": {
+                        "items": {
+                            "$ref": "#/components/schemas/CatalogPaper"
+                        },
+                        "type": "array",
+                        "title": "Papers"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "title": "Total"
+                    },
+                    "next_offset": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Next Offset"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "papers",
+                    "total",
+                    "next_offset"
+                ],
+                "title": "CatalogPapersResponse"
+            },
+            "CategoryCensusResponse": {
+                "properties": {
+                    "categories": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Categories"
+                    },
+                    "category_names": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "type": "object",
+                        "title": "Category Names"
+                    },
+                    "months": {
+                        "items": {
+                            "$ref": "#/components/schemas/CensusMonth"
+                        },
+                        "type": "array",
+                        "title": "Months"
+                    },
+                    "excluded": {
+                        "items": {
+                            "$ref": "#/components/schemas/ExcludedMonth"
+                        },
+                        "type": "array",
+                        "title": "Excluded"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "categories",
+                    "category_names",
+                    "months",
+                    "excluded"
+                ],
+                "title": "CategoryCensusResponse"
+            },
+            "CategoryShare": {
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "title": "Category"
+                    },
+                    "papers": {
+                        "type": "integer",
+                        "title": "Papers"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "category",
+                    "papers"
+                ],
+                "title": "CategoryShare"
+            },
+            "CensusMonth": {
+                "properties": {
+                    "month": {
+                        "type": "string",
+                        "title": "Month"
+                    },
+                    "papers": {
+                        "type": "integer",
+                        "title": "Papers"
+                    },
+                    "catalog_papers": {
+                        "type": "integer",
+                        "title": "Catalog Papers"
+                    },
+                    "categories": {
+                        "items": {
+                            "$ref": "#/components/schemas/CategoryShare"
+                        },
+                        "type": "array",
+                        "title": "Categories"
+                    },
+                    "other": {
+                        "type": "integer",
+                        "title": "Other"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "month",
+                    "papers",
+                    "catalog_papers",
+                    "categories",
+                    "other"
+                ],
+                "title": "CensusMonth",
+                "description": "One complete month, by the primary category arXiv filed each paper under."
+            },
+            "ChatRequest": {
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "title": "Question"
+                    },
+                    "session_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Session Id"
+                    },
+                    "foundation_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Foundation Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "question"
+                ],
+                "title": "ChatRequest"
+            },
+            "CitedExcerpt": {
+                "properties": {
+                    "chunk_id": {
+                        "type": "string",
+                        "title": "Chunk Id"
+                    },
+                    "section": {
+                        "type": "string",
+                        "title": "Section"
+                    },
+                    "page_start": {
+                        "type": "integer",
+                        "title": "Page Start"
+                    },
+                    "page_end": {
+                        "type": "integer",
+                        "title": "Page End"
+                    },
+                    "text": {
+                        "type": "string",
+                        "title": "Text"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "chunk_id",
+                    "section",
+                    "page_start",
+                    "page_end",
+                    "text"
+                ],
+                "title": "CitedExcerpt"
+            },
+            "CitedYearBucket": {
+                "properties": {
+                    "year": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Year"
+                    },
+                    "citations": {
+                        "type": "integer",
+                        "title": "Citations"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "year",
+                    "citations"
+                ],
+                "title": "CitedYearBucket"
+            },
+            "CoCitedWork": {
+                "properties": {
+                    "arxiv_id": {
+                        "type": "string",
+                        "title": "Arxiv Id"
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Title"
+                    },
+                    "version": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Version"
+                    },
+                    "cite_both": {
+                        "type": "integer",
+                        "title": "Cite Both"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "arxiv_id",
+                    "title",
+                    "version",
+                    "cite_both"
+                ],
+                "title": "CoCitedWork"
+            },
+            "CohortStats": {
+                "properties": {
+                    "cohort_start": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Cohort Start"
+                    },
+                    "cohort_end": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Cohort End"
+                    },
+                    "cohort_papers": {
+                        "type": "integer",
+                        "title": "Cohort Papers"
+                    },
+                    "cohort_catalog_papers": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Cohort Catalog Papers"
+                    },
+                    "papers_parsed": {
+                        "type": "integer",
+                        "title": "Papers Parsed"
+                    },
+                    "papers_with_references": {
+                        "type": "integer",
+                        "title": "Papers With References"
+                    },
+                    "citations": {
+                        "type": "integer",
+                        "title": "Citations"
+                    },
+                    "cited_works": {
+                        "type": "integer",
+                        "title": "Cited Works"
+                    },
+                    "readable_papers": {
+                        "type": "integer",
+                        "title": "Readable Papers"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "cohort_start",
+                    "cohort_end",
+                    "cohort_papers",
+                    "cohort_catalog_papers",
+                    "papers_parsed",
+                    "papers_with_references",
+                    "citations",
+                    "cited_works",
+                    "readable_papers"
+                ],
+                "title": "CohortStats",
+                "description": "What the page opens with: the cohort it counted, and how complete it is.\n\nThere is no \"window\" here any more, and that is the point. The window was\n`min/max(citing id-month)`, which 261 old seed papers (1.5% of the citing\nside) stretched from two months to nineteen years, and every sentence\nhanging off it then claimed we hold \"every cs paper arXiv posted\" across\nthat span. We hold 94% of July 2026, 49% of August, 5% of September and\nunder 2% of everything else.\n\nSo the cohort is stated as what it is, with its own denominator beside it:\n`cohort_catalog_papers` is what the catalog lists for those same months\n(`catalog_months`), and it is None when the snapshot is older than the\ncohort and therefore cannot answer.\n\nEvery field here is one a reader has a use for: how much of arXiv this\ncounted, what came out of it, and how much of it the agent can actually\nread. Stage counts that only describe our pipeline do not belong on the\nwire \u2014 `papers_parsed` is the sole survivor of that kind, and only\nbecause the parse rate the methods note states is a percentage of it."
+            },
+            "CoverageResponse": {
+                "properties": {
+                    "months": {
+                        "items": {
+                            "$ref": "#/components/schemas/MonthBucket"
+                        },
+                        "type": "array",
+                        "title": "Months"
+                    },
+                    "cohort": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Cohort"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "months",
+                    "cohort"
+                ],
+                "title": "CoverageResponse"
+            },
+            "ExcludedMonth": {
+                "properties": {
+                    "month": {
+                        "type": "string",
+                        "title": "Month"
+                    },
+                    "papers_held": {
+                        "type": "integer",
+                        "title": "Papers Held"
+                    },
+                    "catalog_papers": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Catalog Papers"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "month",
+                    "papers_held",
+                    "catalog_papers"
+                ],
+                "title": "ExcludedMonth",
+                "description": "A cohort month held too thinly to describe arXiv with, and by how much."
+            },
+            "Foundation": {
+                "properties": {
+                    "arxiv_id": {
+                        "type": "string",
+                        "title": "Arxiv Id"
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Title"
+                    },
+                    "authors": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Authors"
+                    },
+                    "primary_category": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Primary Category"
+                    },
+                    "primary_category_name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Primary Category Name"
+                    },
+                    "year": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Year"
+                    },
+                    "version": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Version"
+                    },
+                    "cited_by": {
+                        "type": "integer",
+                        "title": "Cited By"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "arxiv_id",
+                    "title",
+                    "authors",
+                    "primary_category",
+                    "year",
+                    "version",
+                    "cited_by"
+                ],
+                "title": "Foundation",
+                "description": "A work our recent cohort builds on. Not a `papers` row \u2014 see cited_works."
+            },
+            "FoundationDetailResponse": {
+                "properties": {
+                    "foundation": {
+                        "$ref": "#/components/schemas/Foundation"
+                    },
+                    "co_cited": {
+                        "items": {
+                            "$ref": "#/components/schemas/CoCitedWork"
+                        },
+                        "type": "array",
+                        "title": "Co Cited"
+                    },
+                    "indexed_citers": {
+                        "items": {
+                            "$ref": "#/components/schemas/IndexedCiter"
+                        },
+                        "type": "array",
+                        "title": "Indexed Citers"
+                    },
+                    "total_citers": {
+                        "type": "integer",
+                        "title": "Total Citers"
+                    },
+                    "scope_size": {
+                        "type": "integer",
+                        "title": "Scope Size"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "foundation",
+                    "co_cited",
+                    "indexed_citers",
+                    "total_citers",
+                    "scope_size"
+                ],
+                "title": "FoundationDetailResponse"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "IndexedCiter": {
+                "properties": {
+                    "arxiv_id": {
+                        "type": "string",
+                        "title": "Arxiv Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "primary_category": {
+                        "type": "string",
+                        "title": "Primary Category"
+                    },
+                    "version": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Version"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "arxiv_id",
+                    "title",
+                    "primary_category",
+                    "version"
+                ],
+                "title": "IndexedCiter",
+                "description": "A citing paper we hold and have indexed \u2014 every one of these opens."
+            },
+            "LandingResponse": {
+                "properties": {
+                    "stats": {
+                        "$ref": "#/components/schemas/CohortStats"
+                    },
+                    "foundations": {
+                        "items": {
+                            "$ref": "#/components/schemas/Foundation"
+                        },
+                        "type": "array",
+                        "title": "Foundations"
+                    },
+                    "cited_years": {
+                        "items": {
+                            "$ref": "#/components/schemas/CitedYearBucket"
+                        },
+                        "type": "array",
+                        "title": "Cited Years"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stats",
+                    "foundations",
+                    "cited_years"
+                ],
+                "title": "LandingResponse"
+            },
+            "MonthBucket": {
+                "properties": {
+                    "month": {
+                        "type": "string",
+                        "title": "Month"
+                    },
+                    "papers_held": {
+                        "type": "integer",
+                        "title": "Papers Held"
+                    },
+                    "papers_parsed": {
+                        "type": "integer",
+                        "title": "Papers Parsed"
+                    },
+                    "refs_made": {
+                        "type": "integer",
+                        "title": "Refs Made"
+                    },
+                    "catalog_papers": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Catalog Papers"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "month",
+                    "papers_held",
+                    "papers_parsed",
+                    "refs_made",
+                    "catalog_papers"
+                ],
+                "title": "MonthBucket",
+                "description": "One id-month of the corpus, against what arXiv posted that month.\n\n`catalog_papers` is the whole reason this shape exists. Bar heights of\nwhat we hold, with no denominator, said \"19 papers in October 2025\" on a\npage about what CS is building on, and a reader takes that as a fact about\nOctober rather than about our download schedule. It is None when the\ncatalog snapshot cannot answer for that month (it lists fewer papers than\nwe hold, i.e. the snapshot predates the month) \u2014 unknown is printable,\na wrong denominator is not.\n\nKeyed by ID-MONTH, not by `published`: the census counts id-months, and\nthe two disagree by 383 papers for July 2026 alone (arXiv announces a\nlate-June submission with a 2607 id), which would put the numerator and\ndenominator of the same bar on different axes."
+            },
+            "PaperDetailResponse": {
+                "properties": {
+                    "arxiv_id": {
+                        "type": "string",
+                        "title": "Arxiv Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "authors": {
+                        "type": "string",
+                        "title": "Authors"
+                    },
+                    "abstract": {
+                        "type": "string",
+                        "title": "Abstract"
+                    },
+                    "categories": {
+                        "type": "string",
+                        "title": "Categories"
+                    },
+                    "primary_category": {
+                        "type": "string",
+                        "title": "Primary Category"
+                    },
+                    "year": {
+                        "type": "integer",
+                        "title": "Year"
+                    },
+                    "published": {
+                        "type": "string",
+                        "title": "Published"
+                    },
+                    "venue": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Venue"
+                    },
+                    "license": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "License"
+                    },
+                    "version": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Version"
+                    },
+                    "facets": {
+                        "additionalProperties": {
+                            "anyOf": [
+                                {
+                                    "type": "number"
+                                },
+                                {
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "type": "object",
+                        "title": "Facets"
+                    },
+                    "n_chunks": {
+                        "type": "integer",
+                        "title": "N Chunks"
+                    },
+                    "excerpts": {
+                        "items": {
+                            "$ref": "#/components/schemas/CitedExcerpt"
+                        },
+                        "type": "array",
+                        "title": "Excerpts"
+                    },
+                    "excerpts_truncated": {
+                        "type": "boolean",
+                        "title": "Excerpts Truncated"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "arxiv_id",
+                    "title",
+                    "authors",
+                    "abstract",
+                    "categories",
+                    "primary_category",
+                    "year",
+                    "published",
+                    "venue",
+                    "license",
+                    "version",
+                    "facets",
+                    "n_chunks",
+                    "excerpts",
+                    "excerpts_truncated"
+                ],
+                "title": "PaperDetailResponse"
+            },
+            "UptakeResponse": {
+                "properties": {
+                    "from_month": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "From Month"
+                    },
+                    "to_month": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "To Month"
+                    },
+                    "works": {
+                        "items": {
+                            "$ref": "#/components/schemas/UptakeWork"
+                        },
+                        "type": "array",
+                        "title": "Works"
+                    },
+                    "works_total": {
+                        "type": "integer",
+                        "title": "Works Total"
+                    },
+                    "edges_total": {
+                        "type": "integer",
+                        "title": "Edges Total"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "from_month",
+                    "to_month",
+                    "works",
+                    "works_total",
+                    "edges_total"
+                ],
+                "title": "UptakeResponse",
+                "description": "Papers from one month already cited by the next month's papers.\n\nBoth months must be complete, and consecutive: the measurement is \"how\nfast did this land\", and neither a missing citing month (too few citers)\nnor a gap between the two (more time to accumulate) measures that."
+            },
+            "UptakeWork": {
+                "properties": {
+                    "work": {
+                        "$ref": "#/components/schemas/Foundation"
+                    },
+                    "citations_from": {
+                        "type": "integer",
+                        "title": "Citations From"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "work",
+                    "citations_from"
+                ],
+                "title": "UptakeWork",
+                "description": "A work from the earlier month, and how much of the later month cites it.\n\n`work` is the same shape the foundations table ranks, so a row here opens\nthe same detail view rather than a second, thinner one. Both numbers are\nkept because they answer different questions: `work.cited_by` is how much\nthe corpus cites it at all, `citations_from` is how much of that arrived\nfrom a single following month."
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "ctx": {
+                        "type": "object",
+                        "title": "Context"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
     }
-  }
 }

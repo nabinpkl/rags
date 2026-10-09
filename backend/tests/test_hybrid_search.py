@@ -99,12 +99,23 @@ class FakeStore:
         self.fail_with = fail_with
         self.calls: list[dict] = []
 
-    def query(self, embedding, k, *, category=None, year_min=None, year_max=None):
+    def query(self, embedding, k, *, category=None, year_min=None, year_max=None, paper_ids=None):
         self.calls.append(
-            {"k": k, "category": category, "year_min": year_min, "year_max": year_max}
+            {
+                "k": k,
+                "category": category,
+                "year_min": year_min,
+                "year_max": year_max,
+                "paper_ids": paper_ids,
+            }
         )
         if self.fail_with is not None:
             raise self.fail_with
+        if paper_ids is not None:
+            # The fake mirrors the real store's contract: an empty scope
+            # returns nothing rather than falling back to unscoped results.
+            wanted = set(paper_ids)
+            return [i for i in self.ids if i.split("#")[0] in wanted][:k]
         return self.ids[:k]
 
 
@@ -141,9 +152,39 @@ def test_filters_push_down_to_both_legs(corpus_db):
     s = searcher(corpus_db, store=store)
     results = s.search("attention", filters=Filters(category="cs.CL", year_min=2024), k=4)
     # Vector leg received the filters verbatim...
-    assert store.calls == [{"k": 4, "category": "cs.CL", "year_min": 2024, "year_max": None}]
+    assert store.calls == [
+        {"k": 4, "category": "cs.CL", "year_min": 2024, "year_max": None, "paper_ids": None}
+    ]
     # ...and the BM25 leg applied them in SQL: cs.DS and 2019 papers excluded.
     assert {r.paper_id for r in results} == {"2401.00001"}
+
+
+def test_paper_id_scope_pushes_down_to_both_legs(corpus_db):
+    """The landing page's ask surface restricts retrieval to a claim's papers.
+
+    Both legs must narrow: a scope applied to only one of them still surfaces
+    out-of-scope chunks through the other, which is the failure this pushes
+    down to prevent.
+    """
+    store = FakeStore(["2401.00001#0", "2401.00002#0"])
+    s = searcher(corpus_db, store=store)
+
+    results = s.search("attention", filters=Filters(paper_ids=("2401.00001",)), k=4)
+
+    assert store.calls[0]["paper_ids"] == ("2401.00001",)
+    assert {r.paper_id for r in results} == {"2401.00001"}
+
+
+def test_an_empty_scope_returns_nothing_not_everything(corpus_db):
+    """`()` means "no paper is in scope"; only `None` means "unscoped".
+
+    Treating an empty scope as no filter would silently widen a scope the
+    caller deliberately narrowed — the one way a scope can fail open.
+    """
+    store = FakeStore(["2401.00001#0"])
+    s = searcher(corpus_db, store=store)
+
+    assert s.search("attention", filters=Filters(paper_ids=()), k=4) == []
 
 
 def test_vector_leg_down_degrades_to_bm25_only(corpus_db):

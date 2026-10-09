@@ -9,6 +9,7 @@ nothing itself — that division of labor is unchanged from #21/#23.
 
 import json
 import logging
+import sqlite3
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
@@ -23,7 +24,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from askrag import traces
+from askrag import db, traces
 from askrag.agent import budgets
 from askrag.agent.loop import (
     AgentEvent,
@@ -33,8 +34,9 @@ from askrag.agent.loop import (
     anthropic_client_from_settings,
     run_turn,
 )
-from askrag.api import sse_events
+from askrag.api import answer_guard, sse_events
 from askrag.api.replay import replay_events
+from askrag.api.routes_landing import find_foundation, scope_paper_ids
 from askrag.api.session_store import SessionStore
 from askrag.config import Settings, get_settings
 
@@ -45,6 +47,11 @@ _logger = logging.getLogger(__name__)
 class ChatRequest(BaseModel):
     question: str
     session_id: str | None = None
+    # A landing-page claim to answer within, e.g. "1707.06347". The route
+    # resolves it to that claim's INDEXED papers and binds the result into
+    # tool dispatch, so the model receives a scope it cannot widen (§5/§6).
+    # An unknown id is a 404, never a silently unscoped turn.
+    foundation_id: str | None = None
 
 
 def get_model_client(settings: Settings = Depends(get_settings)) -> ModelClient:
@@ -91,6 +98,44 @@ class _TurnOutcome:
     error: BaseException | None = None
 
 
+def _harden_text_event(event: AgentEvent, settings: Settings) -> AgentEvent:
+    """Apply `answer_guard` to one TEXT event, returning the event to emit.
+
+    On a corpus read failure this degrades to verified-but-UNCAPPED, and says
+    so in the log — citation verification needs no db, quote caps do. That is a
+    deliberate partial-open, not a fail-closed: dropping the answer would turn a
+    transient db error into a broken turn, and §6c row 4 is a display cap on
+    text the model was already entitled to read (row 1), not a containment
+    boundary like scope. If that trade ever stops being acceptable, the fix is
+    to fail the turn here, and the log line is what would justify it.
+    """
+    tool_calls = event.data.get("tool_calls", ())
+    sources: dict[str, list[str]] = {}
+    try:
+        conn = db.connect_corpus(settings.corpus_db_path)
+        try:
+            sources = answer_guard.fetch_sources(conn, tool_calls)
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        _logger.exception("askrag.api.chat: answer_guard sources unavailable; caps not applied")
+
+    hardened = answer_guard.harden(
+        event.data["text"], tool_calls=tool_calls, sources=sources, settings=settings
+    )
+    if not hardened.changed:
+        return event
+    _logger.warning(
+        "askrag.api.chat: answer hardened before send",
+        extra={
+            "askrag.stripped_ids": list(hardened.stripped_ids),
+            "askrag.capped_quotes": hardened.capped_quotes,
+            "askrag.dropped_quotes": hardened.dropped_quotes,
+        },
+    )
+    return AgentEvent(event.kind, {**event.data, "text": hardened.text})
+
+
 async def _stream_live_turn(
     *,
     messages: list[Any],
@@ -100,6 +145,8 @@ async def _stream_live_turn(
     client: ModelClient,
     settings: Settings,
     session_store: SessionStore,
+    scope: tuple[str, ...] | None = None,
+    scope_key: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """The sync-loop -> async-SSE bridge (the load-bearing piece of this
     route). `run_turn` is synchronous and blocking (sync SQLite + model
@@ -120,6 +167,13 @@ async def _stream_live_turn(
             # counterpart at all) — forwarding the loop's own internal DONE
             # here too would double-emit it out of order (before `cost`).
             return
+        if event.kind is EventKind.TEXT:
+            # §6c row 4 + citation verification, server-side, before any answer
+            # text leaves (issue #36). Done HERE rather than in the loop: the
+            # loop supplies what it alone knows (the turn's tool calls), the
+            # route owns the corpus handle. An answer never reaches the wire
+            # unhardened, including on the intermediate assistant messages.
+            event = _harden_text_event(event, settings)
         sse = sse_events.translate(event)
         if sse is None:
             return
@@ -140,6 +194,7 @@ async def _stream_live_turn(
                     client=client,
                     settings=settings,
                     on_event=on_event,
+                    scope=scope,
                 )
             )
         except BaseException as exc:  # noqa: BLE001 — any loop failure still closes
@@ -180,9 +235,38 @@ async def _stream_live_turn(
 
     result = outcome.result
     assert result is not None  # by construction: run_and_close sets one or the other
-    session_store.save(session_id, result.messages)
+    session_store.save(session_id, result.messages, scope_key)
     yield {"data": json.dumps(sse_events.serialize(sse_events.cost_event(result)))}
     yield {"data": json.dumps(sse_events.serialize(sse_events.done_event(result)))}
+
+
+def _resolve_scope(foundation_id: str | None, settings: Settings) -> tuple[str, ...] | None:
+    """A landing-page claim -> the indexed papers a turn may be answered from.
+
+    Resolved HERE, from corpus.db, rather than accepted as a client-supplied
+    id list: a scope a caller can write is not a scope. An unknown foundation
+    is a 404 — quietly running the turn unscoped would answer a question the
+    user framed as being about one claim using the whole corpus.
+    """
+    if foundation_id is None:
+        return None
+    conn = db.connect_corpus(settings.corpus_db_path)
+    try:
+        if find_foundation(conn, foundation_id) is None:
+            raise HTTPException(status_code=404, detail=f"no cited work with id {foundation_id!r}")
+        scope = scope_paper_ids(conn, foundation_id)
+    finally:
+        conn.close()
+    if not scope:
+        # An empty scope retrieves nothing by construction, so the turn would
+        # spend real money against the D11 caps to produce "I found nothing".
+        # Refusing pre-flight is the same posture as the budget gate below:
+        # say why, before spending.
+        raise HTTPException(
+            status_code=422,
+            detail=f"no indexed papers for {foundation_id!r} — nothing to answer from",
+        )
+    return scope
 
 
 @router.post("/api/chat", response_model=None)
@@ -227,7 +311,8 @@ async def post_chat(
             },
         )
 
-    messages = session_store.get_or_create(session_id)
+    scope = _resolve_scope(body.foundation_id, settings)
+    messages = session_store.get_or_create(session_id, body.foundation_id)
     return EventSourceResponse(
         _stream_live_turn(
             messages=messages,
@@ -237,6 +322,8 @@ async def post_chat(
             client=client,
             settings=settings,
             session_store=session_store,
+            scope=scope,
+            scope_key=body.foundation_id,
         ),
         headers={"X-AskRAG-Session-Id": session_id},
     )

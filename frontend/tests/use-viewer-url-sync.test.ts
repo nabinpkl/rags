@@ -1,8 +1,7 @@
-// The store<->URL sync hook (D-2, DECISIONS.md #28/#29). This file is new
-// (issue #32): D-3 requires proving this hook survives RAPID SEQUENTIAL
-// agent-driven pushes (open->page->filter landing across ticks) without
-// dropping one, and that back/forward + a shared URL restore the exact
-// view — acceptance item 2.
+// The store<->URL sync hook (D-2, DECISIONS.md #28/#29, issue #32): rapid
+// sequential agent-driven pushes must not drop one, back/forward and a shared
+// URL must restore the exact view, and the list's filter parameters must
+// survive every push the reader makes.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
@@ -13,18 +12,17 @@ const { pushMock, mockState } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
-  usePathname: () => "/",
+  usePathname: () => "/demo",
   useSearchParams: () => new URLSearchParams(mockState.search),
 }));
 
 import { useViewerUrlSync } from "@/hooks/use-viewer-url-sync";
 import { useViewerStore } from "@/stores/viewer-store";
 
-// router.push is async in real Next.js — `searchParams` doesn't reflect a
-// push until the navigation commits, often several ticks later (round-1
-// review finding, DECISIONS.md 2026-07-09). The mock defers committing to
-// `mockState.search` until `commitPendingPush()` runs, so a test can
-// reproduce that lag deliberately instead of the push landing synchronously.
+// router.push is async in real Next.js: `searchParams` does not reflect a
+// push until the navigation commits (DECISIONS.md 2026-07-09). The mock
+// defers the commit until `commitPendingPush()`, so a test can reproduce the
+// lag deliberately.
 let pendingSearch: string | null = null;
 
 function commitPendingPush() {
@@ -45,116 +43,81 @@ beforeEach(() => {
 });
 
 describe("useViewerUrlSync — sequential agent-driven pushes (D-3, issue #32)", () => {
-  it("pushes a second store-driven change even though the first push hasn't committed to the URL yet", () => {
+  it("pushes a second store-driven change even though the first has not committed", () => {
     const { rerender } = renderHook(() => useViewerUrlSync());
 
-    act(() => {
-      useViewerStore.getState().setPaper("1409.7842");
-    });
+    act(() => useViewerStore.getState().setPaper("1409.7842"));
     rerender();
-    expect(pushMock).toHaveBeenNthCalledWith(1, "/?paper=1409.7842", { scroll: false });
-    expect(mockState.search).toBe(""); // still uncommitted — the lag this test targets
+    expect(pushMock).toHaveBeenNthCalledWith(1, "/demo?paper=1409.7842", { scroll: false });
+    expect(mockState.search).toBe(""); // still uncommitted, the lag this targets
 
-    act(() => {
-      useViewerStore.getState().setPaper("1409.7842", 3); // goto_page-shaped: paper+page together
-    });
+    act(() => useViewerStore.getState().setPaper("1409.7842", 3));
     rerender();
-    expect(pushMock).toHaveBeenNthCalledWith(2, "/?paper=1409.7842&page=3", { scroll: false });
+    expect(pushMock).toHaveBeenNthCalledWith(2, "/demo?paper=1409.7842&page=3", {
+      scroll: false,
+    });
 
     commitPendingPush();
     rerender();
-    // Settling the now-committed URL matches the store exactly — no
-    // spurious third push.
-    expect(pushMock).toHaveBeenCalledTimes(2);
+    expect(pushMock).toHaveBeenCalledTimes(2); // settling adds no third push
   });
 
-  it("goto_page's paper+page land in ONE push, not two (D-3.1, via applyDriveAction)", () => {
+  it("goto_page's paper+page land in ONE push (D-3.1, via applyDriveAction)", () => {
     const { rerender } = renderHook(() => useViewerUrlSync());
 
-    act(() => {
-      useViewerStore.getState().applyDriveAction("goto_page", {
-        action: "goto_page",
-        paper_id: "1409.7842",
-        page: 3,
-      });
-    });
+    act(() =>
+      useViewerStore
+        .getState()
+        .applyDriveAction("goto_page", { action: "goto_page", paper_id: "1409.7842", page: 3 }),
+    );
     rerender();
 
     expect(pushMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenCalledWith("/?paper=1409.7842&page=3", { scroll: false });
+    expect(pushMock).toHaveBeenCalledWith("/demo?paper=1409.7842&page=3", { scroll: false });
   });
+});
 
-  it("a three-step agent sequence (open -> page jump -> filters back to explorer) never drops a step", () => {
+describe("useViewerUrlSync — the list's filter survives the reader", () => {
+  it("opening a paper keeps the filter in the URL", () => {
+    mockState.search = "category=cs.CL&sort=cited";
     const { rerender } = renderHook(() => useViewerUrlSync());
 
-    act(() => {
-      useViewerStore.getState().applyDriveAction("open_paper", {
-        action: "open_paper",
-        paper_id: "1409.7842",
-      });
+    act(() => useViewerStore.getState().setPaper("1409.7842"));
+    rerender();
+
+    expect(pushMock).toHaveBeenCalledWith("/demo?category=cs.CL&sort=cited&paper=1409.7842", {
+      scroll: false,
     });
-    rerender();
-    expect(mockState.search).toBe(""); // uncommitted
+  });
 
-    act(() => {
-      useViewerStore.getState().applyDriveAction("goto_page", {
-        action: "goto_page",
-        paper_id: "1409.7842",
-        page: 3,
-      });
-    });
-    rerender();
-    expect(mockState.search).toBe(""); // still uncommitted — second push landed anyway
+  it("closing the paper returns to the same filtered list", () => {
+    mockState.search = "category=cs.CL&paper=1409.7842&page=2";
+    const { rerender } = renderHook(() => useViewerUrlSync());
+    expect(useViewerStore.getState()).toMatchObject({ paper: "1409.7842", page: 2 });
 
-    act(() => {
-      useViewerStore
-        .getState()
-        .applyDriveAction("set_filters", { action: "set_filters", category: "cs.CL" });
-    });
+    act(() => useViewerStore.getState().setPaper(null));
     rerender();
 
-    expect(pushMock).toHaveBeenCalledTimes(3);
-    expect(pushMock).toHaveBeenLastCalledWith("/?category=cs.CL", { scroll: false });
+    expect(pushMock).toHaveBeenCalledWith("/demo?category=cs.CL", { scroll: false });
+  });
 
-    commitPendingPush();
+  it("a filter change alone is not a viewer change, so it triggers no push", () => {
+    const { rerender } = renderHook(() => useViewerUrlSync());
+    mockState.search = "category=cs.CL";
     rerender();
-    expect(pushMock).toHaveBeenCalledTimes(3); // settling doesn't add a fourth push
-    expect(useViewerStore.getState()).toMatchObject({ category: "cs.CL", paper: null, page: null });
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(useViewerStore.getState()).toMatchObject({ paper: null, page: null });
   });
 });
 
 describe("useViewerUrlSync — back/forward + shared URL (issue #32 acceptance item 2)", () => {
-  it("a shared URL (paper+page+filters together) restores the exact view on mount", () => {
-    mockState.search = "category=cs.CL&year_from=2018&paper=1409.7842&page=3";
+  it("a shared URL restores the open paper and page on mount", () => {
+    mockState.search = "category=cs.CL&paper=1409.7842&page=3";
     renderHook(() => useViewerUrlSync());
-
-    expect(useViewerStore.getState()).toMatchObject({
-      category: "cs.CL",
-      yearFrom: 2018,
-      paper: "1409.7842",
-      page: 3,
-    });
+    expect(useViewerStore.getState()).toMatchObject({ paper: "1409.7842", page: 3 });
   });
 
-  it("back button (URL reverts externally, store didn't change) hydrates the store back to match", () => {
-    const { rerender } = renderHook(() => useViewerUrlSync());
-
-    act(() => {
-      useViewerStore.getState().setFilters({ category: "cs.CL" });
-    });
-    rerender();
-    commitPendingPush();
-    rerender(); // settle: the hook's prevStoreString now reflects the pushed state
-
-    // Simulate the browser back button: the URL reverts externally, the
-    // store has not itself changed.
-    mockState.search = "";
-    rerender();
-
-    expect(useViewerStore.getState().category).toBeNull();
-  });
-
-  it("forward button re-applies a later agent-driven URL the same way", () => {
+  it("back and forward re-apply the URL the store did not itself change", () => {
     const { rerender } = renderHook(() => useViewerUrlSync());
 
     mockState.search = "paper=1409.7842&page=5";
