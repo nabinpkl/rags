@@ -75,6 +75,10 @@ work is broken into GitHub issues.
   "Retrieval benchmark", "Category trends"), never a verb phrase or a
   description ("Papers the agent can read") and never a finding. Scope or
   explanation goes in a subtitle under the heading.
+- UI text and visuals tell one coherent story of what was done and what it
+  shows. State what is there ("checked by X, ambiguous answers culled"),
+  never what was skipped ("no human pass"); an absence earns space only when
+  it changes how a number reads.
 
 ## Hard constraints (violating these is a security/legal bug)
 
