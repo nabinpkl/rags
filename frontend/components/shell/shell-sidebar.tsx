@@ -23,7 +23,7 @@ export const VIEWS = [
   { id: "explore", label: "Explore", href: "/", icon: Library },
   { id: "citations", label: "Citations", href: "/citations", icon: Quote },
   { id: "trends", label: "Trends", href: "/trends", icon: TrendingUp },
-  { id: "demo", label: "RAG demo", href: "/demo", icon: MessagesSquare },
+  { id: "demo", label: "RAG Demo", href: "/demo", icon: MessagesSquare },
   { id: "benchmarks", label: "Benchmarks", href: "/benchmarks", icon: ChartNoAxesColumn },
 ] as const satisfies readonly { id: string; label: string; href: string; icon: LucideIcon }[];
 

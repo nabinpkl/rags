@@ -14,15 +14,15 @@ describe("ShellSidebar", () => {
     expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Citations" })).toHaveAttribute("href", "/citations");
     expect(screen.getByRole("link", { name: "Trends" })).toHaveAttribute("href", "/trends");
-    expect(screen.getByRole("link", { name: "RAG demo" })).toHaveAttribute("href", "/demo");
+    expect(screen.getByRole("link", { name: "RAG Demo" })).toHaveAttribute("href", "/demo");
   });
 
   it("leads with Explore, the home page", () => {
     render(<ShellSidebar current="demo" />);
 
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(labels).toEqual(["Explore", "Citations", "Trends", "RAG demo", "Benchmarks"]);
-    expect(screen.getByRole("link", { name: "RAG demo" })).toHaveAttribute("aria-current", "page");
+    expect(labels).toEqual(["Explore", "Citations", "Trends", "RAG Demo", "Benchmarks"]);
+    expect(screen.getByRole("link", { name: "RAG Demo" })).toHaveAttribute("aria-current", "page");
   });
 
   it("marks the view being read, and only that one", () => {

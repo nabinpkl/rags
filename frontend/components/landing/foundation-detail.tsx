@@ -138,7 +138,7 @@ export function FoundationDetail({
             <DashboardPanel
               title="Cited alongside"
               meta="co-citation"
-              footer="Counted, not clustered: how many of our papers cite both."
+              footer="How many of our papers cite both."
             >
               <ol className="m-0 list-none p-0">
                 {data.co_cited.map((work, i) => (

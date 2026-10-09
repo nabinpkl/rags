@@ -172,7 +172,7 @@ describe("FoundationDetail", () => {
     renderDetail();
 
     expect(await screen.findByText("247 papers cite both")).toBeInTheDocument();
-    expect(screen.getByText(/Counted, not clustered/)).toBeInTheDocument();
+    expect(screen.getByText("How many of our papers cite both.")).toBeInTheDocument();
   });
 
   it("disables the ask surface when the claim owns no indexed papers", async () => {
