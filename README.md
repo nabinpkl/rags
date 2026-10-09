@@ -1,23 +1,56 @@
 # askRAG
 
-Agentic RAG over a sample of arXiv CS: an agent side panel that feeds itself
-with tools (hybrid retrieval, metadata SQL, paper reading, sandboxed Python,
-UI driving) on a hand-built loop.
+Agentic RAG over a sample of arXiv computer science papers. An agent in a side
+panel answers questions by calling tools (hybrid search, metadata queries,
+paper reading, sandboxed Python, UI driving) on a hand-built loop, and quotes
+what it read, never more than 50 words at a time.
 
-The corpus is 57,206 catalog rows, 20,733 of them with extracted text, and 667
-chunked and embedded for retrieval — densest in July and August 2026 (94% and
-49% of the cs papers arXiv posted those months) and a few papers a month
-before that. It is a sample, never a census, and the landing page says so with
-the catalog's own counts beside ours.
+![The retrieval benchmark page](docs/screenshots/benchmarks.png)
 
-- **Design spec (source of truth):**
-  [`docs/superpowers/specs/2026-07-04-agentic-rag-design.md`](docs/superpowers/specs/2026-07-04-agentic-rag-design.md)
-- **Architecture map:** [`docs/architecture.html`](docs/architecture.html)
-- **Collector (Part 0, corpus acquisition):** [`collector/`](collector/) —
-  see its [README](collector/README.md); data artifacts live in `corpus/`
-  (gitignored).
-- **Work board:** issues on this repo,
-  [project board](https://github.com/users/nabinpkl/projects/2).
+## What is in it
+
+- **RAG Demo** (`/demo`): 1,046 indexed papers, a PDF reader, and the agent
+  panel beside them.
+- **Explore** (`/`): a filterable list over all 78,024 catalog rows.
+- **Citations** (`/citations`) and **Category trends** (`/trends`): what the
+  sample cites most, and arXiv's own category counts by month.
+- **Benchmarks** (`/benchmarks`): the retrieval eval below, per method, per
+  question type and per query.
+
+Retrieval is BM25 and dense vectors fused with reciprocal rank fusion, then
+reranked by Voyage rerank-3-lite over the top 50. Every number on the
+benchmarks page comes from a committed eval run.
+
+## Layout
+
+| Path | What it holds |
+|---|---|
+| `backend/` | FastAPI app, the agent loop and its tools, ingest (chunk, embed, index) |
+| `frontend/` | Next.js static export: the pages above |
+| `evals/` | Golden set, retrieval eval runner, the committed run |
+| `collector/` | Corpus acquisition from the Kaggle arXiv snapshot and the Google-hosted PDF mirror |
+| `deploy/` | Docker Compose for the API and Caddy; runbook in [`deploy/README.md`](deploy/README.md) |
+| `docs/` | Design spec, architecture map, mockups |
+
+The design spec is the source of truth:
+[`docs/superpowers/specs/2026-07-04-agentic-rag-design.md`](docs/superpowers/specs/2026-07-04-agentic-rag-design.md),
+with its decision log in [`DECISIONS.md`](DECISIONS.md). The project was built
+with coding agents; their contract is [`CLAUDE.md`](CLAUDE.md).
+
+## Running it
+
+Needs [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/),
+[just](https://github.com/casey/just), Docker, and an
+[OpenRouter](https://openrouter.ai/) key.
+
+1. Build a corpus: `just setup`, then the collector recipes in
+   [`collector/README.md`](collector/README.md), then `just text`, `just
+   citations`, `just frontier` and `just index`. Data lands in `corpus/`,
+   which is never committed.
+2. `cp deploy/.env.example deploy/.env` and fill it in.
+3. `just deploy` serves the app on `127.0.0.1:8420`.
+
+`just check` runs the full lint, type and test gate, the same one CI runs.
 
 ## Retrieval evals
 
@@ -26,7 +59,7 @@ each question's expected chunks in the top k; paper recall counts any chunk of
 the expected paper.
 
 <!-- retrieval-evals:start -->
-93 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks, scored at the top 10 the agent reads. Run `bf072fb0bfba`.
+93 golden questions, drafted by one model and checked by another (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks, scored at the top 10 the agent reads. Run `0a4464659e57`.
 
 | Retrieval | Recall@10 | nDCG@10 | MRR | Paper recall@10 | Recall@50 | p50 latency | Cost / query |
 |---|---|---|---|---|---|---|---|
@@ -48,10 +81,19 @@ Recall@10 by question type:
 
 vocabulary_mismatch questions may not use any word of their passage that appears in 500 or fewer chunks, so keyword search can match them only on common field words.
 
-Recall@50 is the most a reranker reordering the top 50 into the top 10 could reach. Rewrite + hybrid searches one model rewrite of the question; its latency includes the rewrite call. Hybrid + rerank reorders hybrid's top 50 with a cross-encoder on the build host's CPU; its latency includes retrieving that pool.
+Recall@50 is the most a reranker reordering the top 50 into the top 10 could reach. Rewrite + hybrid searches one model rewrite of the question; its latency includes the rewrite call. Hybrid + rerank reorders hybrid's top 50 with voyageai/rerank-3-lite through OpenRouter; its latency includes retrieving that pool.
 
-One question is 1.1 points at this size, so gaps under about 5 points are noise. Latency is the median per question on the build host; the semantic leg includes the embedding API call. Cost is the mean per question that the providers billed: the embedding, the rerank and the rewrite call.
+One question is 1.1 points at this size, so gaps under about 5 points are noise. Latency is the median per question on a 4-core Arm server (Neoverse N1), no GPU; the semantic leg includes the embedding API call. Cost is the mean per question that the providers billed: the embedding, the rerank and the rewrite call.
 <!-- retrieval-evals:end -->
 
-`backend/` and `frontend/` land per the spec's milestones; this README grows
-into the portfolio front door (pitch, eval table) as they do.
+## Papers and license
+
+The code is MIT licensed (see [`LICENSE`](LICENSE)). It depends on PyMuPDF,
+which is AGPL-3.0, so a running copy of the app must offer users its source;
+[`NOTICE`](NOTICE) says how. The papers are not part
+of this repo and keep their own licenses: the app reads them from arXiv's
+public mirror, links PDFs to arxiv.org at a pinned version, and quotes at
+most 50 words, three times per paper, per answer. The golden set commits
+questions and chunk ids, not passage text.
+
+Thank you to arXiv for use of its open access interoperability.

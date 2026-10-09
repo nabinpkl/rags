@@ -4,11 +4,11 @@
 coordinator session and changes like code (commits, reviewable diffs). Budget:
 150 lines hard ceiling. History lives in git, never in this file. -->
 
-Public portfolio project: agentic RAG over a sample of arXiv CS (65,503
-catalog rows, 29,027 with text, 811 indexed; densest in Jul-Aug 2026).
-The agent is a side panel that feeds itself (tools, not context-stuffing),
-on a hand-built loop, deployed for ≤$22/mo. Currently pre-code: spec is done,
-work is broken into GitHub issues.
+Public portfolio project (MIT): agentic RAG over a sample of arXiv CS
+(78,024 catalog rows, 41,547 with text, 1,046 indexed; densest in Jul-Aug
+2026). The agent is a side panel that feeds itself (tools, not
+context-stuffing), on a hand-built loop, deployed for ≤$22/mo. Work is
+tracked as GitHub issues.
 
 ## Source of truth (read before building anything)
 
@@ -111,8 +111,9 @@ work is broken into GitHub issues.
   `collector/justfile`, uv-managed; root `justfile` delegates). Corpus
   artifacts live under `corpus/` (gitignored).
 - Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`.
-  Golden set: `just golden` redrafts `evals/golden.jsonl` (model-checked, no
-  human pass, D14 amendment 2026-09-30); `just evals-check` gates it;
+  Golden set: `just golden` redrafts `evals/golden.jsonl` (model-checked,
+  D14 amendment 2026-09-30) and its passage-bearing copy in
+  `corpus/evals/golden.jsonl`, never committed (2026-10-09); `just evals-check` gates it;
   `just rewrites` writes one agent-model rewrite per question
   (`evals/rewrites.jsonl`); `just eval` scores BM25, vector, hybrid,
   hybrid + rerank and rewrite + hybrid on it at the top 10 and top 50

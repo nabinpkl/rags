@@ -191,6 +191,18 @@ def make_retriever(
     return retrieve
 
 
+# The machine every latency here was measured on, named for readers who never
+# saw it.
+HARDWARE = "4-core Arm server (Neoverse N1), no GPU"
+
+
+def reranker_label(settings: Settings) -> str:
+    """The reranker a run used, as the README names it."""
+    if settings.rerank_backend == "openrouter":
+        return f"{settings.rerank_openrouter_model} through OpenRouter"
+    return f"{settings.rerank_model} on a {HARDWARE}"
+
+
 def p50_ms(samples: Sequence[float]) -> float:
     return statistics.median(samples) * 1000
 
@@ -251,13 +263,14 @@ def render(
     n_papers: int,
     n_chunks: int,
     run_id: str,
+    reranker: str,
 ) -> str:
     """Configs ranked by recall@k, best first, then recall@k per type."""
     scores = {c: score(records, rankings, c, k) for c in CONFIGS}
     pool_recall = {c: score(records, pools, c, pool_k).recall for c in CONFIGS}
     ranked = sorted(CONFIGS, key=lambda c: scores[c].recall, reverse=True)
     lines = [
-        f"{len(records)} golden questions, model-checked rather than human-verified"
+        f"{len(records)} golden questions, drafted by one model and checked by another"
         " (D14 amendment 2026-09-30), over"
         f" {n_papers:,} indexed papers and {n_chunks:,} chunks, scored at the"
         f" top {k} the agent reads. Run `{run_id}`.",
@@ -298,12 +311,12 @@ def render(
         f"Recall@{pool_k} is the most a reranker reordering the top {pool_k} into"
         f" the top {k} could reach. Rewrite + hybrid searches one model rewrite of"
         " the question; its latency includes the rewrite call. Hybrid + rerank"
-        f" reorders hybrid's top {pool_k} with a cross-encoder on the build host's"
-        " CPU; its latency includes retrieving that pool.",
+        f" reorders hybrid's top {pool_k} with {reranker}; its latency includes"
+        " retrieving that pool.",
         "",
         f"One question is {100 / len(records):.1f} points at this size, so gaps"
         " under about 5 points are noise. Latency is the median per question on"
-        " the build host; the semantic leg includes the embedding API call. Cost is"
+        f" a {HARDWARE}; the semantic leg includes the embedding API call. Cost is"
         " the mean per question that the providers billed: the embedding, the"
         " rerank and the rewrite call.",
     ]
@@ -319,6 +332,7 @@ def report(
     n_papers: int,
     n_chunks: int,
     run_id: str,
+    reranker: str,
 ) -> str:
     """The results table for a finished run, from its saved questions alone."""
     rankings = {r.id: done[r.id].rankings for r in records}
@@ -336,6 +350,7 @@ def report(
         n_papers=n_papers,
         n_chunks=n_chunks,
         run_id=run_id,
+        reranker=reranker,
     )
 
 
@@ -375,7 +390,16 @@ def main(argv: list[str] | None = None) -> int:
         conn.close()
 
     print(
-        report(records, done, k, pool_k, n_papers=n_papers, n_chunks=n_chunks, run_id=run_id),
+        report(
+            records,
+            done,
+            k,
+            pool_k,
+            n_papers=n_papers,
+            n_chunks=n_chunks,
+            run_id=run_id,
+            reranker=reranker_label(settings),
+        ),
         end="",
     )
     print("`just eval-publish` writes this run to the README and /benchmarks", file=sys.stderr)

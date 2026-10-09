@@ -14,7 +14,7 @@ import threading
 from collections.abc import Sequence
 from pathlib import Path
 
-from evals.golden_set import GOLDEN_PATH, GoldenRecord
+from evals.golden_set import GOLDEN_PATH, DraftedRecord
 
 PROGRESS_PATH = GOLDEN_PATH.with_name("golden.progress.jsonl")
 
@@ -25,17 +25,17 @@ def signature(parts: Sequence[object]) -> str:
     return hashlib.sha256(blob).hexdigest()[:12]
 
 
-def load_progress(sig: str, path: Path = PROGRESS_PATH) -> dict[str, GoldenRecord]:
+def load_progress(sig: str, path: Path = PROGRESS_PATH) -> dict[str, DraftedRecord]:
     """Records from earlier runs with this signature, keyed by record id."""
     if not path.exists():
         return {}
-    done: dict[str, GoldenRecord] = {}
+    done: dict[str, DraftedRecord] = {}
     for line in path.read_text().splitlines():
         if not line.strip():
             continue
         entry = json.loads(line)
         if entry["signature"] == sig:
-            record = GoldenRecord.model_validate(entry["record"])
+            record = DraftedRecord.model_validate(entry["record"])
             done[record.id] = record
     return done
 
@@ -48,7 +48,7 @@ class ProgressLog:
         self.path = path
         self._lock = threading.Lock()
 
-    def append(self, record: GoldenRecord) -> None:
+    def append(self, record: DraftedRecord) -> None:
         line = json.dumps({"signature": self.sig, "record": record.model_dump(mode="json")})
         with self._lock, self.path.open("a") as f:
             f.write(line + "\n")

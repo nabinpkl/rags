@@ -33,7 +33,6 @@ def record(rid: str, question: str, chunks: list[str], type_: GoldenType) -> Gol
         type=type_,
         expected_paper_id=chunks[0].split("#")[0],
         expected_chunk_ids=chunks,
-        expected_passage="the error is bounded by",
         expected_answer="by a constant",
         difficulty=Difficulty.MEDIUM,
         draft_model="drafter",

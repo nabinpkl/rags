@@ -38,13 +38,13 @@ from askrag.config import Settings, get_settings
 
 from evals.draft_progress import PROGRESS_PATH, ProgressLog, load_progress, signature
 from evals.golden_set import (
-    GOLDEN_PATH,
     Difficulty,
+    DraftedRecord,
     GoldenChecks,
-    GoldenRecord,
     GoldenType,
+    drafted_path,
     dump_golden,
-    load_golden,
+    load_drafted,
 )
 from evals.sample_sources import (
     Source,
@@ -277,7 +277,7 @@ def run_signature(settings: Settings) -> str:
 
 def check_record(
     source: Source, draft: dict, client: ModelClient, settings: Settings
-) -> GoldenRecord:
+) -> DraftedRecord:
     spans = [str(s) for s in draft["spans"]]
     question, answer = str(draft["question"]), str(draft["answer"])
     closed_book = client.complete_nonempty(
@@ -293,7 +293,7 @@ def check_record(
         )
     )
     first = source.chunks[0]
-    return GoldenRecord(
+    return DraftedRecord(
         id=record_id(source),
         question=question,
         type=source.type,
@@ -321,7 +321,7 @@ def check_record(
     )
 
 
-def draft_one(source: Source, client: ModelClient, settings: Settings) -> GoldenRecord:
+def draft_one(source: Source, client: ModelClient, settings: Settings) -> DraftedRecord:
     system = _DRAFT_SYSTEM.replace("{max_words}", str(settings.quote_max_words)).replace(
         "{max_question_words}", str(settings.golden_question_max_words)
     )
@@ -387,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
     failures: list[str] = []
     done = Counter[str]()
 
-    def attempt(source: Source) -> GoldenRecord | None:
+    def attempt(source: Source) -> DraftedRecord | None:
         try:
             record = draft_one(source, client, settings)
             progress.append(record)
@@ -402,12 +402,10 @@ def main(argv: list[str] | None = None) -> int:
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         records = resumed + [r for r in pool.map(attempt, sources) if r is not None]
     if args.types:
-        kept_others = [
-            r for r in load_golden(GOLDEN_PATH, counted_only=False) if r.type not in args.types
-        ]
+        kept_others = [r for r in load_drafted(drafted_path(settings)) if r.type not in args.types]
         records = kept_others + records
     records.sort(key=lambda r: r.id)
-    dump_golden(records, GOLDEN_PATH)
+    dump_golden(records, drafted_path(settings))
     # Failed drafts are not checkpointed, so keeping the file lets a rerun
     # retry only them; a run with none has nothing left to resume.
     if not failures:

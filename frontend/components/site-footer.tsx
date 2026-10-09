@@ -3,6 +3,7 @@ import {
   ARXIV_ATTRIBUTION,
   ARXIV_URL,
   GITHUB_CONTACT_URL,
+  SOURCE_URL,
   TAKEDOWN_EMAIL,
 } from "@/lib/attribution";
 
@@ -23,6 +24,14 @@ export function SiteFooter() {
           className="hover:text-ink underline"
         >
           arXiv
+        </a>
+        <a
+          href={SOURCE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-ink underline"
+        >
+          Source
         </a>
         <a
           href={GITHUB_CONTACT_URL}
