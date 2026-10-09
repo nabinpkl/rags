@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from evals.draft_progress import ProgressLog, load_progress, signature
-from evals.golden_set import Difficulty, GoldenChecks, GoldenRecord, GoldenType
+from evals.golden_set import Difficulty, DraftedRecord, GoldenChecks, GoldenType
 
 CHECKS = GoldenChecks(
     passage_verbatim=True,
@@ -22,8 +22,8 @@ CHECKS = GoldenChecks(
 )
 
 
-def record(rid: str) -> GoldenRecord:
-    return GoldenRecord(
+def record(rid: str) -> DraftedRecord:
+    return DraftedRecord(
         id=rid,
         question="how do sparse models scale",
         type=GoldenType.SINGLE_HOP,

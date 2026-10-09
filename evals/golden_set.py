@@ -4,6 +4,12 @@ The one home for the schema: the drafter writes these records, and the
 retrieval and answer evals read them. `golden.jsonl` is dataset-as-code, one
 record per line, so a change to the set shows up as a line diff in review.
 
+The set exists twice. The drafted copy, under `corpus/` and never committed,
+keeps each record's verbatim passage: the drafter's checks read it and it
+re-anchors the chunk ids when chunking changes. The committed copy drops the
+passage, because a public repo publishing every quote at once would carry
+more of a paper than any answer may (§6c); scoring needs only the chunk ids.
+
 A record counts on its checks alone (no human pass, D14 amendment
 2026-09-30): `counts()` is the single definition of "in the set", so no
 consumer re-derives it and gets it subtly different.
@@ -13,6 +19,7 @@ import json
 from enum import StrEnum
 from pathlib import Path
 
+from askrag.config import Settings
 from pydantic import BaseModel, ConfigDict, Field
 
 GOLDEN_PATH = Path(__file__).parent / "golden.jsonl"
@@ -68,10 +75,6 @@ class GoldenRecord(BaseModel):
     type: GoldenType
     expected_paper_id: str
     expected_chunk_ids: list[str] = Field(min_length=1)
-    # Verbatim span(s) of the expected chunk(s), joined with " … " for
-    # multi_hop. The ids move when chunking constants do (#19); this is what
-    # re-anchors them.
-    expected_passage: str
     expected_answer: str
     difficulty: Difficulty
     # The term an exact_match question hinges on; None for the other types.
@@ -97,6 +100,19 @@ class GoldenRecord(BaseModel):
         )
 
 
+class DraftedRecord(GoldenRecord):
+    """A record as drafted, with the passage the committed copy drops."""
+
+    # Verbatim span(s) of the expected chunk(s), joined with " … " for
+    # multi_hop. The ids move when chunking constants do (#19); this is what
+    # re-anchors them.
+    expected_passage: str
+
+
+def drafted_path(settings: Settings) -> Path:
+    return settings.corpus_dir / "evals" / "golden.jsonl"
+
+
 def load_golden(path: Path = GOLDEN_PATH, *, counted_only: bool = True) -> list[GoldenRecord]:
     """Parse every line; a malformed line raises rather than being skipped."""
     records = [
@@ -107,5 +123,19 @@ def load_golden(path: Path = GOLDEN_PATH, *, counted_only: bool = True) -> list[
     return [r for r in records if r.counts()] if counted_only else records
 
 
-def dump_golden(records: list[GoldenRecord], path: Path = GOLDEN_PATH) -> None:
-    path.write_text("".join(r.model_dump_json() + "\n" for r in records))
+def load_drafted(path: Path) -> list[DraftedRecord]:
+    return [
+        DraftedRecord.model_validate(json.loads(line))
+        for line in path.read_text().splitlines()
+        if line.strip()
+    ]
+
+
+def dump_golden(records: list[DraftedRecord], drafted: Path, public: Path = GOLDEN_PATH) -> None:
+    """Both copies from one list, so the committed set never drifts from the
+    drafted one it was cut from."""
+    drafted.parent.mkdir(parents=True, exist_ok=True)
+    drafted.write_text("".join(r.model_dump_json() + "\n" for r in records))
+    public.write_text(
+        "".join(r.model_dump_json(exclude={"expected_passage"}) + "\n" for r in records)
+    )

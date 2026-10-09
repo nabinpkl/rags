@@ -111,8 +111,9 @@ work is broken into GitHub issues.
   `collector/justfile`, uv-managed; root `justfile` delegates). Corpus
   artifacts live under `corpus/` (gitignored).
 - Backend (after #10): `uv run pytest`, `just be-lint`, `just ingest`.
-  Golden set: `just golden` redrafts `evals/golden.jsonl` (model-checked, no
-  human pass, D14 amendment 2026-09-30); `just evals-check` gates it;
+  Golden set: `just golden` redrafts `evals/golden.jsonl` (model-checked,
+  D14 amendment 2026-09-30) and its passage-bearing copy in
+  `corpus/evals/golden.jsonl`, never committed (2026-10-09); `just evals-check` gates it;
   `just rewrites` writes one agent-model rewrite per question
   (`evals/rewrites.jsonl`); `just eval` scores BM25, vector, hybrid,
   hybrid + rerank and rewrite + hybrid on it at the top 10 and top 50

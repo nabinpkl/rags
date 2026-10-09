@@ -9,10 +9,12 @@ from askrag.config import get_settings
 from evals.golden_set import (
     GOLDEN_PATH,
     Difficulty,
+    DraftedRecord,
     GoldenChecks,
     GoldenRecord,
     GoldenType,
     dump_golden,
+    load_drafted,
     load_golden,
 )
 
@@ -31,8 +33,8 @@ PASSING = dict(
 )
 
 
-def record(**checks) -> GoldenRecord:
-    return GoldenRecord(
+def record(**checks) -> DraftedRecord:
+    return DraftedRecord(
         id="single_hop-1234.5678#3",
         question="How does the method bound its error?",
         type=GoldenType.SINGLE_HOP,
@@ -72,9 +74,19 @@ def test_any_failed_check_culls(failed):
 
 def test_load_keeps_culled_records_only_on_request(tmp_path):
     path = tmp_path / "golden.jsonl"
-    dump_golden([record(), record(grounded=False)], path)
+    dump_golden([record(), record(grounded=False)], tmp_path / "drafted.jsonl", path)
     assert len(load_golden(path)) == 1
     assert len(load_golden(path, counted_only=False)) == 2
+
+
+def test_the_public_copy_drops_the_passage_and_the_drafted_copy_keeps_it(tmp_path):
+    drafted, public = tmp_path / "drafted.jsonl", tmp_path / "golden.jsonl"
+    dump_golden([record()], drafted, public)
+    assert "expected_passage" not in public.read_text()
+    assert load_drafted(drafted)[0].expected_passage == "the error is bounded by"
+    # a passage in the public file is a schema error, not a field to ignore
+    with pytest.raises(ValueError):
+        load_golden(drafted)
 
 
 def test_a_malformed_line_raises(tmp_path):
@@ -101,6 +113,11 @@ def test_the_set_is_big_enough_to_gate_a_decision(committed):
     assert len(counted) >= 50
     # every failure axis is present, or the set cannot say where a config fails
     assert {r.type for r in counted} == set(GoldenType)
+
+
+def test_the_committed_set_carries_no_passage_text():
+    # §6c: the drafted copy under corpus/ keeps the quotes, the repo does not
+    assert "expected_passage" not in GOLDEN_PATH.read_text()
 
 
 def test_ids_are_unique(committed):

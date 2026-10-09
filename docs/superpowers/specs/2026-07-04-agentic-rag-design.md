@@ -936,6 +936,17 @@ from their passages, which favours the original wording, so the row does not
 show that rewriting hurts real searches; it shows that one rewrite replacing
 the query is not the agent's advantage here.
 
+**Amendment (2026-10-09, owner directive): the committed set carries no
+passages.** The repo goes public, and 213 verbatim passages committed at once
+quote some papers more than §6c lets one answer (up to five records and 134
+words for one paper). The set is now two files from one list:
+`corpus/evals/golden.jsonl` (gitignored) keeps every field, and
+`evals/golden.jsonl` drops `expected_passage`. The drafter writes both; the
+evals read only the committed one, since scoring needs the chunk ids alone.
+The passage still re-anchors the ids after a chunking change, from the
+drafted copy. Old commits of the set are rewritten to the same shape before
+the repo is made public.
+
 ---
 
 ### D15. Operational telemetry: OpenTelemetry, JSON-first, built in from the start

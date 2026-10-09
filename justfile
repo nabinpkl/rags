@@ -61,9 +61,10 @@ backend-check:
 evals-check:
     cd evals && uv run ruff check . && uv run ruff format --check . && uv run ty check . && uv run pytest -q
 
-# Redraft evals/golden.jsonl (D14 amendment 2026-09-30): model-drafted,
-# model-checked, no human pass. Calls OpenRouter (~$0.2 a run); run from the
-# repo root because `evals` is a package there.
+# Redraft the golden set (D14 amendments 2026-09-30, 2026-10-09): drafted by
+# one model, checked by another. Writes corpus/evals/golden.jsonl with the
+# passages and evals/golden.jsonl without them. Calls OpenRouter (~$0.2 a
+# run); run from the repo root because `evals` is a package there.
 golden *ARGS:
     uv run --env-file backend/.env python -m evals.draft_golden_set {{ARGS}}
 
