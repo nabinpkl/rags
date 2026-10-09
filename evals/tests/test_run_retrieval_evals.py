@@ -42,7 +42,6 @@ def record(rid: str, chunks: list[str], type_: GoldenType = GoldenType.SINGLE_HO
         type=type_,
         expected_paper_id=chunks[0].split("#")[0],
         expected_chunk_ids=chunks,
-        expected_passage="the error is bounded by",
         expected_answer="by a constant",
         difficulty=Difficulty.MEDIUM,
         draft_model="drafter",
@@ -108,7 +107,17 @@ def test_render_ranks_configs_best_first_and_has_a_row_per_present_type():
     pools = {r.id: {c: ["x#1", *r.expected_chunk_ids] for c in CONFIGS} for r in records}
     pools["q2"]["hybrid"] = ["r#1"]
     table = render(
-        records, rankings, pools, LATENCY, COST, 10, 50, n_papers=2, n_chunks=10, run_id="abc"
+        records,
+        rankings,
+        pools,
+        LATENCY,
+        COST,
+        10,
+        50,
+        n_papers=2,
+        n_chunks=10,
+        run_id="abc",
+        reranker="voyageai/rerank-3-lite through OpenRouter",
     )
     assert "| Hybrid (RRF) | 100% | 1.00 | 1.00 | 100% | 75% | 12 ms | $0.00068 |" in table
     assert "| Keyword (BM25) | 50% | 0.50 | 0.50 | 50% | 100% | 12 ms | $0 |" in table
@@ -118,7 +127,9 @@ def test_render_ranks_configs_best_first_and_has_a_row_per_present_type():
     assert "| multi_hop | 1 |" in table
     assert "known_hard" not in table
     assert "common field words" not in table
-    assert "model-checked" in table
+    assert "checked by another" in table
+    assert "with voyageai/rerank-3-lite through OpenRouter;" in table
+    assert "build host" not in table
     assert "top 10 the agent reads" in table
 
 
@@ -149,7 +160,17 @@ def test_render_explains_the_mismatch_row():
     records = [record("q1", ["p#1"], GoldenType.VOCABULARY_MISMATCH)]
     rankings = {"q1": {c: ["p#1"] for c in CONFIGS}}
     table = render(
-        records, rankings, rankings, LATENCY, COST, 5, 50, n_papers=1, n_chunks=1, run_id="abc"
+        records,
+        rankings,
+        rankings,
+        LATENCY,
+        COST,
+        5,
+        50,
+        n_papers=1,
+        n_chunks=1,
+        run_id="abc",
+        reranker="a reranker",
     )
     assert "only on common field words" in table
 

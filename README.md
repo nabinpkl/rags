@@ -26,7 +26,7 @@ each question's expected chunks in the top k; paper recall counts any chunk of
 the expected paper.
 
 <!-- retrieval-evals:start -->
-93 golden questions, model-checked rather than human-verified (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks, scored at the top 10 the agent reads. Run `bf072fb0bfba`.
+93 golden questions, drafted by one model and checked by another (D14 amendment 2026-09-30), over 1,046 indexed papers and 51,932 chunks, scored at the top 10 the agent reads. Run `0a4464659e57`.
 
 | Retrieval | Recall@10 | nDCG@10 | MRR | Paper recall@10 | Recall@50 | p50 latency | Cost / query |
 |---|---|---|---|---|---|---|---|
@@ -48,9 +48,9 @@ Recall@10 by question type:
 
 vocabulary_mismatch questions may not use any word of their passage that appears in 500 or fewer chunks, so keyword search can match them only on common field words.
 
-Recall@50 is the most a reranker reordering the top 50 into the top 10 could reach. Rewrite + hybrid searches one model rewrite of the question; its latency includes the rewrite call. Hybrid + rerank reorders hybrid's top 50 with a cross-encoder on the build host's CPU; its latency includes retrieving that pool.
+Recall@50 is the most a reranker reordering the top 50 into the top 10 could reach. Rewrite + hybrid searches one model rewrite of the question; its latency includes the rewrite call. Hybrid + rerank reorders hybrid's top 50 with voyageai/rerank-3-lite through OpenRouter; its latency includes retrieving that pool.
 
-One question is 1.1 points at this size, so gaps under about 5 points are noise. Latency is the median per question on the build host; the semantic leg includes the embedding API call. Cost is the mean per question that the providers billed: the embedding, the rerank and the rewrite call.
+One question is 1.1 points at this size, so gaps under about 5 points are noise. Latency is the median per question on a 4-core Arm server (Neoverse N1), no GPU; the semantic leg includes the embedding API call. Cost is the mean per question that the providers billed: the embedding, the rerank and the rewrite call.
 <!-- retrieval-evals:end -->
 
 `backend/` and `frontend/` land per the spec's milestones; this README grows

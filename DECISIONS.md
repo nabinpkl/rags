@@ -2831,3 +2831,32 @@ or the local-reranker row is rerun with the run store, which removes the
 pinned row.
 
 **Spec updated:** yes, §4c decision 2 amendment (2026-10-06).
+
+## 2026-10-09 — the committed golden set drops its passages (owner directive)
+
+**Context:** the repo is going public. `evals/golden.jsonl` held 213 verbatim
+passages from arXiv papers, most under the default license. Each span is at
+most 50 words, but nine papers had more than three records and one record
+joined spans to 134 words, more of a paper than §6c lets a single answer
+quote.
+
+**Decision:** `GoldenRecord` (committed, what the evals read) has no
+`expected_passage`; `DraftedRecord` adds it. `dump_golden` writes both
+copies from one list: the drafted copy to `corpus/evals/golden.jsonl`
+(gitignored), the committed copy without the passage. `just golden --types`
+reads the drafted copy, so a partial redraft keeps every other record's
+passage.
+
+**Rejected:** keeping the quotes (republishes more per paper than the app
+allows); keeping only CC-licensed papers' quotes (two record shapes split by
+license inside one file).
+
+**Consequence:** the run fingerprint hashes the committed file, so the
+retrieval run was renamed from `bf072fb0bfba` to `0a4464659e57` with
+identical scores. A fresh clone cannot redraft part of the set or re-anchor
+ids without first drafting its own set.
+
+**Revisit when:** the repo goes private again, or the set moves to papers
+that all carry a CC license.
+
+**Spec updated:** yes, D14 amendment (2026-10-09).

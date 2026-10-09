@@ -29,7 +29,6 @@ def record(rid: str, question: str) -> GoldenRecord:
         type=GoldenType.SINGLE_HOP,
         expected_paper_id="p",
         expected_chunk_ids=["p#1"],
-        expected_passage="span",
         expected_answer="answer",
         difficulty=Difficulty.EASY,
         draft_model="drafter",

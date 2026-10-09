@@ -34,7 +34,16 @@ from askrag.config import Settings, get_settings
 
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, GoldenType, load_golden
 from evals.rewrite_queries import REWRITES_PATH, load_rewrites
-from evals.run_retrieval_evals import CONFIGS, fingerprint, p50_ms, recall_at, report, score
+from evals.run_retrieval_evals import (
+    CONFIGS,
+    HARDWARE,
+    fingerprint,
+    p50_ms,
+    recall_at,
+    report,
+    reranker_label,
+    score,
+)
 from evals.run_store import Retrieved, load_run, run_path
 
 EXPORT_PATH = Path(__file__).parent.parent / "frontend" / "lib" / "benchmarks" / "retrieval.json"
@@ -42,8 +51,6 @@ README_PATH = Path(__file__).parent.parent / "README.md"
 _MARKER_START = "<!-- retrieval-evals:start -->"
 _MARKER_END = "<!-- retrieval-evals:end -->"
 
-# Where the latencies were measured; the page names it (never "this host").
-HARDWARE = "4-core Arm server (Neoverse N1), no GPU"
 BOOTSTRAP_RESAMPLES = 4000
 BOOTSTRAP_SEED = 20261005
 EXAMPLE_DEPTH = 5
@@ -344,6 +351,7 @@ def main(argv: list[str] | None = None) -> int:
             n_papers=int(data["n_papers"]),  # ty: ignore[invalid-argument-type]
             n_chunks=n_chunks,
             run_id=run_id,
+            reranker=reranker_label(settings),
         )
     finally:
         conn.close()
