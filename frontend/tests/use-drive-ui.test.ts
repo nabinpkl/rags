@@ -1,14 +1,29 @@
-// The agent-session-store <-> viewer-store bridge (D-2, DECISIONS.md, issue
-// #32). Behavioral tests over a mocked confirmed-ui_action SSE sequence —
-// no router involved, that's use-viewer-url-sync.test.ts's job.
-import { beforeEach, describe, expect, it } from "vitest";
+// The confirmed-agent-action bridge (D-2, DECISIONS.md, issue #32).
+// Behavioral tests over a mocked confirmed-ui_action SSE sequence. Reader
+// actions land in viewer-store; set_filters lands in the URL, the list
+// filter's only home, so the router is mocked to observe it.
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
+
+const { replaceMock, mockState } = vi.hoisted(() => ({
+  replaceMock: vi.fn(),
+  mockState: { search: "" },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: replaceMock }),
+  usePathname: () => "/demo",
+  useSearchParams: () => new URLSearchParams(mockState.search),
+}));
+
 import { useDriveUi } from "@/hooks/use-drive-ui";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 import { useUiShellStore } from "@/stores/ui-shell-store";
 import { useViewerStore } from "@/stores/viewer-store";
 
 beforeEach(() => {
+  replaceMock.mockReset();
+  mockState.search = "";
   useAgentSessionStore.getState().reset();
   useViewerStore.getState().reset();
   useUiShellStore.setState({ overlay: "none" });
@@ -125,26 +140,49 @@ describe("useDriveUi — applies only CONFIRMED ui_actions (D-1, issue #32)", ()
     expect(state.page).toBe(3);
   });
 
-  it("applies set_filters (no paper_id) — the reconciliation gap the task brief calls out", () => {
+  it("writes set_filters to the URL and leaves the reader, keeping the rest of the filter", () => {
+    mockState.search = "sort=cited&category=cs.CV&paper=1409.7842&page=2";
     renderHook(() => useDriveUi());
     const { startTurn, applyEvent } = useAgentSessionStore.getState();
-    useViewerStore.getState().setPaper("1409.7842", 2); // start inside the viewer
 
     act(() => {
-      startTurn("show me cs.CL papers from 2018-2020");
+      startTurn("show me the cs.CL papers");
       applyEvent({
         type: "ui_action",
         action: "set_filters",
-        args: { action: "set_filters", category: "cs.CL", year_min: 2018, year_max: 2020 },
+        args: { action: "set_filters", category: "cs.CL" },
       });
       applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
     });
 
-    const state = useViewerStore.getState();
-    expect(state.category).toBe("cs.CL");
-    expect(state.yearFrom).toBe(2018);
-    expect(state.yearTo).toBe(2020);
-    expect(state.paper).toBeNull(); // routed back to the explorer
+    expect(replaceMock).toHaveBeenCalledTimes(1);
+    expect(replaceMock).toHaveBeenCalledWith("/demo?sort=cited&category=cs.CL", {
+      scroll: false,
+    });
+  });
+
+  it("set_filters with category null clears it; an omitted category is left alone", () => {
+    mockState.search = "category=cs.CV";
+    renderHook(() => useDriveUi());
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+
+    act(() => {
+      startTurn("clear it");
+      applyEvent({
+        type: "ui_action",
+        action: "set_filters",
+        args: { action: "set_filters", category: null },
+      });
+      applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
+    });
+    expect(replaceMock).toHaveBeenLastCalledWith("/demo", { scroll: false });
+
+    act(() => {
+      startTurn("no category at all");
+      applyEvent({ type: "ui_action", action: "set_filters", args: { action: "set_filters" } });
+      applyEvent({ type: "tool_result_summary", name: "drive_ui", ok: true, error: null });
+    });
+    expect(replaceMock).toHaveBeenLastCalledWith("/demo?category=cs.CV", { scroll: false });
   });
 
   it("does not re-apply an already-drained action when an unrelated store field changes later", () => {

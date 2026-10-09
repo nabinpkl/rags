@@ -19,7 +19,7 @@ export function ReplayBanner({ mode, status }: ReplayBannerProps) {
   if (mode.kind === "replay") {
     const message = "Live budget spent for now — you're watching a recorded session.";
     return (
-      <div className="bg-amber-soft border-amber border-t px-3.5 py-2.5 text-xs leading-relaxed text-[#6b4a10]">
+      <div className="bg-amber-soft border-amber border-t px-3.5 py-2.5 text-xs leading-relaxed text-amber-ink">
         {message} {mode.reason}
       </div>
     );
@@ -27,7 +27,7 @@ export function ReplayBanner({ mode, status }: ReplayBannerProps) {
 
   if (status.kind === "capped") {
     return (
-      <div className="bg-amber-soft border-amber border-t px-3.5 py-2.5 text-xs leading-relaxed text-[#6b4a10]">
+      <div className="bg-amber-soft border-amber border-t px-3.5 py-2.5 text-xs leading-relaxed text-amber-ink">
         Live budget spent and no recorded session is available right now. {status.reason}
       </div>
     );

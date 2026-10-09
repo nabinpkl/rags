@@ -1,12 +1,17 @@
 """corpus/chunks.jsonl -> corpus/vectors/<model_slug>.parquet (D5).
 
-Two backends behind config's `embedding_backend` flag (D5 second amendment,
-2026-07-05): "local" (default) runs a sentence-transformers model in-process
-— $0, MPS-fast on the ingest Mac, and the same model later serves query-time
-embedding inside FastAPI (#16); "voyage" is the parked-but-working API path
-(raw httpx, no SDK; unpaid-tier pacing documented in config.py). Document vs
-query prompt prefixes must agree between ingest and the query side (#16) —
-both read the same config knobs.
+Three backends behind config's `embedding_backend` flag: "openrouter" (the
+default since D5's third amendment, 2026-09-18) posts to OpenRouter's
+embeddings endpoint and is what this corpus' vectors were produced with;
+"local" runs a sentence-transformers model in-process, $0 but 16.9 CPU hours
+for this corpus against 11 minutes and $0.08 through the API; "voyage" is the
+parked API path (unpaid-tier pacing documented in config.py). All three are
+raw httpx or in-process, no vendor SDKs.
+
+Document vs query prompt prefixes must agree between ingest and the query
+side (#16) — both read the same config knobs. That contract belongs to the
+nomic model, not to every model: the OpenRouter path's model takes no prefix
+and reads neither knob, which is stated on the class.
 
 Every artifact is keyed by model slug (short name + dims) so two models'
 vectors can never mush together: the parquet PATH carries the slug and the
@@ -55,11 +60,13 @@ import pyarrow.parquet as pq
 
 from askrag import telemetry
 from askrag.config import Settings, get_settings
+from askrag.ingest.token_bucket import TokenBucket
 
 _log = logging.getLogger("askrag.ingest.embed_chunks")
 
-# Voyage REST endpoint (protocol fact, not a tunable).
+# Provider REST endpoints (protocol facts, not tunables).
 _VOYAGE_BASE_URL = "https://api.voyageai.com/v1"
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 class EmbeddingError(Exception):
@@ -77,6 +84,18 @@ class TransientEmbeddingError(EmbeddingError):
         super().__init__(message)
         self.retry_after = retry_after
 
+
+class BatchTooLargeError(EmbeddingError):
+    """The provider counted the batch over its per-request token limit.
+
+    Batches are sized in cl100k, the limit is in the provider's tokenizer, and
+    the gap varies with the text (+8% to +16% measured 2026-10-02, highest on
+    math-heavy papers), so no fixed cap is safe: the batch is split instead.
+    """
+
+
+# Perplexity's 400 body, relayed by OpenRouter.
+_TOKEN_LIMIT_MARKER = "exceeds maximum number of allowed tokens"
 
 # Transport faults (connect/read/timeout) retry alongside throttling.
 _RETRYABLE = (TransientEmbeddingError, httpx.TransportError)
@@ -116,11 +135,14 @@ class ChunkText:
 class BatchEmbedding:
     """One embed call's result: vectors in input order + billed tokens.
 
-    Local backends bill nothing and report total_tokens=0.
+    Local backends bill nothing and report total_tokens=0. `usd` is the
+    provider's own billed figure where it reports one (OpenRouter's
+    `usage.cost`), 0 for local, None where the provider sends no price.
     """
 
     vectors: list[list[float]]
     total_tokens: int
+    usd: float | None = None
 
 
 @dataclass(frozen=True)
@@ -142,7 +164,12 @@ class EmbeddingProvenance:
     def from_settings(cls, settings: Settings) -> "EmbeddingProvenance":
         return cls(
             model=settings.embedding_model,
-            revision=settings.embedding_model_revision,
+            # The revision pin is the LOCAL backend's weights guarantee; an
+            # API backend has no commit to record, and copying the local pin
+            # across would attribute these vectors to the wrong model.
+            revision=(
+                settings.embedding_model_revision if settings.embedding_backend == "local" else ""
+            ),
             dims=settings.embedding_dims,
             backend=settings.embedding_backend,
             slug=settings.embedding_model_slug,
@@ -255,6 +282,76 @@ class VoyageEmbeddings:
         )
 
 
+class OpenRouterEmbeddings:
+    """httpx adapter for OpenRouter's /embeddings (D5 third amendment).
+
+    NO prompt prefix, unlike the other two backends: `pplx-embed-v1-0.6b`'s
+    model card states none is required, and the vectors this corpus holds were
+    produced without one. `input_kind` is therefore accepted and deliberately
+    unused — the asymmetric-prefix contract belongs to nomic, not to every
+    model — and that is why this class reads neither prefix setting.
+
+    OpenRouter wraps the upstream provider's error in its own envelope, so the
+    STATUS CODE is what this reads; the body only reaches the log.
+    """
+
+    def __init__(
+        self,
+        settings: Settings,
+        transport: httpx.BaseTransport | None = None,
+        input_kind: Literal["document", "query"] = "document",
+    ) -> None:
+        key = settings.openrouter_api_key.get_secret_value()
+        if not key:
+            raise EmbeddingError(
+                "OPENROUTER_API_KEY is not set — add it to backend/.env "
+                "(read through config.py only; never pass it on a command line)"
+            )
+        self._client = httpx.Client(
+            base_url=_OPENROUTER_BASE_URL,
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=settings.embed_request_timeout_seconds,
+            transport=transport,
+        )
+        self._model = settings.embedding_model
+        self._dims = settings.embedding_dims
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: types.TracebackType | None,
+    ) -> None:
+        self._client.close()
+
+    def embed(self, texts: list[str]) -> BatchEmbedding:
+        response = self._client.post(
+            "/embeddings",
+            json={"model": self._model, "input": texts, "dimensions": self._dims},
+        )
+        if response.status_code == 429 or response.status_code >= 500:
+            raise TransientEmbeddingError(
+                f"HTTP {response.status_code} from embeddings API: {response.text[:200]}",
+                retry_after=_parse_retry_after(response.headers.get("retry-after")),
+            )
+        if response.status_code == 400 and _TOKEN_LIMIT_MARKER in response.text:
+            raise BatchTooLargeError(f"HTTP 400 from embeddings API: {response.text[:200]}")
+        response.raise_for_status()
+        payload = response.json()
+        # `index` is authoritative for order: the contract is order-preserving
+        # by index, not by position in the array.
+        items = sorted(payload["data"], key=lambda item: item["index"])
+        cost = payload["usage"].get("cost")
+        return BatchEmbedding(
+            vectors=[item["embedding"] for item in items],
+            total_tokens=payload["usage"]["prompt_tokens"],
+            usd=float(cost) if isinstance(cost, int | float) else None,
+        )
+
+
 class LocalEmbeddings:
     """sentence-transformers adapter: in-process, $0, MPS on the ingest Mac.
 
@@ -322,14 +419,16 @@ class LocalEmbeddings:
             batch_size=self._encode_batch_size,
             normalize_embeddings=True,
         )
-        return BatchEmbedding(vectors=[list(map(float, v)) for v in vectors], total_tokens=0)
+        return BatchEmbedding(
+            vectors=[list(map(float, v)) for v in vectors], total_tokens=0, usd=0.0
+        )
 
 
 def make_backend(
     settings: Settings,
     *,
     input_kind: Literal["document", "query"] = "document",
-) -> LocalEmbeddings | VoyageEmbeddings:
+) -> LocalEmbeddings | VoyageEmbeddings | OpenRouterEmbeddings:
     """The backend registry — a literal dispatch, no metaprogramming (§4d).
 
     Ingest uses the "document" default; retrieval/embeddings.py (#16) is the
@@ -338,6 +437,8 @@ def make_backend(
     """
     if settings.embedding_backend == "local":
         return LocalEmbeddings(settings, input_kind=input_kind)
+    if settings.embedding_backend == "openrouter":
+        return OpenRouterEmbeddings(settings, input_kind=input_kind)
     return VoyageEmbeddings(settings, input_kind=input_kind)
 
 
@@ -440,6 +541,32 @@ def _embed_with_retry(
     raise AssertionError("unreachable: the last attempt re-raises inside the loop")
 
 
+def _embed_splitting(
+    backend: EmbeddingsBackend,
+    texts: list[str],
+    max_attempts: int,
+    base_seconds: float,
+) -> BatchEmbedding:
+    """Embed `texts`, halving on BatchTooLargeError until each half fits.
+
+    A single text over the limit still raises: no split can fix it.
+    """
+    try:
+        return _embed_with_retry(backend, texts, max_attempts, base_seconds)
+    except BatchTooLargeError:
+        if len(texts) == 1:
+            raise
+        _log.warning(f"provider counted {len(texts)} texts over its token limit; splitting")
+        mid = len(texts) // 2
+        left = _embed_splitting(backend, texts[:mid], max_attempts, base_seconds)
+        right = _embed_splitting(backend, texts[mid:], max_attempts, base_seconds)
+        return BatchEmbedding(
+            vectors=left.vectors + right.vectors,
+            total_tokens=left.total_tokens + right.total_tokens,
+            usd=None if left.usd is None or right.usd is None else left.usd + right.usd,
+        )
+
+
 def _merge_shards(vectors_path: Path, shards_dir: Path, provenance: EmbeddingProvenance) -> None:
     """Everything embedded -> one per-model parquet; dedupe guards the
     crash-between-merge-and-cleanup window (both copies briefly exist)."""
@@ -476,6 +603,7 @@ def run(
     retry_max_attempts: int,
     retry_base_seconds: float,
     pause_seconds: float = 0.0,
+    tokens_per_minute: int = 0,
     limit: int | None = None,
     estimate: bool = False,
 ) -> EmbedStats:
@@ -508,12 +636,20 @@ def run(
     if backend is None:
         raise EmbeddingError("a backend is required unless estimate=True")
 
+    # Paced HERE rather than inside the backend adapter: this is the only
+    # place the true per-batch token count is known (chunks.jsonl carries it),
+    # and an adapter would have to re-tokenize to guess it.
+    bucket = TokenBucket(tokens_per_minute) if tokens_per_minute > 0 else None
+
     with tracer.start_as_current_span("askrag.ingest.embed") as run_span:
         shard_seq = len(list(shards_dir.glob("*.parquet")))
         batches = _batches(todo, batch_max_items, batch_max_tokens)
         for batch_index, batch in enumerate(batches):
             with tracer.start_as_current_span("askrag.ingest.embed.batch") as batch_span:
-                result = _embed_with_retry(
+                if bucket is not None:
+                    waited = bucket.take(sum(c.n_tokens for c in batch))
+                    batch_span.set_attribute("askrag.paced_seconds", round(waited, 3))
+                result = _embed_splitting(
                     backend,
                     [c.text for c in batch],
                     retry_max_attempts,
@@ -585,6 +721,7 @@ def main(argv: list[str] | None = None) -> int:
         "--limit", type=int, default=None, help="embed at most N pending chunks (smoke runs)"
     )
     args = parser.parse_args(argv)
+    batch_max_items, batch_max_tokens = settings.embed_batch_limits
     try:
         with contextlib.ExitStack() as stack:
             backend = None if args.estimate else stack.enter_context(make_backend(settings))
@@ -595,12 +732,13 @@ def main(argv: list[str] | None = None) -> int:
                 backend=backend,
                 provenance=EmbeddingProvenance.from_settings(settings),
                 dims=settings.embedding_dims,
-                batch_max_items=settings.embed_batch_max_items,
-                batch_max_tokens=settings.embed_batch_max_tokens,
+                batch_max_items=batch_max_items,
+                batch_max_tokens=batch_max_tokens,
                 usd_per_mtok=settings.embedding_usd_per_mtok,
                 retry_max_attempts=settings.embed_retry_max_attempts,
                 retry_base_seconds=settings.embed_retry_base_seconds,
                 pause_seconds=settings.embed_batch_pause_seconds,
+                tokens_per_minute=settings.embed_tokens_per_minute,
                 limit=args.limit,
                 estimate=args.estimate,
             )

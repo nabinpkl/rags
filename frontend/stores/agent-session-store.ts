@@ -45,6 +45,11 @@ export interface Turn {
   question: string;
   timeline: TimelineEntry[];
   answer: string;
+  // How many steps the timeline held when text last arrived. Text that
+  // arrives after further steps is a new segment of the answer (the model
+  // wrote a line, called tools, then answered), and it starts a new
+  // paragraph instead of running on from the last word.
+  stepsAtLastText: number;
   cost: CostEvent | null;
   stopReason: string | null;
 }
@@ -70,6 +75,11 @@ export interface AgentSessionState {
   status: AgentStatus;
   mode: AgentMode;
   sessionId: string | null;
+  // The landing-page claim this transcript is about, or null for the whole
+  // indexed set. A transcript belongs to one scope: the server refuses to
+  // carry history across a scope change (session_store.get_or_create), and
+  // use-agent-stream.ts clears the visible turns to match.
+  scope: string | null;
   turns: Turn[];
   // The citation-verification set (DECISIONS.md 2026-07-08): a paper id
   // lands here only once a tool_call/ui_action that referenced it is
@@ -104,7 +114,7 @@ export interface AgentSessionState {
   confirmedUiActions: readonly UiActionEvent[];
 
   setSessionId: (id: string) => void;
-  startTurn: (question: string) => void;
+  startTurn: (question: string, scope?: string | null) => void;
   applyEvent: (event: SseEvent) => void;
   setCapped: (reason: string) => void;
   setReplay: (reason: string) => void;
@@ -149,6 +159,7 @@ export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
   status: { kind: "idle" },
   mode: { kind: "live" },
   sessionId: null,
+  scope: null,
   turns: [],
   verifiedPaperIds: new Set(),
   citationsByPaper: new Map(),
@@ -157,9 +168,10 @@ export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
 
   setSessionId: (id) => set({ sessionId: id }),
 
-  startTurn: (question) =>
+  startTurn: (question, scope = null) =>
     set((state) => ({
       status: { kind: "streaming" },
+      scope,
       // Optimistic default for the new turn — budgets.check() decides fresh
       // per request, so a turn that follows a replay isn't stuck "replay"
       // forever. onopen's setReplay() overrides this if the new response's
@@ -167,7 +179,15 @@ export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
       mode: { kind: "live" },
       turns: [
         ...state.turns,
-        { id: nextEntryId++, question, timeline: [], answer: "", cost: null, stopReason: null },
+        {
+          id: nextEntryId++,
+          question,
+          timeline: [],
+          answer: "",
+          stepsAtLastText: 0,
+          cost: null,
+          stopReason: null,
+        },
       ],
     })),
 
@@ -240,10 +260,16 @@ export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
           };
         }
 
-        case "text":
+        case "text": {
+          const newSegment = turn.answer.length > 0 && turn.timeline.length > turn.stepsAtLastText;
           return {
-            turns: replaceLastTurn(state.turns, { ...turn, answer: turn.answer + event.text }),
+            turns: replaceLastTurn(state.turns, {
+              ...turn,
+              answer: turn.answer + (newSegment ? "\n\n" : "") + event.text,
+              stepsAtLastText: turn.timeline.length,
+            }),
           };
+        }
 
         case "cost":
           return { turns: replaceLastTurn(state.turns, { ...turn, cost: event }) };
@@ -278,6 +304,7 @@ export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
       status: { kind: "idle" },
       mode: { kind: "live" },
       sessionId: null,
+      scope: null,
       turns: [],
       verifiedPaperIds: new Set(),
       citationsByPaper: new Map(),

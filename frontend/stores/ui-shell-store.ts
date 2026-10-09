@@ -9,12 +9,23 @@
 // a state machine cannot represent the both-open state that boolean soup can
 // (.claude/rules/python-backend.md states the rule; it is a house preference,
 // not a language one).
+//
+// `agentColumn` is the other half: whether the agent is shown as a docked
+// column on a wide viewport. It is its own field because the two states have
+// different owners of "close". The sheet closes itself after the agent
+// drives the screen (use-drive-ui.ts), since it covers what was driven; a
+// column covers nothing, and closing it there would shut the panel on every
+// agent action. hooks/use-agent-panel.ts picks which of the two a control
+// means at the current width.
 import { create } from "zustand";
 
 export type ShellOverlay = "none" | "filters" | "agent";
 
 interface UiShellState {
   overlay: ShellOverlay;
+  /** Closed until asked for: the agent is on demand, not a fixed column. */
+  agentColumn: boolean;
+  setAgentColumn: (open: boolean) => void;
   openFilters: () => void;
   openAgent: () => void;
   toggleAgent: () => void;
@@ -23,6 +34,8 @@ interface UiShellState {
 
 export const useUiShellStore = create<UiShellState>((set) => ({
   overlay: "none",
+  agentColumn: false,
+  setAgentColumn: (open) => set({ agentColumn: open }),
   openFilters: () => set({ overlay: "filters" }),
   openAgent: () => set({ overlay: "agent" }),
   toggleAgent: () => set((state) => ({ overlay: state.overlay === "agent" ? "none" : "agent" })),

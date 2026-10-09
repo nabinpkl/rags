@@ -5,14 +5,16 @@ run      := "uv run"          # uv-managed env (pyproject.toml); auto-syncs on f
 seed     := "../corpus/archive.zip"   # Kaggle arXiv snapshot (.zip)
 category := "cs.CL"         # primary-category prefix filter
 since    := "2024-01-01"    # backfill start (submission date)
+until    := `date -u +%F`   # backfill end (submission date), today by default
 max_gb   := "4"             # backfill size budget
 conc     := "8"             # parallel GCS downloads
 permonth := "3"             # papers per month for the temporal sample
-set      := "cs"            # OAI archive for live crawl + updates
+months   := "1"             # newest month folders to check in mirror-status
+idmonths := "2607 2608"     # id-months (YYMM) for missing-ids
+idsfile  := "../corpus/missing-ids.txt"   # missing-ids output / fetch-ids input
 
-# Friendly aliases for the default paths
+# Friendly alias for the default path
 alias backfill := seeded-backfill
-alias update   := oai-update
 
 # List recipes
 default:
@@ -62,8 +64,9 @@ diverse:
         --max-gb {{max_gb}} \
         --concurrency {{conc}}
 
-# Oldest-first from a start date: seed ids from archive.zip, PDFs from the GCS
-# mirror. Unthrottled and fast. Use when you want a specific historical window.
+# Oldest-first over a submission-date window: seed ids from archive.zip, PDFs
+# from the GCS mirror. Unthrottled and fast. `until` bounds the far end, which
+# is what keeps a month top-up from running on into the months after it.
 #
 # Part 1 — bulk backfill from a date (Kaggle seed + GCS mirror)
 seeded-backfill:
@@ -73,28 +76,32 @@ seeded-backfill:
         --category-prefix {{category}} \
         --date-field submitted \
         --from {{since}} \
+        --until {{until}} \
         --max-gb {{max_gb}} \
         --concurrency {{conc}}
 
-# Zero-setup fallback: no seed file. Crawls OAI-PMH for ids and scrapes PDFs from
-# export.arxiv.org (rate-limited, slow). Use only if you can't get archive.zip.
-#
-# Part 1 — bulk backfill by crawling OAI-PMH live (arXiv scraper)
-oai-backfill:
-    {{run}} arxiv_ingest.py backfill \
-        --set {{set}} \
-        --source arxiv \
-        --category-prefix {{category}} \
-        --from {{since}} \
-        --max-gb {{max_gb}}
+# Which cs papers of an id-month is the catalog holding that we are not?
+# Listing only. The gap it finds is a unit mismatch: `latest` and
+# `seeded-backfill` select by SUBMISSION date, an id's month is its
+# ANNOUNCEMENT month, so a paper submitted in June and announced in August is
+# outside every August window. Feed the output to `fetch-ids`.
+missing-ids:
+    {{run}} arxiv_ingest.py missing-ids \
+        --months {{idmonths}} \
+        --seed-file {{seed}} \
+        --category-prefix cs \
+        --out {{idsfile}}
 
-# Live-freshness job (cron this). Pulls since the stored watermark, upserts by id.
-# Updates are always OAI — Kaggle can't do a clean delta.
-#
-# Part 2 — incremental pull via OAI-PMH
-oai-update:
-    {{run}} arxiv_ingest.py update --set {{set}}
+# Download a NAMED list of ids (one per line, or a frontier.json manifest).
+fetch-ids:
+    {{run}} fetch_ids.py {{idsfile}} --concurrency {{conc}}
 
 # Show store stats and the incremental watermark
 status:
     {{run}} arxiv_ingest.py status
+
+# Did a new GCS mirror batch land? Bucket listing only, nothing is downloaded.
+# The mirror drops in batches every 7-14 days, so this is the signal for when
+# `just frontier` + `just index` have new papers to work with.
+mirror-status:
+    {{run}} arxiv_ingest.py mirror-status --months {{months}}

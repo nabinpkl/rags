@@ -4,7 +4,6 @@ import json
 import sqlite3
 import zipfile
 
-import httpx
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
@@ -88,10 +87,34 @@ def paths(tmp_path):
     parquet = tmp_path / f"{SLUG}.parquet"
     write_parquet(parquet, [c[0] for c in CHUNKS])
 
+    text_dir = tmp_path / "text"
+    # extract_citations globs this tree, so a paper here is one that reached
+    # the reference parser. 2401.00002 is deliberately absent: we hold its
+    # metadata and never extracted its text, which is the distinction
+    # `papers.has_text` carries and the landing page's parse rate needs.
+    (text_dir / "2401").mkdir(parents=True)
+    (text_dir / "2401" / "2401.00001.txt").write_text("References: arXiv:1707.06347")
+
     seed = tmp_path / "archive.zip"
     seed_records = [
-        {"id": "2401.00001", "license": "http://creativecommons.org/licenses/by/4.0/"},
-        {"id": "2401.00002", "license": None},  # seed has no license for this one
+        {
+            "id": "2401.00001",
+            "categories": "cs.CL cs.AI",
+            "license": "http://creativecommons.org/licenses/by/4.0/",
+            # Seed knows v5, but the row already pins v2 — the build must
+            # never let the backfill override a version it already holds.
+            "versions": [{"version": "v1"}, {"version": "v5"}],
+        },
+        {
+            "id": "2401.00002",
+            "categories": "cs.LG",
+            "license": None,  # seed has no license for this one
+            "versions": [{"version": "v1"}, {"version": "v2"}, {"version": "v3"}],
+        },
+        # Catalog rows we do NOT hold: the census counts them (it is arXiv's
+        # total for the month, not ours) and skips the non-cs one.
+        {"id": "2401.00003", "categories": "cs.CV", "license": None},
+        {"id": "2401.00004", "categories": "math.NA cs.CL", "license": None},
         {"id": "9999.99999", "license": "http://example.com/other"},  # not ours
     ]
     with zipfile.ZipFile(seed, "w") as zf:
@@ -102,6 +125,7 @@ def paths(tmp_path):
 
     return {
         "arxiv_db": arxiv_db,
+        "text": text_dir,
         "chunks": chunks_jsonl,
         "parquet": parquet,
         "seed": seed,
@@ -121,18 +145,21 @@ def write_parquet(path, chunk_ids):
     pq.write_table(table, path)
 
 
-ATOM_OK = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <entry><id>http://arxiv.org/abs/2401.00002v3</id></entry>
-</feed>"""
-
-
-def atom_transport(requests, body=ATOM_OK):
-    def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
-        return httpx.Response(200, text=body)
-
-    return httpx.MockTransport(handler)
+def run(paths, **kwargs):
+    # No transport seam: the build is fully offline (D18), so there is no
+    # network to mock — versions backfill from the seed snapshot.
+    kwargs.setdefault("add_batch_size", 2)  # exercises batching with 3 chunks
+    return build_indexes.run(
+        arxiv_db=paths["arxiv_db"],
+        text_dir=paths["text"],
+        chunks_path=paths["chunks"],
+        vectors_parquet=paths["parquet"],
+        seed_zip=paths["seed"],
+        corpus_db=paths["corpus_db"],
+        chroma_dir=paths["chroma"],
+        collection_name=SLUG,
+        **kwargs,
+    )
 
 
 def chroma_client(path):
@@ -146,29 +173,11 @@ def chroma_client(path):
     )
 
 
-def run(paths, transport=None, **kwargs):
-    requests: list[httpx.Request] = []
-    kwargs.setdefault("add_batch_size", 2)  # exercises batching with 3 chunks
-    kwargs.setdefault("backfill_timeout_seconds", 5.0)
-    stats = build_indexes.run(
-        arxiv_db=paths["arxiv_db"],
-        chunks_path=paths["chunks"],
-        vectors_parquet=paths["parquet"],
-        seed_zip=paths["seed"],
-        corpus_db=paths["corpus_db"],
-        chroma_dir=paths["chroma"],
-        collection_name=SLUG,
-        backfill_transport=transport if transport is not None else atom_transport(requests),
-        **kwargs,
-    )
-    return stats, requests
-
-
 # --- the three acceptance checks (issue #14) --------------------------------
 
 
 def test_chunk_count_matches_chroma_count(paths):
-    stats, _ = run(paths)
+    stats = run(paths)
     conn = sqlite3.connect(paths["corpus_db"])
     assert conn.execute("SELECT count(*) FROM chunks").fetchone()[0] == 3
     conn.close()
@@ -202,26 +211,25 @@ def test_vector_sample_query_returns_nearest_chunk(paths):
 
 
 def test_versions_and_licenses_land_in_papers(paths):
-    stats, requests = run(paths)
+    stats = run(paths)
     conn = sqlite3.connect(paths["corpus_db"])
     rows = dict(conn.execute("SELECT arxiv_id, version FROM papers").fetchall())
     licenses = dict(conn.execute("SELECT arxiv_id, license FROM papers").fetchall())
     conn.close()
+    # 2401.00002's version comes from the seed snapshot (D18), not the network;
+    # 2401.00001 already held v2, which the seed's v5 must not override.
     assert rows == {"2401.00001": "v2", "2401.00002": "v3", "0704.0217": "v1"}
     assert stats.versions_backfilled == 1 and stats.versions_missing == 0
     assert licenses["2401.00001"] == "http://creativecommons.org/licenses/by/4.0/"
     assert licenses["2401.00002"] is None  # seed had none — stays NULL, not fabricated
-    # ONE batched call (D9): all NULL-version ids in a single id_list.
-    assert len(requests) == 1
-    assert requests[0].url.params["id_list"] == "2401.00002"
 
 
 # --- rebuild + failure modes --------------------------------------------------
 
 
 def test_rebuild_is_idempotent(paths):
-    first, _ = run(paths)
-    second, _ = run(paths)
+    first = run(paths)
+    second = run(paths)
     assert (first.papers, first.chunks, first.chroma_count) == (
         second.papers,
         second.chunks,
@@ -233,9 +241,19 @@ def test_rebuild_is_idempotent(paths):
 
 
 def test_backfill_gap_warns_but_builds(paths):
-    empty_feed = '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>'
-    requests: list[httpx.Request] = []
-    stats, _ = run(paths, transport=atom_transport(requests, body=empty_feed))
+    """An id the snapshot itself lacks keeps a NULL version (D9 fallback)."""
+    with zipfile.ZipFile(paths["seed"]) as zf:
+        records = [
+            json.loads(raw)
+            for raw in zf.read("arxiv-metadata-oai-snapshot.json").splitlines()
+            if json.loads(raw)["id"] != "2401.00002"
+        ]
+    with zipfile.ZipFile(paths["seed"], "w") as zf:
+        zf.writestr(
+            "arxiv-metadata-oai-snapshot.json",
+            "\n".join(json.dumps(r) for r in records),
+        )
+    stats = run(paths)
     assert stats.versions_missing == 1
     conn = sqlite3.connect(paths["corpus_db"])
     version = conn.execute("SELECT version FROM papers WHERE arxiv_id='2401.00002'").fetchone()[0]
@@ -243,17 +261,18 @@ def test_backfill_gap_warns_but_builds(paths):
     assert version is None  # D9 fallback: unpinned URL until a later backfill
 
 
-def test_no_null_versions_means_no_network_call(paths):
+def test_no_null_versions_means_no_seed_lookup(paths):
+    """Rows that already hold versions never consult the snapshot for them."""
     conn = sqlite3.connect(paths["arxiv_db"])
-    conn.execute("UPDATE papers SET version='v1' WHERE version IS NULL")
+    conn.execute("UPDATE papers SET version='v9' WHERE version IS NULL")
     conn.commit()
     conn.close()
-
-    def explode(request: httpx.Request) -> httpx.Response:
-        raise AssertionError("no backfill call expected")
-
-    stats, _ = run(paths, transport=httpx.MockTransport(explode))
+    stats = run(paths)
     assert stats.versions_backfilled == 0
+    conn = sqlite3.connect(paths["corpus_db"])
+    rows = dict(conn.execute("SELECT arxiv_id, version FROM papers").fetchall())
+    conn.close()
+    assert rows["2401.00002"] == "v9"
 
 
 def test_parquet_chunk_missing_from_chunks_fails_loudly(paths):
@@ -275,7 +294,7 @@ def test_orphan_chunk_paper_id_fails_before_any_write(paths):
     # from arxiv.db must fail validation BEFORE corpus.db is replaced —
     # a failed build leaves the previous artifact generation untouched.
 
-    first, _ = run(paths)  # a good previous generation exists on disk
+    first = run(paths)  # a good previous generation exists on disk
     old_bytes = paths["corpus_db"].read_bytes()
 
     orphan = {
@@ -355,8 +374,215 @@ def test_other_models_parquet_is_refused(paths):
         run(paths)
 
 
-def test_dtd_in_backfill_response_is_refused(paths):
-    dtd = '<?xml version="1.0"?><!DOCTYPE feed [<!ENTITY a "b">]><feed/>'
-    requests: list[httpx.Request] = []
-    with pytest.raises(IndexBuildError, match="DTD"):
-        run(paths, transport=atom_transport(requests, body=dtd))
+# --- the citation graph (landing page) --------------------------------------
+
+
+def _citation_inputs(tmp_path, edges, works):
+    """Write the two optional citation inputs; return their paths."""
+    citations = tmp_path / "citations.tsv"
+    citations.write_text("".join(f"{a}\t{b}\n" for a, b in edges), encoding="utf-8")
+    cited_works = tmp_path / "cited_works.jsonl"
+    cited_works.write_text(
+        "".join(json.dumps(w) + "\n" for w in works),
+        encoding="utf-8",
+    )
+    return {"citations_path": citations, "cited_works_path": cited_works}
+
+
+def _work(arxiv_id, title="A cited work"):
+    return {
+        "arxiv_id": arxiv_id,
+        "title": title,
+        "authors": "A. Author",
+        "primary_category": "cs.LG",
+        "year": 2017,
+        "version": "v2",
+    }
+
+
+def test_the_catalog_census_and_text_flags_land_in_corpus_db(paths):
+    """The denominator and the parse-rate numerator, both absent before.
+
+    Without `catalog_months` the landing page had no way to say what share of
+    a month it holds, so it claimed "every cs paper arXiv posted" (measured
+    94% / 49% / 5% for July, August and September 2026). Without `has_text`
+    it divided by every catalog row and reported a 30% parse rate for a
+    parser that yields 81%.
+    """
+    stats = run(paths)
+
+    assert stats.papers_with_text == 1
+    assert stats.catalog_months == 1
+    conn = sqlite3.connect(paths["corpus_db"])
+    try:
+        # 3 cs-primary catalog rows for 2401; the math.NA-primary one is not
+        # counted, matching how the collector selected papers. We hold 2.
+        assert conn.execute("SELECT * FROM catalog_months").fetchall() == [("2401", 3)]
+        assert conn.execute(
+            "SELECT arxiv_id, has_text FROM papers WHERE arxiv_id LIKE '2401.%' ORDER BY arxiv_id"
+        ).fetchall() == [("2401.00001", 1), ("2401.00002", 0)]
+    finally:
+        conn.close()
+
+
+def test_citations_and_cited_works_land_in_corpus_db(paths, tmp_path):
+    inputs = _citation_inputs(
+        tmp_path,
+        [("2401.00001", "1707.06347"), ("2401.00002", "1707.06347")],
+        [_work("1707.06347", "Proximal Policy Optimization Algorithms")],
+    )
+
+    stats = run(paths, **inputs)
+
+    assert (stats.citations, stats.cited_works) == (2, 1)
+    conn = sqlite3.connect(paths["corpus_db"])
+    try:
+        assert conn.execute("SELECT count(*) FROM citations").fetchone()[0] == 2
+        # The landing page's core query: who cites this, and what is it called?
+        row = conn.execute(
+            "SELECT w.title, count(*) FROM citations c"
+            " JOIN cited_works w ON w.arxiv_id = c.cited_id"
+            " GROUP BY c.cited_id"
+        ).fetchone()
+        assert row == ("Proximal Policy Optimization Algorithms", 2)
+    finally:
+        conn.close()
+
+
+def test_a_cited_work_we_never_hold_is_not_a_paper(paths, tmp_path):
+    """The D16 boundary in the schema: cited_works is not a second papers table.
+
+    1707.06347 is cited but absent from `papers`, so nothing that scopes to the
+    indexed corpus can ever surface it as retrievable.
+    """
+    inputs = _citation_inputs(tmp_path, [("2401.00001", "1707.06347")], [_work("1707.06347")])
+
+    run(paths, **inputs)
+
+    conn = sqlite3.connect(paths["corpus_db"])
+    try:
+        assert (
+            conn.execute("SELECT count(*) FROM papers WHERE arxiv_id = '1707.06347'").fetchone()[0]
+            == 0
+        )
+        assert (
+            conn.execute(
+                "SELECT count(*) FROM cited_works WHERE arxiv_id = '1707.06347'"
+            ).fetchone()[0]
+            == 1
+        )
+    finally:
+        conn.close()
+
+
+def test_build_without_citation_inputs_still_succeeds(paths):
+    """A corpus built before extract_citations ran is a valid artifact."""
+    stats = run(paths)
+
+    assert (stats.citations, stats.cited_works) == (0, 0)
+    conn = sqlite3.connect(paths["corpus_db"])
+    try:
+        assert conn.execute("SELECT count(*) FROM citations").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_citation_from_an_unknown_paper_fails_before_any_write(paths, tmp_path):
+    inputs = _citation_inputs(tmp_path, [("2499.99999", "1707.06347")], [_work("1707.06347")])
+
+    with pytest.raises(IndexBuildError, match="missing in arxiv.db"):
+        run(paths, **inputs)
+
+    assert not paths["corpus_db"].exists()
+
+
+def test_stale_cited_works_fails_before_any_write(paths, tmp_path):
+    """citations.tsv regenerated without rerunning resolve_cited_works."""
+    inputs = _citation_inputs(tmp_path, [("2401.00001", "1707.06347")], [])
+
+    with pytest.raises(IndexBuildError, match="rerun resolve_cited_works"):
+        run(paths, **inputs)
+
+    assert not paths["corpus_db"].exists()
+
+
+def test_a_cited_work_in_an_unnamed_cs_class_fails_before_any_write(paths, tmp_path):
+    """A class arXiv adds later stops the build, not the page's Field list."""
+    work = {**_work("1707.06347"), "primary_category": "cs.ZZ"}
+    inputs = _citation_inputs(tmp_path, [("2401.00001", "1707.06347")], [work])
+
+    with pytest.raises(IndexBuildError, match="first: cs.ZZ"):
+        run(paths, **inputs)
+
+    assert not paths["corpus_db"].exists()
+
+
+def test_the_build_leaves_planner_stats_behind(tmp_path):
+    """ANALYZE at build time is worth 17% on the cited-year histogram.
+
+    Measured 2026-08-28 over 162k edges: 110 ms without stats, 91 ms with.
+    The snapshot is frozen (D12), so stats written once stay accurate.
+    """
+    from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
+
+    paper = PaperRow(
+        arxiv_id="2608.00001",
+        title="A paper",
+        authors="A. Author",
+        abstract="An abstract.",
+        categories="cs.CL",
+        published="2026-08-01",
+        version="v1",
+        license=None,
+        venue=None,
+        authority=None,
+        niche_idf=None,
+        author_novelty=None,
+        revisions=None,
+        venue_rigor=None,
+    )
+    chunk = ChunkRow("2608.00001#0", "2608.00001", "__paper__", 1, 1, "some text", 2)
+
+    corpus_db = tmp_path / "corpus.db"
+    _write_corpus_db(corpus_db, [paper], [chunk])
+    conn = sqlite3.connect(f"file:{corpus_db}?mode=ro", uri=True)
+    try:
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        indexes = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+    finally:
+        conn.close()
+
+    assert "sqlite_stat1" in tables
+    # The (arxiv_id, year) covering index was measured to buy nothing; if it
+    # comes back, it needs a measurement, not an intuition.
+    assert "cited_works_year" not in indexes
+
+
+def test_a_metadata_only_build_writes_corpus_db_and_leaves_the_vector_store_alone(paths):
+    """corpus.db and the vector store age at different speeds.
+
+    A month of new papers reaches the page's numbers in minutes and the
+    embedder in hours (measured 2026-09-16: ~1,000 chunks/hour on this box),
+    so a metadata-only rebuild ships the first without waiting for the
+    second. What it must never do is pretend the two agree.
+    """
+    run(paths)  # a full build first, so there is a chroma generation to leave alone
+    write_parquet(paths["parquet"], [c[0] for c in CHUNKS[:2]])  # the third chunk loses its vector
+
+    stats = run(paths, without_vectors=True)
+
+    conn = sqlite3.connect(paths["corpus_db"])
+    assert conn.execute("SELECT count(*) FROM chunks").fetchone()[0] == 3
+    conn.close()
+    assert stats.chunks_without_vectors == 1
+    # Untouched, not rebuilt short: the previous generation still answers.
+    collection = chroma_client(paths["chroma"]).get_collection(SLUG)
+    assert collection.count() == 3
+    assert stats.chroma_count == 0
+
+
+def test_a_full_build_still_refuses_a_chunk_without_a_vector(paths):
+    write_parquet(paths["parquet"], [c[0] for c in CHUNKS[:2]])
+
+    with pytest.raises(build_indexes.IndexBuildError, match="re-run embed_chunks"):
+        run(paths)

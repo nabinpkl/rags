@@ -13,9 +13,10 @@ Jobs, one pipeline:
                revisions, venue rigor). Facets are stored per paper for
                query-time re-ranking. Self-contained (seed + frozen citations).
   backfill  -- Part 1 (oldest-first from a date): seed ids from the Kaggle
-               snapshot (or crawl OAI-PMH) and download until a size budget.
-  update    -- Part 2: incremental pull. Fetch everything with an OAI-PMH
-               datestamp since the last successful run, then upsert by id.
+               snapshot and download from the GCS mirror until a size budget.
+  update    -- RETIRED under D18 (it harvested OAI-PMH from export.arxiv.org).
+               Refresh with backfill --seed-file <new-snapshot.zip>
+               --source gcs-only --from <last-covered-date> instead.
 
 Downloads PDFs to corpus/pdfs/ and records one metadata row per paper in a
 local SQLite index (corpus/arxiv.db), keyed by arxiv_id. The corpus IS the PDF
@@ -41,18 +42,14 @@ import sys
 import threading
 import time
 import zipfile
-import xml.etree.ElementTree as ET  # element types only
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import requests
-from defusedxml.ElementTree import fromstring as safe_fromstring  # XXE/billion-laughs safe
 
 # --- config -----------------------------------------------------------------
 
-OAI_URL = "https://export.arxiv.org/oai2"
-PDF_BASE = "https://export.arxiv.org/pdf"
 # Free, unthrottled full-text mirror (Google/Kaggle-hosted public bucket).
 # Layout: .../pdf/{YYMM}/{id}v{N}.pdf  -- individual PDFs, one per version.
 GCS_PDF_BASE = "https://storage.googleapis.com/arxiv-dataset/arxiv/arxiv/pdf"
@@ -63,15 +60,10 @@ GCS_PDF_PREFIX = "arxiv/arxiv/pdf/"
 
 # arXiv asks bulk/automated users to identify themselves and go easy.
 USER_AGENT = "rag-demo-ingester/1.0 (mailto:contact@nabin.org)"
-OAI_DELAY = 3.0     # minimum seconds to wait before each OAI-PMH page request
-PDF_DELAY = 3.0     # minimum seconds to wait before each arXiv PDF download (GCS is unpaced)
 JITTER = 2.0        # extra random 0..JITTER seconds added on top (delay is never below the minimum)
 BACKOFF_BASE = 3.0  # exponential retry backoff base: 3, 6, 12, 24, 48 ...
 BACKOFF_MAX = 60.0  # cap on a single backoff wait
 MAX_RETRIES = 5
-
-OAI_NS = "{http://www.openarchives.org/OAI/2.0/}"
-ARX_NS = "{http://arxiv.org/OAI/arXiv/}"
 
 # Data artifacts live in the repo-level corpus/ dir (gitignored, spec §4c),
 # resolved from this file's location so every command works regardless of cwd.
@@ -79,15 +71,6 @@ ROOT = Path(__file__).resolve().parent
 CORPUS_DIR = ROOT.parent / "corpus"
 DB_PATH = CORPUS_DIR / "arxiv.db"
 PDF_DIR = CORPUS_DIR / "pdfs"
-
-
-def polite_sleep(base: float) -> None:
-    """Wait before a request: the base minimum plus a random jitter on top.
-
-    Jitter only ever adds time, so the actual wait is always >= base. Spacing
-    out (rather than firing on a fixed rhythm) avoids hammering arXiv in lockstep.
-    """
-    time.sleep(base + random.uniform(0, JITTER))
 
 
 _tls = threading.local()
@@ -265,84 +248,17 @@ def _http_get(session: requests.Session, url: str, params: dict | None = None) -
 
 
 def harvest(session: requests.Session, *, oai_set: str, frm: str, until: str):
-    """Yield metadata records from OAI-PMH, following resumption tokens."""
-    params = {
-        "verb": "ListRecords",
-        "metadataPrefix": "arXiv",
-        "set": oai_set,
-        "from": frm,
-        "until": until,
-    }
-    page = 0
-    while True:
-        page += 1
-        polite_sleep(OAI_DELAY)  # pace before every page, including the first
-        resp = _http_get(session, OAI_URL, params)
-        root = safe_fromstring(resp.content)
+    """Retired under D18: the OAI-PMH harvest touched export.arxiv.org.
 
-        err = root.find(f"{OAI_NS}error")
-        if err is not None:
-            code = err.get("code")
-            if code == "noRecordsMatch":
-                print("  no records match this window.", file=sys.stderr)
-                return
-            raise RuntimeError(f"OAI error [{code}]: {err.text}")
-
-        list_records = root.find(f"{OAI_NS}ListRecords")
-        if list_records is None:
-            return
-
-        for record in list_records.findall(f"{OAI_NS}record"):
-            rec = _parse_record(record)
-            if rec:
-                yield rec
-
-        token_el = list_records.find(f"{OAI_NS}resumptionToken")
-        token = token_el.text if token_el is not None else None
-        if not token:
-            return
-        # once a resumption token is in play, all other args must be dropped
-        params = {"verb": "ListRecords", "resumptionToken": token}
-        print(f"  page {page} done, continuing...", file=sys.stderr)
-
-
-def _parse_record(record: ET.Element) -> dict | None:
-    header = record.find(f"{OAI_NS}header")
-    if header is not None and header.get("status") == "deleted":
-        return None  # withdrawn paper; skip
-
-    datestamp_el = header.find(f"{OAI_NS}datestamp") if header is not None else None
-    meta = record.find(f"{OAI_NS}metadata")
-    if meta is None:
-        return None
-    arx = meta.find(f"{ARX_NS}arXiv")
-    if arx is None:
-        return None
-
-    def text(tag: str) -> str:
-        el = arx.find(f"{ARX_NS}{tag}")
-        return (el.text or "").strip() if el is not None else ""
-
-    authors = []
-    authors_el = arx.find(f"{ARX_NS}authors")
-    if authors_el is not None:
-        for a in authors_el.findall(f"{ARX_NS}author"):
-            keyname = a.findtext(f"{ARX_NS}keyname", "").strip()
-            forenames = a.findtext(f"{ARX_NS}forenames", "").strip()
-            name = " ".join(p for p in (forenames, keyname) if p)
-            if name:
-                authors.append(name)
-
-    return {
-        "arxiv_id": text("id"),
-        "title": " ".join(text("title").split()),
-        "authors": ", ".join(authors),
-        "abstract": " ".join(text("abstract").split()),
-        "categories": text("categories"),
-        "datestamp": datestamp_el.text.strip() if datestamp_el is not None else "",
-        "published": text("created"),  # arXiv OAI <created> = v1 submission date
-        "version": "",  # OAI harvest uses the arXiv scraper (versionless URL)
-    }
+    Freshness now comes from a new Kaggle snapshot + the GCS mirror
+    (`backfill --seed-file ... --source gcs-only`). Kept as a stub so the
+    ban is visible at the call site instead of silently reappearing.
+    """
+    raise NotImplementedError(
+        "OAI harvest is retired under D18 (no code path may touch "
+        "export.arxiv.org); pull a fresh Kaggle snapshot and backfill from "
+        "the GCS mirror instead."
+    )
 
 
 # --- Kaggle seed (offline discovery) ----------------------------------------
@@ -363,8 +279,7 @@ def seed_records(path: str, *, frm: str | None = None, until: str | None = None,
                  date_field: str = "submitted"):
     """Stream records from the Kaggle arXiv snapshot (JSON-lines).
 
-    Reads straight out of the .zip without extracting the 5+ GB file. Same
-    record shape as harvest(), so the rest of the pipeline is unchanged.
+    Reads straight out of the .zip without extracting the 5+ GB file.
     `date_field` selects what --from/--until filter on: 'submitted' (original
     v1 date) or 'updated' (the snapshot's update_date).
     """
@@ -413,7 +328,11 @@ def seed_records(path: str, *, frm: str | None = None, until: str | None = None,
 # --- PDF download + text extraction -----------------------------------------
 
 def pdf_url(arxiv_id: str) -> str:
-    return f"{PDF_BASE}/{arxiv_id}"
+    """Retired under D18: built an export.arxiv.org PDF URL. Never call it."""
+    raise NotImplementedError(
+        "the arXiv PDF scraper is retired under D18 (no code path may touch "
+        "export.arxiv.org); fetch from the GCS mirror instead."
+    )
 
 
 # new-style ids look like "2401.00003"; old-style like "hep-th/9901001"
@@ -441,12 +360,10 @@ def local_pdf_path(arxiv_id: str) -> Path:
     return PDF_DIR / "misc" / f"{safe}.pdf"
 
 
-def download_pdf(session: requests.Session, arxiv_id: str, url: str, *, pace: bool) -> Path | None:
+def download_pdf(session: requests.Session, arxiv_id: str, url: str) -> Path | None:
     dest = local_pdf_path(arxiv_id)
     if dest.exists() and dest.stat().st_size > 0:
-        return dest  # already have it (cached hits skip the wait)
-    if pace:
-        polite_sleep(PDF_DELAY)  # pace before the network call (arXiv only; GCS is unpaced)
+        return dest  # already have it
     try:
         resp = _http_get(session, url)
     except Exception as e:  # noqa: BLE001 - demo: log and move on
@@ -454,7 +371,7 @@ def download_pdf(session: requests.Session, arxiv_id: str, url: str, *, pace: bo
         return None
     ctype = resp.headers.get("Content-Type", "")
     if "pdf" not in ctype.lower():
-        # arXiv sometimes serves an HTML "not yet available" page
+        # the mirror sometimes serves an XML error document for a missing key
         print(f"  ! {arxiv_id}: not a pdf ({ctype})", file=sys.stderr)
         return None
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -463,21 +380,26 @@ def download_pdf(session: requests.Session, arxiv_id: str, url: str, *, pace: bo
 
 
 def fetch_pdf(session: requests.Session, rec: dict, source: str) -> Path | None:
-    """Fetch a paper's PDF from the chosen source, with GCS->arXiv fallback."""
+    """Fetch a paper's PDF from the GCS mirror (the only source since D18)."""
+    if source == "arxiv":
+        raise NotImplementedError(
+            "source=arxiv is retired under D18 (no code path may touch "
+            "export.arxiv.org); use --source gcs-only with a Kaggle seed."
+        )
     arxiv_id = rec["arxiv_id"]
-    if source == "gcs":
-        url = gcs_pdf_url(arxiv_id, rec.get("version", ""))
-        if url is None:
-            print(f"  ! {arxiv_id}: not on GCS mirror (old-style id / no version); skipping",
-                  file=sys.stderr)
-            return None
-        path = download_pdf(session, arxiv_id, url, pace=False)
-        if path is not None:
-            return path
-        # GCS miss (e.g. mirror lag on very recent papers): fall back to arXiv
-        print(f"  gcs miss for {arxiv_id}, falling back to arXiv scraper...", file=sys.stderr)
-        return download_pdf(session, arxiv_id, pdf_url(arxiv_id), pace=True)
-    return download_pdf(session, arxiv_id, pdf_url(arxiv_id), pace=True)
+    url = gcs_pdf_url(arxiv_id, rec.get("version", ""))
+    if url is None:
+        print(f"  ! {arxiv_id}: not on GCS mirror (old-style id / no version); skipping",
+              file=sys.stderr)
+        return None
+    path = download_pdf(session, arxiv_id, url)
+    if path is not None:
+        return path
+    # Mirror lag is the common cause (it syncs on Sundays); the paper
+    # will be there next sync. The GCS-miss fallback to the arXiv scraper
+    # is retired under D18 — a miss is skipped, never re-fetched elsewhere.
+    print(f"  gcs miss for {arxiv_id}; gcs-only, skipping", file=sys.stderr)
+    return None
 
 
 # --- pipeline ----------------------------------------------------------------
@@ -494,7 +416,7 @@ def process_record(conn, session, rec: dict, source: str) -> int:
     rec = {
         **rec,
         "version": rec.get("version", ""),  # ensure present for the insert
-        "pdf_path": str(pdf_path.relative_to(ROOT)),
+        "pdf_path": str(pdf_path.relative_to(CORPUS_DIR)),
         "size_bytes": size,
         "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
@@ -509,7 +431,7 @@ def process_record(conn, session, rec: dict, source: str) -> int:
 def run(*, oai_set: str, frm: str, until: str, max_gb: float | None, limit: int | None,
         category_prefix: str | None, seed_file: str | None = None,
         date_field: str = "submitted", skip_existing: bool = False,
-        source: str = "arxiv", concurrency: int = 1) -> None:
+        source: str = "gcs-only", concurrency: int = 1) -> None:
     PDF_DIR.mkdir(parents=True, exist_ok=True)
     conn = connect()
     session = requests.Session()
@@ -519,8 +441,7 @@ def run(*, oai_set: str, frm: str, until: str, max_gb: float | None, limit: int 
     stored_bytes = 0
     n = 0
     skipped = 0
-    # concurrency only for GCS; the arXiv scraper must stay single-connection.
-    parallel = concurrency > 1 and source == "gcs"
+    parallel = concurrency > 1
     batch: list[dict] = []
 
     if seed_file:
@@ -529,9 +450,11 @@ def run(*, oai_set: str, frm: str, until: str, max_gb: float | None, limit: int 
               f"(budget={max_gb or '∞'} GB, limit={limit or '∞'})", file=sys.stderr)
         records = seed_records(seed_file, frm=frm, until=until, date_field=date_field)
     else:
-        print(f"harvesting set={oai_set} from={frm} until={until} "
-              f"(budget={max_gb or '∞'} GB, limit={limit or '∞'})", file=sys.stderr)
-        records = harvest(session, oai_set=oai_set, frm=frm, until=until)
+        raise NotImplementedError(
+            "seedless discovery used the OAI-PMH harvest, retired under D18 "
+            "(no code path may touch export.arxiv.org); pass --seed-file with "
+            "a Kaggle snapshot instead."
+        )
 
     def flush() -> bool:
         """Fetch the buffered batch concurrently, upsert here. True if done."""
@@ -550,7 +473,7 @@ def run(*, oai_set: str, frm: str, until: str, max_gb: float | None, limit: int 
                     continue
                 size = path.stat().st_size
                 rec2 = {**r, "version": r.get("version", ""),
-                        "pdf_path": str(path.relative_to(ROOT)), "size_bytes": size,
+                        "pdf_path": str(path.relative_to(CORPUS_DIR)), "size_bytes": size,
                         "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
                 try:
                     upsert_paper(conn, rec2)
@@ -647,8 +570,12 @@ def gcs_months(session: requests.Session) -> list[str]:
             return months
 
 
-def gcs_month_objects(session: requests.Session, yymm: str):
-    """Yield (arxiv_id, version_int, size_bytes) for every PDF in a month."""
+def gcs_month_entries(session: requests.Session, yymm: str):
+    """Yield (arxiv_id, version_int, size_bytes, written_iso) for a month folder.
+
+    `written_iso` is the object's creation time, which only `mirror-status`
+    reads: it is how a batch we have already ingested is told from a new one.
+    """
     prefix, token = f"{GCS_PDF_PREFIX}{yymm}/", None
     while True:
         params = {"prefix": prefix, "maxResults": 1000}
@@ -658,10 +585,105 @@ def gcs_month_objects(session: requests.Session, yymm: str):
         for it in d.get("items", []):
             m = _OBJ_RE.search(it["name"])
             if m:
-                yield m.group(1), int(m.group(2)), int(it.get("size", 0))
+                yield (m.group(1), int(m.group(2)), int(it.get("size", 0)),
+                       it.get("timeCreated", ""))
         token = d.get("nextPageToken")
         if not token:
             return
+
+
+def gcs_month_objects(session: requests.Session, yymm: str):
+    """Yield (arxiv_id, version_int, size_bytes) for every PDF in a month."""
+    for arxiv_id, version, size, _written in gcs_month_entries(session, yymm):
+        yield arxiv_id, version, size
+
+
+def run_mirror_status(*, months: int = 1) -> None:
+    """Has a new mirror batch landed since our last run? Listing only.
+
+    The mirror publishes in batches, not a trickle: month 2609's 4,301 PDFs
+    were all written inside 14 minutes on 2026-09-06, and the same run
+    appended late version updates into older folders. So the newest write
+    time in a folder IS the last batch that touched it, and comparing that
+    against our watermark answers the question without downloading a byte.
+
+    What this deliberately does NOT claim: that ids above ours are ours to
+    fetch. The mirror carries every archive; our store is category-filtered,
+    so a higher top id is usually a paper we were never going to hold. The
+    timestamp is the signal; the ids are context.
+    """
+    session = requests.Session()
+    folders = sorted(gcs_months(session))
+    conn = connect()
+    try:
+        watermark = get_state(conn, "last_until")
+        print(f"mirror:    {len(folders)} month folders, newest {folders[-1]}")
+        for yymm in folders[-months:]:
+            ids, pdfs, written = set(), 0, ""
+            for arxiv_id, _version, _size, created in gcs_month_entries(session, yymm):
+                ids.add(arxiv_id)
+                pdfs += 1
+                written = max(written, created)
+            ours, top = conn.execute(
+                "SELECT COUNT(*), MAX(arxiv_id) FROM papers WHERE arxiv_id LIKE ?",
+                (f"{yymm}.%",),
+            ).fetchone()
+            print(f"  {yymm}:    {len(ids)} ids / {pdfs} pdfs, "
+                  f"top {max(ids, default='(empty)')}, "
+                  f"last written {written or '(none)'}")
+            print(f"           ours: {ours} papers, top {top or '(none)'}")
+            print(f"           -> {'NEW: written after' if written[:10] > (watermark or '') else 'nothing since'}"
+                  f" our watermark {watermark or '(never run)'}")
+    finally:
+        conn.close()
+
+
+def run_missing_ids(*, seed_file: str, months: list[str], category_prefix: str,
+                    out: str | None = None) -> None:
+    """Catalog ids of these id-months that our store does not hold. Listing only.
+
+    The gap this names is a unit mismatch, not a download failure: `backfill`
+    and `latest` select by SUBMISSION date, while an arXiv id's month is its
+    ANNOUNCEMENT month. A paper submitted in June and announced in August has
+    a 2608 id and sits outside any August window, so a month pulled by date is
+    short by however many papers arrived late -- measured 871 of August 2026's
+    14,491, of which 328 survived a full August backfill.
+
+    The output is an id list for fetch_ids.py, which is the one path that
+    downloads a named set. This command does not fetch: what is missing and
+    what to do about it are separate questions, and the first one is worth
+    being able to ask on its own.
+    """
+    conn = connect()
+    try:
+        wanted = [m for m in months if _MONTH_RE.match(m)]
+        if len(wanted) != len(months):
+            raise SystemExit(f"months must be YYMM: {sorted(set(months) - set(wanted))}")
+        held = {m: {r[0] for r in conn.execute(
+            "SELECT arxiv_id FROM papers WHERE arxiv_id LIKE ?", (f"{m}.%",))} for m in wanted}
+        missing: list[str] = []
+        counts = {m: [0, 0] for m in wanted}  # catalog, missing
+        for rec in seed_records(seed_file):
+            aid = rec["arxiv_id"]
+            m = aid[:4]
+            if m not in held or not rec["categories"].startswith(category_prefix):
+                continue
+            counts[m][0] += 1
+            if aid not in held[m]:
+                counts[m][1] += 1
+                missing.append(aid)
+        for m in wanted:
+            catalog, gone = counts[m]
+            print(f"  {m}: {catalog - gone:,} of {catalog:,} held, {gone:,} missing",
+                  file=sys.stderr)
+        text = "".join(f"{aid}\n" for aid in sorted(missing))
+        if out:
+            Path(out).write_text(text, encoding="utf-8")
+            print(f"{len(missing)} ids -> {out}", file=sys.stderr)
+        else:
+            sys.stdout.write(text)
+    finally:
+        conn.close()
 
 
 def run_latest(*, seed_file: str, category_prefix: str | None,
@@ -748,7 +770,7 @@ def _download_selected(conn, seed_file: str, selected: list, concurrency: int,
 
     def _fetch(item):
         aid, ver = item
-        return aid, ver, download_pdf(thread_session(), aid, gcs_pdf_url(aid, ver), pace=False)
+        return aid, ver, download_pdf(thread_session(), aid, gcs_pdf_url(aid, ver))
 
     with cf.ThreadPoolExecutor(max_workers=max(1, concurrency)) as ex:
         futs = [ex.submit(_fetch, it) for it in work]
@@ -760,7 +782,7 @@ def _download_selected(conn, seed_file: str, selected: list, concurrency: int,
                                   "abstract": "", "categories": "", "datestamp": "",
                                   "published": ""})
             rec = {**base, "arxiv_id": aid, "version": ver,
-                   "pdf_path": str(path.relative_to(ROOT)),
+                   "pdf_path": str(path.relative_to(CORPUS_DIR)),
                    "size_bytes": path.stat().st_size,
                    "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                    **(extra.get(aid) or {})}
@@ -1279,7 +1301,7 @@ def run_reorganize() -> None:
     for aid, rel in conn.execute(
         "SELECT arxiv_id, pdf_path FROM papers WHERE pdf_path IS NOT NULL"
     ).fetchall():
-        want = str(local_pdf_path(aid).relative_to(ROOT))
+        want = str(local_pdf_path(aid).relative_to(CORPUS_DIR))
         if rel != want:
             conn.execute("UPDATE papers SET pdf_path=? WHERE arxiv_id=?", (want, aid))
             fixed += 1
@@ -1311,10 +1333,11 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--seed-file", default=None,
                    help="Kaggle arXiv snapshot (.zip or .json) to discover ids offline, "
                         "instead of crawling OAI-PMH.")
-    b.add_argument("--source", choices=["gcs", "arxiv"], default="gcs",
-                   help="where to download PDFs: gcs = free unthrottled Google mirror "
-                        "(default, needs --seed-file for versions); arxiv = export.arxiv.org "
-                        "scraper (rate-limited fallback)")
+    b.add_argument("--source", choices=["gcs", "gcs-only"], default="gcs",
+                    help="where to download PDFs: gcs = free unthrottled Google mirror "
+                         "(default, needs --seed-file for versions; a miss is skipped, "
+                         "never re-fetched — the arXiv fallback is retired under D18); "
+                         "gcs-only = mirror only, explicit about it (same behavior)")
     b.add_argument("--date-field", choices=["submitted", "updated"], default="submitted",
                    help="which date --from/--until filter on in seed mode: "
                         "submitted = original v1 date (default), updated = last metadata change")
@@ -1322,7 +1345,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="re-download papers already in the store "
                         "(default: skip them, so a resumed backfill is cheap)")
     b.add_argument("--concurrency", type=int, default=8,
-                   help="parallel GCS downloads (default 8; ignored for --source arxiv)")
+                    help="parallel GCS downloads (default 8)")
 
     la = sub.add_parser("latest",
                         help="Part 1 (newest-first): most recent papers up to a size budget, "
@@ -1371,7 +1394,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="override composite weights, e.g. "
                          "authority=0.3,niche=0.2,novelty=0.15,revisions=0.1,venue=0.25")
 
-    u = sub.add_parser("update", help="Part 2: incremental pull since last run, upsert by id")
+    u = sub.add_parser("update", help="RETIRED under D18 (OAI harvest banned); raises.")
     u.add_argument("--set", default="cs", help="OAI set / archive")
     u.add_argument("--category-prefix", default=None, help="narrow within the set, e.g. cs.CL")
     u.add_argument("--from", dest="frm", default=None,
@@ -1381,6 +1404,23 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--limit", type=int, default=None, help="optional safety cap")
 
     st = sub.add_parser("status", help="show store stats and the incremental watermark")
+
+    ms = sub.add_parser("mirror-status",
+                        help="has a new GCS mirror batch landed? (listing only, no downloads)")
+    ms.add_argument("--months", type=int, default=1,
+                    help="how many of the newest month folders to check; a batch also "
+                         "appends late version updates into older folders, and each "
+                         "older folder is ~35k objects to list (default 1)")
+
+    mi = sub.add_parser("missing-ids",
+                        help="catalog ids of an id-month we do not hold (listing only)")
+    mi.add_argument("--months", nargs="+", required=True, metavar="YYMM",
+                    help="id-months to check, e.g. --months 2607 2608")
+    mi.add_argument("--seed-file", default=None,
+                    help="Kaggle snapshot .zip (default: ../corpus/archive.zip)")
+    mi.add_argument("--category-prefix", default="cs",
+                    help="primary-category prefix, matching how the papers were selected")
+    mi.add_argument("--out", default=None, help="write the ids here instead of stdout")
 
     sub.add_parser("reorganize",
                    help="move PDFs into pdfs/{YYYY}/{MM}/ year/month folders")
@@ -1415,6 +1455,16 @@ def main(argv: list[str] | None = None) -> int:
                     weights=parse_weights(args.weights))
         return 0
 
+    if args.cmd == "missing-ids":
+        run_missing_ids(seed_file=args.seed_file or str(CORPUS_DIR / "archive.zip"),
+                        months=args.months, category_prefix=args.category_prefix,
+                        out=args.out)
+        return 0
+
+    if args.cmd == "mirror-status":
+        run_mirror_status(months=args.months)
+        return 0
+
     if args.cmd == "status":
         conn = connect()
         papers = conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
@@ -1430,19 +1480,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"watermark: {watermark or '(never run)'}  <- next update starts here")
         return 0
 
-    frm = args.frm
-    if args.cmd == "update" and not frm:
-        conn = connect()
-        frm = get_state(conn, "last_until")
-        conn.close()
-        if not frm:
-            print("no watermark yet; run a backfill first, or pass --from.", file=sys.stderr)
-            return 1
+    if args.cmd == "update":
+        raise NotImplementedError(
+            "update is retired under D18: it harvested OAI-PMH from "
+            "export.arxiv.org, which no code path may touch. Refresh with a "
+            "new Kaggle snapshot: backfill --seed-file <snapshot.zip> "
+            "--source gcs-only --from <last-covered-date>."
+        )
 
-    source = getattr(args, "source", "arxiv")  # update always uses arxiv (low volume)
-    if source == "gcs" and not getattr(args, "seed_file", None):
+    frm = args.frm
+
+    source = getattr(args, "source", "gcs-only")
+    if source not in ("gcs", "gcs-only"):
+        print(f"--source {source} is retired under D18; use gcs or gcs-only.",
+              file=sys.stderr)
+        return 1
+    if not getattr(args, "seed_file", None):
         print("--source gcs needs --seed-file (the GCS path requires the version "
-              "from metadata). Pass a seed, or use --source arxiv.", file=sys.stderr)
+              "from metadata).", file=sys.stderr)
         return 1
 
     run(
@@ -1454,8 +1509,7 @@ def main(argv: list[str] | None = None) -> int:
         category_prefix=args.category_prefix,
         seed_file=getattr(args, "seed_file", None),
         date_field=getattr(args, "date_field", "submitted"),
-        # backfill skips papers already in the store (unless --reprocess);
-        # update always re-processes, since its window = new/changed papers.
+        # backfill skips papers already in the store (unless --reprocess).
         skip_existing=(args.cmd == "backfill" and not getattr(args, "reprocess", False)),
         source=source,
         concurrency=getattr(args, "concurrency", 1),

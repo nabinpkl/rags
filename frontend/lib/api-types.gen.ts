@@ -21,23 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/papers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Papers */
-        get: operations["list_papers_api_papers_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/papers/{paper_id}": {
         parameters: {
             query?: never;
@@ -55,15 +38,160 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/facets": {
+    "/api/landing": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Facets */
-        get: operations["get_facets_api_facets_get"];
+        /**
+         * Get Landing
+         * @description The whole front page in one call — it is one static composition.
+         *
+         *     `limit` defaults to `frontier_top_cited` because that setting IS the
+         *     manifest select_frontier.py indexed against: a smaller default would
+         *     silently hide foundations whose papers we fetched, chunked and embedded,
+         *     and a larger one would list foundations with no indexed citers behind them.
+         */
+        get: operations["get_landing_api_landing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/foundations/{arxiv_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Foundation */
+        get: operations["get_foundation_api_foundations__arxiv_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Coverage
+         * @description How much of each month we hold — the provenance panel's whole input.
+         */
+        get: operations["get_coverage_api_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/census/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Category Census
+         * @description What arXiv cs posted, by primary category, in the months we hold whole.
+         */
+        get: operations["get_category_census_api_census_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/census/uptake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Uptake
+         * @description Work from one complete month that the next complete month already cites.
+         */
+        get: operations["get_uptake_api_census_uptake_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/papers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Catalog Papers
+         * @description Every paper the catalog knows, filtered. Indexed and not, together.
+         */
+        get: operations["list_catalog_papers_api_catalog_papers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog Facets
+         * @description How many papers each category and each month would give under this filter.
+         */
+        get: operations["get_catalog_facets_api_catalog_facets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/thumb/{arxiv_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Thumbnail
+         * @description One paper's card image, rendering it if this is the first request.
+         */
+        get: operations["get_thumbnail_api_thumb__arxiv_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -76,12 +204,117 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** CatalogBucket */
+        CatalogBucket: {
+            /** Value */
+            value: string;
+            /** Papers */
+            papers: number;
+            /** Name */
+            name?: string | null;
+        };
+        /**
+         * CatalogFacetsResponse
+         * @description Counts for the three dimensions the filter offers as lists.
+         *
+         *     Each dimension is counted with every OTHER filter applied but not its own,
+         *     so the numbers answer "what would I get if I picked this instead", which
+         *     is the question a reader is asking when they look at the list.
+         */
+        CatalogFacetsResponse: {
+            /** Holdings */
+            holdings: components["schemas"]["CatalogBucket"][];
+            /** Categories */
+            categories: components["schemas"]["CatalogBucket"][];
+            /** Months */
+            months: components["schemas"]["CatalogBucket"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * CatalogPaper
+         * @description One paper as the catalog knows it, plus what we hold of it.
+         *
+         *     `indexed` is what decides where a row can send the reader, so it is a
+         *     field rather than something the client infers from a count.
+         */
+        CatalogPaper: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string;
+            /** Authors */
+            authors: string | null;
+            /** Abstract */
+            abstract: string;
+            /** Primary Category */
+            primary_category: string;
+            /** Published */
+            published: string;
+            /** Version */
+            version: string | null;
+            /** Has Text */
+            has_text: boolean;
+            /** Indexed */
+            indexed: boolean;
+            /** Cited By */
+            cited_by: number;
+            /** License */
+            license: string | null;
+        };
+        /** CatalogPapersResponse */
+        CatalogPapersResponse: {
+            /** Papers */
+            papers: components["schemas"]["CatalogPaper"][];
+            /** Total */
+            total: number;
+            /** Next Offset */
+            next_offset: number | null;
+        };
+        /** CategoryCensusResponse */
+        CategoryCensusResponse: {
+            /** Categories */
+            categories: string[];
+            /** Category Names */
+            category_names: {
+                [key: string]: string;
+            };
+            /** Months */
+            months: components["schemas"]["CensusMonth"][];
+            /** Excluded */
+            excluded: components["schemas"]["ExcludedMonth"][];
+        };
+        /** CategoryShare */
+        CategoryShare: {
+            /** Category */
+            category: string;
+            /** Papers */
+            papers: number;
+        };
+        /**
+         * CensusMonth
+         * @description One complete month, by the primary category arXiv filed each paper under.
+         */
+        CensusMonth: {
+            /** Month */
+            month: string;
+            /** Papers */
+            papers: number;
+            /** Catalog Papers */
+            catalog_papers: number;
+            /** Categories */
+            categories: components["schemas"]["CategoryShare"][];
+            /** Other */
+            other: number;
+        };
         /** ChatRequest */
         ChatRequest: {
             /** Question */
             question: string;
             /** Session Id */
             session_id?: string | null;
+            /** Foundation Id */
+            foundation_id?: string | null;
         };
         /** CitedExcerpt */
         CitedExcerpt: {
@@ -96,33 +329,174 @@ export interface components {
             /** Text */
             text: string;
         };
-        /** FacetBucketOut */
-        FacetBucketOut: {
-            /** Value */
-            value: string | number | null;
-            /** Count */
-            count: number;
+        /** CitedYearBucket */
+        CitedYearBucket: {
+            /** Year */
+            year: number | null;
+            /** Citations */
+            citations: number;
         };
-        /** FacetDimension */
-        FacetDimension: {
-            /** Buckets */
-            buckets: components["schemas"]["FacetBucketOut"][];
-            /** Truncated */
-            truncated: boolean;
+        /** CoCitedWork */
+        CoCitedWork: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string | null;
+            /** Version */
+            version: string | null;
+            /** Cite Both */
+            cite_both: number;
         };
-        /** FacetsResponse */
-        FacetsResponse: {
-            /** Total */
-            total: number;
-            category: components["schemas"]["FacetDimension"];
-            year: components["schemas"]["FacetDimension"];
-            license: components["schemas"]["FacetDimension"];
-            venue: components["schemas"]["FacetDimension"];
+        /**
+         * CohortStats
+         * @description What the page opens with: the cohort it counted, and how complete it is.
+         *
+         *     There is no "window" here any more, and that is the point. The window was
+         *     `min/max(citing id-month)`, which 261 old seed papers (1.5% of the citing
+         *     side) stretched from two months to nineteen years, and every sentence
+         *     hanging off it then claimed we hold "every cs paper arXiv posted" across
+         *     that span. We hold 94% of July 2026, 49% of August, 5% of September and
+         *     under 2% of everything else.
+         *
+         *     So the cohort is stated as what it is, with its own denominator beside it:
+         *     `cohort_catalog_papers` is what the catalog lists for those same months
+         *     (`catalog_months`), and it is None when the snapshot is older than the
+         *     cohort and therefore cannot answer.
+         *
+         *     Every field here is one a reader has a use for: how much of arXiv this
+         *     counted, what came out of it, and how much of it the agent can actually
+         *     read. Stage counts that only describe our pipeline do not belong on the
+         *     wire — `papers_parsed` is the sole survivor of that kind, and only
+         *     because the parse rate the methods note states is a percentage of it.
+         */
+        CohortStats: {
+            /** Cohort Start */
+            cohort_start: string | null;
+            /** Cohort End */
+            cohort_end: string | null;
+            /** Cohort Papers */
+            cohort_papers: number;
+            /** Cohort Catalog Papers */
+            cohort_catalog_papers: number | null;
+            /** Papers Parsed */
+            papers_parsed: number;
+            /** Papers With References */
+            papers_with_references: number;
+            /** Citations */
+            citations: number;
+            /** Cited Works */
+            cited_works: number;
+            /** Readable Papers */
+            readable_papers: number;
+        };
+        /** CoverageResponse */
+        CoverageResponse: {
+            /** Months */
+            months: components["schemas"]["MonthBucket"][];
+            /** Cohort */
+            cohort: string[];
+        };
+        /**
+         * ExcludedMonth
+         * @description A cohort month held too thinly to describe arXiv with, and by how much.
+         */
+        ExcludedMonth: {
+            /** Month */
+            month: string;
+            /** Papers Held */
+            papers_held: number;
+            /** Catalog Papers */
+            catalog_papers: number | null;
+        };
+        /**
+         * Foundation
+         * @description A work our recent cohort builds on. Not a `papers` row — see cited_works.
+         */
+        Foundation: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string | null;
+            /** Authors */
+            authors: string | null;
+            /** Primary Category */
+            primary_category: string | null;
+            /** Primary Category Name */
+            primary_category_name?: string | null;
+            /** Year */
+            year: number | null;
+            /** Version */
+            version: string | null;
+            /** Cited By */
+            cited_by: number;
+        };
+        /** FoundationDetailResponse */
+        FoundationDetailResponse: {
+            foundation: components["schemas"]["Foundation"];
+            /** Co Cited */
+            co_cited: components["schemas"]["CoCitedWork"][];
+            /** Indexed Citers */
+            indexed_citers: components["schemas"]["IndexedCiter"][];
+            /** Total Citers */
+            total_citers: number;
+            /** Scope Size */
+            scope_size: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * IndexedCiter
+         * @description A citing paper we hold and have indexed — every one of these opens.
+         */
+        IndexedCiter: {
+            /** Arxiv Id */
+            arxiv_id: string;
+            /** Title */
+            title: string;
+            /** Primary Category */
+            primary_category: string;
+            /** Version */
+            version: string | null;
+        };
+        /** LandingResponse */
+        LandingResponse: {
+            stats: components["schemas"]["CohortStats"];
+            /** Foundations */
+            foundations: components["schemas"]["Foundation"][];
+            /** Cited Years */
+            cited_years: components["schemas"]["CitedYearBucket"][];
+        };
+        /**
+         * MonthBucket
+         * @description One id-month of the corpus, against what arXiv posted that month.
+         *
+         *     `catalog_papers` is the whole reason this shape exists. Bar heights of
+         *     what we hold, with no denominator, said "19 papers in October 2025" on a
+         *     page about what CS is building on, and a reader takes that as a fact about
+         *     October rather than about our download schedule. It is None when the
+         *     catalog snapshot cannot answer for that month (it lists fewer papers than
+         *     we hold, i.e. the snapshot predates the month) — unknown is printable,
+         *     a wrong denominator is not.
+         *
+         *     Keyed by ID-MONTH, not by `published`: the census counts id-months, and
+         *     the two disagree by 383 papers for July 2026 alone (arXiv announces a
+         *     late-June submission with a 2607 id), which would put the numerator and
+         *     denominator of the same bar on different axes.
+         */
+        MonthBucket: {
+            /** Month */
+            month: string;
+            /** Papers Held */
+            papers_held: number;
+            /** Papers Parsed */
+            papers_parsed: number;
+            /** Refs Made */
+            refs_made: number;
+            /** Catalog Papers */
+            catalog_papers: number | null;
         };
         /** PaperDetailResponse */
         PaperDetailResponse: {
@@ -159,41 +533,40 @@ export interface components {
             /** Excerpts Truncated */
             excerpts_truncated: boolean;
         };
-        /** PaperListItem */
-        PaperListItem: {
-            /** Arxiv Id */
-            arxiv_id: string;
-            /** Title */
-            title: string;
-            /** Authors */
-            authors: string;
-            /** Abstract */
-            abstract: string;
-            /** Primary Category */
-            primary_category: string;
-            /** Year */
-            year: number;
-            /** Venue */
-            venue: string | null;
-            /** License */
-            license: string | null;
-            /** Version */
-            version: string | null;
-            /** Score */
-            score: number | null;
-            /** Facets */
-            facets?: {
-                [key: string]: number | null;
-            } | null;
+        /**
+         * UptakeResponse
+         * @description Papers from one month already cited by the next month's papers.
+         *
+         *     Both months must be complete, and consecutive: the measurement is "how
+         *     fast did this land", and neither a missing citing month (too few citers)
+         *     nor a gap between the two (more time to accumulate) measures that.
+         */
+        UptakeResponse: {
+            /** From Month */
+            from_month: string | null;
+            /** To Month */
+            to_month: string | null;
+            /** Works */
+            works: components["schemas"]["UptakeWork"][];
+            /** Works Total */
+            works_total: number;
+            /** Edges Total */
+            edges_total: number;
         };
-        /** PapersResponse */
-        PapersResponse: {
-            /** Items */
-            items: components["schemas"]["PaperListItem"][];
-            /** Next Cursor */
-            next_cursor: string | null;
-            /** Total */
-            total: number | null;
+        /**
+         * UptakeWork
+         * @description A work from the earlier month, and how much of the later month cites it.
+         *
+         *     `work` is the same shape the foundations table ranks, so a row here opens
+         *     the same detail view rather than a second, thinner one. Both numbers are
+         *     kept because they answer different questions: `work.cited_by` is how much
+         *     the corpus cites it at all, `citations_from` is how much of that arrived
+         *     from a single following month.
+         */
+        UptakeWork: {
+            work: components["schemas"]["Foundation"];
+            /** Citations From */
+            citations_from: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -250,43 +623,6 @@ export interface operations {
             };
         };
     };
-    list_papers_api_papers_get: {
-        parameters: {
-            query?: {
-                q?: string;
-                category?: string | null;
-                year_from?: number | null;
-                year_to?: number | null;
-                facets?: string | null;
-                sort?: ("relevance" | "year_desc" | "year_asc" | "title_asc") | null;
-                cursor?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PapersResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_paper_api_papers__paper_id__get: {
         parameters: {
             query?: {
@@ -321,12 +657,10 @@ export interface operations {
             };
         };
     };
-    get_facets_api_facets_get: {
+    get_landing_api_landing_get: {
         parameters: {
             query?: {
-                category?: string | null;
-                year_from?: number | null;
-                year_to?: number | null;
+                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -340,7 +674,215 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FacetsResponse"];
+                    "application/json": components["schemas"]["LandingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_foundation_api_foundations__arxiv_id__get: {
+        parameters: {
+            query?: {
+                co_cited_limit?: number;
+                citers_limit?: number | null;
+            };
+            header?: never;
+            path: {
+                arxiv_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoundationDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_coverage_api_coverage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoverageResponse"];
+                };
+            };
+        };
+    };
+    get_category_census_api_census_categories_get: {
+        parameters: {
+            query?: {
+                top?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryCensusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_uptake_api_census_uptake_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UptakeResponse"];
+                };
+            };
+        };
+    };
+    list_catalog_papers_api_catalog_papers_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                category?: string | null;
+                /** @description id-month, e.g. 2608 */
+                month?: string | null;
+                holding?: "all" | "text" | "indexed";
+                sort?: "relevance" | "newest" | "oldest" | "cited";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogPapersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_catalog_facets_api_catalog_facets_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                category?: string | null;
+                month?: string | null;
+                holding?: "all" | "text" | "indexed";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogFacetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_thumbnail_api_thumb__arxiv_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                arxiv_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
                 };
             };
             /** @description Validation Error */

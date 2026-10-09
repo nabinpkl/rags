@@ -6,7 +6,7 @@
 // ladder's fallback behavior, not pdf.js's own rendering.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { ArxivPdfFrame, arxivPdfUrl } from "@/components/viewer/arxiv-pdf-frame";
+import { ArxivPdfFrame } from "@/components/viewer/arxiv-pdf-frame";
 
 const { getDocumentMock } = vi.hoisted(() => ({ getDocumentMock: vi.fn() }));
 
@@ -37,20 +37,11 @@ function fakeLoadingTask(numPages = 3) {
 beforeEach(() => {
   getDocumentMock.mockReset();
   Element.prototype.scrollIntoView = vi.fn();
+  Element.prototype.scrollTo = vi.fn();
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-describe("arxivPdfUrl — §6b version pinning", () => {
-  it("pins to the exact version when one is known", () => {
-    expect(arxivPdfUrl("2401.00001", "v3")).toBe("https://arxiv.org/pdf/2401.00001v3");
-  });
-
-  it("falls back to the unpinned URL when version is NULL (pre-backfill stragglers, D9)", () => {
-    expect(arxivPdfUrl("2401.00001", null)).toBe("https://arxiv.org/pdf/2401.00001");
-  });
 });
 
 describe("ArxivPdfFrame — rung 2 (PDF.js) is the default and fetches arxiv.org directly", () => {
@@ -76,7 +67,9 @@ describe("ArxivPdfFrame — automatic fallback to rung 3", () => {
     render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={null} />);
 
     const link = await screen.findByRole("link", { name: /open on arXiv/i });
-    expect(link).toHaveAttribute("href", "https://arxiv.org/abs/1409.7842");
+    // Version-pinned, like the PDF URL beside it: the fallback rung must not
+    // quietly hand the reader a different revision than the one we read (D9).
+    expect(link).toHaveAttribute("href", "https://arxiv.org/abs/1409.7842v3");
   });
 });
 
@@ -127,5 +120,21 @@ describe("ArxivPdfFrame — unmount teardown", () => {
     unmount();
     expect(disconnectSpy).toHaveBeenCalled();
     expect(loadingTask.destroy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ArxivPdfFrame — a page jump scrolls this pane and nothing above it", () => {
+  it("scrolls its own scrollport rather than walking the ancestor chain", async () => {
+    // The bug: `scrollIntoView` scrolls EVERY scrollport between the page and
+    // the document, so opening a paper inside the dashboard's detail view
+    // (components/landing/paper-reader-panel.tsx) also scrolled the canvas
+    // and took the paper's heading and citation panels off screen.
+    getDocumentMock.mockReturnValue(fakeLoadingTask());
+    render(<ArxivPdfFrame arxivId="1409.7842" version="v3" page={2} />);
+
+    const pane = await screen.findByLabelText("Rendered PDF, continuous scroll");
+    await waitFor(() => expect(pane.scrollTo).toHaveBeenCalled());
+    expect(vi.mocked(pane.scrollTo).mock.contexts[0]).toBe(pane);
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
   });
 });

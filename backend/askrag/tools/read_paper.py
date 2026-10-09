@@ -77,10 +77,19 @@ def _make_span(row: sqlite3.Row) -> TextSpan:
 def run(
     args: ReadPaperArgs,
     *,
+    scope: tuple[str, ...] | None = None,
     settings: Settings | None = None,
     corpus_db_path: Path | None = None,
 ) -> ReadPaperResult:
+    """`scope` is set by the ROUTE, never by the model (see search_corpus.run).
+
+    Scoping retrieval without scoping direct reads would leave the scope open:
+    the model can name any indexed paper id here, so a scoped turn must refuse
+    the ones outside its claim.
+    """
     settings = settings if settings is not None else get_settings()
+    if scope is not None and args.paper_id not in scope:
+        raise ReadPaperError(f"paper {args.paper_id!r} is outside this conversation's scope")
     conn = db.connect_corpus(corpus_db_path)
     try:
         exists = conn.execute(

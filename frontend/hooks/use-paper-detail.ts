@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchPaperDetail } from "@/lib/api-client";
+import { retryUnlessMissing } from "@/lib/query-retry";
 
 /** TanStack Query over `GET /api/papers/{id}` (#27). `chunkIds` (from a
  * turn's `citations`, agent-session-store.ts) requests the §6c-capped
@@ -16,5 +17,9 @@ export function usePaperDetail(paperId: string | null, chunkIds: readonly string
     queryKey: ["paper-detail", paperId, chunksParam ?? null],
     queryFn: () => fetchPaperDetail(paperId as string, { chunks: chunksParam }),
     enabled: paperId !== null,
+    // A 404 means this paper is not in the corpus, which is a fact, not a
+    // fault — and use-viewer-paper.ts waits on this query settling before it
+    // looks anywhere else.
+    retry: retryUnlessMissing,
   });
 }

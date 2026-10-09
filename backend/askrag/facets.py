@@ -1,19 +1,18 @@
-"""Facet counting over corpus.db `papers` — the shared read helper behind
-`query_metadata`'s `count_papers` group-by and `GET /api/facets`/the papers
-list's `facets=` scoping (D-2, issue #27 DECISIONS.md entry).
+"""Facet counting over corpus.db `papers`, and the one definition of
+"indexed" (D-2, issue #27; D16, issue #73).
 
-One `{Literal -> column}` map, one WHERE-builder, one GROUP BY query template.
-A model-facing histogram (`query_metadata`) and the explorer's facet rail
-differ only in how many distinct groups they're allowed to see (`max_groups`
-is a parameter, never a second copy of the query) — never in query shape or
-which column a group-by name resolves to.
+`count_scalar`/`count_grouped` back `query_metadata`'s `count_papers`: one
+`{Literal -> column}` map, one WHERE-builder, one GROUP BY template, with
+`max_groups` a parameter rather than a second copy of the query. The explorer
+facet rail and `GET /api/facets` that once shared them were removed with
+`/app` (2026-09-30).
 
-`where_clause` always applies `INDEXED_PREDICATE` (D16, issue #73): the app
-serves the INDEXED corpus, not the full `papers` table — a paper with no
-`chunks` rows is one the app can never actually retrieve or search, so no
-consumer of `count_scalar`/`count_grouped` (browse's total, `GET /api/facets`,
-`query_metadata`'s `count_papers`) should count it. This is an always-on
-scope, not a `CountFilters` field: it has no "off" state a caller can request.
+`where_clause` always applies `INDEXED_PREDICATE`: a paper with no `chunks`
+rows is one the agent can never retrieve or search, so no count it reports
+may include it. This is an always-on scope, not a `CountFilters` field: it
+has no "off" state a caller can request. The predicate is also imported
+directly by the catalog's indexed holding, the landing routes and
+`drive_ui`'s target checks.
 """
 
 import sqlite3
@@ -31,9 +30,7 @@ GROUP_BY_COLUMNS = {
 }
 
 # The single definition of "indexed" (D16, issue #73) — a paper the app can
-# actually search/read. Every caller of `where_clause` (browse, GET
-# /api/facets, query_metadata's count_papers) gets this for free; never
-# copy-paste this predicate elsewhere.
+# actually search/read. Import it; never copy-paste this predicate.
 INDEXED_PREDICATE = "EXISTS (SELECT 1 FROM chunks c WHERE c.paper_id = papers.arxiv_id)"
 
 

@@ -170,3 +170,29 @@ def test_bm25_k_caps_results_and_empty_query_returns_nothing(fts_db):
     assert len(fts.search_bm25(conn, "attention", k=1)) == 1
     assert fts.search_bm25(conn, "   ", k=10) == []
     conn.close()
+
+
+def test_a_large_paper_id_scope_still_pushes_into_sql(fts_db):
+    """The scope is an `IN` list, so it is bounded by SQLite's parameter limit.
+
+    That limit is 32,766 on the bundled build — well past the old 999 that
+    would have made a few hundred indexed citers an error. `scope_paper_ids`
+    is deliberately unbounded, so this proves the downstream path holds.
+    """
+    conn = connect(fts_db)
+    try:
+        scope = tuple(f"24{n:02d}.{n:05d}" for n in range(1500)) + ("2401.00001",)
+        assert fts.search_bm25(conn, "attention", 10, paper_ids=scope) == ["2401.00001#0"]
+    finally:
+        conn.close()
+
+
+def test_scope_narrows_and_an_empty_scope_returns_nothing(fts_db):
+    """`()` means nothing is in scope; only `None` means unscoped."""
+    conn = connect(fts_db)
+    try:
+        assert fts.search_bm25(conn, "attention", 10, paper_ids=("2401.00002",)) == ["2401.00002#0"]
+        assert fts.search_bm25(conn, "attention", 10, paper_ids=()) == []
+        assert len(fts.search_bm25(conn, "attention", 10)) == 3
+    finally:
+        conn.close()

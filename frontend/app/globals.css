@@ -16,11 +16,34 @@
   color-scheme: light;
 
   /* Explorer/viewer "paper" palette (docs/mockup.html, issue #28). */
-  --paper: #f2f3ef;
-  --panel: #fbfbf9;
+  /* The canvas sits a clear step below the panels on it. At #f2f3ef against
+     #fbfbf9 a card and the page were the same colour, and a list of cards read
+     as one pale field with lines on it. */
+  --paper: #e6e8e3;
+  --panel: #fdfdfc;
+  /* Hover fill for a row or control on a panel. It was `--paper` until the
+     canvas darkened, and a hover that deep reads as pressed. */
+  --panel-hover: #f2f3ef;
   --ink: #1a2128;
-  --muted: #66727b;
+  /* The middle text tier. Running prose that a reader is meant to READ but
+     that must sit under a heading — an abstract preview, a panel's lead
+     paragraph — belongs here. Before it existed those paragraphs took
+     `--muted` and rendered in the same grey as a timestamp, which is what
+     made them skimmable rather than readable. Three tiers, no more: a fourth
+     grey means a text role went unnamed. */
+  --ink-2: #3f4a53;
+  /* #5d6870, not #66727b: card metadata sits on the canvas, not on a panel
+     (the cards are outlined), and #66727b on --paper measured 4.0:1, under
+     AA for the 11-12px mono it sets. 4.6:1 now, and still a clear step
+     below --ink-2. */
+  --muted: #5d6870;
   --line: #dcdfd9;
+  /* The stroke of an unfilled card. `--line` divides areas inside a panel and
+     is too close to the canvas to be a card's only edge. */
+  /* #a9b1a7, 1.8:1 on the canvas. At #c3c9c1 (1.4:1) the card edges
+     washed out in light mode; the cards now also fill with --panel, so the
+     edge is not the only thing separating a card from the canvas. */
+  --outline: #a9b1a7;
   --teal-soft: #e2efec;
   /* Accent TEXT (chips, links, selected facets) — distinct from
      `--color-teal-deep`, which is an accent SURFACE (the Ask button) and so
@@ -31,57 +54,125 @@
      Such a control can't use the unselected hover (`--paper`): stepping
      toward the resting background reads as a step back toward unselected. */
   --teal-soft-strong: #cfe5e0;
+
+  /* Chart series (landing dashboard). Two INTENSITIES of the corpus accent,
+     not two hues: papers arrived and references extracted are the same kind
+     of fact counted twice, and a second hue would claim a second meaning.
+     Amber and rust are spoken for (busy state, error) and must never be
+     borrowed for a series. */
+  --chart-1: #12a38f;
+  --chart-2: #0e5f56;
+
+  /* Agent panel. Themed since 2026-09-30 (DECISIONS.md, owner directive):
+     in light it is a near-white column, a step off the rail's --panel so it
+     still reads as its own instrument. Accent, amber and rust are text
+     tokens here, darker than the fills of the same name: --color-teal is
+     3.0:1 on this surface. */
+  --machine: #fbfbf9;
+  --machine-2: #eff1ec;
+  --machine-line: #dcdfd9;
+  --machine-text: #1a2128;
+  --machine-muted: #5d6870;
+  --machine-accent: #0e5f56;
+  --machine-amber: #8a5a0f;
+  --machine-rust: #a8412e;
 }
 
 .dark {
   color-scheme: dark;
 
-  /* Kept a step lighter than the machine-room black below, so the agent
-     panel still reads as its own darker column rather than merging with the
-     explorer beside it. */
-  --paper: #171c20;
-  --panel: #1e242a;
+  /* Midnight: near-black with a blue bias, so outlined cards and panels
+     read as clean shapes on it. It now sits darker than the machine-room
+     surface below, so the agent panel separates as a lighter column. */
+  --paper: #080c12;
+  --panel: #111821;
+  --panel-hover: #0d131b;
   --ink: #e8ebe8;
+  --ink-2: #bcc5cb;
   --muted: #98a3aa;
-  --line: #2c343a;
+  --line: #1f2833;
+  --outline: #46576b;
   --teal-soft: #12332e;
   --teal-ink: #57d4bd;
   --teal-soft-strong: #1b463f;
+
+  /* Light text on midnight renders thinner than the same weight on paper,
+     so every weight steps up one in dark. Tailwind's weight utilities read
+     these variables; body text reads `--font-weight-normal` below. The
+     faces are variable, so no extra files load; 900 clamps to a face's
+     heaviest axis value. */
+  --font-weight-normal: 500;
+  --font-weight-medium: 600;
+  --font-weight-semibold: 700;
+  --font-weight-bold: 800;
+  --font-weight-extrabold: 900;
+
+  /* Both series lift off the dark panel; the light values are too dark to
+     read as bars against the dark panel. */
+  --chart-1: #2fbfa8;
+  --chart-2: #17796c;
+
+  /* The agent panel's original machine-room dark. --machine-muted is
+     #8595a0 because #6d7d88 measured 4.3:1 on machine and 4.0:1 on
+     machine-2; rust is lifted because --color-rust reads 3.0:1 here. */
+  --machine: #10161b;
+  --machine-2: #161e25;
+  --machine-line: #26313a;
+  --machine-text: #c8d2d8;
+  --machine-muted: #8595a0;
+  --machine-accent: #12a38f;
+  --machine-amber: #c9821a;
+  --machine-rust: #e0735c;
 }
 
 @theme inline {
-  --font-sans: var(--font-instrument-sans);
-  --font-serif: var(--font-stix-two-text);
-  --font-mono: var(--font-spline-sans-mono);
+  --font-sans: var(--font-sans-face);
+  --font-serif: var(--font-serif-face);
+  --font-mono: var(--font-mono-face);
 
-  /* Agent panel "machine-room" palette (docs/mockup.html) — deliberately NOT
-     themed: the machine room is dark in both themes. It is the app's one
-     fixed surface, the visual claim that this half is instrumentation rather
-     than document. */
-  --color-machine: #10161b;
-  --color-machine-2: #161e25;
-  --color-machine-line: #26313a;
-  --color-machine-text: #c8d2d8;
-  --color-machine-muted: #6d7d88;
+  /* The PDF surround: the dark frame and overlays around a paper's pages,
+     fixed in both themes because the page itself is always white (see
+     .pdf-page). It used to borrow the agent panel's palette, which only
+     worked while that palette was fixed too. */
+  --color-surround: #3c4650;
+  --color-surround-text: #c8d2d8;
+  --color-surround-muted: #8595a0;
   --color-teal: #12a38f;
   --color-teal-deep: #0e5f56;
   /* Hover surface for the Ask button. DARKER than its resting colour, not
      lighter: that button's label is near-white, and the intuitive move —
      hovering toward `--color-teal` — drops it to 2.9:1, under AA. */
   --color-teal-deep-hover: #0b4c45;
+  /* The label on a --color-teal-deep surface, in both themes. */
+  --color-teal-deep-label: #eafaf6;
   --color-amber: #c9821a;
   --color-amber-soft: #f4e8d3;
+  /* Text on --color-amber-soft (the replay banner), in both themes. */
+  --color-amber-ink: #6b4a10;
   --color-rust: #a8412e;
 
   /* Themed (see :root / .dark above). */
   --color-paper: var(--paper);
   --color-panel: var(--panel);
+  --color-panel-hover: var(--panel-hover);
+  --color-outline: var(--outline);
   --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-teal-soft: var(--teal-soft);
   --color-teal-soft-strong: var(--teal-soft-strong);
   --color-teal-ink: var(--teal-ink);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-machine: var(--machine);
+  --color-machine-2: var(--machine-2);
+  --color-machine-line: var(--machine-line);
+  --color-machine-text: var(--machine-text);
+  --color-machine-muted: var(--machine-muted);
+  --color-machine-accent: var(--machine-accent);
+  --color-machine-amber: var(--machine-amber);
+  --color-machine-rust: var(--machine-rust);
 }
 
 /* Interactive affordances, ported from docs/mockup.html (its `button` and
@@ -113,6 +204,9 @@
 
 body {
   font-family: var(--font-sans), system-ui, sans-serif;
+  /* Tailwind only emits a weight variable a utility uses, so light mode
+     may not define this one. */
+  font-weight: var(--font-weight-normal, 400);
   background: var(--paper);
   color: var(--ink);
 }

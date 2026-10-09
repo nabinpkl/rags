@@ -36,25 +36,65 @@ diverse *ARGS:
 backfill *ARGS:
     @just --justfile {{collector}} {{ARGS}} seeded-backfill
 
-# Collector Part 2 — incremental pull via OAI-PMH
-update *ARGS:
-    @just --justfile {{collector}} {{ARGS}} oai-update
-
 # Show collector store stats and the incremental watermark
 status *ARGS:
     @just --justfile {{collector}} {{ARGS}} status
+
+# Catalog ids of an id-month we do not hold (listing only; writes an id file)
+missing-ids *ARGS:
+    @just --justfile {{collector}} {{ARGS}} missing-ids
+
+# Download a named id list from the mirror (the output of `missing-ids`)
+fetch-ids *ARGS:
+    @just --justfile {{collector}} {{ARGS}} fetch-ids
+
+# Has a new GCS mirror batch landed since our last run? (listing only)
+mirror-status *ARGS:
+    @just --justfile {{collector}} {{ARGS}} mirror-status
 
 # Backend gate before any handoff: lint, format, types (ty), fast tests
 backend-check:
     cd backend && uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest -q
 
-# Golden-set drafting (#17 fills this in): resolves in the uv workspace
-# (issue #79) against the shared venv; a stub until draft_golden_set.py lands.
-draft-evals:
-    cd evals && uv run python -c "print('draft-evals: not implemented (#17)')"
+# Evals gate: the golden set's schema, sampler and drafter tests, plus the
+# integrity of the committed set against corpus.db (skipped without it).
+evals-check:
+    cd evals && uv run ruff check . && uv run ruff format --check . && uv run ty check . && uv run pytest -q
 
-# Frontend gate: lint + typecheck + tests + generated-types drift check.
+# Redraft evals/golden.jsonl (D14 amendment 2026-09-30): model-drafted,
+# model-checked, no human pass. Calls OpenRouter (~$0.2 a run); run from the
+# repo root because `evals` is a package there.
+golden *ARGS:
+    uv run --env-file backend/.env python -m evals.draft_golden_set {{ARGS}}
+
+# One model rewrite per golden question (evals/rewrites.jsonl), the input to
+# the eval's rewrite row. Rerun after `just golden`; `just eval` refuses stale.
+rewrites *ARGS:
+    uv run --env-file backend/.env python -m evals.rewrite_queries {{ARGS}}
+
+# Retrieval evals (#18): keyword, semantic, hybrid, hybrid + rerank and
+# rewrite + hybrid over the golden set, at the top 10 and the top 50. With the
+# default hosted reranker a run takes about 3 minutes and $0.06; with
+# rerank_backend=local it takes about 4.5 hours on a 4-core Arm server, so run that
+# detached (CLAUDE.md). Each question is saved to evals/runs/<run id>.jsonl
+# as it is scored, so a killed run resumes and a finished one re-renders in
+# seconds. Prints the table; it never writes the README.
+eval *ARGS:
+    uv run --env-file backend/.env python -m evals.run_retrieval_evals {{ARGS}}
+
+# Publish the finished run (DECISIONS.md 2026-10-06): the README's results
+# block and frontend/lib/benchmarks/retrieval.json for /benchmarks, from the
+# run file alone. No retrieval and no model calls; commit both outputs.
+eval-publish:
+    uv run --env-file backend/.env python -m evals.publish_results
+
+# Frontend gate: lint + typecheck + tests + generated-types drift + the export.
 # CI installs deps first (see ci.yml); locally, run `pnpm install` in frontend/ once.
+#
+# `pnpm build` is in the gate because `tsc --noEmit` is NOT `next build` in
+# export mode (#52): a change can type-check cleanly and still fail to export,
+# and without this the first sign of that is a failed deploy. It runs LAST —
+# it is the slowest step, so the cheap checks get to fail first.
 frontend-check:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -62,15 +102,73 @@ frontend-check:
         echo "frontend not scaffolded yet, skipping"
         exit 0
     fi
-    cd frontend && pnpm lint && pnpm typecheck && pnpm test && pnpm gen:api:check
+    cd frontend && pnpm lint && pnpm typecheck && pnpm test && pnpm gen:api:check && pnpm build
 
 # Full-repo gate — CI runs exactly this, so local green == CI green
-check: backend-check frontend-check
+check: backend-check evals-check frontend-check
+
+# --- ingest -----------------------------------------------------------------
+
+# PDFs -> the flat text tree the citation graph is read from. The FIRST step
+# after a collector run, before `just citations`. Incremental: a paper whose
+# text is current is skipped, so a month top-up costs only the new papers.
+text *ARGS:
+    cd backend && uv run python -m askrag.ingest.extract_text {{ARGS}}
+
+# Order matters — resolve reads extract's output. Both are inputs to
+# build_indexes, so run this BEFORE rebuilding corpus.db. ~3.5 min today.
+# Rebuild the citation graph the landing page ranks
+citations:
+    cd backend && uv run python -m askrag.ingest.extract_citations
+    cd backend && uv run python -m askrag.ingest.resolve_cited_works
+
+# Run AFTER `just citations`, BEFORE `just index`. Fetches from the GCS mirror,
+# so it needs network; the extract step is the long one (~45 min for 285).
+# Derive the index manifest and get its papers to extracted text
+frontier:
+    cd backend && uv run python -m askrag.ingest.select_frontier
+    cd collector && uv run python fetch_ids.py ../corpus/frontier.json
+    cd backend && uv run python -m askrag.ingest.extract_pdfs --frontier
+
+# The embed step is hours on a CPU box and is resumable — rerun it and it picks
+# up where it stopped. ASKRAG_EMBED_LOCAL_DTYPE=float32 is NOT optional here:
+# the default (float16) is right on the ingest Mac but is emulated per-op on a
+# CPU, measured 30x slower (DECISIONS.md 2026-08-28). build_indexes is
+# drop-and-rebuild, so it must run last, after `just citations` and
+# `just frontier`.
+# Chunk, embed, and rebuild corpus.db + chroma
+index:
+    cd backend && uv run python -m askrag.ingest.chunk_papers
+    cd backend && ASKRAG_EMBED_LOCAL_DTYPE=float32 uv run python -m askrag.ingest.embed_chunks
+    cd backend && uv run python -m askrag.ingest.build_indexes
+    cd backend && uv run python -m askrag.ingest.select_frontier --verify
+
+# Warm the card-image cache from the PDFs we already hold (D19). Optional:
+# a missing image renders on the first request for it, so this only saves
+# readers that first wait. Measured 2026-09-16: ~8 papers/s, and a rerun
+# skips everything already cached.
+thumbnails *ARGS:
+    cd backend && uv run python -m askrag.ingest.render_thumbnails {{ARGS}}
+
+# Rebuild corpus.db alone: the page's numbers (papers, citations, the catalog
+# census) without waiting on the embedder, which runs at ~1,000 chunks/hour on
+# this box. The vector store is left exactly as it is, so chunks embedded since
+# the last full `just index` answer to keyword search only until one runs.
+index-metadata:
+    cd backend && uv run python -m askrag.ingest.build_indexes --without-vectors
 
 # Dev server (#30): uvicorn serving the FastAPI chat API with autoreload.
 # Extra args pass through to uvicorn, e.g. `just serve --port 8001`.
 serve *ARGS:
     cd backend && uv run uvicorn askrag.api.app:app --reload --host 127.0.0.1 --port 8000 {{ARGS}}
+
+# Refresh frontend/openapi.json from the app, then regenerate the TS types.
+# `just check` fails on type drift but CANNOT see schema drift — openapi.json
+# is an input to typegen, not an output of the app, so a route change that is
+# never dumped here passes the gate while the frontend types stay wrong.
+gen-openapi:
+    cd backend && uv run python -c "import json, pathlib; from askrag.api.app import app; pathlib.Path('../frontend/openapi.json').write_text(json.dumps(app.openapi(), indent=4) + chr(10))"
+    cd frontend && pnpm gen:api
 
 # Spine checkpoint (#16): hybrid retrieval over the real corpus.
 # Both call forms work: `just ask q="chain of thought"` / `just ask "chain of thought"`
@@ -116,7 +214,29 @@ deploy *ARGS:
         echo "deploy/.env missing — cp deploy/.env.example deploy/.env and fill it in" >&2
         exit 1
     fi
+    set -a; . deploy/.env; set +a
+    # The thumbnail cache is the one corpus path the api WRITES (D19), and the
+    # container runs as uid/gid 10001 while the tree belongs to whoever ran
+    # `just thumbnails`. Checked here because the symptom otherwise is every
+    # uncached card 404ing with nothing in the api log to say why.
+    thumbs="${ASKRAG_CORPUS_HOST_DIR:-corpus}/thumbs"
+    mkdir -p "$thumbs"
+    if [ "$(stat -Lc %g "$thumbs")" != "10001" ] || [ -z "$(find "$thumbs" -maxdepth 0 -perm -g+w)" ]; then
+        echo "$thumbs is not group-writable by the api (gid 10001). Fix with:" >&2
+        echo "    sudo chgrp 10001 $thumbs && sudo chmod 2775 $thumbs" >&2
+        exit 1
+    fi
     docker compose -f deploy/compose.yml up -d --build {{ARGS}}
+    # corpus.db is bind-mounted as a FILE, so the mount pins the inode it
+    # resolved at container start; build_indexes writes a new file and renames
+    # over it. Without this check a rebuilt corpus is invisible to a running
+    # container and the deploy reports healthy while serving last week's counts.
+    host_inode=$(stat -Lc %i "${ASKRAG_CORPUS_HOST_DIR:-corpus}/corpus.db")
+    mounted_inode=$(docker compose -f deploy/compose.yml exec -T api stat -c %i /data/corpus/corpus.db)
+    if [ "$host_inode" != "$mounted_inode" ]; then
+        echo "corpus.db was replaced under the running container — recreating api" >&2
+        docker compose -f deploy/compose.yml up -d --force-recreate api
+    fi
     docker compose -f deploy/compose.yml ps
 
 # Stop the stack (volumes survive: traces.db and the chroma copy)

@@ -20,7 +20,7 @@ class FakeBackend:
 
     def embed(self, texts):
         self.seen.append(texts)
-        return BatchEmbedding(vectors=[[0.1, 0.2] for _ in texts], total_tokens=0)
+        return BatchEmbedding(vectors=[[0.1, 0.2] for _ in texts], total_tokens=0, usd=3e-08)
 
 
 def test_embed_query_returns_single_vector():
@@ -28,6 +28,11 @@ def test_embed_query_returns_single_vector():
     embedder = QueryEmbedder(Settings(), backend=backend)
     assert embedder.embed_query("what is attention") == [0.1, 0.2]
     assert backend.seen == [["what is attention"]]
+
+
+def test_embed_query_priced_carries_the_billed_cost():
+    embedder = QueryEmbedder(Settings(), backend=FakeBackend())
+    assert embedder.embed_query_priced("what is attention") == ([0.1, 0.2], 3e-08)
 
 
 class FailingBackend:

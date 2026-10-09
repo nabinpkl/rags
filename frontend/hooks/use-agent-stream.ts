@@ -21,20 +21,33 @@ interface ChatDenyBody {
 export function useAgentStream() {
   const controllerRef = useRef<AbortController | null>(null);
 
-  const ask = useCallback(async (question: string) => {
+  /** `foundationId` scopes the turn to one landing-page claim. The SERVER
+   * resolves it to that claim's indexed papers (routes_chat._resolve_scope);
+   * we only name the claim, never the paper set — a scope the client can
+   * write is not a scope. */
+  const ask = useCallback(async (question: string, foundationId?: string) => {
     controllerRef.current?.abort(); // at most one live turn per hook instance
     const controller = new AbortController();
     controllerRef.current = controller;
 
+    const scope = foundationId ?? null;
+    const before = useAgentSessionStore.getState();
+    // A new scope starts a new transcript: the server will not carry this
+    // session's history across it, so the panel must not show it either.
+    if (before.turns.length > 0 && before.scope !== scope) before.reset();
     const { sessionId, startTurn, setSessionId, setCapped, setReplay, applyEvent } =
       useAgentSessionStore.getState();
-    startTurn(question);
+    startTurn(question, scope);
 
     try {
       await fetchEventSource(`${API_BASE_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, session_id: sessionId ?? undefined }),
+        body: JSON.stringify({
+          question,
+          session_id: sessionId ?? undefined,
+          foundation_id: foundationId,
+        }),
         signal: controller.signal,
         openWhenHidden: true, // a turn keeps running server-side; don't drop the connection on tab blur
 

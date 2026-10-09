@@ -38,6 +38,7 @@ def search_bm25(
     category: str | None = None,
     year_min: int | None = None,
     year_max: int | None = None,
+    paper_ids: tuple[str, ...] | None = None,
 ) -> list[str]:
     """Rank-ordered chunk_ids from the FTS5 index; filters push into SQL (D8).
 
@@ -63,6 +64,14 @@ def search_bm25(
     if year_max is not None:
         sql += " AND p.year <= ?"
         params.append(year_max)
+    if paper_ids is not None:
+        # An empty scope means "no paper is in scope", NOT "no filter" — the
+        # difference between a landing-page claim that owns no indexed papers
+        # returning nothing, and it returning the whole corpus.
+        if not paper_ids:
+            return []
+        sql += f" AND c.paper_id IN ({','.join('?' * len(paper_ids))})"
+        params.extend(paper_ids)
     sql += " ORDER BY rank LIMIT ?"
     params.append(k)
     return [row[0] for row in conn.execute(sql, params).fetchall()]

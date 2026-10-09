@@ -12,9 +12,9 @@ the indexed-corpus scope those functions apply (D16, issue #73): the
 fixture's 2401.00003 has no chunks and is excluded from every `count_papers`
 result below. `corpus_stats` applies the same `INDEXED_PREDICATE` directly
 to its own query, so its totals are excluded too — uniform scoping across
-the whole `query_metadata` surface. `paper_facets` is unaffected: it
-reports a specific, caller-known paper id's real `n_chunks` (0 for an
-unindexed one), which needs no scope to be honest.
+the whole `query_metadata` surface. `paper_facets` refuses a chunk-less id
+outright: answering it would hand the agent a title, category and venue for a
+paper it cannot read, which is the agent knowing the whole catalog by id.
 """
 
 import pytest
@@ -168,10 +168,12 @@ def test_paper_facets_returns_all_fields_incl_chunk_and_page_counts(corpus_db):
     assert result.n_pages == 3  # max(page_end)
 
 
-def test_paper_facets_zero_chunks_when_paper_has_none(corpus_db):
-    result = query({"op": "paper_facets", "paper_id": "2401.00003"}, corpus_db)
-    assert result.n_chunks == 0
-    assert result.n_pages == 0
+def test_paper_facets_refuses_a_catalog_paper_that_is_not_indexed(corpus_db):
+    # 2401.00003 has a `papers` row and no chunks. The agent's corpus is the
+    # indexed set (D16), so metadata for it would be knowledge of a paper the
+    # agent cannot search or read.
+    with pytest.raises(QueryMetadataError, match="2401.00003"):
+        query({"op": "paper_facets", "paper_id": "2401.00003"}, corpus_db)
 
 
 def test_paper_facets_unknown_id_raises(corpus_db):

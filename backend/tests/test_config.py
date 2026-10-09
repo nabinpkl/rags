@@ -29,10 +29,12 @@ def test_spec_constants_load_without_env(monkeypatch):
         monkeypatch.delenv(var)
     settings = make_settings()
     assert settings.agent_model == "claude-haiku-4-5-20251001"  # D3
-    assert settings.embedding_backend == "local"  # D5 (second amendment)
-    assert settings.embedding_model == "nomic-ai/nomic-embed-text-v1.5"  # D5
+    assert settings.embedding_backend == "openrouter"  # D5 (third amendment)
+    assert settings.embedding_model == "perplexity/pplx-embed-v1-0.6b"  # D5
     assert settings.embedding_dims == 512  # D5
-    assert settings.embedding_model_revision != ""  # pinned, never floating
+    # The local path's weights guarantee survives the swap: whoever selects
+    # `local` still gets a pinned revision, never a floating one.
+    assert settings.embedding_model_revision != ""
     assert settings.chunk_size_tokens == 1000  # D7
     assert settings.chunk_overlap_ratio == 0.15  # D7
     assert settings.max_tool_steps_per_message == 8  # D1
@@ -43,7 +45,8 @@ def test_spec_constants_load_without_env(monkeypatch):
     assert settings.sandbox_timeout_seconds == 30  # D10
     assert settings.quote_max_words == 50  # §6c
     assert settings.max_quotes_per_paper == 3  # §6c
-    assert settings.draft_model == "claude-sonnet-5"  # D14 amendment, issue #79
+    # D14 amendment 2026-09-30: drafter and checker are different families.
+    assert settings.golden_draft_model.split("/")[0] != settings.golden_check_model.split("/")[0]
     assert settings.judge_model == "claude-opus-4-8"  # D14 amendment, issue #79
     assert settings.read_paper_max_tokens == 16_000  # §6c row 1, DECISIONS.md 2026-07-06
 
