@@ -6,6 +6,10 @@ export const ARXIV_ATTRIBUTION =
 
 export const ARXIV_URL = "https://arxiv.org";
 
-export const GITHUB_CONTACT_URL = "https://github.com/nabinpkl/rags/issues";
+// The source offer AGPL-3.0 asks of a networked app: the app renders card
+// images with PyMuPDF, which is AGPL (NOTICE).
+export const SOURCE_URL = "https://github.com/nabinpkl/rags";
+
+export const GITHUB_CONTACT_URL = `${SOURCE_URL}/issues`;
 
 export const TAKEDOWN_EMAIL = "contact@nabin.org";

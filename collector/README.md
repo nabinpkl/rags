@@ -38,6 +38,9 @@ just seeded-backfill   # Part 1 alt: oldest-first from a start date
 just status            # store stats + watermark
 ```
 
+Downloads identify you in their User-Agent, as arXiv asks of automated users:
+set `COLLECTOR_CONTACT_EMAIL` to your email first.
+
 `backfill` aliases `seeded-backfill`.
 Override any default inline, e.g. `just max_gb=8 category=cs.LG seeded-backfill`.
 The raw CLI is documented below.

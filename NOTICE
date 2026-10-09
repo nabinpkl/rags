@@ -1,0 +1,12 @@
+askRAG
+Copyright (c) 2026 nabinpkl. Licensed under the MIT License (LICENSE).
+
+This project depends on PyMuPDF and pymupdf4llm (Artifex Software), which are
+licensed under the GNU Affero General Public License v3.0. They extract paper
+text during ingest and render card images in the running API (/thumbs).
+Running the app over a network therefore makes the combined program subject
+to AGPL-3.0 section 13: users must be offered its source. The site footer's
+"Source" link points to this repository, which is that offer. If you run a
+modified copy, link your own source the same way, or replace PyMuPDF.
+
+PyMuPDF: https://github.com/pymupdf/PyMuPDF
