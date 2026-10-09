@@ -6,7 +6,6 @@ import json
 
 import httpx
 import pytest
-from pydantic import SecretStr
 
 from askrag.config import Settings
 from askrag.retrieval.rerank import OpenRouterScorer, Reranker, RerankError
@@ -55,7 +54,9 @@ def test_a_short_score_list_raises():
 
 
 def openrouter(handler, slept: list[float] | None = None) -> OpenRouterScorer:
-    settings = Settings(openrouter_api_key=SecretStr("test-key"), rerank_max_attempts=3)
+    # By alias: the field reads only OPENROUTER_API_KEY, so the field name as a
+    # keyword is ignored and the test would borrow the developer's real key.
+    settings = Settings.model_validate({"OPENROUTER_API_KEY": "test-key", "rerank_max_attempts": 3})
     return OpenRouterScorer(
         settings,
         transport=httpx.MockTransport(handler),
