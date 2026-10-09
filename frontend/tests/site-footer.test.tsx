@@ -3,7 +3,13 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { SiteFooter } from "@/components/site-footer";
-import { ARXIV_ATTRIBUTION, ARXIV_URL, GITHUB_CONTACT_URL, TAKEDOWN_EMAIL } from "@/lib/attribution";
+import {
+  ARXIV_ATTRIBUTION,
+  ARXIV_URL,
+  GITHUB_CONTACT_URL,
+  SOURCE_URL,
+  TAKEDOWN_EMAIL,
+} from "@/lib/attribution";
 
 describe("SiteFooter", () => {
   it("renders the arXiv attribution verbatim", () => {
@@ -22,6 +28,11 @@ describe("SiteFooter", () => {
     const link = screen.getByRole("link", { name: /report an issue/i });
     expect(link).toHaveAttribute("href", GITHUB_CONTACT_URL);
     expect(link.getAttribute("href")).not.toBe("");
+  });
+
+  it("links the source, which is the offer PyMuPDF's AGPL asks of a networked app", () => {
+    render(<SiteFooter />);
+    expect(screen.getByRole("link", { name: "Source" })).toHaveAttribute("href", SOURCE_URL);
   });
 
   it("links back to arXiv", () => {

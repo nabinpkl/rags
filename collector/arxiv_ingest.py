@@ -34,6 +34,7 @@ import csv
 import io
 import json
 import math
+import os
 import pickle
 import random
 import re
@@ -58,8 +59,17 @@ GCS_PDF_BASE = "https://storage.googleapis.com/arxiv-dataset/arxiv/arxiv/pdf"
 GCS_LIST_API = "https://storage.googleapis.com/storage/v1/b/arxiv-dataset/o"
 GCS_PDF_PREFIX = "arxiv/arxiv/pdf/"
 
-# arXiv asks bulk/automated users to identify themselves and go easy.
-USER_AGENT = "rag-demo-ingester/1.0 (mailto:contact@nabin.org)"
+# arXiv asks bulk/automated users to identify themselves and go easy. The
+# contact is whoever runs the collector, so it comes from their environment.
+CONTACT_ENV = "COLLECTOR_CONTACT_EMAIL"
+
+
+def user_agent() -> str:
+    contact = os.environ.get(CONTACT_ENV)
+    if not contact:
+        raise SystemExit(f"set {CONTACT_ENV} to your email; it goes in the User-Agent")
+    return f"rag-demo-ingester/1.0 (mailto:{contact})"
+
 JITTER = 2.0        # extra random 0..JITTER seconds added on top (delay is never below the minimum)
 BACKOFF_BASE = 3.0  # exponential retry backoff base: 3, 6, 12, 24, 48 ...
 BACKOFF_MAX = 60.0  # cap on a single backoff wait
@@ -81,7 +91,7 @@ def thread_session() -> requests.Session:
     s = getattr(_tls, "session", None)
     if s is None:
         s = requests.Session()
-        s.headers["User-Agent"] = USER_AGENT
+        s.headers["User-Agent"] = user_agent()
         _tls.session = s
     return s
 
@@ -435,7 +445,7 @@ def run(*, oai_set: str, frm: str, until: str, max_gb: float | None, limit: int 
     PDF_DIR.mkdir(parents=True, exist_ok=True)
     conn = connect()
     session = requests.Session()
-    session.headers["User-Agent"] = USER_AGENT
+    session.headers["User-Agent"] = user_agent()
 
     budget = int(max_gb * 1024**3) if max_gb else None
     stored_bytes = 0
@@ -697,7 +707,7 @@ def run_latest(*, seed_file: str, category_prefix: str | None,
     PDF_DIR.mkdir(parents=True, exist_ok=True)
     conn = connect()
     session = requests.Session()
-    session.headers["User-Agent"] = USER_AGENT
+    session.headers["User-Agent"] = user_agent()
     budget = int(max_gb * 1024**3)
 
     # 1) which ids match the category (local seed scan, downloads nothing)
@@ -820,7 +830,7 @@ def run_sample(*, seed_file: str, category_prefix: str | None, per_month: int,
     PDF_DIR.mkdir(parents=True, exist_ok=True)
     conn = connect()
     session = requests.Session()
-    session.headers["User-Agent"] = USER_AGENT
+    session.headers["User-Agent"] = user_agent()
     budget = int(max_gb * 1024**3) if max_gb else None
 
     print(f"scanning seed for {category_prefix or 'all'} ids...", file=sys.stderr)
@@ -1209,7 +1219,7 @@ def run_diverse(*, seed_file: str, category_prefix: str | None, per_month: int,
     PDF_DIR.mkdir(parents=True, exist_ok=True)
     conn = connect()
     session = requests.Session()
-    session.headers["User-Agent"] = USER_AGENT
+    session.headers["User-Agent"] = user_agent()
 
     facets = _diverse_tables(seed_file, category_prefix, citations_file, core_file)
     budget = int(max_gb * 1024**3) if max_gb else None

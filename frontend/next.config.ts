@@ -12,8 +12,9 @@ const nextConfig: NextConfig = {
   // holds the corpus and is reached over the tailnet, so without this the dev
   // server returns HTML that never hydrates — the app renders and then
   // ignores every click. Dev-only: `next build` (the static export we deploy)
-  // does not read it.
-  allowedDevOrigins: ["oracle.pike-pride.ts.net"],
+  // does not read it. The host is the developer's own, so it comes from the
+  // environment: NEXT_DEV_ORIGINS, comma-separated.
+  allowedDevOrigins: (process.env.NEXT_DEV_ORIGINS ?? "").split(",").filter(Boolean),
 };
 
 export default nextConfig;
