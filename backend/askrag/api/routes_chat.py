@@ -76,6 +76,14 @@ def get_session_store(request: Request) -> SessionStore:
     return request.app.state.session_store
 
 
+def require_agent(settings: Settings = Depends(get_settings)) -> None:
+    """A 404 while the agent is switched off (`agent_enabled`). A route-level
+    dependency, so it runs before the model client is built: a deploy with
+    the agent off may carry no provider key at all."""
+    if not settings.agent_enabled:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
 def get_turn_slots(request: Request) -> TurnSlots:
     """Process-wide, on `app.state` beside the session store (D13)."""
     return request.app.state.turn_slots
@@ -330,7 +338,7 @@ def _resolve_scope(foundation_id: str | None, settings: Settings) -> tuple[str, 
     return scope
 
 
-@router.post("/api/chat", response_model=None)
+@router.post("/api/chat", response_model=None, dependencies=[Depends(require_agent)])
 async def post_chat(
     body: ChatRequest,
     request: Request,

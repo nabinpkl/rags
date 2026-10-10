@@ -358,6 +358,12 @@ class Settings(BaseSettings):
     # an hour while every other visitor is refused.
     agent_request_timeout_seconds: float = 90.0
 
+    # POST /api/chat answers at all. Off unless deploy turns it on: a public
+    # build without the agent must refuse the turn here, whatever the page
+    # shows. deploy/compose.yml feeds the same ASKRAG_AGENT_ENABLED to the
+    # web build, which hides the panel (frontend/lib/agent-flag.ts).
+    agent_enabled: bool = False
+
     # --- budget caps (D11; every layer server-enforced) --------------------
     # A typical 5-step turn is ~50k in + ~2k out (D3 arithmetic); the
     # per-message budget bounds the pathological turn, not the typical one.
@@ -429,6 +435,11 @@ class Settings(BaseSettings):
     # by default (same-origin prod behind Caddy, D13); #26 sets this via env
     # for local `pnpm dev` against `just serve`.
     cors_allowed_origins: list[str] = Field(default_factory=list)
+    # On every 200 GET under /api (askrag/api/cache_headers.py). The answers
+    # change only on a reindex + redeploy, so browsers keep them five
+    # minutes and a shared edge cache an hour; purge the edge after a
+    # redeploy that changed the corpus, or wait the hour.
+    api_cache_control: str = "public, max-age=300, s-maxage=3600"
 
     # --- derived paths (spec §4c corpus/ tree; one root, one rule) ---------
     @property

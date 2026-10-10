@@ -37,7 +37,8 @@ export function FoundationDetail({
 }: {
   foundation: Foundation;
   onBack: () => void;
-  onAsk: (foundation: Foundation) => void;
+  /** Absent when this build has no agent (lib/agent-flag.ts): no ask row. */
+  onAsk?: (foundation: Foundation) => void;
 }) {
   const { data, isPending, isError } = useQuery({
     queryKey: ["foundation", foundation.arxiv_id],
@@ -94,6 +95,7 @@ export function FoundationDetail({
         this window cite it.
       </p>
 
+      {onAsk && (
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -112,6 +114,7 @@ export function FoundationDetail({
             : "no indexed papers for this claim yet"}
         </span>
       </div>
+      )}
 
       {isError && (
         <p className="text-muted mb-4 text-sm">Could not load the papers behind this number.</p>

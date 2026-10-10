@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from askrag import telemetry
+from askrag.api.cache_headers import ApiCacheHeaders
 from askrag.api.routes_catalog import router as catalog_router
 from askrag.api.routes_census import router as census_router
 from askrag.api.routes_chat import router as chat_router
@@ -49,6 +50,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+app.add_middleware(ApiCacheHeaders, cache_control=get_settings().api_cache_control)
 
 app.include_router(chat_router)
 app.include_router(paper_detail_router)

@@ -14,6 +14,41 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-10-10 — the public site can run without the agent; API reads are cacheable
+
+**Context:** the site is going public through a Cloudflare tunnel before the
+agent is ready to face anonymous traffic. The rest of the site (catalog,
+citations, trends, benchmarks, the reader) stands on its own. A review also
+found that every `/api` GET reran ~1 s queries per view with nothing a shared
+cache could keep, and that the catalog 500'd past offset ~50,000 because the
+page query sorted whole rows, abstracts included, into SQLite temp files
+that outgrew the API container's 256 MB `/tmp`.
+
+**Decision:** `agent_enabled` (default false) gates `POST /api/chat` as a
+route-level dependency, a 404 raised before the model client is built, so an
+agent-off deploy needs no provider key. compose passes the same
+`ASKRAG_AGENT_ENABLED` to the web build as `NEXT_PUBLIC_AGENT_ENABLED`,
+which drops the agent button and panel on `/demo` and the ask row on
+`/citations`. A plain-ASGI middleware puts `api_cache_control` on every 200
+GET under `/api` that sets none of its own. The catalog page query sorts
+rowids first and fetches the wide columns for that page only.
+
+**Alternatives rejected:** a runtime flag the page fetches from the API
+(a request and a flash of the panel on every load, for a switch that only
+changes on deploy); hiding the UI alone (the endpoint would still spend);
+`PRAGMA temp_store=memory` for the catalog (moves the same unbounded sort
+into the API's RAM).
+
+**Consequence:** changing the flag means rebuilding web, which `just deploy`
+already does. After a redeploy that changed the corpus, the edge serves the
+old reads for up to an hour unless purged.
+
+**Revisit when:** the agent goes public (flip the flag; the D11 caps are
+what then stand between it and the bill), or a GET under `/api` starts
+returning per-visitor data, which this header would then share.
+
+**Spec updated:** yes, D13 amendment (2026-10-10).
+
 ## 2026-10-10 — D11 caps hold under concurrency and behind the proxy
 
 **Context:** a review of the live chat path found the D11 caps did not hold

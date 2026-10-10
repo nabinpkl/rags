@@ -12,6 +12,7 @@ import { Hero } from "@/components/landing/hero";
 import { MethodsNote } from "@/components/landing/methods-note";
 import { RecentUptake } from "@/components/landing/recent-uptake";
 import { DashboardShell } from "@/components/shell/dashboard-shell";
+import { agentEnabled } from "@/lib/agent-flag";
 import { type Foundation, fetchLanding, fetchUptake } from "@/lib/api-client";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 
@@ -102,7 +103,11 @@ export default function CitationsPage() {
 
       {data && selected && (
         <>
-          <FoundationDetail foundation={selected} onBack={backToCitations} onAsk={ask} />
+          <FoundationDetail
+            foundation={selected}
+            onBack={backToCitations}
+            onAsk={agentEnabled() ? ask : undefined}
+          />
           {asking && (
             <DashboardPanel title="Ask about these papers" bodyClassName="p-0">
               <div className="h-[520px] overflow-hidden rounded-b-md">

@@ -86,8 +86,13 @@ def text_response(text):
     )
 
 
-def make_settings(tmp_path, **overrides):
-    return Settings(traces_db_path=tmp_path / "traces.db", _env_file=None, **overrides)  # ty: ignore[unknown-argument]
+def make_settings(tmp_path, *, agent_enabled=True, **overrides):
+    return Settings(
+        traces_db_path=tmp_path / "traces.db",
+        agent_enabled=agent_enabled,
+        _env_file=None,  # ty: ignore[unknown-argument]
+        **overrides,
+    )
 
 
 def make_app(*, settings, client) -> FastAPI:
@@ -104,6 +109,25 @@ def _sse_data_lines(resp) -> list[dict]:
     return [
         json.loads(line[len("data: ") :]) for line in resp.iter_lines() if line.startswith("data: ")
     ]
+
+
+# --- agent switched off -----------------------------------------------------
+
+
+def test_switched_off_agent_is_a_404_before_any_client_is_built(tmp_path):
+    settings = make_settings(tmp_path, agent_enabled=False)
+    app = make_app(settings=settings, client=ScriptedModelClient([]))
+
+    def no_client():
+        raise AssertionError("the model client was built for a refused turn")
+
+    app.dependency_overrides[routes_chat.get_model_client] = no_client
+
+    with TestClient(app) as tc:
+        resp = tc.post("/api/chat", json={"question": "how many papers?"})
+
+    assert resp.status_code == 404
+    assert traces.spend_today(settings=settings) == 0
 
 
 # --- ALLOW: streams events in order, closes with cost + done ---------------

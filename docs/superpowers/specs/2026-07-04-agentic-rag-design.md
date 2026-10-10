@@ -695,6 +695,15 @@ load-bearing:
 deployment target appears (then the two modes want separate compose
 overlays, not one file with an env switch).
 
+**Amendment 2026-10-10 (owner directive): the site can go public without
+the agent.** One deploy setting, `ASKRAG_AGENT_ENABLED` (off unless `true`),
+refuses `POST /api/chat` with a 404 before a model client is built, and the
+same value is baked into the web build to hide the agent's controls. The
+server's refusal is the guarantee, the hidden UI is presentation. Every 200
+GET under `/api` carries `Cache-Control` (`api_cache_control`), so an edge
+cache in front of the public ingress serves the snapshot-derived reads
+instead of the 4-core box.
+
 ---
 
 ### D14. Eval harness ships in v1 and gates retrieval decisions

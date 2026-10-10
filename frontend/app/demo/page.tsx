@@ -12,6 +12,7 @@ import { PaperSplitView } from "@/components/viewer/paper-split-view";
 import { useAgentPanel } from "@/hooks/use-agent-panel";
 import { useDriveUi } from "@/hooks/use-drive-ui";
 import { useViewerUrlSync } from "@/hooks/use-viewer-url-sync";
+import { agentEnabled } from "@/lib/agent-flag";
 import { fetchCatalogFacets } from "@/lib/api-client";
 import { useAgentSessionStore } from "@/stores/agent-session-store";
 import { useUiShellStore } from "@/stores/ui-shell-store";
@@ -87,9 +88,10 @@ function Demo() {
       pinnedHolding="indexed"
       heading={{ title: "RAG Demo", subtitle: "Subset of CS papers that are indexed for the demo." }}
       readerHref={readerHref}
-      barEnd={<AgentButton />}
+      barEnd={agentEnabled() ? <AgentButton /> : undefined}
       reader={paper ? <PaperSplitView /> : undefined}
       aside={
+        agentEnabled() && (
         // On demand at every width: the sheet follows the overlay below
         // `lg:`, the column follows its own flag above it, and the one
         // ChatPanel stays mounted through both (it owns the SSE stream).
@@ -105,6 +107,7 @@ function Demo() {
         >
           <ChatPanel paperCount={paperCount} onClose={agentPanel.close} />
         </DrawerPanel>
+        )
       }
     />
   );
