@@ -142,9 +142,10 @@ tracked as GitHub issues.
   census at `/trends`, the RAG demo at `/demo`
   (indexed papers, reader, agent), and the retrieval eval at `/benchmarks`
   (static, from `just eval-publish`).
-- Deploy (#81): `just deploy` (compose up; ingress on loopback), `just
-  deploy-tailnet` (publish via the host's tailscaled), plus `deploy-logs`,
-  `deploy-down`, `deploy-reseed`. Runbook: `deploy/README.md`.
+- Deploy (#81): `just deploy` (compose up on loopback, plus the Cloudflare
+  tunnel for rag.nabin.org when `deploy/.env` has its token), `just
+  deploy-tailnet` (tailscaled), plus `deploy-logs`, `deploy-down`,
+  `deploy-reseed`, `deploy-public-off`. Runbook: `deploy/README.md`.
   <!-- Update this section as recipes land; wrong commands are worse than none. -->
 
 ## Evolving this file (coordinator mandate)

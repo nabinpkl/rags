@@ -10,7 +10,7 @@ that differs between deployments:
 | Mode | Ingress | Status |
 |---|---|---|
 | Tailnet | host `tailscaled` fronts `127.0.0.1:8420` via `tailscale serve` | shipped (#81) |
-| Public | Caddy site block + auto-TLS + Cloudflare | #37 |
+| Public | `tunnel` container dials out to Cloudflare, which serves `rag.nabin.org` | see Public site below |
 
 ## First deploy
 
@@ -19,6 +19,9 @@ cp deploy/.env.example deploy/.env   # then fill it in — the salt is required
 just deploy                          # build images, seed chroma, start
 just deploy-tailnet                  # publish onto the tailnet
 ```
+
+For the public site, also put the tunnel token in `deploy/.env`
+(`CLOUDFLARE_TUNNEL_TOKEN`) before `just deploy`; see "Public site" below.
 
 `deploy/.env` must carry a real `ASKRAG_TRACE_IP_HASH_SALT` (`openssl rand -hex
 32`) — compose refuses to start without one, because an unsalted IP hash is a
@@ -50,8 +53,61 @@ or run the `tailscale serve` line it prints under `sudo`.
 just deploy-logs        # follow both containers
 just deploy-down        # stop; volumes (traces, chroma) survive
 just deploy-tailnet-off # withdraw the tailnet listener, keep serving on loopback
+just deploy-public-off  # stop the tunnel; blank the token too or the next deploy restarts it
 just deploy-reseed      # rebuild the chroma volume after a re-ingest (D12 refresh)
 ```
+
+## Public site (Cloudflare tunnel)
+
+`rag.nabin.org` reaches the stack through a remotely-managed Cloudflare
+tunnel, the same shape as the other services on this host: the `tunnel`
+container dials out to Cloudflare, so the box opens no inbound port and holds
+no certificate, and Cloudflare terminates TLS. Its one route,
+`rag.nabin.org -> http://web:8080`, lives in the Cloudflare dashboard;
+the token in `deploy/.env` is all the box knows. With a token set, `just
+deploy` starts the tunnel along with everything else (compose profile
+`public`); without one the stack is tailnet-only.
+
+The visitor's address survives the hop: Cloudflare appends the address it
+saw to `X-Forwarded-For`, Caddy trusts the compose subnet the tunnel sits on,
+and the API takes the rightmost address it does not trust
+(`askrag/api/client_ip.py`), so a pre-seeded header cannot pick someone
+else's budget.
+
+Zone settings the site depends on, scoped to the `rag.nabin.org` hostname
+(Configuration Rules, not zone-wide toggles, so the zone's other hosts keep
+theirs):
+
+| Setting | Value | Why |
+|---|---|---|
+| Rocket Loader, Email Obfuscation, Web Analytics auto-inject | off | each injects a script the CSP blocks |
+| Cache Rule: GET `/api/*` | eligible for cache, respect origin TTL | Cloudflare skips extensionless JSON by default; the API's `Cache-Control` does nothing without this |
+| Rate limit (free plan's one rule) | `/thumbs/*` while the agent is off, `/api/chat` once it is on | an uncached thumbnail renders a PDF on the box; a chat turn spends money |
+| Always Use HTTPS | on, as a redirect rule for this host | the zone-wide toggle is off for the other hosts |
+| HSTS | on after a clean week | hard to undo |
+
+Cloudflare caches `/api` reads for up to an hour (`api_cache_control`), so
+after a corpus redeploy purge the hostname's cache or the site shows the old
+snapshot until it expires.
+
+Resources (account and zone `nabin.org`; no secrets here):
+
+Account `8f6edb2fa60a7248112c10aeb21c7aab`, zone `7b8ff210c8551e5a24a07002eed24e69`
+(Free plan). Created 2026-10-10.
+
+| Resource | Id |
+|---|---|
+| Tunnel `askrag-oracle` (remotely managed; route `rag.nabin.org -> http://web:8080`, else 404) | `c1c42728-1243-40ff-a571-8c089e47625f` |
+| DNS `rag.nabin.org` (CNAME to the tunnel, proxied) | `60775dbd6d9ed2b33549a46c0266d3fb` |
+| Configuration Rule "askrag: no injected scripts" (Rocket Loader, Email Obfuscation off; RUM disabled) | `49b2553ec041488184559ef0f12c67a0` |
+| Redirect Rule "askrag: always https" (301, query kept) | `5d531bc4c73647f2945c7a2a2d479afa` |
+| Cache Rule "askrag: cache API GETs" (respect origin edge and browser TTL) | `3c4a7db534284de99a468e5d50cedd09` |
+| Rate limit "askrag: thumbnail renders per IP" (100 per 10 s, block 10 s) | `bf1bc7b6880547dab63f48c8da13a028` |
+
+Every rule matches `http.host eq "rag.nabin.org"` only. The zone had no
+rules in these phases before; another host's rule goes in the same
+ruleset, so edit them as rulesets, never by PUTting a phase entrypoint.
+The token is `cloudflared tunnel token askrag-oracle` on this host.
 
 ## Disk
 
