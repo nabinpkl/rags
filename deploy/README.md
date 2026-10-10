@@ -83,7 +83,7 @@ theirs):
 | Rocket Loader, Email Obfuscation, Web Analytics auto-inject | off | each injects a script the CSP blocks |
 | Cache Rule: GET `/api/*` | eligible for cache, respect origin TTL | Cloudflare skips extensionless JSON by default; the API's `Cache-Control` does nothing without this |
 | Rate limit (free plan's one rule) | `/thumbs/*` while the agent is off, `/api/chat` once it is on | an uncached thumbnail renders a PDF on the box; a chat turn spends money |
-| Always Use HTTPS | on | |
+| Always Use HTTPS | on, as a redirect rule for this host | the zone-wide toggle is off for the other hosts |
 | HSTS | on after a clean week | hard to undo |
 
 Cloudflare caches `/api` reads for up to an hour (`api_cache_control`), so
@@ -92,10 +92,22 @@ snapshot until it expires.
 
 Resources (account and zone `nabin.org`; no secrets here):
 
+Account `8f6edb2fa60a7248112c10aeb21c7aab`, zone `7b8ff210c8551e5a24a07002eed24e69`
+(Free plan). Created 2026-10-10.
+
 | Resource | Id |
 |---|---|
-| Tunnel `askrag` | _added when created_ |
-| DNS `rag.nabin.org` (CNAME to the tunnel, proxied) | _added when created_ |
+| Tunnel `askrag-oracle` (remotely managed; route `rag.nabin.org -> http://web:8080`, else 404) | `c1c42728-1243-40ff-a571-8c089e47625f` |
+| DNS `rag.nabin.org` (CNAME to the tunnel, proxied) | `60775dbd6d9ed2b33549a46c0266d3fb` |
+| Configuration Rule "askrag: no injected scripts" (Rocket Loader, Email Obfuscation off; RUM disabled) | `49b2553ec041488184559ef0f12c67a0` |
+| Redirect Rule "askrag: always https" (301, query kept) | `5d531bc4c73647f2945c7a2a2d479afa` |
+| Cache Rule "askrag: cache API GETs" (respect origin edge and browser TTL) | `3c4a7db534284de99a468e5d50cedd09` |
+| Rate limit "askrag: thumbnail renders per IP" (100 per 10 s, block 10 s) | `bf1bc7b6880547dab63f48c8da13a028` |
+
+Every rule matches `http.host eq "rag.nabin.org"` only. The zone had no
+rules in these phases before; another host's rule goes in the same
+ruleset, so edit them as rulesets, never by PUTting a phase entrypoint.
+The token is `cloudflared tunnel token askrag-oracle` on this host.
 
 ## Disk
 
