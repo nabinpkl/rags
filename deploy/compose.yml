@@ -97,6 +97,8 @@ services:
       dockerfile: deploy/Dockerfile.web
       args:
         NEXT_PUBLIC_AGENT_ENABLED: ${ASKRAG_AGENT_ENABLED:-false}
+        # Set by `just deploy` (commit + corpus.db); see Dockerfile.web.
+        NEXT_PUBLIC_DATA_VERSION: ${ASKRAG_DATA_VERSION:-}
     image: askrag-web:local
     depends_on:
       api:

@@ -8,6 +8,15 @@ import type { paths } from "@/lib/api-types.gen";
 // since `next dev` runs on a different port with no proxy configured yet.
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
+/** The deploy's data version, baked at build time by `just deploy` from the
+ * commit and the corpus snapshot. Every GET carries it as `v`, so a deploy
+ * that changes either moves every API URL, and the edge cache, which keys on
+ * the full URL and holds answers for up to s-maxage, has nothing old to
+ * serve. Empty (dev, tests) adds nothing. A function so a test can stub it. */
+export function dataVersion(): string {
+  return process.env.NEXT_PUBLIC_DATA_VERSION ?? "";
+}
+
 type PaperDetailQuery = NonNullable<paths["/api/papers/{paper_id}"]["get"]["parameters"]["query"]>;
 type PaperDetailResponse =
   paths["/api/papers/{paper_id}"]["get"]["responses"][200]["content"]["application/json"];
@@ -38,7 +47,7 @@ async function getJson<T>(
   path: string,
   query: Record<string, string | number | null | undefined>,
 ): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}${buildQueryString(query)}`);
+  const res = await fetch(`${API_BASE_URL}${path}${buildQueryString({ ...query, v: dataVersion() })}`);
   if (!res.ok) throw new ApiError(path, res.status);
   return (await res.json()) as T;
 }

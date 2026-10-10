@@ -33,6 +33,11 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 # api's ASKRAG_AGENT_ENABLED here, so the page and the route agree.
 ARG NEXT_PUBLIC_AGENT_ENABLED="false"
 ENV NEXT_PUBLIC_AGENT_ENABLED=$NEXT_PUBLIC_AGENT_ENABLED
+# Appended to every API GET as `v` (lib/api-client.ts), so a new deploy's
+# answers never come from an edge cache filled by the last one. `just deploy`
+# derives it from the commit and corpus.db; changing it rebuilds from here.
+ARG NEXT_PUBLIC_DATA_VERSION=""
+ENV NEXT_PUBLIC_DATA_VERSION=$NEXT_PUBLIC_DATA_VERSION
 
 RUN pnpm build
 

@@ -78,7 +78,12 @@ into the API's RAM).
 
 **Consequence:** changing the flag means rebuilding web, which `just deploy`
 already does. After a redeploy that changed the corpus, the edge serves the
-old reads for up to an hour unless purged.
+old reads for up to an hour unless purged. Superseded the same day: `just
+deploy` bakes a data version (commit + corpus.db) into the web build and every
+API GET carries it as `?v=`, so a deploy moves every URL instead of purging.
+Purging was rejected because no credential on hand can mint a Cache Purge
+token, and a deploy that depends on a third-party API call to be correct is
+one more way to fail.
 
 **Revisit when:** the agent goes public (flip the flag; the D11 caps are
 what then stand between it and the bill), or a GET under `/api` starts

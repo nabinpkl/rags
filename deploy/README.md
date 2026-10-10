@@ -86,9 +86,11 @@ theirs):
 | Always Use HTTPS | on, as a redirect rule for this host | the zone-wide toggle is off for the other hosts |
 | HSTS | on after a clean week | hard to undo |
 
-Cloudflare caches `/api` reads for up to an hour (`api_cache_control`), so
-after a corpus redeploy purge the hostname's cache or the site shows the old
-snapshot until it expires.
+Cloudflare caches `/api` reads for up to an hour (`api_cache_control`), and
+nothing purges it: `just deploy` instead stamps a data version, hashed from the
+commit and `corpus.db`, onto every API GET (`?v=`, `lib/api-client.ts`). A
+deploy that changes either moves every URL, so the edge has nothing old to
+serve, and the previous deploy's copies age out unread.
 
 Resources (account and zone `nabin.org`; no secrets here):
 

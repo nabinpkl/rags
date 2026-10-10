@@ -702,7 +702,9 @@ same value is baked into the web build to hide the agent's controls. The
 server's refusal is the guarantee, the hidden UI is presentation. Every 200
 GET under `/api` carries `Cache-Control` (`api_cache_control`), so an edge
 cache in front of the public ingress serves the snapshot-derived reads
-instead of the 4-core box.
+instead of the 4-core box. The web build carries a data version derived from
+the commit and the corpus snapshot on every API GET (`?v=`), so a deploy that
+changes either never serves a cached answer from the one before it.
 
 **Amendment 2026-10-10 (owner directive): the public ingress is a
 Cloudflare tunnel, not a Caddy site block.** A `tunnel` service in the same
