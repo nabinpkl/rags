@@ -14,6 +14,43 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-10-10 — the public site is a Cloudflare tunnel sidecar
+
+**Context:** D13 planned the public deployment (#37) as a Caddy site block
+with auto-TLS behind Cloudflare DNS. The host it runs on already serves
+several other projects publicly, each through a remotely-managed Cloudflare
+tunnel run as a container in its own compose file, and opens no inbound
+web ports.
+
+**Decision:** a `tunnel` service in `deploy/compose.yml`
+(`cloudflare/cloudflared:2026.9.1`, read-only, no capabilities) under the
+`public` profile, routed in Cloudflare to `http://web:8080` for
+`rag.nabin.org`. `just deploy` turns the profile on when
+`CLOUDFLARE_TUNNEL_TOKEN` is set, so reseeds and redeploys keep the public
+site up; `deploy-down`, `deploy-logs` and `deploy-reseed` name the profile so
+they reach the tunnel. Caddy's `trusted_proxies` widens from the bridge
+gateway to the compose subnet, the range the API already trusts, because the
+tunnel's container address is dynamic.
+
+**Alternatives rejected:** Caddy auto-TLS (opens 80/443 on a shared box);
+host `cloudflared` pointed at `127.0.0.1:8420` (config outside the repo and
+unlike every other service here); pinning the tunnel's address to trust one
+IP (needs an `ip_range` change that forces the network to be recreated, to
+guard a bridge only our own services join); a required `:?` token
+(compose interpolates profiled services too, so tailnet-only deploys would
+fail).
+
+**Consequence:** Cloudflare settings the site depends on (scoped Rocket
+Loader/Email Obfuscation/analytics off, the `/api/*` cache rule, the rate
+limit) live in the dashboard, listed in `deploy/README.md`, not in the repo.
+Anything that joins the compose network can vouch for a client address.
+
+**Revisit when:** the stack moves off this host, a service that relays
+untrusted traffic joins the compose network, or Cloudflare's free tier stops
+covering the rules above.
+
+**Spec updated:** yes, D13 amendment (2026-10-10, Cloudflare tunnel).
+
 ## 2026-10-10 — the public site can run without the agent; API reads are cacheable
 
 **Context:** the site is going public through a Cloudflare tunnel before the

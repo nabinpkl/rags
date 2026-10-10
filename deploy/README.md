@@ -10,7 +10,7 @@ that differs between deployments:
 | Mode | Ingress | Status |
 |---|---|---|
 | Tailnet | host `tailscaled` fronts `127.0.0.1:8420` via `tailscale serve` | shipped (#81) |
-| Public | Caddy site block + auto-TLS + Cloudflare | #37 |
+| Public | `tunnel` container dials out to Cloudflare, which serves `rag.nabin.org` | see Public site below |
 
 ## First deploy
 
@@ -19,6 +19,9 @@ cp deploy/.env.example deploy/.env   # then fill it in — the salt is required
 just deploy                          # build images, seed chroma, start
 just deploy-tailnet                  # publish onto the tailnet
 ```
+
+For the public site, also put the tunnel token in `deploy/.env`
+(`CLOUDFLARE_TUNNEL_TOKEN`) before `just deploy`; see "Public site" below.
 
 `deploy/.env` must carry a real `ASKRAG_TRACE_IP_HASH_SALT` (`openssl rand -hex
 32`) — compose refuses to start without one, because an unsalted IP hash is a
@@ -50,8 +53,49 @@ or run the `tailscale serve` line it prints under `sudo`.
 just deploy-logs        # follow both containers
 just deploy-down        # stop; volumes (traces, chroma) survive
 just deploy-tailnet-off # withdraw the tailnet listener, keep serving on loopback
+just deploy-public-off  # stop the tunnel; blank the token too or the next deploy restarts it
 just deploy-reseed      # rebuild the chroma volume after a re-ingest (D12 refresh)
 ```
+
+## Public site (Cloudflare tunnel)
+
+`rag.nabin.org` reaches the stack through a remotely-managed Cloudflare
+tunnel, the same shape as the other services on this host: the `tunnel`
+container dials out to Cloudflare, so the box opens no inbound port and holds
+no certificate, and Cloudflare terminates TLS. Its one route,
+`rag.nabin.org -> http://web:8080`, lives in the Cloudflare dashboard;
+the token in `deploy/.env` is all the box knows. With a token set, `just
+deploy` starts the tunnel along with everything else (compose profile
+`public`); without one the stack is tailnet-only.
+
+The visitor's address survives the hop: Cloudflare appends the address it
+saw to `X-Forwarded-For`, Caddy trusts the compose subnet the tunnel sits on,
+and the API takes the rightmost address it does not trust
+(`askrag/api/client_ip.py`), so a pre-seeded header cannot pick someone
+else's budget.
+
+Zone settings the site depends on, scoped to the `rag.nabin.org` hostname
+(Configuration Rules, not zone-wide toggles, so the zone's other hosts keep
+theirs):
+
+| Setting | Value | Why |
+|---|---|---|
+| Rocket Loader, Email Obfuscation, Web Analytics auto-inject | off | each injects a script the CSP blocks |
+| Cache Rule: GET `/api/*` | eligible for cache, respect origin TTL | Cloudflare skips extensionless JSON by default; the API's `Cache-Control` does nothing without this |
+| Rate limit (free plan's one rule) | `/thumbs/*` while the agent is off, `/api/chat` once it is on | an uncached thumbnail renders a PDF on the box; a chat turn spends money |
+| Always Use HTTPS | on | |
+| HSTS | on after a clean week | hard to undo |
+
+Cloudflare caches `/api` reads for up to an hour (`api_cache_control`), so
+after a corpus redeploy purge the hostname's cache or the site shows the old
+snapshot until it expires.
+
+Resources (account and zone `nabin.org`; no secrets here):
+
+| Resource | Id |
+|---|---|
+| Tunnel `askrag` | _added when created_ |
+| DNS `rag.nabin.org` (CNAME to the tunnel, proxied) | _added when created_ |
 
 ## Disk
 

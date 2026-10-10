@@ -227,6 +227,13 @@ deploy *ARGS:
         echo "    sudo chgrp 10001 $thumbs && sudo chmod 2775 $thumbs" >&2
         exit 1
     fi
+    # A tunnel token in deploy/.env is the switch for the public site: the
+    # tunnel service runs under the `public` profile, and turning the profile
+    # on here (not in a separate recipe) means a reseed or a plain redeploy
+    # never takes the public site down by forgetting it.
+    if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
+        export COMPOSE_PROFILES=public
+    fi
     docker compose -f deploy/compose.yml up -d --build {{ARGS}}
     # corpus.db is bind-mounted as a FILE, so the mount pins the inode it
     # resolved at container start; build_indexes writes a new file and renames
@@ -240,20 +247,22 @@ deploy *ARGS:
     fi
     docker compose -f deploy/compose.yml ps
 
-# Stop the stack (volumes survive: traces.db and the chroma copy)
+# Stop the stack (volumes survive: traces.db and the chroma copy). The profile
+# is named so the tunnel stops too; left out, it keeps running and holds the
+# network open.
 deploy-down *ARGS:
-    docker compose -f deploy/compose.yml down {{ARGS}}
+    docker compose -f deploy/compose.yml --profile public down {{ARGS}}
 
 # Follow container logs
 deploy-logs *ARGS:
-    docker compose -f deploy/compose.yml logs -f {{ARGS}}
+    docker compose -f deploy/compose.yml --profile public logs -f {{ARGS}}
 
 # Re-seed the chroma volume from the host snapshot — run after a re-ingest
 # (D12: refreshing prod = new snapshot + restart), NOT part of a normal deploy
 deploy-reseed:
     #!/usr/bin/env bash
     set -euo pipefail
-    docker compose -f deploy/compose.yml down
+    docker compose -f deploy/compose.yml --profile public down
     docker volume rm askrag_chroma
     just deploy
 
@@ -275,6 +284,12 @@ deploy-tailnet-off:
     set -euo pipefail
     set -a; . deploy/.env; set +a
     tailscale serve --https="${ASKRAG_TAILNET_PORT:-8443}" off
+
+# Withdraw the public site (the tunnel container); the stack keeps serving on
+# loopback and the tailnet. Blank CLOUDFLARE_TUNNEL_TOKEN in deploy/.env too,
+# or the next `just deploy` brings it back.
+deploy-public-off:
+    docker compose -f deploy/compose.yml --profile public rm -sf tunnel
 
 # Backend tests only (pytest via uv; extra args pass through)
 be-test *ARGS:

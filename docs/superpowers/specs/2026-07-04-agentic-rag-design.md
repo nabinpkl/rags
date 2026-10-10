@@ -704,6 +704,21 @@ GET under `/api` carries `Cache-Control` (`api_cache_control`), so an edge
 cache in front of the public ingress serves the snapshot-derived reads
 instead of the 4-core box.
 
+**Amendment 2026-10-10 (owner directive): the public ingress is a
+Cloudflare tunnel, not a Caddy site block.** A `tunnel` service in the same
+compose file runs `cloudflared` with a remotely-managed tunnel token and
+reaches `web:8080` over the compose network; Cloudflare terminates TLS for
+`rag.nabin.org`. The box opens no inbound port and Caddy keeps
+`auto_https off`. The token in `deploy/.env` is the switch (compose profile
+`public`), so a tailnet-only deploy needs none. Caddy trusts the compose
+subnet for `X-Forwarded-For`, matching the API's
+`ASKRAG_TRUSTED_PROXY_CIDRS`, so the per-IP budget (D11) still keys on the
+address Cloudflare saw. Rejected: Caddy auto-TLS (ports 80/443 open to the
+internet on a box that runs other services); `cloudflared` as a host
+service in front of the loopback port (host configuration outside the
+repo, and the other services on this host already run it as a compose
+sidecar).
+
 ---
 
 ### D14. Eval harness ships in v1 and gates retrieval decisions

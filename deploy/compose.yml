@@ -3,9 +3,10 @@
 # is spawned ad-hoc per execution.
 #
 # Ingress binds LOOPBACK ONLY. Reachability is the host's job: tailscaled
-# fronts this port with a tailnet cert (`just deploy-tailnet`, issue #81), and
-# the public deployment (#37) will front the same port with real TLS. Nothing
-# here ever listens on 0.0.0.0.
+# fronts this port with a tailnet cert (`just deploy-tailnet`, issue #81).
+# The public site is the `tunnel` service below, which dials out to
+# Cloudflare and reaches web over the compose network. Nothing here ever
+# listens on 0.0.0.0.
 
 name: askrag
 
@@ -125,6 +126,29 @@ services:
       # pdfs/ stays absent from THIS container and that is the §6b line: we
       # never serve the e-print, only a crop beside a link to arxiv.org.
       - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/thumbs:/srv/thumbs:ro
+    restart: unless-stopped
+
+  # Public ingress (D13 amendment 2026-10-10): an outbound-only Cloudflare
+  # tunnel, so the box opens no inbound port and holds no certificate. The
+  # tunnel's one route (rag.nabin.org -> http://web:8080) lives in the
+  # Cloudflare dashboard, which is what the token names; deploy/README.md
+  # lists the resources. Under a profile so a tailnet-only deploy needs no
+  # token; `just deploy` turns the profile on when deploy/.env has one. The
+  # token is `:-` not `:?` because compose interpolates every service,
+  # profiled or not, and a required variable here would fail tailnet deploys.
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.1
+    profiles: [public]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      web:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
 
 networks:
