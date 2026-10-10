@@ -647,3 +647,20 @@ def test_a_turn_racing_past_the_full_check_ends_with_an_error_event(tmp_path):
     anyio.run(drain)
     assert events == [{"type": "done", "stop_reason": "error", "run_id": ""}]
     assert slots.in_use == 1  # the other turn's slot, untouched
+
+
+def test_a_capped_turn_streams_its_forced_answer_before_cost_and_done(tmp_path, monkeypatch):
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
+    settings = make_settings(tmp_path, max_tool_steps_per_message=1)
+    client = ScriptedModelClient(
+        [tool_use_response("t1"), tool_use_response("t2"), text_response("forced answer")]
+    )
+    app = make_app(settings=settings, client=client)
+
+    with TestClient(app) as tc:
+        with tc.stream("POST", "/api/chat", json={"question": "q"}) as resp:
+            events = _sse_data_lines(resp)
+
+    assert [e["type"] for e in events][-3:] == ["text", "cost", "done"]
+    assert events[-3]["text"] == "forced answer"
+    assert events[-1]["stop_reason"] == "step_cap"

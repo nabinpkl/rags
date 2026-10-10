@@ -294,6 +294,13 @@ def run_turn(
     final_text = ""
     step = 0
 
+    def emit_text(text: str) -> None:
+        # `tool_calls` rides along so the API boundary can enforce §6c row 4 and
+        # verify citations (answer_guard, issue #36): only the loop knows what
+        # this turn actually retrieved. It is INTERNAL — sse_events' `translate`
+        # reads `text` alone, so it never reaches the wire.
+        on_event(AgentEvent(EventKind.TEXT, {"text": text, "tool_calls": tuple(tool_records)}))
+
     def record(answer_text: str) -> str:
         return traces.record_run(
             session_id=session_id,
@@ -322,15 +329,7 @@ def run_turn(
             text = _text_of(response)
             if text is not None:
                 final_text = text
-                # `tool_calls` rides along so the API boundary can enforce §6c row 4
-                # and verify citations (answer_guard, issue #36): only the loop knows
-                # what this turn actually retrieved. It is INTERNAL — sse_events'
-                # `translate` reads `text` alone, so it never reaches the wire.
-                on_event(
-                    AgentEvent(
-                        EventKind.TEXT, {"text": final_text, "tool_calls": tuple(tool_records)}
-                    )
-                )
+                emit_text(text)
 
             if response.stop_reason != "tool_use":
                 break  # StopReason.END_TURN, the default
@@ -360,7 +359,12 @@ def run_turn(
             response = client.create(system=SYSTEM_PROMPT, messages=messages, tools=None)
             cost.add(response.usage)
             messages = [*messages, {"role": "assistant", "content": response.content}]
-            final_text = _text_of(response) or final_text
+            # The forced answer is the one a capped turn was spent producing;
+            # it reaches the reader like any other, through the same guard.
+            forced = _text_of(response)
+            if forced:
+                final_text = forced
+                emit_text(forced)
     except BaseException:
         # Every model call already made is billed whether or not the turn
         # finishes. Recording only on success let a turn that died on its

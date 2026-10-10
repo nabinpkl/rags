@@ -283,6 +283,63 @@ def test_step_cap_enforcement_forces_a_final_synthesis_turn(tmp_path, monkeypatc
     assert stub_message["content"][0]["content"] == "[not run: step/token budget reached]"
 
 
+def test_the_forced_final_answer_reaches_the_reader(tmp_path, monkeypatch):
+    # Regression: the forced synthesis set result.text but emitted no TEXT
+    # event, so a capped turn's answer never reached the stream.
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
+    settings = make_settings(tmp_path, max_tool_steps_per_message=1)
+    client = ScriptedModelClient(
+        [tool_use_response("t1"), tool_use_response("t2"), text_response("forced answer")]
+    )
+    events = []
+
+    loop.run_turn(
+        [],
+        "q",
+        session_id="s1",
+        ip="127.0.0.1",
+        client=client,
+        settings=settings,
+        on_event=events.append,
+    )
+
+    texts = [e for e in events if e.kind is loop.EventKind.TEXT]
+    assert [e.data["text"] for e in texts] == ["forced answer"]
+    # It carries the turn's tool calls, which answer_guard checks citations against.
+    assert len(texts[0].data["tool_calls"]) == 1
+    assert events[-1].kind is loop.EventKind.DONE
+
+
+def test_a_forced_turn_with_no_text_keeps_the_last_answer_and_emits_nothing_new(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
+    settings = make_settings(tmp_path, max_tool_steps_per_message=0)
+    narrated = FakeResponse(
+        content=[
+            FakeTextBlock(text="let me look"),
+            FakeToolUseBlock(id="t1", name="query_metadata", input={"op": "corpus_stats"}),
+        ],
+        stop_reason="tool_use",
+        usage=FakeUsage(input_tokens=50, output_tokens=10),
+    )
+    silent = FakeResponse(content=[], stop_reason="end_turn", usage=FakeUsage(50, 10))
+    events = []
+
+    result = loop.run_turn(
+        [],
+        "q",
+        session_id="s1",
+        ip="127.0.0.1",
+        client=ScriptedModelClient([narrated, silent]),
+        settings=settings,
+        on_event=events.append,
+    )
+
+    assert result.text == "let me look"
+    assert [e.data["text"] for e in events if e.kind is loop.EventKind.TEXT] == ["let me look"]
+
+
 # --- token-budget stop ---------------------------------------------------------
 
 
