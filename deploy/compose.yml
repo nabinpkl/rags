@@ -54,6 +54,10 @@ services:
       ASKRAG_GLOBAL_DAILY_SPEND_CAP_USD: ${ASKRAG_GLOBAL_DAILY_SPEND_CAP_USD:-0.50}
       ASKRAG_IP_DAILY_SPEND_CAP_USD: ${ASKRAG_IP_DAILY_SPEND_CAP_USD:-0.10}
       ASKRAG_LOG_LEVEL: ${ASKRAG_LOG_LEVEL:-INFO}
+      # Caddy and the bridge gateway, whose X-Forwarded-For entries the
+      # per-IP budget believes (askrag/api/client_ip.py). Tied to the subnet
+      # under `networks:` below; change both together.
+      ASKRAG_TRUSTED_PROXY_CIDRS: '["10.120.0.0/24"]'
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     volumes:

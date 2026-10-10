@@ -347,6 +347,16 @@ class Settings(BaseSettings):
     # a longer synthesis turn without being large enough to blow the budget
     # on its own.
     agent_max_output_tokens: int = 4096
+    # Tool calls dispatched from one model response. The step cap counts
+    # responses, so without this one response asking for 50 read_paper calls
+    # runs all 50, and their results land in the one message eviction never
+    # touches (the newest). 4 x read_paper_max_tokens stays under
+    # message_token_budget. Calls past it get an error result, not a run.
+    max_tool_calls_per_step: int = 4
+    # Per model call, retries included in the SDK's own count. The SDK default
+    # is 600 s; a hung provider would then hold a turn slot (below) for half
+    # an hour while every other visitor is refused.
+    agent_request_timeout_seconds: float = 90.0
 
     # --- budget caps (D11; every layer server-enforced) --------------------
     # A typical 5-step turn is ~50k in + ~2k out (D3 arithmetic); the
@@ -360,6 +370,20 @@ class Settings(BaseSettings):
     # hashes are not reversible via a public rainbow table; the empty default
     # still hashes (dev/tests), it just isn't secret.
     trace_ip_hash_salt: SecretStr = Field(default=SecretStr(""))
+    # Live turns in flight at once, process-wide. Spend is recorded after a
+    # turn, so this is what bounds the overshoot past the caps above (at most
+    # this many turns' cost), and it keeps chat off the worker threads every
+    # sync route shares (anyio's default pool is 40).
+    chat_max_concurrent_turns: int = 4
+    # A question is what a person types; the user message is never evicted,
+    # so its length is paid again on every model call of the turn.
+    chat_question_max_chars: int = 2000
+    # Peers whose X-Forwarded-For entries are believed (CIDRs). Empty means
+    # the direct peer is the client, which is right for `just serve` and
+    # wrong behind Caddy, where every request would share Caddy's address and
+    # one visitor's spend would lock out the site. Deploy sets the compose
+    # subnet (deploy/compose.yml).
+    trusted_proxy_cidrs: list[str] = Field(default_factory=list)
 
     # --- telemetry (D15) ----------------------------------------------------
     telemetry_enabled: bool = True

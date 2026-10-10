@@ -11,6 +11,17 @@
 	log {
 		format json
 	}
+	# The per-IP budget (D11) needs the visitor's address at the API. Only
+	# the hop in front of us may vouch for one: tailscale serve reaches the
+	# published loopback port through the compose bridge gateway, and SETS
+	# X-Forwarded-For to the tailnet source (it never appends, so a client
+	# cannot pre-seed it). Trusted, Caddy keeps that entry and appends the
+	# gateway; untrusted, it would replace it with the gateway, and every
+	# visitor would share one cap. The public deployment (#37) adds its
+	# edge's ranges here.
+	servers {
+		trusted_proxies static 10.120.0.1/32
+	}
 }
 
 :8080 {
@@ -18,6 +29,12 @@
 
 	# --- API -------------------------------------------------------------
 	handle /api/* {
+		# The only request bodies are chat questions, capped far below this
+		# by the API (chat_question_max_chars); this stops a large body
+		# before it is buffered and parsed.
+		request_body {
+			max_size 64KB
+		}
 		reverse_proxy api:8000 {
 			# SSE is the whole agent UX (D13): -1 disables response
 			# buffering so each event reaches the browser when it is

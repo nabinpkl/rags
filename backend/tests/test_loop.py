@@ -406,3 +406,99 @@ def test_a_scoped_turn_passes_its_scope_to_every_tool_call(tmp_path, monkeypatch
     )
 
     assert seen == [("2401.00001", "2401.00002"), ("2401.00001", "2401.00002")]
+
+
+# --- denial-of-wallet bounds inside one turn --------------------------------
+
+
+def test_one_response_runs_at_most_max_tool_calls_per_step(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_dispatch(name, args, *, scope=None):
+        calls.append(name)
+        return StubResult({})
+
+    monkeypatch.setattr(registry, "dispatch", fake_dispatch)
+    burst = FakeResponse(
+        content=[
+            FakeToolUseBlock(id=f"t{i}", name="query_metadata", input={"op": "corpus_stats"})
+            for i in range(6)
+        ],
+        stop_reason="tool_use",
+        usage=FakeUsage(input_tokens=50, output_tokens=10),
+    )
+    client = ScriptedModelClient([burst, text_response("done")])
+    settings = make_settings(tmp_path, max_tool_calls_per_step=2)
+
+    result = loop.run_turn(
+        [], "q", session_id="s1", ip="127.0.0.1", client=client, settings=settings
+    )
+
+    assert len(calls) == 2
+    results = result.messages[2]["content"]
+    # Every tool_use still gets a result, in order, or the next call is invalid.
+    assert [b["tool_use_id"] for b in results] == [f"t{i}" for i in range(6)]
+    refused = [b for b in results if b.get("is_error")]
+    assert len(refused) == 4
+    assert all("not run" in b["content"] for b in refused)
+
+
+def test_refused_tool_calls_emit_no_events(tmp_path, monkeypatch):
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
+    burst = FakeResponse(
+        content=[
+            FakeToolUseBlock(id=f"t{i}", name="drive_ui", input={"action": "set_filters"})
+            for i in range(3)
+        ],
+        stop_reason="tool_use",
+        usage=FakeUsage(input_tokens=50, output_tokens=10),
+    )
+    events = []
+    loop.run_turn(
+        [],
+        "q",
+        session_id="s1",
+        ip="127.0.0.1",
+        client=ScriptedModelClient([burst, text_response("done")]),
+        settings=make_settings(tmp_path, max_tool_calls_per_step=1),
+        on_event=events.append,
+    )
+    assert sum(e.kind is loop.EventKind.TOOL_CALL for e in events) == 1
+
+
+class FailingOnCall:
+    """Answers with a tool call until call `n`, which raises."""
+
+    def __init__(self, n):
+        self.n, self.calls = n, 0
+
+    def create(self, *, system, messages, tools):
+        self.calls += 1
+        if self.calls == self.n:
+            raise RuntimeError("provider overloaded")
+        return tool_use_response(f"t{self.calls}", tokens=(1_000_000, 0))
+
+
+def test_a_turn_that_fails_midway_still_records_what_it_spent(tmp_path, monkeypatch):
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
+    settings = make_settings(tmp_path, message_token_budget=10_000_000)
+
+    with pytest.raises(RuntimeError, match="provider overloaded"):
+        loop.run_turn(
+            [], "q", session_id="s1", ip="1.2.3.4", client=FailingOnCall(3), settings=settings
+        )
+
+    assert traces.message_count_for_session("s1", settings=settings) == 1
+    # Two billed calls of 1M input tokens each, at the table rate.
+    assert traces.spend_today(settings=settings) == pytest.approx(
+        2 * settings.agent_usd_per_mtok_in
+    )
+
+
+def test_a_turn_that_fails_on_its_first_call_records_nothing(tmp_path):
+    settings = make_settings(tmp_path)
+    with pytest.raises(RuntimeError):
+        loop.run_turn(
+            [], "q", session_id="s1", ip="1.2.3.4", client=FailingOnCall(1), settings=settings
+        )
+    assert traces.message_count_for_session("s1", settings=settings) == 0

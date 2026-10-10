@@ -18,6 +18,7 @@ from askrag.api.routes_landing import router as landing_router
 from askrag.api.routes_paper_detail import router as paper_detail_router
 from askrag.api.routes_thumbnails import router as thumbnails_router
 from askrag.api.session_store import SessionStore
+from askrag.api.turn_slots import TurnSlots
 from askrag.config import get_settings
 
 
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # factories (D4, askrag/db.py). The session store is the one
     # process-lifetime object this app owns (D13: single process, no Redis).
     app.state.session_store = SessionStore(settings=settings)
+    app.state.turn_slots = TurnSlots(settings.chat_max_concurrent_turns)
     try:
         yield
     finally:
