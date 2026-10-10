@@ -234,6 +234,13 @@ deploy *ARGS:
     if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
         export COMPOSE_PROFILES=public
     fi
+    # The web build stamps this onto every API GET (`?v=`), so the edge cache,
+    # which keeps answers for up to s-maxage, never serves one from before
+    # this deploy: new code or a new corpus.db means new URLs. corpus.db's
+    # inode and mtime change when build_indexes renames a new file over it;
+    # the diff hash covers deploying uncommitted work.
+    corpus_db="${ASKRAG_CORPUS_HOST_DIR:-corpus}/corpus.db"
+    export ASKRAG_DATA_VERSION=$( { git rev-parse HEAD; git diff HEAD; stat -Lc '%i %Y' "$corpus_db"; } | sha256sum | cut -c1-12)
     docker compose -f deploy/compose.yml up -d --build {{ARGS}}
     # corpus.db is bind-mounted as a FILE, so the mount pins the inode it
     # resolved at container start; build_indexes writes a new file and renames
