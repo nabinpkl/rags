@@ -578,8 +578,13 @@ wallet is capped and the replay fallback keeps the site alive. IP-based
 budgeting is weak against rotation — accepted; the global cap is the real
 backstop, the per-IP layer just keeps one visitor from accidentally hogging.
 The budget gate (#21) is a pre-flight read, so concurrent in-flight requests
-can overshoot the cap by at most (in-flight count) × (per-message cost cap) —
-accepted-and-bounded, tightened at #23/#30 if needed (DECISIONS.md 2026-07-05).
+can overshoot the cap by at most (in-flight count) × (one turn's cost).
+Amended 2026-10-10 (DECISIONS.md): the in-flight count is now fixed, at most
+`chat_max_concurrent_turns` live turns per process (a full house answers 503),
+and one turn's cost is bounded by the step cap, a per-step tool-call cap and a
+per-call timeout. A turn that fails midway records the calls it already paid
+for. The per-IP key is the visitor's address as our own proxies report it in
+X-Forwarded-For, never the proxy's.
 
 **Revisit when.** Real traffic regularly exhausts the cap (a good problem:
 raise it, or add opt-in BYO-key for power users). Abuse defeats Cloudflare
@@ -689,6 +694,15 @@ load-bearing:
 **Revisit when.** The demo goes public (#37 flips the ingress), or a second
 deployment target appears (then the two modes want separate compose
 overlays, not one file with an env switch).
+
+**Amendment 2026-10-10 (owner directive): the site can go public without
+the agent.** One deploy setting, `ASKRAG_AGENT_ENABLED` (off unless `true`),
+refuses `POST /api/chat` with a 404 before a model client is built, and the
+same value is baked into the web build to hide the agent's controls. The
+server's refusal is the guarantee, the hidden UI is presentation. Every 200
+GET under `/api` carries `Cache-Control` (`api_cache_control`), so an edge
+cache in front of the public ingress serves the snapshot-derived reads
+instead of the 4-core box.
 
 ---
 

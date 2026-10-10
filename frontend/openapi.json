@@ -853,12 +853,14 @@
                 "properties": {
                     "question": {
                         "type": "string",
+                        "minLength": 1,
                         "title": "Question"
                     },
                     "session_id": {
                         "anyOf": [
                             {
-                                "type": "string"
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9._/-]{1,64}$"
                             },
                             {
                                 "type": "null"
@@ -869,7 +871,8 @@
                     "foundation_id": {
                         "anyOf": [
                             {
-                                "type": "string"
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9._/-]{1,64}$"
                             },
                             {
                                 "type": "null"

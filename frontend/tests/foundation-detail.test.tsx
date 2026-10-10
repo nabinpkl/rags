@@ -190,6 +190,24 @@ describe("FoundationDetail", () => {
     expect(screen.getByRole("button", { name: /ask about these papers/i })).toBeDisabled();
   });
 
+  it("has no ask row when the build has no agent to ask", async () => {
+    fetchFoundationMock.mockResolvedValue({
+      foundation: PPO,
+      total_citers: 536,
+      scope_size: 2,
+      co_cited: [],
+      indexed_citers: [
+        { arxiv_id: "2608.00001", title: "First", primary_category: "cs.CL", version: "v1" },
+      ],
+    });
+
+    render(<FoundationDetail foundation={PPO} onBack={vi.fn()} />, { wrapper });
+
+    expect(await screen.findByRole("button", { name: "First" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /ask about these papers/i })).toBeNull();
+    expect(screen.queryByText(/answers come from/)).toBeNull();
+  });
+
   it("never implies the agent read only the papers listed", async () => {
     // The bug this guards: the copy used indexed_citers.length for both the
     // list and the scope, so every foundation claimed the agent read 8 papers

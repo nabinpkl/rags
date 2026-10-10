@@ -60,6 +60,9 @@ SORT_CLAUSE: dict[Sort, str] = {
     "cited": "cited_by DESC, papers.arxiv_id",
 }
 
+# Times a paper is cited from inside the catalog: a column and a sort key.
+CITED_BY = "(SELECT count(*) FROM citations WHERE cited_id = papers.arxiv_id)"
+
 _MONTH = re.compile(r"^[0-9]{4}$")
 # A word the FTS tokenizer will accept. Everything else in the raw box is
 # punctuation, which fts5 reads as syntax.
@@ -185,16 +188,32 @@ def _page(
     clauses, params = _filters(q, category, month, holding)
     where = _where(clauses)
     total = conn.execute(f"SELECT count(*){_from(q)}{where}", params).fetchone()[0]
-    rows = conn.execute(
-        "SELECT papers.arxiv_id, papers.title, papers.authors, papers.abstract,"
-        "       papers.primary_category, papers.published, papers.version, papers.has_text,"
-        "       papers.license,"
-        f"      {INDEXED_PREDICATE} AS indexed,"
-        "       (SELECT count(*) FROM citations WHERE cited_id = papers.arxiv_id) AS cited_by"
-        f"{_from(q)}{where}"
-        f" ORDER BY {SORT_CLAUSE[sort]} LIMIT ? OFFSET ?",
-        [*params, limit, offset],
-    ).fetchall()
+    # Two steps: the page's rowids in order, then their columns. Sorting the
+    # wide rows directly puts every abstract up to the offset into SQLite's
+    # sorter, which spills to temp files; past ~50,000 rows that filled the
+    # API container's 256 MB /tmp and the page was a 500. Sorting keys alone
+    # stays small at any depth.
+    cited = f", {CITED_BY} AS cited_by" if sort == "cited" else ""
+    rowids = [
+        row["rowid"]
+        for row in conn.execute(
+            f"SELECT papers.rowid AS rowid{cited}{_from(q)}{where}"
+            f" ORDER BY {SORT_CLAUSE[sort]} LIMIT ? OFFSET ?",
+            [*params, limit, offset],
+        )
+    ]
+    by_rowid = {
+        row["rowid"]: row
+        for row in conn.execute(
+            "SELECT papers.rowid AS rowid, papers.arxiv_id, papers.title, papers.authors,"
+            "       papers.abstract, papers.primary_category, papers.published,"
+            "       papers.version, papers.has_text, papers.license,"
+            f"      {INDEXED_PREDICATE} AS indexed, {CITED_BY} AS cited_by"
+            f" FROM papers WHERE papers.rowid IN ({', '.join('?' * len(rowids))})",
+            rowids,
+        )
+    }
+    rows = [by_rowid[rowid] for rowid in rowids]
     papers = [
         CatalogPaper(
             arxiv_id=row["arxiv_id"],

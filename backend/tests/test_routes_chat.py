@@ -8,12 +8,14 @@ import threading
 import time
 from dataclasses import dataclass
 
-from fastapi import FastAPI
+import anyio
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from askrag import traces
 from askrag.api import routes_chat
 from askrag.api.session_store import SessionStore
+from askrag.api.turn_slots import TurnSlots
 from askrag.config import Settings, get_settings
 from askrag.tools import registry
 
@@ -84,14 +86,20 @@ def text_response(text):
     )
 
 
-def make_settings(tmp_path, **overrides):
-    return Settings(traces_db_path=tmp_path / "traces.db", _env_file=None, **overrides)  # ty: ignore[unknown-argument]
+def make_settings(tmp_path, *, agent_enabled=True, **overrides):
+    return Settings(
+        traces_db_path=tmp_path / "traces.db",
+        agent_enabled=agent_enabled,
+        _env_file=None,  # ty: ignore[unknown-argument]
+        **overrides,
+    )
 
 
 def make_app(*, settings, client) -> FastAPI:
     app = FastAPI()
     app.include_router(routes_chat.router)
     app.state.session_store = SessionStore(settings=settings)
+    app.state.turn_slots = TurnSlots(settings.chat_max_concurrent_turns)
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[routes_chat.get_model_client] = lambda: client
     return app
@@ -101,6 +109,25 @@ def _sse_data_lines(resp) -> list[dict]:
     return [
         json.loads(line[len("data: ") :]) for line in resp.iter_lines() if line.startswith("data: ")
     ]
+
+
+# --- agent switched off -----------------------------------------------------
+
+
+def test_switched_off_agent_is_a_404_before_any_client_is_built(tmp_path):
+    settings = make_settings(tmp_path, agent_enabled=False)
+    app = make_app(settings=settings, client=ScriptedModelClient([]))
+
+    def no_client():
+        raise AssertionError("the model client was built for a refused turn")
+
+    app.dependency_overrides[routes_chat.get_model_client] = no_client
+
+    with TestClient(app) as tc:
+        resp = tc.post("/api/chat", json={"question": "how many papers?"})
+
+    assert resp.status_code == 404
+    assert traces.spend_today(settings=settings) == 0
 
 
 # --- ALLOW: streams events in order, closes with cost + done ---------------
@@ -513,3 +540,151 @@ def test_no_stream_event_carries_chunk_text(tmp_path, monkeypatch):
         assert not (banned & set(event)), f"{event.get('type')} carries a text payload"
         for citation in event.get("citations", []):
             assert set(citation) == {"paper_id", "chunk_ids"}
+
+
+# --- request bounds, client address, concurrent turns -----------------------
+
+
+def test_an_empty_question_is_refused_before_any_model_call(tmp_path):
+    settings = make_settings(tmp_path)
+    app = make_app(settings=settings, client=ScriptedModelClient([]))
+    with TestClient(app) as tc:
+        assert tc.post("/api/chat", json={"question": ""}).status_code == 422
+
+
+def test_a_question_over_the_configured_length_is_refused(tmp_path):
+    settings = make_settings(tmp_path, chat_question_max_chars=10)
+    app = make_app(settings=settings, client=ScriptedModelClient([]))
+    with TestClient(app) as tc:
+        resp = tc.post("/api/chat", json={"question": "x" * 11})
+    assert resp.status_code == 422
+    assert traces.spend_today(settings=settings) == 0
+
+
+def test_an_oversized_or_unprintable_session_id_is_refused(tmp_path):
+    settings = make_settings(tmp_path)
+    app = make_app(settings=settings, client=ScriptedModelClient([]))
+    with TestClient(app) as tc:
+        long_id = tc.post("/api/chat", json={"question": "hi", "session_id": "a" * 65})
+        newline = tc.post("/api/chat", json={"question": "hi", "session_id": "a\nb"})
+    assert long_id.status_code == 422
+    assert newline.status_code == 422
+
+
+def _ask(tc, xff=None):
+    headers = {"X-Forwarded-For": xff} if xff else {}
+    with tc.stream("POST", "/api/chat", json={"question": "hi"}, headers=headers) as resp:
+        list(resp.iter_lines())
+        return resp
+
+
+def test_behind_a_trusted_proxy_each_visitor_gets_their_own_ip_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
+    # TestClient's peer is "testclient", not an address; trust it by name the
+    # way the compose subnet is trusted in deploy.
+    monkeypatch.setattr(routes_chat, "client_ip", lambda peer, xff, trusted: xff or peer)
+    # One turn costs 60 tokens at the table rate; a cap just under it means
+    # the first turn from a network spends that network's day.
+    settings = make_settings(tmp_path, ip_daily_spend_cap_usd=1e-6)
+    client = ScriptedModelClient([text_response("a"), text_response("b")])
+    app = make_app(settings=settings, client=client)
+
+    with TestClient(app) as tc:
+        assert _ask(tc, "100.71.2.3").status_code == 200
+        assert _ask(tc, "100.71.2.3").status_code == 429
+        assert _ask(tc, "100.80.4.5").status_code == 200
+
+
+def test_the_route_reads_forwarded_for_only_from_trusted_peers(tmp_path):
+    settings = make_settings(tmp_path, trusted_proxy_cidrs=["10.120.0.0/24"])
+
+    def request(peer, xff):
+        return Request(
+            {
+                "type": "http",
+                "client": (peer, 40000),
+                "headers": [(b"x-forwarded-for", xff.encode())],
+            }
+        )
+
+    via_caddy = request("10.120.0.3", "9.9.9.9, 100.71.2.3, 10.120.0.1")
+    direct = request("203.0.113.9", "100.71.2.3")
+    assert routes_chat._client_ip(via_caddy, settings) == "100.71.2.3"
+    assert routes_chat._client_ip(direct, settings) == "203.0.113.9"
+
+
+def test_when_every_turn_slot_is_taken_the_route_answers_503(tmp_path):
+    settings = make_settings(tmp_path, chat_max_concurrent_turns=1)
+    app = make_app(settings=settings, client=ScriptedModelClient([]))
+    with TestClient(app) as tc:
+        assert app.state.turn_slots.try_acquire()
+        resp = tc.post("/api/chat", json={"question": "hi"})
+    assert resp.status_code == 503
+    assert resp.headers["retry-after"]
+    assert resp.json()["reason"]
+
+
+def test_a_finished_turn_gives_its_slot_back(tmp_path, monkeypatch):
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
+    settings = make_settings(tmp_path, chat_max_concurrent_turns=1)
+    client = ScriptedModelClient([text_response("a"), text_response("b")])
+    app = make_app(settings=settings, client=client)
+    with TestClient(app) as tc:
+        assert _ask(tc).status_code == 200
+        assert app.state.turn_slots.in_use == 0
+        assert _ask(tc).status_code == 200
+
+
+def test_a_failed_turn_gives_its_slot_back(tmp_path):
+    class Boom:
+        def create(self, *, system, messages, tools):
+            raise RuntimeError("provider down")
+
+    settings = make_settings(tmp_path, chat_max_concurrent_turns=1)
+    app = make_app(settings=settings, client=Boom())
+    with TestClient(app) as tc:
+        _ask(tc)
+        assert app.state.turn_slots.in_use == 0
+
+
+def test_a_turn_racing_past_the_full_check_ends_with_an_error_event(tmp_path):
+    # The route saw a free slot; another turn took it before this one's
+    # stream started. The generator's own acquire is the one that holds.
+    settings = make_settings(tmp_path, chat_max_concurrent_turns=1)
+    slots = TurnSlots(1)
+    events = []
+
+    async def drain():
+        assert slots.try_acquire()
+        async for payload in routes_chat._stream_live_turn(
+            messages=[],
+            question="hi",
+            session_id="s1",
+            ip="1.2.3.4",
+            client=ScriptedModelClient([]),
+            settings=settings,
+            session_store=SessionStore(settings=settings),
+            slots=slots,
+        ):
+            events.append(json.loads(payload["data"]))
+
+    anyio.run(drain)
+    assert events == [{"type": "done", "stop_reason": "error", "run_id": ""}]
+    assert slots.in_use == 1  # the other turn's slot, untouched
+
+
+def test_a_capped_turn_streams_its_forced_answer_before_cost_and_done(tmp_path, monkeypatch):
+    monkeypatch.setattr(registry, "dispatch", lambda name, args, *, scope=None: StubResult({}))
+    settings = make_settings(tmp_path, max_tool_steps_per_message=1)
+    client = ScriptedModelClient(
+        [tool_use_response("t1"), tool_use_response("t2"), text_response("forced answer")]
+    )
+    app = make_app(settings=settings, client=client)
+
+    with TestClient(app) as tc:
+        with tc.stream("POST", "/api/chat", json={"question": "q"}) as resp:
+            events = _sse_data_lines(resp)
+
+    assert [e["type"] for e in events][-3:] == ["text", "cost", "done"]
+    assert events[-3]["text"] == "forced answer"
+    assert events[-1]["stop_reason"] == "step_cap"

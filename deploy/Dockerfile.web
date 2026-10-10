@@ -29,6 +29,10 @@ COPY frontend/ ./
 # it at BUILD time, so it is baked, not runtime config.
 ARG NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+# Whether the build shows the agent (lib/agent-flag.ts). compose passes the
+# api's ASKRAG_AGENT_ENABLED here, so the page and the route agree.
+ARG NEXT_PUBLIC_AGENT_ENABLED="false"
+ENV NEXT_PUBLIC_AGENT_ENABLED=$NEXT_PUBLIC_AGENT_ENABLED
 
 RUN pnpm build
 

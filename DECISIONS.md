@@ -14,6 +14,80 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-10-10 — the public site can run without the agent; API reads are cacheable
+
+**Context:** the site is going public through a Cloudflare tunnel before the
+agent is ready to face anonymous traffic. The rest of the site (catalog,
+citations, trends, benchmarks, the reader) stands on its own. A review also
+found that every `/api` GET reran ~1 s queries per view with nothing a shared
+cache could keep, and that the catalog 500'd past offset ~50,000 because the
+page query sorted whole rows, abstracts included, into SQLite temp files
+that outgrew the API container's 256 MB `/tmp`.
+
+**Decision:** `agent_enabled` (default false) gates `POST /api/chat` as a
+route-level dependency, a 404 raised before the model client is built, so an
+agent-off deploy needs no provider key. compose passes the same
+`ASKRAG_AGENT_ENABLED` to the web build as `NEXT_PUBLIC_AGENT_ENABLED`,
+which drops the agent button and panel on `/demo` and the ask row on
+`/citations`. A plain-ASGI middleware puts `api_cache_control` on every 200
+GET under `/api` that sets none of its own. The catalog page query sorts
+rowids first and fetches the wide columns for that page only.
+
+**Alternatives rejected:** a runtime flag the page fetches from the API
+(a request and a flash of the panel on every load, for a switch that only
+changes on deploy); hiding the UI alone (the endpoint would still spend);
+`PRAGMA temp_store=memory` for the catalog (moves the same unbounded sort
+into the API's RAM).
+
+**Consequence:** changing the flag means rebuilding web, which `just deploy`
+already does. After a redeploy that changed the corpus, the edge serves the
+old reads for up to an hour unless purged.
+
+**Revisit when:** the agent goes public (flip the flag; the D11 caps are
+what then stand between it and the bill), or a GET under `/api` starts
+returning per-visitor data, which this header would then share.
+
+**Spec updated:** yes, D13 amendment (2026-10-10).
+
+## 2026-10-10 — D11 caps hold under concurrency and behind the proxy
+
+**Context:** a review of the live chat path found the D11 caps did not hold
+as deployed. The per-IP cap keyed on the API's direct peer, which behind Caddy
+is always Caddy, so the first visitor to spend $0.10 locked out the site. The
+2026-07-05 bound on concurrent overshoot, (in-flight count) × (per-message
+cost cap), had neither factor fixed: in-flight turns were limited only by
+anyio's 40-thread pool (shared with every sync route), and one turn's cost was
+open-ended because one model response could request any number of tool calls.
+A turn that raised midway recorded nothing, so its billed calls were invisible
+to every cap. `question` had no length limit.
+**Decision:** (1) the per-IP key is the rightmost X-Forwarded-For entry not
+belonging to a trusted proxy (`trusted_proxy_cidrs`, the compose subnet in
+deploy); Caddy trusts the bridge gateway that tailscale serve arrives through,
+and tailscale serve sets the header rather than appending, so a client cannot
+seed it. (2) At most `chat_max_concurrent_turns` (4) live turns per process; a
+full house is a 503 with Retry-After, not a 429, which the frontend reads as a
+capped session. (3) At most `max_tool_calls_per_step` (4) tool calls run per
+model response; the rest get an error result. (4) A per-call timeout of
+`agent_request_timeout_seconds` (90 s) replaces the SDK's 600 s, so a hung
+provider cannot hold a slot for half an hour. (5) A failed turn records the
+calls already made. (6) `question` is capped at `chat_question_max_chars`
+(2,000), ids at 64 printable characters, request bodies at 64 KB in Caddy.
+**Alternatives rejected:** a spend reservation per turn (the 2026-07-05
+entry's objection stands: cost is unknown pre-flight); uvicorn
+`--proxy-headers` (trusts the leftmost entry of a chain it cannot see the
+shape of); disabling parallel tool use at the API (not guaranteed across the
+OpenRouter path; the server-side cap is the boundary either way).
+**Consequence:** worst-case overshoot past the global cap is about four turns'
+cost. The session message cap is still a context limit, not a spend control:
+a caller that omits `session_id` gets a fresh session each time; the per-IP
+spend cap now covers that case.
+**Revisit trigger:** a public deployment (#37) puts another edge in front:
+add its ranges to Caddy's `trusted_proxies`. Real visitors seeing 503s at
+four concurrent turns: raise the slot count.
+Spec updated: D11 (Risks accepted, concurrency sentence amended).
+
+---
+
 ## 2026-09-18 — embeddings move to pplx-embed-v1-0.6b over OpenRouter (D5 third amendment)
 
 **Context.** The corpus held 40,116 chunks but only 33,931 vectors: 144

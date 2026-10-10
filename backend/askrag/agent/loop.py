@@ -130,10 +130,14 @@ def anthropic_client_from_settings(settings: Settings) -> AnthropicModelClient:
         client = anthropic.Anthropic(
             base_url=settings.agent_api_base_url,
             auth_token=settings.openrouter_api_key.get_secret_value(),
+            timeout=settings.agent_request_timeout_seconds,
         )
         model = settings.smoke_model
     else:
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
+        client = anthropic.Anthropic(
+            api_key=settings.anthropic_api_key.get_secret_value(),
+            timeout=settings.agent_request_timeout_seconds,
+        )
         model = settings.agent_model
     return AnthropicModelClient(
         client=client, model=model, max_tokens=settings.agent_max_output_tokens
@@ -167,10 +171,25 @@ def _dispatch_tool_calls(
     tool_use_blocks: list[Any],
     on_event: Callable[[AgentEvent], None],
     scope: tuple[str, ...] | None = None,
+    *,
+    max_calls: int,
 ) -> tuple[list[dict[str, Any]], list[ToolCallRecord]]:
+    """Run the first `max_calls` tool calls of one response. The rest are
+    answered (the API requires a result per tool_use) but never run, and emit
+    no event: a refused drive_ui must not reach the reader's screen."""
     result_blocks: list[dict[str, Any]] = []
     records: list[ToolCallRecord] = []
-    for block in tool_use_blocks:
+    for i, block in enumerate(tool_use_blocks):
+        if i >= max_calls:
+            result_blocks.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": f"[not run: at most {max_calls} tool calls per step]",
+                    "is_error": True,
+                }
+            )
+            continue
         name, args = block.name, block.input
         on_event(AgentEvent(EventKind.TOOL_CALL, {"name": name, "args": args}))
         try:
@@ -275,76 +294,97 @@ def run_turn(
     final_text = ""
     step = 0
 
-    while True:
-        messages = evict_oldest(
-            messages, ceiling_tokens=settings.message_token_budget, settings=settings
+    def emit_text(text: str) -> None:
+        # `tool_calls` rides along so the API boundary can enforce §6c row 4 and
+        # verify citations (answer_guard, issue #36): only the loop knows what
+        # this turn actually retrieved. It is INTERNAL — sse_events' `translate`
+        # reads `text` alone, so it never reaches the wire.
+        on_event(AgentEvent(EventKind.TEXT, {"text": text, "tool_calls": tuple(tool_records)}))
+
+    def record(answer_text: str) -> str:
+        return traces.record_run(
+            session_id=session_id,
+            ip=ip,
+            question=user_message,
+            answer_text=answer_text,
+            tokens_in=cost.tokens_in,
+            tokens_out=cost.out,
+            cost_usd=cost.usd(settings),
+            latency_ms=(time.monotonic() - started) * 1000,
+            tool_calls=tool_records,
+            showcase=False,
+            settings=settings,
         )
-        response = client.create(system=SYSTEM_PROMPT, messages=messages, tools=tool_params)
 
-        cost.add(response.usage)
-        messages = [*messages, {"role": "assistant", "content": response.content}]
-
-        text = _text_of(response)
-        if text is not None:
-            final_text = text
-            # `tool_calls` rides along so the API boundary can enforce §6c row 4
-            # and verify citations (answer_guard, issue #36): only the loop knows
-            # what this turn actually retrieved. It is INTERNAL — sse_events'
-            # `translate` reads `text` alone, so it never reaches the wire.
-            on_event(
-                AgentEvent(EventKind.TEXT, {"text": final_text, "tool_calls": tuple(tool_records)})
+    try:
+        while True:
+            messages = evict_oldest(
+                messages, ceiling_tokens=settings.message_token_budget, settings=settings
             )
+            response = client.create(system=SYSTEM_PROMPT, messages=messages, tools=tool_params)
 
-        if response.stop_reason != "tool_use":
-            break  # StopReason.END_TURN, the default
+            cost.add(response.usage)
+            messages = [*messages, {"role": "assistant", "content": response.content}]
 
-        step += 1
-        if step > settings.max_tool_steps_per_message:
-            stop_reason = StopReason.STEP_CAP
-            break
-        if cost.tokens_total > settings.message_token_budget:
-            stop_reason = StopReason.TOKEN_BUDGET
-            break
+            text = _text_of(response)
+            if text is not None:
+                final_text = text
+                emit_text(text)
 
-        tool_use_blocks = [b for b in response.content if getattr(b, "type", None) == "tool_use"]
-        result_blocks, records = _dispatch_tool_calls(tool_use_blocks, on_event, scope)
-        tool_records.extend(records)
-        messages = [*messages, {"role": "user", "content": result_blocks}]
+            if response.stop_reason != "tool_use":
+                break  # StopReason.END_TURN, the default
 
-    if stop_reason is not StopReason.END_TURN:
-        messages = _stub_dangling_tool_uses(messages)
-        messages = evict_oldest(
-            messages, ceiling_tokens=settings.message_token_budget, settings=settings
-        )
-        response = client.create(system=SYSTEM_PROMPT, messages=messages, tools=None)
-        cost.add(response.usage)
-        messages = [*messages, {"role": "assistant", "content": response.content}]
-        final_text = _text_of(response) or final_text
+            step += 1
+            if step > settings.max_tool_steps_per_message:
+                stop_reason = StopReason.STEP_CAP
+                break
+            if cost.tokens_total > settings.message_token_budget:
+                stop_reason = StopReason.TOKEN_BUDGET
+                break
 
-    tokens_in = cost.tokens_in
-    cost_usd = cost.usd(settings)
-    run_id = traces.record_run(
-        session_id=session_id,
-        ip=ip,
-        question=user_message,
-        answer_text=final_text,
-        tokens_in=tokens_in,
-        tokens_out=cost.out,
-        cost_usd=cost_usd,
-        latency_ms=(time.monotonic() - started) * 1000,
-        tool_calls=tool_records,
-        showcase=False,
-        settings=settings,
-    )
+            tool_use_blocks = [
+                b for b in response.content if getattr(b, "type", None) == "tool_use"
+            ]
+            result_blocks, records = _dispatch_tool_calls(
+                tool_use_blocks, on_event, scope, max_calls=settings.max_tool_calls_per_step
+            )
+            tool_records.extend(records)
+            messages = [*messages, {"role": "user", "content": result_blocks}]
+
+        if stop_reason is not StopReason.END_TURN:
+            messages = _stub_dangling_tool_uses(messages)
+            messages = evict_oldest(
+                messages, ceiling_tokens=settings.message_token_budget, settings=settings
+            )
+            response = client.create(system=SYSTEM_PROMPT, messages=messages, tools=None)
+            cost.add(response.usage)
+            messages = [*messages, {"role": "assistant", "content": response.content}]
+            # The forced answer is the one a capped turn was spent producing;
+            # it reaches the reader like any other, through the same guard.
+            forced = _text_of(response)
+            if forced:
+                final_text = forced
+                emit_text(forced)
+    except BaseException:
+        # Every model call already made is billed whether or not the turn
+        # finishes. Recording only on success let a turn that died on its
+        # third call spend two calls' worth unseen by every D11 cap, the
+        # session count included. The partial run is recorded without an
+        # answer and the failure still propagates.
+        if cost.calls:
+            record("")
+        raise
+
+    run_id = record(final_text)
     on_event(AgentEvent(EventKind.DONE, {"stop_reason": stop_reason.value, "run_id": run_id}))
 
     return TurnResult(
         text=final_text,
         stop_reason=stop_reason,
         tool_calls=tuple(tool_records),
-        tokens_in=tokens_in,
+        tokens_in=cost.tokens_in,
         tokens_out=cost.out,
-        cost_usd=cost_usd,
+        cost_usd=cost.usd(settings),
         run_id=run_id,
         messages=messages,
     )

@@ -16,12 +16,13 @@ a turn's token count is unknown pre-flight and is enforced inside the loop (#23)
 by the step/token cap. This gate governs the spend/count caps that are knowable
 before the turn runs.
 
-Concurrency (DECISIONS.md 2026-07-05): real cost is known only post-call and
-written by record_run() afterward, so check-then-record has a window. This gate
-is SEQUENTIALLY correct — no *sequence* of requests can exceed the global cap.
-Concurrent in-flight requests can overshoot by at most (in-flight count) ×
-(per-message cost cap), accepted as bounded per D11 and tightened at #23/#30 if
-real abuse warrants a reserve-or-serialize step.
+Concurrency (DECISIONS.md 2026-07-05, 2026-10-10): real cost is known only
+post-call and written by record_run() afterward, so check-then-record has a
+window. This gate is SEQUENTIALLY correct — no *sequence* of requests can
+exceed the global cap. Concurrent turns can overshoot by at most the number in
+flight, which the chat route fixes at `chat_max_concurrent_turns`
+(api/turn_slots.py), times one turn's cost, which the loop bounds with its
+step, tool-call and timeout caps.
 """
 
 from dataclasses import dataclass

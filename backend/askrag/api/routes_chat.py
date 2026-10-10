@@ -21,7 +21,7 @@ import anyio.from_thread
 import anyio.to_thread
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from askrag import db, traces
@@ -35,23 +35,32 @@ from askrag.agent.loop import (
     run_turn,
 )
 from askrag.api import answer_guard, sse_events
+from askrag.api.client_ip import client_ip, parse_networks
 from askrag.api.replay import replay_events
 from askrag.api.routes_landing import find_foundation, scope_paper_ids
 from askrag.api.session_store import SessionStore
+from askrag.api.turn_slots import TurnSlots
 from askrag.config import Settings, get_settings
 
 router = APIRouter()
 _logger = logging.getLogger(__name__)
 
 
+# Bounds on what a caller can make us store or forward. The server mints
+# session ids (uuid4 hex) and the frontend echoes them back; the pattern only
+# keeps a caller-chosen one short and printable. Question length is checked in
+# the route against live settings, so an env override is honoured.
+_ID_PATTERN = r"^[A-Za-z0-9._/-]{1,64}$"
+
+
 class ChatRequest(BaseModel):
-    question: str
-    session_id: str | None = None
+    question: str = Field(min_length=1)
+    session_id: str | None = Field(default=None, pattern=_ID_PATTERN)
     # A landing-page claim to answer within, e.g. "1707.06347". The route
     # resolves it to that claim's INDEXED papers and binds the result into
     # tool dispatch, so the model receives a scope it cannot widen (§5/§6).
     # An unknown id is a 404, never a silently unscoped turn.
-    foundation_id: str | None = None
+    foundation_id: str | None = Field(default=None, pattern=_ID_PATTERN)
 
 
 def get_model_client(settings: Settings = Depends(get_settings)) -> ModelClient:
@@ -67,11 +76,29 @@ def get_session_store(request: Request) -> SessionStore:
     return request.app.state.session_store
 
 
-def _client_ip(request: Request) -> str:
-    # No reverse-proxy trust chain configured yet (Cloudflare/Caddy land at
-    # deploy, D13): request.client is the direct peer. Revisit once a
-    # trusted X-Forwarded-For source exists in front of this process.
-    return request.client.host if request.client is not None else "unknown"
+def require_agent(settings: Settings = Depends(get_settings)) -> None:
+    """A 404 while the agent is switched off (`agent_enabled`). A route-level
+    dependency, so it runs before the model client is built: a deploy with
+    the agent off may carry no provider key at all."""
+    if not settings.agent_enabled:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+def get_turn_slots(request: Request) -> TurnSlots:
+    """Process-wide, on `app.state` beside the session store (D13)."""
+    return request.app.state.turn_slots
+
+
+def _client_ip(request: Request, settings: Settings) -> str:
+    # The per-IP budget key. Behind Caddy the direct peer is Caddy, so the
+    # visitor comes from X-Forwarded-For as far as trusted hops vouch for it
+    # (askrag/api/client_ip.py).
+    peer = request.client.host if request.client is not None else None
+    return client_ip(
+        peer,
+        request.headers.get("x-forwarded-for"),
+        parse_networks(settings.trusted_proxy_cidrs),
+    )
 
 
 def _choose_showcase(pool: list[traces.Run], session_id: str) -> traces.Run:
@@ -145,8 +172,50 @@ async def _stream_live_turn(
     client: ModelClient,
     settings: Settings,
     session_store: SessionStore,
+    slots: TurnSlots,
     scope: tuple[str, ...] | None = None,
     scope_key: str | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """One live turn, inside a turn slot (askrag/api/turn_slots.py)."""
+    # The slot is taken here, where the turn starts, and not in the route: a
+    # generator that never starts (client gone before the first read) never
+    # runs its finally, and a slot taken outside it would leak for good. The
+    # route's `full` check is the fast refusal; this is the atomic one that
+    # catches requests racing past it.
+    if not slots.try_acquire():
+        yield {"data": json.dumps({"type": "done", "stop_reason": "error", "run_id": ""})}
+        return
+    try:
+        async for payload in _run_live_turn(
+            messages=messages,
+            question=question,
+            session_id=session_id,
+            ip=ip,
+            client=client,
+            settings=settings,
+            session_store=session_store,
+            scope=scope,
+            scope_key=scope_key,
+        ):
+            yield payload
+    finally:
+        # Reached only after the worker thread has finished (see the
+        # task-group note in _run_live_turn), so a disconnected turn keeps its
+        # slot for as long as it is still spending.
+        slots.release()
+
+
+async def _run_live_turn(
+    *,
+    messages: list[Any],
+    question: str,
+    session_id: str,
+    ip: str,
+    client: ModelClient,
+    settings: Settings,
+    session_store: SessionStore,
+    scope: tuple[str, ...] | None,
+    scope_key: str | None,
 ) -> AsyncIterator[dict[str, Any]]:
     """The sync-loop -> async-SSE bridge (the load-bearing piece of this
     route). `run_turn` is synchronous and blocking (sync SQLite + model
@@ -269,16 +338,22 @@ def _resolve_scope(foundation_id: str | None, settings: Settings) -> tuple[str, 
     return scope
 
 
-@router.post("/api/chat", response_model=None)
+@router.post("/api/chat", response_model=None, dependencies=[Depends(require_agent)])
 async def post_chat(
     body: ChatRequest,
     request: Request,
     client: ModelClient = Depends(get_model_client),
     session_store: SessionStore = Depends(get_session_store),
+    slots: TurnSlots = Depends(get_turn_slots),
     settings: Settings = Depends(get_settings),
 ) -> JSONResponse | EventSourceResponse:
+    if len(body.question) > settings.chat_question_max_chars:
+        raise HTTPException(
+            status_code=422,
+            detail=f"question is over {settings.chat_question_max_chars} characters",
+        )
     session_id = body.session_id or uuid4().hex
-    ip = _client_ip(request)
+    ip = _client_ip(request, settings)
 
     decision = budgets.check(session_id, ip, settings=settings)
 
@@ -311,6 +386,15 @@ async def post_chat(
             },
         )
 
+    if slots.full:
+        # 503, not 429: nothing about this visitor tripped a cap, and the
+        # frontend treats a 429 as the session being capped for good.
+        return JSONResponse(
+            status_code=503,
+            content={"reason": "The live demo is answering other questions. Try again shortly."},
+            headers={"Retry-After": "10", "X-AskRAG-Session-Id": session_id},
+        )
+
     scope = _resolve_scope(body.foundation_id, settings)
     messages = session_store.get_or_create(session_id, body.foundation_id)
     return EventSourceResponse(
@@ -322,6 +406,7 @@ async def post_chat(
             client=client,
             settings=settings,
             session_store=session_store,
+            slots=slots,
             scope=scope,
             scope_key=body.foundation_id,
         ),

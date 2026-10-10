@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from askrag import telemetry
+from askrag.api.cache_headers import ApiCacheHeaders
 from askrag.api.routes_catalog import router as catalog_router
 from askrag.api.routes_census import router as census_router
 from askrag.api.routes_chat import router as chat_router
@@ -18,6 +19,7 @@ from askrag.api.routes_landing import router as landing_router
 from askrag.api.routes_paper_detail import router as paper_detail_router
 from askrag.api.routes_thumbnails import router as thumbnails_router
 from askrag.api.session_store import SessionStore
+from askrag.api.turn_slots import TurnSlots
 from askrag.config import get_settings
 
 
@@ -29,6 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # factories (D4, askrag/db.py). The session store is the one
     # process-lifetime object this app owns (D13: single process, no Redis).
     app.state.session_store = SessionStore(settings=settings)
+    app.state.turn_slots = TurnSlots(settings.chat_max_concurrent_turns)
     try:
         yield
     finally:
@@ -47,6 +50,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+app.add_middleware(ApiCacheHeaders, cache_control=get_settings().api_cache_control)
 
 app.include_router(chat_router)
 app.include_router(paper_detail_router)

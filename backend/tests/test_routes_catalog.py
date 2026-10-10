@@ -176,6 +176,27 @@ def test_paging_stops_rather_than_offering_an_offset_past_the_end(client):
     assert second["next_offset"] is None
 
 
+@pytest.mark.parametrize("sort", ["newest", "oldest", "cited"])
+def test_a_page_at_any_depth_is_that_slice_of_the_whole_order(client, sort):
+    """The page's order is fixed by one query and its columns come from
+    another; one-at-a-time pages must line up with the full list."""
+    whole = [p["arxiv_id"] for p in client.get(f"/api/catalog/papers?sort={sort}").json()["papers"]]
+    paged = [
+        p["arxiv_id"]
+        for offset in range(len(whole))
+        for p in client.get(f"/api/catalog/papers?sort={sort}&limit=1&offset={offset}").json()[
+            "papers"
+        ]
+    ]
+    assert paged == whole
+
+
+def test_an_offset_past_the_end_is_an_empty_page(client):
+    body = client.get("/api/catalog/papers?offset=1000").json()
+    assert body["papers"] == []
+    assert body["next_offset"] is None
+
+
 def test_no_chunk_text_reaches_this_surface(client):
     """§6c: the catalog abstract is metadata, chunk text is the paper. This
     route never reads `chunks`, and the response shape is the assertion."""

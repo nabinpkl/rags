@@ -48,12 +48,20 @@ services:
       # Empty is the deployed shape (same-origin behind Caddy). A dev origin
       # goes in deploy/.env, never here.
       ASKRAG_CORS_ALLOWED_ORIGINS: ${ASKRAG_CORS_ALLOWED_ORIGINS:-[]}
+      # One switch for both halves of the agent: this refuses POST /api/chat,
+      # and the same value is the web build's NEXT_PUBLIC_AGENT_ENABLED
+      # (below), which hides the panel. Off unless deploy/.env says true.
+      ASKRAG_AGENT_ENABLED: ${ASKRAG_AGENT_ENABLED:-false}
       ASKRAG_AGENT_API_BASE_URL: ${ASKRAG_AGENT_API_BASE_URL:-}
       ASKRAG_SMOKE_MODEL: ${ASKRAG_SMOKE_MODEL:-xiaomi/mimo-v2.6-flash}
       ASKRAG_TRACE_IP_HASH_SALT: ${ASKRAG_TRACE_IP_HASH_SALT:?set a salt in deploy/.env — unsalted IP hashes are reversible}
       ASKRAG_GLOBAL_DAILY_SPEND_CAP_USD: ${ASKRAG_GLOBAL_DAILY_SPEND_CAP_USD:-0.50}
       ASKRAG_IP_DAILY_SPEND_CAP_USD: ${ASKRAG_IP_DAILY_SPEND_CAP_USD:-0.10}
       ASKRAG_LOG_LEVEL: ${ASKRAG_LOG_LEVEL:-INFO}
+      # Caddy and the bridge gateway, whose X-Forwarded-For entries the
+      # per-IP budget believes (askrag/api/client_ip.py). Tied to the subnet
+      # under `networks:` below; change both together.
+      ASKRAG_TRUSTED_PROXY_CIDRS: '["10.120.0.0/24"]'
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     volumes:
@@ -86,6 +94,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
+      args:
+        NEXT_PUBLIC_AGENT_ENABLED: ${ASKRAG_AGENT_ENABLED:-false}
     image: askrag-web:local
     depends_on:
       api:
