@@ -233,6 +233,13 @@ deploy *ARGS:
     # never takes the public site down by forgetting it.
     if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
         export COMPOSE_PROFILES=public
+        # Checked before anything changes: a public deploy that cannot purge
+        # leaves visitors on the previous deploy's API answers for up to
+        # s-maxage (an hour) with nothing to say so.
+        if [ -z "${CLOUDFLARE_PURGE_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ZONE_ID:-}" ] || [ -z "${ASKRAG_PUBLIC_HOSTNAME:-}" ]; then
+            echo "public deploy needs CLOUDFLARE_PURGE_TOKEN, CLOUDFLARE_ZONE_ID and ASKRAG_PUBLIC_HOSTNAME in deploy/.env (see deploy/README.md)" >&2
+            exit 1
+        fi
     fi
     docker compose -f deploy/compose.yml up -d --build {{ARGS}}
     # corpus.db is bind-mounted as a FILE, so the mount pins the inode it
@@ -246,10 +253,35 @@ deploy *ARGS:
         docker compose -f deploy/compose.yml up -d --force-recreate api
     fi
     docker compose -f deploy/compose.yml ps
+    if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
+        just deploy-purge
+    fi
 
-# Stop the stack (volumes survive: traces.db and the chroma copy). The profile
-# is named so the tunnel stops too; left out, it keeps running and holds the
-# network open.
+# Visitors see this deploy's corpus and code now rather than after s-maxage.
+# Only /api is purged: HTML is not edge-cached, /_next/static names are
+# content-hashed, and a thumbnail never changes for a paper. `just deploy`
+# runs this on every public deploy.
+# Purge the public site's edge-cached API answers (Cloudflare, prefix /api/)
+deploy-purge:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; . deploy/.env; set +a
+    : "${CLOUDFLARE_ZONE_ID:?set in deploy/.env}" "${ASKRAG_PUBLIC_HOSTNAME:?set in deploy/.env}"
+    : "${CLOUDFLARE_PURGE_TOKEN:?set in deploy/.env: an API token with only Zone > Cache Purge (deploy/README.md)}"
+    response=$(curl -sS --max-time 30 -X POST \
+        "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+        -H "Authorization: Bearer ${CLOUDFLARE_PURGE_TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data "{\"prefixes\":[\"${ASKRAG_PUBLIC_HOSTNAME}/api/\"]}")
+    if ! printf '%s' "$response" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("success") else 1)'; then
+        echo "Cloudflare purge failed: $response" >&2
+        exit 1
+    fi
+    echo "purged edge cache under ${ASKRAG_PUBLIC_HOSTNAME}/api/"
+
+# The profile is named so the tunnel stops too; left out, it keeps running and
+# holds the network open.
+# Stop the stack (volumes survive: traces.db and the chroma copy)
 deploy-down *ARGS:
     docker compose -f deploy/compose.yml --profile public down {{ARGS}}
 
@@ -285,9 +317,10 @@ deploy-tailnet-off:
     set -a; . deploy/.env; set +a
     tailscale serve --https="${ASKRAG_TAILNET_PORT:-8443}" off
 
-# Withdraw the public site (the tunnel container); the stack keeps serving on
-# loopback and the tailnet. Blank CLOUDFLARE_TUNNEL_TOKEN in deploy/.env too,
-# or the next `just deploy` brings it back.
+# The stack keeps serving on loopback and the tailnet. Blank
+# CLOUDFLARE_TUNNEL_TOKEN in deploy/.env too, or the next `just deploy` brings
+# it back.
+# Withdraw the public site (stop the tunnel container)
 deploy-public-off:
     docker compose -f deploy/compose.yml --profile public rm -sf tunnel
 

@@ -54,6 +54,7 @@ just deploy-logs        # follow both containers
 just deploy-down        # stop; volumes (traces, chroma) survive
 just deploy-tailnet-off # withdraw the tailnet listener, keep serving on loopback
 just deploy-public-off  # stop the tunnel; blank the token too or the next deploy restarts it
+just deploy-purge       # drop edge-cached /api answers (every public deploy runs it)
 just deploy-reseed      # rebuild the chroma volume after a re-ingest (D12 refresh)
 ```
 
@@ -87,8 +88,12 @@ theirs):
 | HSTS | on after a clean week | hard to undo |
 
 Cloudflare caches `/api` reads for up to an hour (`api_cache_control`), so
-after a corpus redeploy purge the hostname's cache or the site shows the old
-snapshot until it expires.
+every public `just deploy` ends with `just deploy-purge`, which purges the
+prefix `rag.nabin.org/api/` and fails the deploy if Cloudflare refuses. It
+needs `CLOUDFLARE_PURGE_TOKEN` in `deploy/.env`: an API token with only
+Zone > Cache Purge on `nabin.org` (dashboard > My Profile > API Tokens >
+Create Custom Token). A public deploy without it stops before changing
+anything.
 
 Resources (account and zone `nabin.org`; no secrets here):
 
