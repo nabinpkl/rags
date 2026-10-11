@@ -131,12 +131,13 @@ frontier:
     cd collector && uv run python fetch_ids.py ../corpus/frontier.json
     cd backend && uv run python -m askrag.ingest.extract_pdfs --frontier
 
-# The embed step is hours on a CPU box and is resumable — rerun it and it picks
-# up where it stopped. ASKRAG_EMBED_LOCAL_DTYPE=float32 is NOT optional here:
-# the default (float16) is right on the ingest Mac but is emulated per-op on a
-# CPU, measured 30x slower (DECISIONS.md 2026-08-28). build_indexes is
-# drop-and-rebuild, so it must run last, after `just citations` and
-# `just frontier`.
+# Embedding is incremental: chunks already in the vectors file are skipped, so
+# a run embeds only papers new to the manifest. On the default OpenRouter
+# backend that is minutes (2026-10-02: 10,563 new chunks, 3 min, $0.023). The
+# float32 override only matters with embedding_backend=local, where float16 is
+# emulated per-op on a CPU, measured 30x slower (DECISIONS.md 2026-08-28).
+# build_indexes is drop-and-rebuild, so it must run last, after
+# `just citations` and `just frontier`.
 # Chunk, embed, and rebuild corpus.db + chroma
 index:
     cd backend && uv run python -m askrag.ingest.chunk_papers
@@ -152,9 +153,10 @@ thumbnails *ARGS:
     cd backend && uv run python -m askrag.ingest.render_thumbnails {{ARGS}}
 
 # Rebuild corpus.db alone: the page's numbers (papers, citations, the catalog
-# census) without waiting on the embedder, which runs at ~1,000 chunks/hour on
-# this box. The vector store is left exactly as it is, so chunks embedded since
-# the last full `just index` answer to keyword search only until one runs.
+# census) without chunking or embedding anything. The vector store is left
+# exactly as it is, so chunks added since the last full `just index` answer
+# to keyword search only until one runs.
+# Rebuild corpus.db without touching the vectors
 index-metadata:
     cd backend && uv run python -m askrag.ingest.build_indexes --without-vectors
 
