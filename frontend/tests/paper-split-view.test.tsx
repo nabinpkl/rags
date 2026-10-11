@@ -81,7 +81,6 @@ describe("PaperSplitView", () => {
         version: "v3",
         excerpts: [],
         excerpts_truncated: false,
-        indexed: true,
       },
     });
     render(<PaperSplitView />);
@@ -99,7 +98,6 @@ describe("PaperSplitView", () => {
         version: null,
         excerpts: [],
         excerpts_truncated: false,
-        indexed: true,
       },
     });
     render(<PaperSplitView />);
@@ -131,10 +129,41 @@ describe("PaperSplitView", () => {
 // viewport's: with the agent panel docked, a 1040px window leaves this region
 // 620px, and a viewport breakpoint gave the PDF 300px beside a 320px pane of
 // "no excerpts yet".
+const EXCERPT = {
+  chunk_id: "c1",
+  section: "§4 Evaluation",
+  page_start: 3,
+  page_end: 3,
+  text: "the phoneme-based system achieves 17.4% WER",
+};
+
+function loaded(excerpts: (typeof EXCERPT)[]) {
+  return {
+    data: {
+      title: "t",
+      authors: "a",
+      primary_category: "cs.CL",
+      year: 2014,
+      version: "v3",
+      excerpts,
+      excerpts_truncated: false,
+    },
+  };
+}
+
 describe("PaperSplitView layout", () => {
+  it("gives the PDF the whole region when the paper has no excerpts", () => {
+    useViewerStore.getState().setPaper("1409.7842");
+    mockDetail(loaded([]));
+    render(<PaperSplitView />);
+
+    expect(screen.queryByTestId("excerpts-pane")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /cited excerpts/i })).not.toBeInTheDocument();
+  });
+
   it("lays out the PDF|excerpts split by its own width, not the viewport", () => {
     useViewerStore.getState().setPaper("1409.7842");
-    mockDetail({ isPending: true });
+    mockDetail(loaded([EXCERPT]));
     const { container } = render(<PaperSplitView />);
 
     expect(container.firstElementChild?.className).toMatch(/@container/);

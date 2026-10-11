@@ -274,13 +274,6 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
           arxiv.org/pdf/<b className="text-teal">{idv}</b>
           {rung === 2 && !loading ? ` p.${displayPage}` : ""}
         </span>
-        {/* Provenance, kept in plain words: the point a reader cares about is
-            that the file comes from arXiv itself, not that we don't proxy it
-            (§6b, which is our constraint to keep, not their vocabulary). */}
-        {/* Dropped on a phone: it wrapped the bar to two lines over the top
-            of the first page. The header's "open on arXiv" link carries
-            the §6b provenance at every width. */}
-        <span className="hidden sm:inline">— loaded straight from arXiv</span>
         <button
           type="button"
           onClick={toggleRung}
@@ -355,7 +348,7 @@ export function ArxivPdfFrame({ arxivId, version, page }: ArxivPdfFrameProps) {
             "rounded bg-black/70 px-4 py-3 text-center text-[12px] leading-relaxed",
           )}
         >
-          Couldn&apos;t load the PDF (offline?). Read the cited excerpts, or
+          Couldn&apos;t load the PDF.
           <a
             href={absUrl}
             target="_blank"

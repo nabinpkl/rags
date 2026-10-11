@@ -10,9 +10,7 @@ import { retryUnlessMissing } from "@/lib/query-retry";
 type CitedExcerpt = components["schemas"]["CitedExcerpt"];
 
 /** What the viewer needs to open a paper: enough to title it, and the version
- * to pin its PDF to (§6b/D9). `indexed` is derived HERE, from which of our own
- * records answered — it is not a field on any response, so D16's "no
- * `readable` flag reaches the wire" still holds. */
+ * to pin its PDF to (§6b/D9). */
 export interface ViewerPaper {
   title: string | null;
   authors: string | null;
@@ -21,10 +19,6 @@ export interface ViewerPaper {
   version: string | null;
   excerpts: CitedExcerpt[];
   excerpts_truncated: boolean;
-  /** True when we hold this paper's text, so the agent can read it and the
-   * excerpts pane can fill. False for a work we only know as a citation
-   * target — its PDF still opens, because those bytes were never ours. */
-  indexed: boolean;
 }
 
 /** Resolves an arxiv id against the corpus first, then against the citation
@@ -63,7 +57,7 @@ export function useViewerPaper(paperId: string | null, chunkIds: readonly string
 
   let data: ViewerPaper | undefined;
   if (corpus.data) {
-    data = { ...corpus.data, indexed: true };
+    data = corpus.data;
   } else if (cited.data) {
     const { title, authors, year, primary_category, version } = cited.data.foundation;
     data = {
@@ -74,7 +68,6 @@ export function useViewerPaper(paperId: string | null, chunkIds: readonly string
       version,
       excerpts: [],
       excerpts_truncated: false,
-      indexed: false,
     };
   }
 
