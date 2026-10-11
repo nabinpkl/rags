@@ -43,7 +43,6 @@ function describe(state: CatalogFilterState, topic: string | null): string {
     // heading reads as the row the reader pressed rather than as its code.
     state.category ? (topic ?? state.category) : null,
     state.month ? `posted ${formatIdMonth(state.month)}` : null,
-    state.holding === "text" ? "whose text we hold" : null,
   ].filter(Boolean);
   return parts.join(" · ");
 }

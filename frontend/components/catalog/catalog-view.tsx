@@ -69,15 +69,14 @@ export function CatalogView({
           onClose={closeOverlay}
           // Wider as a drawer than as a docked rail: the phone control is 16px
           // (iOS zooms anything smaller) and a facet label carries its count,
-          // so "Everything arXiv posted · 65,503" ran off the 264px edge with
-          // no ellipsis, which a native select truncates silently.
+          // so a long label ran off the 264px edge with no ellipsis, which a
+          // native select truncates silently.
           className="bg-panel border-line w-[min(320px,86vw)] shrink-0 border-r md:w-[264px]"
         >
           <ShellSidebar current={view}>
             <CatalogFilters
               state={state}
               facets={facets}
-              holdingPinned={pinnedHolding !== undefined}
               onChange={(next) => {
                 change(next);
                 closeOverlay();

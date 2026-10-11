@@ -1,7 +1,6 @@
-// The catalog filter's URL half. Explore and the RAG demo share it, and the
-// demo's one extra rule is a boundary: its pinned scope never reaches, and is
-// never read from, the URL, so a hand-edited link cannot widen the list past
-// the papers its agent reads.
+// The catalog filter's URL half. Explore and the RAG demo share it. The
+// view's scope never reaches, and is never read from, the URL, so a
+// hand-edited link cannot widen the demo past the papers its agent reads.
 import { describe, expect, it } from "vitest";
 
 import { EMPTY_FILTER } from "@/components/catalog/catalog-filters";
@@ -13,13 +12,13 @@ describe("catalogSearchParams", () => {
   });
 
   it("writes the reader's choices", () => {
-    const state = { ...EMPTY_FILTER, q: "rag", category: "cs.CL", holding: "text" as const };
-    expect(catalogSearchParams(state).toString()).toBe("q=rag&category=cs.CL&holding=text");
+    const state = { ...EMPTY_FILTER, q: "rag", category: "cs.CL", sort: "cited" as const };
+    expect(catalogSearchParams(state).toString()).toBe("q=rag&category=cs.CL&sort=cited");
   });
 
-  it("never writes a pinned scope", () => {
+  it("never writes the view's scope", () => {
     const state = { ...EMPTY_FILTER, category: "cs.CL", holding: "indexed" as const };
-    expect(catalogSearchParams(state, "indexed").toString()).toBe("category=cs.CL");
+    expect(catalogSearchParams(state).toString()).toBe("category=cs.CL");
   });
 });
 
