@@ -1,7 +1,6 @@
 // Every paper link on the dashboard points at the reader, including works we
 // only know as citation targets. What makes that safe is this hook: the corpus
-// answers when it can, the citation graph answers when it cannot, and `indexed`
-// is derived from WHICH answered — never read off a response field (D16).
+// answers when it can, and the citation graph answers when it cannot.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -72,7 +71,6 @@ describe("useViewerPaper", () => {
 
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data?.title).toBe("A paper we hold");
-    expect(result.current.data?.indexed).toBe(true);
     expect(fetchFoundationMock).not.toHaveBeenCalled();
   });
 
@@ -87,7 +85,6 @@ describe("useViewerPaper", () => {
     // browser fetches (§6b/D9).
     expect(result.current.data?.version).toBe("v6");
     expect(result.current.data?.title).toBe("Very Deep Convolutional Networks");
-    expect(result.current.data?.indexed).toBe(false);
     expect(result.current.isError).toBe(false);
     // A 404 is an answer, not a failure: retrying it three times would only
     // hold the fallback back by seconds (use-paper-detail.ts).

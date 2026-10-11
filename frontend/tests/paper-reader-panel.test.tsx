@@ -37,7 +37,6 @@ const VGG = {
   version: "v6",
   excerpts: [],
   excerpts_truncated: false,
-  indexed: false,
 };
 
 beforeEach(() => useViewerPaperMock.mockReset());

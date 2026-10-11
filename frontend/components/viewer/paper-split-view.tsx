@@ -42,7 +42,7 @@ export function PaperSplitView() {
   if (!paper) return null;
 
   const absUrl = arxivAbsUrl(paper, data?.version);
-  const excerptCount = data?.excerpts?.length ?? 0;
+  const excerpts = data?.excerpts ?? [];
 
   return (
     // `@container`: the PDF|excerpts split keys on THIS region's width
@@ -51,8 +51,8 @@ export function PaperSplitView() {
     // breakpoint gave the reading surface 300px beside a 320px pane of
     // "no excerpts yet".
     <div className="@container bg-paper flex h-full min-w-0 flex-col">
-      <div className="border-line bg-panel border-b px-3 py-2.5 sm:px-5 sm:py-3">
-        <div className="mb-1.5 flex items-center gap-2.5">
+      <div className="border-line bg-panel flex flex-col gap-1 border-b px-4 py-3 sm:px-5">
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={() => setPaper(null)}
@@ -77,7 +77,7 @@ export function PaperSplitView() {
             {data.authors}
           </p>
         )}
-        <div className="text-muted flex flex-wrap items-center gap-x-1.5 text-[12px]">
+        <div className="text-muted mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px]">
           {/* Each field guards itself: a cited work we never held can be
               missing a year or a category, and an unguarded separator would
               leave a stray "·" where the value should be. */}
@@ -123,11 +123,16 @@ export function PaperSplitView() {
           instead of scrolling internally — h-full pins the row to the
           flex parent's remaining height so each grid item's own
           overflow-auto region is what scrolls. */}
-      {/* Narrower than `@3xl` this is two ROWS — the PDF taking 1fr and the
-          excerpts collapsing to their header — because a 50/50 split on a
-          phone gives the reading surface half a screen, usually to show "no
-          cited excerpts yet". */}
-      <div className="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-[1fr_auto] @3xl:grid-cols-[1fr_320px] @3xl:grid-rows-1">
+      {/* No excerpts, no pane: the PDF takes the whole region. Most papers
+          have none, and with the agent off none ever do. Narrower than
+          `@3xl` the pane is a second ROW collapsed to its header, because a
+          50/50 split on a phone gives the reading surface half a screen. */}
+      <div
+        className={cn(
+          "grid h-full min-h-0 flex-1 grid-cols-1",
+          excerpts.length > 0 && "grid-rows-[1fr_auto] @3xl:grid-cols-[1fr_320px] @3xl:grid-rows-1",
+        )}
+      >
         {isPending ? (
           <div className="text-surround-text flex h-full items-center justify-center bg-surround font-mono text-[11px]">
             loading…
@@ -146,41 +151,40 @@ export function PaperSplitView() {
         {/* ONE pane instance in both layouts: it mints DOM ids per chunk for
             its section jump-links, and a second copy would make
             getElementById pick whichever rendered first. */}
-        <section className="border-line bg-panel flex min-h-0 flex-col border-t @3xl:border-t-0 @3xl:border-l">
-          <button
-            type="button"
-            onClick={() => setExcerptsOpen((open) => !open)}
-            aria-expanded={excerptsOpen}
-            className="text-muted hover:text-ink flex h-11 shrink-0 items-center gap-2 px-3.5 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase @3xl:hidden"
-          >
-            Cited excerpts
-            {excerptCount > 0 && (
+        {excerpts.length > 0 && (
+          <section className="border-line bg-panel flex min-h-0 flex-col border-t @3xl:border-t-0 @3xl:border-l">
+            <button
+              type="button"
+              onClick={() => setExcerptsOpen((open) => !open)}
+              aria-expanded={excerptsOpen}
+              className="text-muted hover:text-ink flex h-11 shrink-0 items-center gap-2 px-3.5 font-mono text-[10.5px] font-semibold tracking-[0.12em] uppercase @3xl:hidden"
+            >
+              Cited excerpts
               <span className="bg-teal-soft text-teal-ink rounded px-1.5 py-0.5 text-[10.5px]">
-                {excerptCount}
+                {excerpts.length}
               </span>
-            )}
-            <span aria-hidden="true" className="ml-auto">
-              {excerptsOpen ? "▾" : "▴"}
-            </span>
-          </button>
-          <div
-            className={cn(
-              // Expanded, THIS box scrolls: its height is content-driven up to
-              // the cap, so the pane's own `h-full` has no definite parent to
-              // resolve against and its overflow would never trigger. Docked,
-              // the row has a real height and the pane scrolls itself.
-              "min-h-0 flex-1 overflow-y-auto @3xl:block @3xl:max-h-none @3xl:overflow-visible",
-              excerptsOpen ? "max-h-[45vh]" : "hidden @3xl:block",
-            )}
-          >
-            <CitedExcerptsPane
-              excerpts={data?.excerpts ?? []}
-              excerptsTruncated={data?.excerpts_truncated ?? false}
-              indexed={data?.indexed ?? true}
-              onJumpToPage={(target) => setPage(target)}
-            />
-          </div>
-        </section>
+              <span aria-hidden="true" className="ml-auto">
+                {excerptsOpen ? "▾" : "▴"}
+              </span>
+            </button>
+            <div
+              className={cn(
+                // Expanded, THIS box scrolls: its height is content-driven up to
+                // the cap, so the pane's own `h-full` has no definite parent to
+                // resolve against and its overflow would never trigger. Docked,
+                // the row has a real height and the pane scrolls itself.
+                "min-h-0 flex-1 overflow-y-auto @3xl:block @3xl:max-h-none @3xl:overflow-visible",
+                excerptsOpen ? "max-h-[45vh]" : "hidden @3xl:block",
+              )}
+            >
+              <CitedExcerptsPane
+                excerpts={excerpts}
+                excerptsTruncated={data?.excerpts_truncated ?? false}
+                onJumpToPage={(target) => setPage(target)}
+              />
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
