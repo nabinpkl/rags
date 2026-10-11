@@ -14,6 +14,41 @@ Spec updated: <section or "no (process-only)">
 
 ---
 
+## 2026-10-11 — a month's PDFs can be dropped once its text and card images are on disk (owner directive)
+
+**Context:** the corpus volume is 246 GB and was 99% full (3.8 GB free).
+PDFs are 201 GB of it, about 50 GB per cs month, and October 2026 is next.
+D17's withdrawal kept every PDF and said the volume bounds how many months
+we hold; it is now the bound.
+
+**Decision:** a month's PDFs may be deleted once (a) every one of its papers
+has extracted text under `corpus/text/` and (b) its card images are warmed
+with `just thumbnails --only <ids>`. July 2026 goes first: 13,010 papers,
+all with text, none in the frontier manifest. Nothing reads a dropped
+month's bytes afterwards: `has_text` comes from the text tree,
+`missing-ids` and `fetch-ids` read `arxiv.db` rows rather than files, and
+`just frontier` fetches any manifest paper it lacks from the GCS mirror.
+
+**Rejected:** growing the volume (a recurring cost against the D13 budget
+for bytes that are only read again on a chunker change); deleting PDFs
+without warming images first (every card in the month would fall back to its
+category glyph, since D19's on-demand render needs the PDF).
+
+**Measured (2026-10-11):** July's warm rendered 12,950 images in 63 min
+(43 were already cached), so 12,993 of 13,010 papers have one; 17 PDFs
+failed to render and keep the glyph. Deleting the month's 56 GB, plus a
+superseded 1.8 GB seed copy, took the volume from 3.8 GB to 61 GB free.
+
+**Consequence:** a chunker or extractor change over a dropped month is a
+download pass from the mirror again (~56 GB, about 1.5 h at the measured
+11 MB/s), not a local re-run. A paper in a dropped month whose image failed
+to render keeps the glyph for good.
+
+**Revisit when:** the volume grows, or a dropped month's papers need
+re-extraction.
+
+**Spec updated:** yes, D17 and D19 amendments (2026-10-11).
+
 ## 2026-10-10 — the public site is a Cloudflare tunnel sidecar
 
 **Context:** D13 planned the public deployment (#37) as a Caddy site block

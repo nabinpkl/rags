@@ -1175,6 +1175,13 @@ The cost is disk, about 4 MB per paper (a month of cs is about 50 GB), and the
 volume, not transfer, is now what bounds how many months we hold. The number
 stays so that D18 and later keep theirs.
 
+**Amendment (2026-10-11, owner directive).** Kept by default, dropped by
+month when the volume needs the room: a month's PDFs may be deleted once all
+its papers have extracted text and its card images are warmed (D19
+amendment). July 2026 was the first month dropped. Its bytes remain on the
+GCS mirror, so the cost of a later re-extraction is a download pass, not
+lost data. DECISIONS.md 2026-10-11.
+
 ---
 
 ### D18. No code path touches export.arxiv.org; versions backfill from the seed
@@ -1224,6 +1231,11 @@ the bytes, so every later request is a static file again. `just thumbnails`
 warms the backlog in bulk and is an optimisation, never a prerequisite. The
 property this buys: a new month of papers shows pictures the moment its PDFs
 land — no reindex, no batch run standing between the data and the page.
+
+**Amendment (2026-10-11).** For a month whose PDFs are dropped (D17
+amendment), warming is a prerequisite, not an optimisation: the on-demand
+render needs the PDF, so the images are made with `just thumbnails --only`
+before the bytes go, and whatever fails to render keeps the category glyph.
 
 **Nothing fetches arxiv.org to build a card.** Thirty cards would be thirty
 requests per render, and from arXiv's side that is a scraper. The image comes
