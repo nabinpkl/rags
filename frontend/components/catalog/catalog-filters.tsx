@@ -8,16 +8,6 @@ import type { CatalogBucket, CatalogFacetsResponse } from "@/lib/api-client";
 import { formatIdMonth } from "@/lib/id-month";
 import { cn } from "@/lib/utils";
 
-/** What we hold of a paper, as the three states the corpus actually has.
- * Every paper has a catalog row; some have extracted text; a few are chunked
- * and searchable. The labels say what the reader gets, not what our pipeline
- * calls the stage. */
-export const HOLDINGS = [
-  { value: "all", label: "Everything arXiv posted" },
-  { value: "text", label: "We have the text" },
-  { value: "indexed", label: "The agent can read it" },
-] as const;
-
 export const SORTS = [
   { value: "newest", label: "Newest" },
   { value: "oldest", label: "Oldest" },
@@ -25,7 +15,10 @@ export const SORTS = [
   { value: "relevance", label: "Best match" },
 ] as const;
 
-export type Holding = (typeof HOLDINGS)[number]["value"];
+/** The slice of the catalog a view lists. A property of the view, not a
+ * reader control: Explore lists every paper, the RAG demo only the indexed
+ * ones its agent can read. */
+export type Holding = "all" | "indexed";
 export type Sort = (typeof SORTS)[number]["value"];
 
 export type CatalogFilterState = {
@@ -53,7 +46,7 @@ export const EMPTY_FILTER: CatalogFilterState = {
  * No search field: it is on the canvas, where the list it changes is
  * (`catalog-search.tsx`).
  *
- * Three selects and one list. The month dimension has 234 id-months, which
+ * Two selects and one list. The month dimension has 234 id-months, which
  * as rows was a rail the reader scrolled past to reach the next control, with
  * the long tail behind a "224 more" expander; a select holds all 234 in one
  * control. Topics are the exception (`topic-filter.tsx`): nine of them are
@@ -73,36 +66,19 @@ export function CatalogFilters({
   state,
   facets,
   onChange,
-  holdingPinned = false,
 }: {
   state: CatalogFilterState;
   facets: CatalogFacetsResponse | undefined;
   onChange: (next: Partial<CatalogFilterState>) => void;
-  /** The view fixes what we hold (the RAG demo is the indexed papers and
-   * nothing else), so "Show" is not a choice there: offering it would offer
-   * a way out of the view's own premise. */
-  holdingPinned?: boolean;
 }) {
-  const holdings = new Map(facets?.holdings.map((bucket) => [bucket.value, bucket.papers]));
+  // The view's scope is not something the reader chose, so it never makes
+  // the filter count as narrowed.
   const filtered = (Object.keys(EMPTY_FILTER) as (keyof CatalogFilterState)[]).some(
-    (key) => !(holdingPinned && key === "holding") && state[key] !== EMPTY_FILTER[key],
+    (key) => key !== "holding" && state[key] !== EMPTY_FILTER[key],
   );
 
   return (
     <div className="flex flex-col gap-4">
-      {!holdingPinned && (
-        <FilterSelect
-          label="Show"
-          value={state.holding}
-          resting={state.holding === EMPTY_FILTER.holding}
-          options={HOLDINGS.map((holding) => ({
-            value: holding.value,
-            label: withCount(holding.label, holdings.get(holding.value)),
-          }))}
-          onChange={(holding) => onChange({ holding: holding as Holding })}
-        />
-      )}
-
       <FilterSelect
         label="Order"
         value={state.sort}

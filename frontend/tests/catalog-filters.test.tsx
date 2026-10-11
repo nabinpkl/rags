@@ -30,27 +30,26 @@ const FACETS: CatalogFacetsResponse = {
   total: 65_503,
 };
 
-describe("CatalogFilters — a view with a pinned scope", () => {
-  const PINNED: CatalogFilterState = { ...STATE, holding: "indexed" };
+describe("CatalogFilters — the view's scope", () => {
+  const INDEXED: CatalogFilterState = { ...STATE, holding: "indexed" };
 
-  it("offers no Show control, so the view cannot be widened past its premise", () => {
-    render(<CatalogFilters state={PINNED} facets={FACETS} onChange={() => {}} holdingPinned />);
+  it("offers no control over what the view lists", () => {
+    render(<CatalogFilters state={STATE} facets={FACETS} onChange={() => {}} />);
     expect(screen.queryByLabelText("Show")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Order")).toBeInTheDocument();
   });
 
-  it("does not count the pinned scope as a filter the reader chose", () => {
+  it("does not count the scope as a filter the reader chose", () => {
     const { rerender } = render(
-      <CatalogFilters state={PINNED} facets={FACETS} onChange={() => {}} holdingPinned />,
+      <CatalogFilters state={INDEXED} facets={FACETS} onChange={() => {}} />,
     );
     expect(screen.queryByRole("button", { name: "Clear the filter" })).not.toBeInTheDocument();
 
     rerender(
       <CatalogFilters
-        state={{ ...PINNED, category: "cs.CL" }}
+        state={{ ...INDEXED, category: "cs.CL" }}
         facets={FACETS}
         onChange={() => {}}
-        holdingPinned
       />,
     );
     expect(screen.getByRole("button", { name: "Clear the filter" })).toBeInTheDocument();
@@ -69,11 +68,6 @@ describe("CatalogFilters", () => {
     expect(
       within(screen.getByLabelText("Month posted")).getByRole("option", {
         name: "Aug 2026 · 14,489",
-      }),
-    );
-    expect(
-      within(screen.getByLabelText("Show")).getByRole("option", {
-        name: "The agent can read it · 811",
       }),
     );
   });
@@ -131,6 +125,6 @@ describe("CatalogFilters", () => {
 
     expect(screen.queryByRole("list", { name: "Topic" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Month posted")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Show")).toBeInTheDocument();
+    expect(screen.getByLabelText("Order")).toBeInTheDocument();
   });
 });

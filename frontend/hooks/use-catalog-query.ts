@@ -6,7 +6,6 @@ import { useCallback, useMemo } from "react";
 
 import {
   EMPTY_FILTER,
-  HOLDINGS,
   SORTS,
   type CatalogFilterState,
   type Holding,
@@ -14,7 +13,6 @@ import {
 } from "@/components/catalog/catalog-filters";
 import { fetchCatalogFacets, fetchCatalogPapers } from "@/lib/api-client";
 
-const HOLDING_VALUES = HOLDINGS.map((holding) => holding.value);
 const SORT_VALUES = SORTS.map((sort) => sort.value);
 
 /** The catalog filter, read from and written to the URL, and the two queries
@@ -25,20 +23,15 @@ const SORT_VALUES = SORTS.map((sort) => sort.value);
  * store-versus-URL race to resolve, and every view is a link someone can
  * send.
  *
- * `pinnedHolding` fixes the scope for a view that exists to show one slice.
- * It is never read from or written to the URL, so a hand-edited `?holding=`
- * cannot widen the demo past the papers its agent can read. */
-export function catalogSearchParams(
-  merged: CatalogFilterState,
-  pinnedHolding?: Holding,
-): URLSearchParams {
+ * `pinnedHolding` is the view's scope (Explore: every paper; the demo: the
+ * indexed ones). It is never read from or written to the URL, so a
+ * hand-edited `?holding=` cannot widen the demo past the papers its agent
+ * can read, and an old Explore link carrying one lists everything. */
+export function catalogSearchParams(merged: CatalogFilterState): URLSearchParams {
   const search = new URLSearchParams();
   if (merged.q.trim() !== "") search.set("q", merged.q);
   if (merged.category) search.set("category", merged.category);
   if (merged.month) search.set("month", merged.month);
-  if (pinnedHolding === undefined && merged.holding !== EMPTY_FILTER.holding) {
-    search.set("holding", merged.holding);
-  }
   if (merged.sort !== EMPTY_FILTER.sort) search.set("sort", merged.sort);
   return search;
 }
@@ -68,29 +61,26 @@ export function useCatalogQuery({ pinnedHolding }: { pinnedHolding?: Holding } =
   const params = useSearchParams();
 
   const state: CatalogFilterState = useMemo(() => {
-    const holding = params.get("holding");
     const sort = params.get("sort");
     return {
       q: params.get("q") ?? "",
       category: params.get("category"),
       month: params.get("month"),
-      holding:
-        pinnedHolding ??
-        ((HOLDING_VALUES.includes(holding as Holding) ? holding : "all") as Holding),
+      holding: pinnedHolding ?? EMPTY_FILTER.holding,
       sort: (SORT_VALUES.includes(sort as Sort) ? sort : "newest") as Sort,
     };
   }, [params, pinnedHolding]);
 
   const change = useCallback(
     (next: Partial<CatalogFilterState>) => {
-      const qs = catalogSearchParams(mergeCatalogFilter(state, next), pinnedHolding).toString();
+      const qs = catalogSearchParams(mergeCatalogFilter(state, next)).toString();
       // `replace`, not `push`: a filter is one page's view, and a reader who
       // changed four rows wants the back button to leave the page, not walk
       // back through four of their own clicks. The URL still carries the
       // whole view, so the link is shareable either way.
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
-    [router, pathname, state, pinnedHolding],
+    [router, pathname, state],
   );
 
   const query = useMemo(
