@@ -153,9 +153,10 @@ section .sub { font-size: 18px; }
 
 /* Retrieval recall bars. */
 .recall { display: flex; flex-direction: column; gap: 12px; }
-.rrow { display: grid; grid-template-columns: 220px 1fr 70px; gap: 16px; align-items: center; }
+.rrow { display: grid; grid-template-columns: 200px 1fr 64px 84px; gap: 16px; align-items: center; }
 .rrow .lab { font-size: 18px; display: flex; align-items: center; gap: 10px; }
 .rrow .val { font-family: var(--mono); font-size: 18px; font-weight: 600; text-align: right; }
+.rrow .ms { font-family: var(--mono); font-size: 16px; color: var(--muted); text-align: right; }
 .pill { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600;
   padding: 2px 8px; border-radius: 4px; background: var(--teal-soft); color: var(--teal-ink); }
 .pill.eval { background: var(--panel-hover); color: var(--muted); border: 1px solid var(--line); }
@@ -196,7 +197,7 @@ section .sub { font-size: 18px; }
   .stages, .rules { grid-template-columns: 1fr; }
   .frow { grid-template-columns: 1fr 96px; }
   .frow .bar { grid-column: 1 / -1; grid-row: 2; }
-  .rrow { grid-template-columns: 1fr 64px; }
+  .rrow { grid-template-columns: 1fr 56px 76px; }
   .rrow .bar { grid-column: 1 / -1; grid-row: 2; }
   .figure { padding: 16px; }
 }
@@ -221,139 +222,79 @@ section .sub { font-size: 18px; }
     <div class="wrap">
       <header>
         <h1>Architecture</h1>
-        <p class="sub">How a question becomes a cited answer, and how the papers got here.</p>
-        <div class="facts">
-          <div class="fact"><b>89,628</b><span>papers in the catalog</span></div>
-          <div class="fact"><b>461,437</b><span>citations extracted</span></div>
-          <div class="fact"><b>1,292</b><span>papers the agent reads</span></div>
-          <div class="fact"><b>&le;$22</b><span>per month to run</span></div>
-        </div>
+        <p class="sub">Hybrid retrieval with reranking, and the agent that calls it.</p>
       </header>
 
-      <!-- ============ System ============ -->
-      <section aria-labelledby="h-system">
-        <h2 id="h-system">System</h2>
-        <p class="sub">One Arm server, three containers. PDFs go straight from arxiv.org to the reader.</p>
+      <!-- ============ Retrieval ============ -->
+      <section aria-labelledby="h-ret">
+        <h2 id="h-ret">Retrieval</h2>
+        <p class="sub">Two searches, one fused list, a reranker picks the final ten.</p>
         <div class="figure">
-          <svg viewBox="0 0 1000 560" role="img" aria-labelledby="sys-t">
-            <title id="sys-t">Browser reaches web and api containers through a Cloudflare tunnel; the api reads three local stores and calls Claude and OpenRouter; PDFs load from arxiv.org directly in the browser.</title>
+          <svg viewBox="0 0 1000 400" role="img" aria-labelledby="re-t">
+            <title id="re-t">A query runs keyword and vector search, each returning 50 chunks; reciprocal rank fusion keeps 50; a cross-encoder reranker returns the top 10 with section and page.</title>
             <defs>
-              <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah"/></marker>
-              <marker id="at" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah-teal"/></marker>
-              <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah-rust"/></marker>
+              <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah"/></marker>
+              <marker id="rt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah-teal"/></marker>
             </defs>
+            <rect x="20" y="150" width="130" height="80" rx="10" class="bx"/>
+            <text x="40" y="186" class="t1">Query</text>
+            <text x="40" y="212" class="t2">from a tool</text>
 
-            <!-- server frame -->
-            <rect x="440" y="20" width="540" height="390" rx="14" class="frame"/>
-            <text x="462" y="48" class="tm">ARM SERVER · DOCKER COMPOSE</text>
+            <rect x="210" y="40" width="210" height="100" rx="10" class="bx"/>
+            <text x="230" y="78" class="t1">Keyword</text>
+            <text x="230" y="106" class="t2">BM25 over chunks</text>
+            <rect x="210" y="240" width="210" height="100" rx="10" class="bx"/>
+            <text x="230" y="278" class="t1">Meaning</text>
+            <text x="230" y="306" class="t2">512-d embeddings</text>
+            <path d="M150 180 C180 180 180 90 206 90" class="ln" marker-end="url(#r)"/>
+            <path d="M150 200 C180 200 180 290 206 290" class="ln" marker-end="url(#r)"/>
 
-            <!-- browser -->
-            <rect x="20" y="160" width="210" height="140" rx="12" class="bx-teal"/>
-            <text x="40" y="200" class="t1">Browser</text>
-            <text x="40" y="228" class="t2">Next.js pages</text>
-            <text x="40" y="252" class="t2">PDF viewer</text>
-            <text x="40" y="276" class="t2">agent panel</text>
+            <rect x="480" y="140" width="150" height="100" rx="10" class="bx"/>
+            <text x="500" y="178" class="t1">Fuse</text>
+            <text x="500" y="206" class="t2">rank fusion</text>
+            <path d="M420 90 C455 90 450 175 476 175" class="ln" marker-end="url(#r)"/>
+            <path d="M420 290 C455 290 450 205 476 205" class="ln" marker-end="url(#r)"/>
+            <text x="432" y="78" class="tteal">50</text>
+            <text x="432" y="318" class="tteal">50</text>
 
-            <!-- tunnel -->
-            <rect x="262" y="196" width="160" height="68" rx="10" class="bx-soft"/>
-            <text x="280" y="226" class="t1">Cloudflare</text>
-            <text x="280" y="250" class="t2">tunnel</text>
-            <path d="M230 230 H258" class="ln" marker-end="url(#a)"/>
+            <rect x="680" y="125" width="190" height="130" rx="12" class="bx-teal"/>
+            <text x="698" y="165" class="t1">Rerank</text>
+            <text x="698" y="193" class="t2">cross-encoder</text>
+            <text x="698" y="219" class="t2">reads query</text>
+            <text x="698" y="241" class="t2">+ chunk together</text>
+            <path d="M630 190 H676" class="ln-teal" marker-end="url(#rt)"/>
+            <text x="645" y="178" class="tteal">50</text>
 
-            <!-- web + api -->
-            <rect x="470" y="72" width="210" height="80" rx="10" class="bx"/>
-            <text x="490" y="104" class="t1">web</text>
-            <text x="490" y="132" class="t2">Caddy · static pages</text>
+            <rect x="905" y="140" width="80" height="100" rx="10" class="bx"/>
+            <text x="921" y="182" class="t1">10</text>
+            <text x="921" y="208" class="t2">chunks</text>
+            <path d="M870 190 H901" class="ln-teal" marker-end="url(#rt)"/>
 
-            <rect x="470" y="196" width="210" height="150" rx="10" class="bx-teal"/>
-            <text x="490" y="228" class="t1">api</text>
-            <text x="490" y="256" class="t2">FastAPI</text>
-            <text x="490" y="282" class="t2">agent loop</text>
-            <text x="490" y="308" class="t2">4 read-only tools</text>
-            <text x="490" y="332" class="tteal">SSE stream</text>
-
-            <path d="M422 220 C445 200 445 120 466 114" class="ln" marker-end="url(#a)"/>
-            <path d="M422 242 H466" class="ln-teal" marker-end="url(#at)"/>
-
-            <!-- stores -->
-            <rect x="730" y="72" width="225" height="80" rx="10" class="bx"/>
-            <text x="750" y="104" class="t1">corpus.db</text>
-            <text x="750" y="132" class="t2">SQLite · full-text index</text>
-            <rect x="730" y="176" width="225" height="80" rx="10" class="bx"/>
-            <text x="750" y="208" class="t1">chroma</text>
-            <text x="750" y="236" class="t2">65,401 chunk vectors</text>
-            <rect x="730" y="280" width="225" height="80" rx="10" class="bx"/>
-            <text x="750" y="312" class="t1">traces.db</text>
-            <text x="750" y="340" class="t2">runs · spend</text>
-            <text x="742" y="392" class="tm">CORPUS MOUNTED READ-ONLY</text>
-
-            <path d="M680 236 C705 236 700 112 726 112" class="ln" marker-end="url(#a)"/>
-            <path d="M680 246 C705 246 705 216 726 216" class="ln" marker-end="url(#a)"/>
-            <path d="M680 300 C705 300 705 320 726 320" class="ln" marker-end="url(#a)"/>
-
-            <!-- external services -->
-            <rect x="440" y="460" width="240" height="80" rx="10" class="bx"/>
-            <text x="460" y="492" class="t1">Claude Haiku 4.5</text>
-            <text x="460" y="520" class="t2">the agent model</text>
-            <rect x="715" y="460" width="240" height="80" rx="10" class="bx"/>
-            <text x="735" y="492" class="t1">OpenRouter</text>
-            <text x="735" y="520" class="t2">query embeddings</text>
-            <path d="M560 346 V456" class="ln" marker-end="url(#a)"/>
-            <path d="M640 346 C640 420 835 400 835 456" class="ln" marker-end="url(#a)"/>
-
-            <!-- arxiv -->
-            <rect x="20" y="460" width="210" height="80" rx="10" class="bx-rust"/>
-            <text x="40" y="492" class="t1">arxiv.org</text>
-            <text x="40" y="520" class="t2">serves the PDF</text>
-            <path d="M125 300 V456" class="ln-rust" marker-end="url(#ar)"/>
-            <text x="140" y="372" class="trust">1 open paper</text>
-            <text x="140" y="394" class="trust">version-pinned</text>
-            <text x="140" y="416" class="trust">never proxied</text>
+            <text x="20" y="384" class="tm">65,401 CHUNKS · 1,000 TOKENS EACH · SECTION AND PAGE KEPT ON EVERY CHUNK</text>
           </svg>
         </div>
-        <div class="legend">
-          <span><i style="border-color: var(--teal-ink)"></i>question and answer</span>
-          <span><i style="border-color: var(--ink-2)"></i>data</span>
-          <span><i style="border-color: var(--rust); border-top-style: dashed"></i>reader to arXiv, direct</span>
-        </div>
-      </section>
-
-      <!-- ============ Pipeline ============ -->
-      <section aria-labelledby="h-pipe">
-        <h2 id="h-pipe">Ingest pipeline</h2>
-        <p class="sub">Four months of arXiv CS, July to October 2026, narrowed to what the agent reads.</p>
-        <div class="stages">
-          <div class="stage"><span class="k">Metadata</span><span class="n">Kaggle</span><span class="d">arXiv snapshot</span></div>
-          <div class="stage"><span class="k">PDFs</span><span class="n">GCS mirror</span><span class="d">never arxiv.org</span></div>
-          <div class="stage"><span class="k">Text</span><span class="n">53,149</span><span class="d">papers parsed</span></div>
-          <div class="stage"><span class="k">Citations</span><span class="n">124,776</span><span class="d">works cited</span></div>
-          <div class="stage"><span class="k">Frontier</span><span class="n">50 &times; 8</span><span class="d">top cited &times; newest citers</span></div>
-          <div class="stage hot"><span class="k">Index</span><span class="n">65,401</span><span class="d">chunks embedded</span></div>
-        </div>
         <div class="figure">
-          <p class="cap">PAPERS AT EACH STAGE</p>
-          <div class="funnel">
-            <div class="frow"><span class="lab">Catalog</span><div class="bar"><i style="width:100%"></i></div><span class="val">89,628</span></div>
-            <div class="frow"><span class="lab">With text</span><div class="bar"><i style="width:59.3%"></i></div><span class="val">53,149</span></div>
-            <div class="frow"><span class="lab">With references</span><div class="bar"><i style="width:49.7%"></i></div><span class="val">44,529</span></div>
-            <div class="frow"><span class="lab">Indexed</span><div class="bar"><i class="deep" style="width:1.44%"></i></div><span class="val">1,292</span></div>
+          <p class="cap">RECALL AT 10 · 93 QUESTIONS · MEDIAN LATENCY</p>
+          <div class="recall">
+            <div class="rrow"><span class="lab">Keyword</span><div class="bar"><i style="width:78%"></i></div><span class="val">0.78</span><span class="ms">97 ms</span></div>
+            <div class="rrow"><span class="lab">Meaning</span><div class="bar"><i style="width:74.2%"></i></div><span class="val">0.74</span><span class="ms">115 ms</span></div>
+            <div class="rrow"><span class="lab">Fused</span><div class="bar"><i style="width:79%"></i></div><span class="val">0.79</span><span class="ms">216 ms</span></div>
+            <div class="rrow"><span class="lab">Fused + rerank</span><div class="bar"><i class="deep" style="width:90.3%"></i></div><span class="val">0.90</span><span class="ms">735 ms</span></div>
           </div>
         </div>
       </section>
 
-      <!-- ============ Agent turn ============ -->
+      <!-- ============ Agent ============ -->
       <section aria-labelledby="h-agent">
-        <h2 id="h-agent">Agent turn</h2>
-        <p class="sub">The model decides what to search and read. The loop around it holds the limits.</p>
+        <h2 id="h-agent">Agent</h2>
+        <p class="sub">The model chooses each tool call. The loop around it sets the limits.</p>
         <div class="figure">
           <svg viewBox="0 0 1000 400" role="img" aria-labelledby="ag-t">
-            <title id="ag-t">A question passes the budget gate to Claude, which calls read-only tools up to eight times, gets fenced results back, and answers with capped quotes. A tripped daily cap serves a recorded replay.</title>
+            <title id="ag-t">A question passes the budget gate to Claude, which calls four read-only tools for up to eight rounds, gets fenced results back, and answers with capped quotes.</title>
             <defs>
-              <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah"/></marker>
-              <marker id="bt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah-teal"/></marker>
-              <marker id="ba" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah-amber"/></marker>
+              <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah"/></marker>
+              <marker id="gt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah-teal"/></marker>
             </defs>
-
             <rect x="20" y="110" width="150" height="80" rx="10" class="bx"/>
             <text x="40" y="146" class="t1">Question</text>
             <text x="40" y="172" class="t2">from the panel</text>
@@ -362,103 +303,87 @@ section .sub { font-size: 18px; }
             <text x="235" y="136" class="t1">Budget gate</text>
             <text x="235" y="162" class="t2">tokens</text>
             <text x="235" y="184" class="t2">daily spend</text>
-            <path d="M170 150 H211" class="ln" marker-end="url(#b)"/>
+            <path d="M170 150 H211" class="ln" marker-end="url(#g)"/>
 
             <rect x="430" y="90" width="190" height="120" rx="12" class="bx-teal"/>
             <text x="452" y="130" class="t1">Claude</text>
             <text x="452" y="156" class="t2">Haiku 4.5</text>
-            <text x="452" y="182" class="t2">cached prompt</text>
-            <path d="M385 150 H426" class="ln" marker-end="url(#b)"/>
+            <text x="452" y="182" class="t2">picks the tools</text>
+            <path d="M385 150 H426" class="ln" marker-end="url(#g)"/>
 
-            <!-- tools -->
             <rect x="720" y="20" width="260" height="230" rx="12" class="bx-soft"/>
             <text x="740" y="52" class="tm">READ-ONLY TOOLS</text>
-            <rect x="740" y="68" width="220" height="38" rx="6" class="bx"/><text x="756" y="93" class="tteal">search_corpus</text>
+            <rect x="740" y="68" width="220" height="38" rx="6" class="bx-teal"/><text x="756" y="93" class="tteal">search_corpus</text>
             <rect x="740" y="114" width="220" height="38" rx="6" class="bx"/><text x="756" y="139" class="tteal">read_paper</text>
             <rect x="740" y="160" width="220" height="38" rx="6" class="bx"/><text x="756" y="185" class="tteal">query_metadata</text>
             <rect x="740" y="206" width="220" height="38" rx="6" class="bx"/><text x="756" y="231" class="tteal">drive_ui</text>
 
-            <!-- the loop -->
-            <path d="M620 120 C665 120 670 100 716 100" class="ln-teal" marker-end="url(#bt)"/>
+            <path d="M620 120 C665 120 670 100 716 100" class="ln-teal" marker-end="url(#gt)"/>
             <text x="628" y="96" class="tteal">call</text>
-            <path d="M716 200 C670 200 665 180 624 180" class="ln-teal" marker-end="url(#bt)"/>
-            <text x="630" y="238" class="tteal">fenced text</text>
+            <path d="M716 200 C670 200 665 180 624 180" class="ln-teal" marker-end="url(#gt)"/>
+            <text x="575" y="240" class="tteal">fenced text</text>
             <rect x="830" y="262" width="134" height="34" rx="17" class="bx-teal"/>
             <text x="846" y="285" class="tteal">&le; 8 rounds</text>
 
-            <!-- answer -->
             <rect x="430" y="300" width="340" height="84" rx="10" class="bx"/>
             <text x="452" y="334" class="t1">Answer</text>
             <text x="452" y="362" class="t2">quotes &le; 50 words, &le; 3 per paper</text>
-            <path d="M525 210 V296" class="ln" marker-end="url(#b)"/>
-
-            <!-- replay -->
-            <path d="M300 200 V296" class="ln-amber" marker-end="url(#ba)"/>
-            <rect x="215" y="300" width="170" height="84" rx="10" class="bx-amber"/>
-            <text x="235" y="334" class="t1">Replay</text>
-            <text x="235" y="362" class="t2">daily cap reached</text>
+            <path d="M525 210 V296" class="ln" marker-end="url(#g)"/>
           </svg>
         </div>
       </section>
 
-      <!-- ============ Retrieval ============ -->
-      <section aria-labelledby="h-ret">
-        <h2 id="h-ret">Retrieval</h2>
-        <p class="sub">Keyword and meaning search, fused into one ranked list.</p>
-        <div class="two">
-          <div class="figure">
-            <svg viewBox="0 0 560 330" role="img" aria-labelledby="re-t" style="min-width: 520px">
-              <title id="re-t">A query runs through keyword search and vector search; reciprocal rank fusion merges them into the top 10 chunks.</title>
-              <defs><marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah"/></marker></defs>
-              <rect x="10" y="125" width="120" height="70" rx="10" class="bx"/>
-              <text x="28" y="167" class="t1">Query</text>
-              <rect x="190" y="30" width="170" height="90" rx="10" class="bx"/>
-              <text x="208" y="66" class="t1">Keyword</text>
-              <text x="208" y="94" class="t2">SQLite FTS5</text>
-              <rect x="190" y="200" width="170" height="90" rx="10" class="bx"/>
-              <text x="208" y="236" class="t1">Meaning</text>
-              <text x="208" y="264" class="t2">512-d vectors</text>
-              <path d="M130 150 C160 150 160 75 186 75" class="ln" marker-end="url(#c)"/>
-              <path d="M130 170 C160 170 160 245 186 245" class="ln" marker-end="url(#c)"/>
-              <rect x="410" y="115" width="140" height="90" rx="10" class="bx-teal"/>
-              <text x="428" y="152" class="t1">Fuse</text>
-              <text x="428" y="180" class="tteal">top 10</text>
-              <path d="M360 75 C390 75 385 150 406 150" class="ln" marker-end="url(#c)"/>
-              <path d="M360 245 C390 245 385 170 406 170" class="ln" marker-end="url(#c)"/>
-            </svg>
-          </div>
-          <div class="figure">
-            <p class="cap">RECALL AT 10 · 93 QUESTIONS</p>
-            <div class="recall">
-              <div class="rrow"><span class="lab">Rerank</span><div class="bar"><i style="width:90.3%"></i></div><span class="val">0.90</span></div>
-              <div class="rrow"><span class="lab">Hybrid <span class="pill">live</span></span><div class="bar"><i class="deep" style="width:79%"></i></div><span class="val">0.79</span></div>
-              <div class="rrow"><span class="lab">Keyword</span><div class="bar"><i style="width:78%"></i></div><span class="val">0.78</span></div>
-              <div class="rrow"><span class="lab">Meaning</span><div class="bar"><i style="width:74.2%"></i></div><span class="val">0.74</span></div>
-              <div class="rrow"><span class="lab">Rewrite</span><div class="bar"><i style="width:67.7%"></i></div><span class="val">0.68</span></div>
-            </div>
-          </div>
+      <!-- ============ One turn ============ -->
+      <section aria-labelledby="h-turn">
+        <h2 id="h-turn">One turn</h2>
+        <p class="sub">Where the agent meets retrieval: every search is a tool call.</p>
+        <div class="figure">
+          <svg viewBox="0 0 1000 600" role="img" aria-labelledby="tu-t">
+            <title id="tu-t">Sequence of one turn: the reader asks; Claude calls search_corpus, which runs fused search and rerank and returns ten fenced chunks; Claude calls read_paper for page spans; drive_ui opens the cited page in the reader's viewer; Claude answers with quotes.</title>
+            <defs>
+              <marker id="s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah"/></marker>
+              <marker id="st" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="ah-teal"/></marker>
+            </defs>
+            <!-- lane heads -->
+            <rect x="40" y="20" width="160" height="56" rx="10" class="bx"/><text x="64" y="55" class="t1">Reader</text>
+            <rect x="270" y="20" width="180" height="56" rx="10" class="bx-teal"/><text x="294" y="55" class="t1">Claude</text>
+            <rect x="520" y="20" width="180" height="56" rx="10" class="bx-soft"/><text x="544" y="55" class="t1">Tools</text>
+            <rect x="770" y="20" width="200" height="56" rx="10" class="bx-teal"/><text x="794" y="55" class="t1">Retrieval</text>
+            <!-- lifelines -->
+            <path d="M120 76 V580 M360 76 V580 M610 76 V580 M870 76 V580" class="frame"/>
+
+            <!-- rounds bracket -->
+            <rect x="300" y="160" width="600" height="300" rx="12" class="frame"/>
+            <text x="376" y="184" class="tm">UP TO 8 ROUNDS</text>
+
+            <path d="M120 130 H356" class="ln" marker-end="url(#s)"/>
+            <text x="140" y="120" class="t2">question</text>
+
+            <path d="M360 220 H606" class="ln-teal" marker-end="url(#st)"/>
+            <text x="380" y="210" class="tteal">search_corpus</text>
+            <path d="M610 250 H866" class="ln-teal" marker-end="url(#st)"/>
+            <text x="630" y="240" class="t2">fuse + rerank</text>
+            <path d="M870 290 H614" class="ln-teal" stroke-dasharray="6 5" marker-end="url(#st)"/>
+            <text x="660" y="280" class="t2">10 chunks</text>
+            <path d="M610 320 H364" class="ln-teal" stroke-dasharray="6 5" marker-end="url(#st)"/>
+            <text x="400" y="310" class="t2">fenced chunks</text>
+
+            <path d="M360 375 H606" class="ln" marker-end="url(#s)"/>
+            <text x="380" y="365" class="tteal">read_paper</text>
+            <path d="M610 405 H866" class="ln" marker-end="url(#s)"/>
+            <text x="630" y="395" class="t2">page spans</text>
+            <path d="M870 440 H364" class="ln" stroke-dasharray="6 5" marker-end="url(#s)"/>
+            <text x="560" y="430" class="t2">fenced text</text>
+
+            <path d="M360 500 H124" class="ln" marker-end="url(#s)"/>
+            <text x="150" y="490" class="tteal">drive_ui: open page</text>
+            <path d="M360 555 H124" class="ln-teal" marker-end="url(#st)"/>
+            <text x="150" y="545" class="t2">answer + quotes</text>
+          </svg>
         </div>
       </section>
 
-      <!-- ============ Guardrails ============ -->
-      <section aria-labelledby="h-guard">
-        <h2 id="h-guard">Guardrails</h2>
-        <p class="sub">Spend has a ceiling, and the agent can only read.</p>
-        <div class="caps">
-          <div class="capt"><b>80k</b><span>tokens per message</span></div>
-          <div class="capt"><b>15</b><span>messages per session</span></div>
-          <div class="capt"><b>$0.10</b><span>per visitor per day</span></div>
-          <div class="capt trip"><b>$0.50</b><span>per day sitewide, then replay</span></div>
-        </div>
-        <div class="rules">
-          <div class="rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg><span>Read-only tools<small>no writes, no SQL from the model</small></span></div>
-          <div class="rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Fenced paper text<small>treated as untrusted input</small></span></div>
-          <div class="rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg><span>PDFs from arxiv.org<small>one open paper, version-pinned</small></span></div>
-          <div class="rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/></svg><span>Short quotes<small>&le; 50 words, &le; 3 per paper</small></span></div>
-        </div>
-      </section>
-
-      <p class="mock-note">Mockup for the Architecture tab. Figures as of 2026-10-13 from the live API and config.py.</p>
+      <p class="mock-note">Mockup for the Architecture tab. Recall and latency from the retrieval benchmark, 2026-10-09.</p>
     </div>
   </main>
 </div>
