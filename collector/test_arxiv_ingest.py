@@ -174,3 +174,13 @@ def test_missing_ids_refuses_a_month_that_is_not_an_id_month(monkeypatch, tmp_pa
         # "2026-08" is a date, not an id-month; silently matching nothing
         # would report a clean store for a month we hold nothing of.
         ai.run_missing_ids(seed_file="seed.zip", months=["2026-08"], category_prefix="cs")
+
+
+def test_user_agent_needs_no_contact(monkeypatch):
+    monkeypatch.delenv(ai.CONTACT_ENV, raising=False)
+    assert ai.user_agent() == "rag-demo-ingester/1.0"
+
+
+def test_user_agent_carries_a_contact_when_set(monkeypatch):
+    monkeypatch.setenv(ai.CONTACT_ENV, "ops@example.org")
+    assert ai.user_agent() == "rag-demo-ingester/1.0 (mailto:ops@example.org)"

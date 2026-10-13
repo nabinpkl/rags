@@ -59,16 +59,16 @@ GCS_PDF_BASE = "https://storage.googleapis.com/arxiv-dataset/arxiv/arxiv/pdf"
 GCS_LIST_API = "https://storage.googleapis.com/storage/v1/b/arxiv-dataset/o"
 GCS_PDF_PREFIX = "arxiv/arxiv/pdf/"
 
-# arXiv asks bulk/automated users to identify themselves and go easy. The
-# contact is whoever runs the collector, so it comes from their environment.
+# Downloads come only from the public GCS bucket, which serves anonymous
+# reads. A contact in the User-Agent is optional: set it to let the bucket's
+# operators reach whoever runs the collector.
 CONTACT_ENV = "COLLECTOR_CONTACT_EMAIL"
+USER_AGENT = "rag-demo-ingester/1.0"
 
 
 def user_agent() -> str:
     contact = os.environ.get(CONTACT_ENV)
-    if not contact:
-        raise SystemExit(f"set {CONTACT_ENV} to your email; it goes in the User-Agent")
-    return f"rag-demo-ingester/1.0 (mailto:{contact})"
+    return f"{USER_AGENT} (mailto:{contact})" if contact else USER_AGENT
 
 JITTER = 2.0        # extra random 0..JITTER seconds added on top (delay is never below the minimum)
 BACKOFF_BASE = 3.0  # exponential retry backoff base: 3, 6, 12, 24, 48 ...
