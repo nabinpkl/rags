@@ -30,6 +30,7 @@ function paper(overrides: Partial<CatalogPaper> = {}): CatalogPaper {
     authors: "A. Author",
     abstract: "An abstract.",
     primary_category: "cs.CL",
+    primary_category_name: "Computation and Language",
     published: "2026-08-03",
     version: "v2",
     has_text: true,
@@ -95,7 +96,7 @@ describe("CatalogResults", () => {
 
   it("drops the category chip while a topic filter is on, since every card would repeat it", () => {
     const props = {
-      papers: [paper({ primary_category: "cs.RO" })],
+      papers: [paper({ primary_category: "cs.RO", primary_category_name: "Robotics" })],
       total: 1,
       topic: "Robotics",
       loading: false,
@@ -105,10 +106,31 @@ describe("CatalogResults", () => {
       rememberAs: "catalog",
     };
     const { rerender } = render(<CatalogResults {...props} state={EMPTY_FILTER} />);
-    expect(screen.getByText("cs.RO")).toBeInTheDocument();
+    expect(screen.getByTitle("cs.RO")).toHaveTextContent("Robotics");
 
     rerender(<CatalogResults {...props} state={{ ...EMPTY_FILTER, category: "cs.RO" }} />);
-    expect(screen.queryByText("cs.RO")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("cs.RO")).not.toBeInTheDocument();
+  });
+
+  it("names the category in full on the card, and by code outside cs", () => {
+    render(
+      <CatalogResults
+        papers={[
+          paper({ primary_category: "cs.CR", primary_category_name: "Cryptography and Security" }),
+          paper({ arxiv_id: "2608.00002", primary_category: "math.NA", primary_category_name: null }),
+        ]}
+        total={2}
+        topic={null}
+        loading={false}
+        page={LAST_PAGE}
+        scrollElement={scroller()}
+        readerHref={(id: string) => `/demo?paper=${id}`}
+        rememberAs="catalog"
+        state={EMPTY_FILTER}
+      />,
+    );
+    expect(screen.getByTitle("cs.CR")).toHaveTextContent("Cryptography and Security");
+    expect(screen.getByTitle("math.NA")).toHaveTextContent("math.NA");
   });
 
   it("names and links a CC licence beside the crop it is granted on", () => {

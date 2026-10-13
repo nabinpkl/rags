@@ -81,6 +81,9 @@ class CatalogPaper(BaseModel):
     authors: str | None
     abstract: str
     primary_category: str
+    # arXiv's name for the code (category_names.py), None outside cs; the
+    # card shows the name, the code stays for filters.
+    primary_category_name: str | None
     published: str
     version: str | None  # NULL => unpinned arxiv.org URL (D9/§6b)
     has_text: bool
@@ -221,6 +224,7 @@ def _page(
             authors=trim_authors(row["authors"], max_authors),
             abstract=row["abstract"],
             primary_category=row["primary_category"],
+            primary_category_name=category_name(row["primary_category"]),
             published=row["published"],
             version=row["version"],
             has_text=bool(row["has_text"]),

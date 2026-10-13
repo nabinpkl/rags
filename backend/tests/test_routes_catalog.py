@@ -167,6 +167,13 @@ def test_a_category_bucket_carries_its_arxiv_name(client):
     assert all(bucket["name"] is None for bucket in body["months"] + body["holdings"])
 
 
+def test_a_card_carries_its_category_arxiv_name(client):
+    papers = client.get("/api/catalog/papers").json()["papers"]
+    names = {p["primary_category"]: p["primary_category_name"] for p in papers}
+    assert names["cs.CL"] == "Computation and Language"
+    assert names["cs.CV"] == "Computer Vision and Pattern Recognition"
+
+
 def test_paging_stops_rather_than_offering_an_offset_past_the_end(client):
     first = client.get("/api/catalog/papers?limit=2").json()
     second = client.get(f"/api/catalog/papers?limit=2&offset={first['next_offset']}").json()
@@ -208,6 +215,7 @@ def test_no_chunk_text_reaches_this_surface(client):
         "authors",
         "abstract",
         "primary_category",
+        "primary_category_name",
         "published",
         "version",
         "has_text",

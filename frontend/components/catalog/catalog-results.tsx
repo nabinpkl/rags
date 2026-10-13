@@ -388,9 +388,12 @@ function PaperCard({
           {/* The same glyph the rail's topic list uses for this category, so
               a card and the row that filtered to it read as the same thing. */}
           {showCategory && (
-            <span className="bg-teal-soft text-teal-ink flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5">
-              <Icon className="size-3 shrink-0" aria-hidden />
-              {paper.primary_category}
+            <span
+              title={paper.primary_category}
+              className="bg-teal-soft text-teal-ink flex min-w-0 items-center gap-1.5 rounded px-2 py-0.5 font-sans text-[12px] font-medium"
+            >
+              <Icon className="size-3.5 shrink-0" aria-hidden />
+              {paper.primary_category_name ?? paper.primary_category}
             </span>
           )}
           <span className="tabular-nums">{formatDate(paper.published)}</span>

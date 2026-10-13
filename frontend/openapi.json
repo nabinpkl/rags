@@ -665,6 +665,17 @@
                         "type": "string",
                         "title": "Primary Category"
                     },
+                    "primary_category_name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Primary Category Name"
+                    },
                     "published": {
                         "type": "string",
                         "title": "Published"
@@ -711,6 +722,7 @@
                     "authors",
                     "abstract",
                     "primary_category",
+                    "primary_category_name",
                     "published",
                     "version",
                     "has_text",

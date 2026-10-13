@@ -249,6 +249,8 @@ export interface components {
             abstract: string;
             /** Primary Category */
             primary_category: string;
+            /** Primary Category Name */
+            primary_category_name: string | null;
             /** Published */
             published: string;
             /** Version */
