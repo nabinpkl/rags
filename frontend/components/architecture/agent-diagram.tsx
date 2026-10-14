@@ -26,10 +26,10 @@ export function AgentDiagram() {
   return (
     <Figure
       viewBox="0 0 1000 400"
-      label={`A question passes the budget gate to Claude, which calls four read-only tools for up to ${MAX_ROUNDS} rounds, gets fenced results back, and answers with quotes of at most ${QUOTE_WORDS} words, ${QUOTES_PER_PAPER} per paper.`}
+      label={`Agent: question, budget gate, Claude Haiku 4.5, four read-only tools, at most ${MAX_ROUNDS} rounds, fenced results, answer with quotes of at most ${QUOTE_WORDS} words, ${QUOTES_PER_PAPER} per paper.`}
     >
       <ArrowDefs id={id} />
-      <Box x={20} y={105} w={155} h={90} title="Question" lines={["from the panel"]} />
+      <Box x={20} y={105} w={155} h={90} title="Question" lines={["chat panel"]} />
 
       <Box
         x={215}
@@ -49,7 +49,7 @@ export function AgentDiagram() {
         h={130}
         tone="teal"
         title="Claude"
-        lines={["Haiku 4.5", "picks the tools"]}
+        lines={["Haiku 4.5", "tool choice"]}
       />
       <Arrow id={id} d="M390 150 H426" />
 
@@ -77,12 +77,12 @@ export function AgentDiagram() {
       ))}
 
       <Arrow id={id} d="M625 118 C668 118 672 100 716 100" color="teal" />
-      <EdgeLabel x={632} y={98}>
-        call
+      <EdgeLabel x={630} y={82}>
+        tool call
       </EdgeLabel>
       <Arrow id={id} d="M716 200 C672 200 668 182 629 182" color="teal" />
       <EdgeLabel x={575} y={242}>
-        fenced text
+        fenced results
       </EdgeLabel>
       <rect
         x={835}

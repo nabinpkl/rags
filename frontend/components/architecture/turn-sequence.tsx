@@ -24,7 +24,7 @@ export function TurnSequence({ k }: { k: number }) {
   return (
     <Figure
       viewBox="0 0 1000 600"
-      label={`One turn: the reader asks; Claude calls search_corpus, which fuses and reranks to ${k} chunks returned fenced; Claude calls read_paper for page text; drive_ui opens the cited page for the reader; Claude answers with quotes.`}
+      label={`One turn: question; search_corpus with fusion and rerank, ${k} fenced chunks; read_paper, fenced page text; drive_ui, cited page; answer with quotes.`}
     >
       <ArrowDefs id={id} />
       {LANES.map((lane) => (
@@ -68,7 +68,7 @@ export function TurnSequence({ k }: { k: number }) {
         className="stroke-outline"
       />
       <text x={376} y={184} className="fill-muted font-mono text-[14px] tracking-wider">
-        {`UP TO ${MAX_ROUNDS} ROUNDS`}
+        {`≤ ${MAX_ROUNDS} ROUNDS`}
       </text>
 
       <Arrow id={id} d={`M${reader} 130 H${claude - 4}`} />
@@ -82,7 +82,7 @@ export function TurnSequence({ k }: { k: number }) {
       </EdgeLabel>
       <Arrow id={id} d={`M${tools} 252 H${retrieval - 4}`} color="teal" />
       <EdgeLabel x={tools + 20} y={240} mono={false}>
-        fuse + rerank
+        fusion + rerank
       </EdgeLabel>
       <Arrow id={id} d={`M${retrieval} 292 H${tools + 4}`} color="teal" dashed />
       <EdgeLabel x={tools + 50} y={280} mono={false}>{`${k} chunks`}</EdgeLabel>
@@ -97,7 +97,7 @@ export function TurnSequence({ k }: { k: number }) {
       </EdgeLabel>
       <Arrow id={id} d={`M${tools} 407 H${retrieval - 4}`} />
       <EdgeLabel x={tools + 20} y={395} mono={false}>
-        page text
+        page lookup
       </EdgeLabel>
       <Arrow id={id} d={`M${retrieval} 442 H${claude + 4}`} dashed />
       <EdgeLabel x={tools - 50} y={430} mono={false}>
@@ -106,11 +106,11 @@ export function TurnSequence({ k }: { k: number }) {
 
       <Arrow id={id} d={`M${claude} 502 H${reader + 4}`} />
       <EdgeLabel x={reader + 26} y={490}>
-        drive_ui: open page
+        drive_ui · cited page
       </EdgeLabel>
       <Arrow id={id} d={`M${claude} 557 H${reader + 4}`} color="teal" />
       <EdgeLabel x={reader + 26} y={545} mono={false}>
-        answer + quotes
+        answer, quotes
       </EdgeLabel>
     </Figure>
   );

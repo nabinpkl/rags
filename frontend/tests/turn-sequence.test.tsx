@@ -10,7 +10,7 @@ describe("TurnSequence", () => {
       expect(screen.getByText(lane)).toBeInTheDocument();
     }
     expect(screen.getByText("search_corpus")).toBeInTheDocument();
-    expect(screen.getByText("fuse + rerank")).toBeInTheDocument();
+    expect(screen.getByText("fusion + rerank")).toBeInTheDocument();
     expect(screen.getByText("10 chunks")).toBeInTheDocument();
   });
 });

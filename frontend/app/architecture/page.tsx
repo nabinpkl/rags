@@ -22,14 +22,14 @@ export default function ArchitecturePage() {
             Architecture
           </h1>
           <p className="text-ink-2 mt-3 max-w-[62ch] text-[18px] leading-snug">
-            Hybrid retrieval with reranking, and the agent that calls it.
+            Hybrid retrieval, reranking, and the agent loop.
           </p>
         </div>
 
         <ArchitectureSection
           id="retrieval"
           title="Retrieval"
-          subtitle="Two searches, one fused list, and a reranker that picks the final ten."
+          subtitle={`BM25 and vector search, rank fusion, a reranked top ${data.k}.`}
         >
           <RetrievalDiagram poolK={data.pool_k} k={data.k} chunkTokens={data.chunk_size_tokens} />
           <RecallBars board={data.board} k={data.k} n={data.n} />
@@ -38,7 +38,7 @@ export default function ArchitecturePage() {
         <ArchitectureSection
           id="agent"
           title="Agent"
-          subtitle="The model chooses each tool call. The loop around it sets the limits."
+          subtitle="Claude Haiku 4.5, four read-only tools, a budget gate."
         >
           <AgentDiagram />
         </ArchitectureSection>
@@ -46,7 +46,7 @@ export default function ArchitecturePage() {
         <ArchitectureSection
           id="one-turn"
           title="One turn"
-          subtitle="Where the agent meets retrieval: every search is a tool call."
+          subtitle="Question to cited answer, with retrieval behind each tool call."
         >
           <TurnSequence k={data.k} />
         </ArchitectureSection>

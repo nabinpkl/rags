@@ -14,6 +14,6 @@ describe("RetrievalDiagram", () => {
 
   it("names the rerank stage", () => {
     render(<RetrievalDiagram poolK={50} k={10} chunkTokens={1000} />);
-    expect(screen.getByText("Rerank")).toBeInTheDocument();
+    expect(screen.getByText("Reranker")).toBeInTheDocument();
   });
 });
