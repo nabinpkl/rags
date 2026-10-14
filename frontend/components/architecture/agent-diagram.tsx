@@ -76,11 +76,11 @@ export function AgentDiagram() {
         />
       ))}
 
-      <Arrow id={id} d="M625 118 C668 118 672 100 716 100" color="teal" />
+      <Arrow id={id} d="M625 118 C655 118 660 100 690 100 H716" color="teal" />
       <EdgeLabel x={630} y={82}>
         tool call
       </EdgeLabel>
-      <Arrow id={id} d="M716 200 C672 200 668 182 629 182" color="teal" />
+      <Arrow id={id} d="M716 200 C686 200 681 182 655 182 H629" color="teal" />
       <EdgeLabel x={575} y={242}>
         fenced results
       </EdgeLabel>

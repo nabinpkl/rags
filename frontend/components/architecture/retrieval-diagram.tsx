@@ -22,16 +22,16 @@ export function RetrievalDiagram({
       label={`Retrieval: BM25 and vector search, ${poolK} chunks each; RRF fusion to ${poolK}; rerank-3-lite to the top ${k}.`}
     >
       <ArrowDefs id={id} />
-      <Box x={20} y={145} w={140} h={90} title="Query" lines={["search_corpus"]} />
+      <Box x={15} y={145} w={135} h={90} title="Query" lines={["search_corpus"]} />
 
       <Box x={215} y={35} w={215} h={100} title="BM25" lines={["SQLite FTS5"]} />
       <Box x={215} y={245} w={215} h={100} title="Vector" lines={["pplx-embed, 512-d"]} />
-      <Arrow id={id} d="M160 180 C190 180 190 85 211 85" />
-      <Arrow id={id} d="M160 200 C190 200 190 295 211 295" />
+      <Arrow id={id} d="M150 180 C172 180 166 85 187 85 H211" />
+      <Arrow id={id} d="M150 200 C172 200 166 295 187 295 H211" />
 
       <Box x={490} y={140} w={160} h={100} title="Fusion" lines={["RRF"]} />
-      <Arrow id={id} d="M430 85 C465 85 460 175 486 175" />
-      <Arrow id={id} d="M430 295 C465 295 460 205 486 205" />
+      <Arrow id={id} d="M430 85 C452 85 444 175 462 175 H486" />
+      <Arrow id={id} d="M430 295 C452 295 444 205 462 205 H486" />
       <EdgeLabel x={442} y={72}>
         {poolK}
       </EdgeLabel>
