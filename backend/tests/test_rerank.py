@@ -8,7 +8,13 @@ import httpx
 import pytest
 
 from askrag.config import Settings
-from askrag.retrieval.rerank import OpenRouterScorer, Reranker, RerankError
+from askrag.retrieval.rerank import (
+    OpenRouterScorer,
+    Reranker,
+    RerankError,
+    RerankUnavailable,
+    live_reranker,
+)
 
 
 class Scripted:
@@ -123,3 +129,42 @@ def test_openrouter_gives_up_after_the_last_attempt():
     with pytest.raises(RerankError, match="HTTP 503"):
         scorer.score("q", ["a"])
     assert slept == [2.0, 4.0]
+
+
+def test_a_status_outage_is_unavailable_not_a_bug():
+    scorer = openrouter(lambda request: httpx.Response(503, text="down"))
+    with pytest.raises(RerankUnavailable):
+        scorer.score("q", ["a"])
+
+
+def test_a_refused_request_is_a_bug_not_an_outage():
+    # A 4xx other than 429 (a bad key, a blocked model) is ours to fix; live
+    # search must not quietly serve unreranked results over it.
+    scorer = openrouter(lambda request: httpx.Response(401, text="no key"))
+    with pytest.raises(RerankError) as raised:
+        scorer.score("q", ["a"])
+    assert not isinstance(raised.value, RerankUnavailable)
+
+
+def test_a_transport_failure_retries_then_is_unavailable():
+    def refuse(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    slept: list[float] = []
+    with pytest.raises(RerankUnavailable, match="refused"):
+        openrouter(refuse, slept).score("q", ["a"])
+    assert slept == [2.0, 4.0]
+
+
+def test_live_search_gets_the_short_retry_budget():
+    settings = Settings.model_validate(
+        {"OPENROUTER_API_KEY": "test-key", "search_rerank_max_attempts": 2}
+    )
+    scorer = live_reranker(settings)._scorer
+    assert isinstance(scorer, OpenRouterScorer)
+    assert scorer._attempts == 2
+
+
+def test_live_search_refuses_the_local_scorer():
+    with pytest.raises(RerankError, match="hosted"):
+        live_reranker(Settings(rerank_backend="local"))

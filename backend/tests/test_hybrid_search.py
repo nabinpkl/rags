@@ -8,6 +8,7 @@ from askrag.config import Settings
 from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
 from askrag.ingest.embed_chunks import EmbeddingError
 from askrag.retrieval.hybrid_search import Filters, HybridSearch, ScoredChunk, rrf_fuse
+from askrag.retrieval.rerank import Reranked, RerankError, RerankUnavailable
 from askrag.retrieval.vector_store import VectorStoreError
 
 
@@ -86,6 +87,9 @@ class FakeEmbedder:
         self.fail_with = fail_with
         self.queries: list[str] = []
 
+    def embed_query_priced(self, text):
+        return self.embed_query(text), None
+
     def embed_query(self, text):
         if self.fail_with is not None:
             raise self.fail_with
@@ -119,9 +123,11 @@ class FakeStore:
         return self.ids[:k]
 
 
-def searcher(corpus_db, embedder=None, store=None, **settings_overrides) -> HybridSearch:
+def searcher(corpus_db, embedder=None, store=None, reranker=None, **settings_overrides):
+    settings_overrides.setdefault("rerank_enabled", reranker is not None)
     return HybridSearch(
         Settings(**settings_overrides),
+        reranker=reranker,
         embedder=embedder if embedder is not None else FakeEmbedder(),
         vector_store=store if store is not None else FakeStore(["2401.00001#1"]),
         corpus_db_path=corpus_db,
@@ -246,10 +252,71 @@ def test_k_caps_fused_results(corpus_db):
     assert len(s.search("attention networks translation", k=2)) == 2
 
 
-def test_rerank_flag_is_honest_about_not_existing(corpus_db):
-    s = searcher(corpus_db, rerank_enabled=True)
-    with pytest.raises(NotImplementedError, match="evals"):
-        s.search("anything")
+class FakeReranker:
+    """Puts the named chunks first, in that order, and bills a fixed amount."""
+
+    def __init__(self, order=None, usd=0.0005, fail_with: Exception | None = None):
+        self.order = order or []
+        self.usd = usd
+        self.fail_with = fail_with
+        self.pools: list[list[str]] = []
+
+    def rerank(self, query, candidates, k):
+        self.pools.append([chunk_id for chunk_id, _ in candidates])
+        if self.fail_with is not None:
+            raise self.fail_with
+        ids = [c for c, _ in candidates]
+        ranked = [c for c in self.order if c in ids] + [c for c in ids if c not in self.order]
+        return Reranked(ranked[:k], self.usd)
+
+
+class PricedEmbedder(FakeEmbedder):
+    def embed_query_priced(self, text):
+        return self.embed_query(text), 0.00002
+
+
+def test_rerank_reorders_a_deeper_pool_into_the_top_k(corpus_db):
+    store = FakeStore(["2401.00001#1"])
+    reranker = FakeReranker(order=["1901.00003#0"])
+    s = searcher(corpus_db, store=store, reranker=reranker, rerank_pool_k=50)
+
+    results = s.search("attention", k=2)
+
+    # Both legs retrieve the pool depth, not k; the reranker sees the whole
+    # fused pool and its order is the answer.
+    assert store.calls[0]["k"] == 50
+    assert len(reranker.pools[0]) == 4
+    assert [r.chunk_id for r in results][0] == "1901.00003#0"
+    assert len(results) == 2
+
+
+def test_search_priced_bills_the_embedding_and_the_rerank(corpus_db):
+    s = searcher(corpus_db, embedder=PricedEmbedder(), reranker=FakeReranker(usd=0.0007))
+    outcome = s.search_priced("attention", k=2)
+    assert outcome.usd == pytest.approx(0.00072)
+
+
+def test_a_reranker_outage_keeps_the_fused_order(corpus_db):
+    fused = searcher(corpus_db).search("attention", k=3)
+    down = FakeReranker(fail_with=RerankUnavailable("HTTP 503 from rerank"))
+    s = searcher(corpus_db, embedder=PricedEmbedder(), reranker=down)
+
+    outcome = s.search_priced("attention", k=3)
+
+    assert [r.chunk_id for r in outcome.chunks] == [r.chunk_id for r in fused]
+    assert outcome.usd == pytest.approx(0.00002)  # the rerank billed nothing
+
+
+def test_a_rerank_bug_fails_loud(corpus_db):
+    broken = FakeReranker(fail_with=RerankError("reranker scored 1 of 4 candidates"))
+    s = searcher(corpus_db, reranker=broken)
+    with pytest.raises(RerankError, match="scored 1 of 4"):
+        s.search("attention")
+
+
+def test_live_search_refuses_the_local_reranker(corpus_db):
+    with pytest.raises(RerankError, match="hosted"):
+        searcher(corpus_db, rerank_enabled=True, rerank_backend="local")
 
 
 def test_blank_query_returns_nothing_not_garbage(corpus_db):

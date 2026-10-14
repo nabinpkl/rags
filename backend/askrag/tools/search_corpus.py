@@ -6,6 +6,9 @@ defines, never an open filter dict — that closed shape is this tool's "schema
 enum" enforcement (§5). `k` is clamped so one call can't ask for more than
 `search_corpus_max_k` chunks.
 
+Reranked when `rerank_enabled` (D8); the dollars that costs ride back on
+the result for the turn's budget, outside the model payload.
+
 Read-only by construction: `HybridSearch.search` only ever opens
 `db.connect_corpus` (mode=ro, §4c) and queries the embedded Chroma store.
 """
@@ -42,6 +45,9 @@ class SearchCorpusArgs(BaseModel):
 @dataclass(frozen=True)
 class SearchCorpusResult:
     chunks: tuple[ScoredChunk, ...]
+    # What the search billed (query embedding plus rerank). The loop adds it
+    # to the turn's spend (D11); it never reaches the model.
+    usd: float
 
     def to_model_payload(self) -> dict[str, Any]:
         return {"chunks": [asdict(c) for c in self.chunks]}
@@ -70,5 +76,5 @@ def run(
         year_max=args.year_max,
         paper_ids=scope,
     )
-    chunks = searcher.search(args.query, filters=filters, k=k)
-    return SearchCorpusResult(chunks=tuple(chunks))
+    outcome = searcher.search_priced(args.query, filters=filters, k=k)
+    return SearchCorpusResult(chunks=tuple(outcome.chunks), usd=outcome.usd)

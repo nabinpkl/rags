@@ -167,12 +167,21 @@ def _citations_of(name: str, result: Any) -> tuple[Citation, ...]:
     return ()
 
 
+def _spend_of(name: str, result: Any) -> float:
+    """Dollars a successful tool call billed. Only `search_corpus` calls a
+    paid API (query embedding, rerank); named by tool like `_citations_of`."""
+    if name == "search_corpus":
+        return result.usd
+    return 0.0
+
+
 def _dispatch_tool_calls(
     tool_use_blocks: list[Any],
     on_event: Callable[[AgentEvent], None],
     scope: tuple[str, ...] | None = None,
     *,
     max_calls: int,
+    cost: TurnCost,
 ) -> tuple[list[dict[str, Any]], list[ToolCallRecord]]:
     """Run the first `max_calls` tool calls of one response. The rest are
     answered (the API requires a result per tool_use) but never run, and emit
@@ -217,6 +226,7 @@ def _dispatch_tool_calls(
             records.append(ToolCallRecord(name=name, args=args, ok=False, error=error))
             on_event(AgentEvent(EventKind.TOOL_RESULT, {"name": name, "ok": False, "error": error}))
             continue
+        cost.add_tool_spend(_spend_of(name, result))
         result_blocks.append(
             {
                 "type": "tool_result",
@@ -346,7 +356,11 @@ def run_turn(
                 b for b in response.content if getattr(b, "type", None) == "tool_use"
             ]
             result_blocks, records = _dispatch_tool_calls(
-                tool_use_blocks, on_event, scope, max_calls=settings.max_tool_calls_per_step
+                tool_use_blocks,
+                on_event,
+                scope,
+                max_calls=settings.max_tool_calls_per_step,
+                cost=cost,
             )
             tool_records.extend(records)
             messages = [*messages, {"role": "user", "content": result_blocks}]

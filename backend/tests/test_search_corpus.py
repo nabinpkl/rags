@@ -6,6 +6,7 @@ import pytest
 from askrag.config import Settings
 from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
 from askrag.retrieval.hybrid_search import HybridSearch, ScoredChunk
+from askrag.retrieval.rerank import Reranked
 from askrag.tools.search_corpus import SearchCorpusArgs, run
 
 
@@ -41,6 +42,9 @@ def corpus_db(tmp_path):
 
 
 class FakeEmbedder:
+    def embed_query_priced(self, text):
+        return self.embed_query(text), None
+
     def embed_query(self, text):
         return [1.0, 0.0]
 
@@ -60,7 +64,7 @@ class FakeStore:
 
 def test_run_wraps_hybrid_search_and_returns_scored_chunks(corpus_db):
     searcher = HybridSearch(
-        Settings(),
+        Settings(rerank_enabled=False),
         embedder=FakeEmbedder(),
         vector_store=FakeStore(["2401.00001#0"]),
         corpus_db_path=corpus_db,
@@ -72,7 +76,7 @@ def test_run_wraps_hybrid_search_and_returns_scored_chunks(corpus_db):
 
 def test_to_model_payload_is_a_plain_dict_of_chunk_dicts(corpus_db):
     searcher = HybridSearch(
-        Settings(),
+        Settings(rerank_enabled=False),
         embedder=FakeEmbedder(),
         vector_store=FakeStore(["2401.00001#0"]),
         corpus_db_path=corpus_db,
@@ -90,7 +94,7 @@ def test_k_is_clamped_to_search_corpus_max_k(corpus_db):
     # to the ACTUAL settings, not just the schema's advertised default.
     store = FakeStore(["2401.00001#0"])
     searcher = HybridSearch(
-        Settings(search_corpus_max_k=3),
+        Settings(search_corpus_max_k=3, rerank_enabled=False),
         embedder=FakeEmbedder(),
         vector_store=store,
         corpus_db_path=corpus_db,
@@ -125,7 +129,10 @@ def test_a_route_set_scope_narrows_retrieval(corpus_db):
     """The scope is a keyword the model cannot author (see search_corpus.run)."""
     store = FakeStore(["2401.00001#0"])
     searcher = HybridSearch(
-        Settings(), embedder=FakeEmbedder(), vector_store=store, corpus_db_path=corpus_db
+        Settings(rerank_enabled=False),
+        embedder=FakeEmbedder(),
+        vector_store=store,
+        corpus_db_path=corpus_db,
     )
 
     out_of_scope = run(
@@ -152,3 +159,22 @@ def test_scope_is_absent_from_the_model_facing_schema():
 
     assert "scope" not in fields
     assert "paper_ids" not in fields
+
+
+class BilledReranker:
+    def rerank(self, query, candidates, k):
+        return Reranked([chunk_id for chunk_id, _ in candidates][:k], 0.0007)
+
+
+def test_the_result_carries_what_the_search_billed(corpus_db):
+    searcher = HybridSearch(
+        Settings(),
+        embedder=FakeEmbedder(),
+        vector_store=FakeStore(["2401.00001#0"]),
+        corpus_db_path=corpus_db,
+        reranker=BilledReranker(),
+    )
+    result = run(SearchCorpusArgs(query="attention"), searcher=searcher)
+    assert result.usd == pytest.approx(0.0007)
+    # Cost is the turn's business, not the model's.
+    assert "usd" not in result.to_model_payload()

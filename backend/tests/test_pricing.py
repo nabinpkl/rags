@@ -8,6 +8,8 @@ stopped it. Every case below pins which of the two sources won.
 
 from dataclasses import dataclass
 
+import pytest
+
 from askrag.agent.pricing import TurnCost
 from askrag.config import Settings
 
@@ -120,3 +122,25 @@ def test_token_totals_are_billing_tier_agnostic():
     assert cost.cache_read == 20
     assert cost.tokens_in == 125
     assert cost.tokens_total == 135
+
+
+def test_tool_spend_adds_to_a_provider_priced_turn():
+    cost = TurnCost()
+    cost.add(FakeUsageWithCost(input_tokens=10, output_tokens=5, cost=0.002))
+    cost.add_tool_spend(0.0007)
+    assert cost.usd(settings()) == pytest.approx(0.0027)
+
+
+def test_tool_spend_adds_to_a_table_priced_turn():
+    cost = TurnCost()
+    cost.add(FakeUsage(input_tokens=1_000_000))
+    cost.add_tool_spend(0.0007)
+    assert cost.usd(settings(agent_usd_per_mtok_in=1.0)) == pytest.approx(1.0007)
+
+
+@pytest.mark.parametrize("bad", [-0.001, float("nan"), float("inf")])
+def test_an_unusable_tool_spend_raises(bad):
+    # Swallowing it as zero would under-report, the one direction D11's caps
+    # cannot absorb.
+    with pytest.raises(ValueError):
+        TurnCost().add_tool_spend(bad)

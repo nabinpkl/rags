@@ -1,4 +1,5 @@
-"""Hybrid retrieval (D8): vector + BM25 legs, RRF fusion, filters pushed down.
+"""Hybrid retrieval (D8): vector + BM25 legs, RRF fusion, filters pushed down,
+then a reranker reorders the fused pool into the top k.
 
 `search()` is the interface tools and evals consume; it returns ScoredChunk
 with full provenance (section + page anchors are what make citations
@@ -18,8 +19,12 @@ the embed/query path fails loud instead of degrading (2026-07-06 checkpoint
 finding 3). corpus.db failing is fatal by design: without it there is no
 text to return at all.
 
-Rerank (config.rerank_enabled) ships only if evals justify it (D8/#19); the
-flag exists, the stage does not yet.
+Rerank (config.rerank_enabled, D8 amendment 2026-10-14): both legs retrieve
+`rerank_pool_k` deep, fusion keeps that many, and the hosted reranker picks
+the top k. A reranker outage (`RerankUnavailable`) keeps the fused order with
+a warning, the same limp-not-die contract as the vector leg; any other rerank
+failure is a bug and propagates. `search_priced` also returns what the search
+billed (query embedding plus rerank) so the agent's turn can count it (D11).
 
 __main__ is the spine checkpoint (#16): `just ask q="..."` prints top-k over
 the real corpus; `--bench` measures the p95 the spec §10 Chroma assumption
@@ -32,7 +37,7 @@ import sqlite3
 import statistics
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
@@ -41,6 +46,7 @@ from askrag.config import Settings, get_settings
 from askrag.ingest.embed_chunks import EmbeddingError
 from askrag.retrieval import fts
 from askrag.retrieval.embeddings import QueryEmbedder
+from askrag.retrieval.rerank import Reranked, RerankUnavailable, live_reranker
 from askrag.retrieval.vector_store import VectorStore, VectorStoreError
 
 # The vector leg's fail-soft set (D8): store/collection unusable, the
@@ -82,6 +88,8 @@ class ScoredChunk:
     page_start: int
     page_end: int
     text: str
+    # The RRF fusion score. With reranking on, list order is the ranking and
+    # this score no longer sorts it.
     score: float
     leg: str
     version: str | None  # papers.version — the D9 pinned-PDF anchor
@@ -104,10 +112,24 @@ def rrf_fuse(legs: dict[str, list[str]], rrf_k: int) -> dict[str, tuple[float, s
     return fused
 
 
+@dataclass(frozen=True)
+class SearchOutcome:
+    """The ranked chunks and the dollars the providers billed for them."""
+
+    chunks: list[ScoredChunk] = field(default_factory=list)
+    usd: float = 0.0
+
+
 class QueryEmbedderLike(Protocol):
     """The embedder seam HybridSearch depends on (tests inject fakes)."""
 
-    def embed_query(self, text: str) -> list[float]: ...
+    def embed_query_priced(self, text: str) -> tuple[list[float], float | None]: ...
+
+
+class RerankerLike(Protocol):
+    """The rerank seam: (query, [(chunk_id, text)], k) -> top k ids and cost."""
+
+    def rerank(self, query: str, candidates: list[tuple[str, str]], k: int) -> Reranked: ...
 
 
 class VectorStoreLike(Protocol):
@@ -134,6 +156,7 @@ class HybridSearch:
         embedder: QueryEmbedderLike | None = None,
         vector_store: VectorStoreLike | None = None,
         corpus_db_path: Path | None = None,
+        reranker: RerankerLike | None = None,
     ) -> None:
         # Injectable seams for tests; production loads the real model here —
         # the one-time cold cost the FastAPI lifespan will pay once (#30).
@@ -141,10 +164,21 @@ class HybridSearch:
         self._embedder = embedder if embedder is not None else QueryEmbedder(settings)
         self._store = vector_store if vector_store is not None else VectorStore(settings)
         self._corpus_db_path = corpus_db_path  # None -> settings path via db.py
+        if reranker is not None:
+            self._reranker: RerankerLike | None = reranker
+        elif settings.rerank_enabled:
+            self._reranker = live_reranker(settings)
+        else:
+            self._reranker = None
 
     def search(
         self, query: str, filters: Filters | None = None, k: int | None = None
     ) -> list[ScoredChunk]:
+        return self.search_priced(query, filters, k).chunks
+
+    def search_priced(
+        self, query: str, filters: Filters | None = None, k: int | None = None
+    ) -> SearchOutcome:
         settings = self._settings
         filters = filters if filters is not None else Filters()
         top_k = k if k is not None else settings.search_top_k
@@ -152,9 +186,11 @@ class HybridSearch:
             # A blank query must return nothing, not garbage: the vector leg
             # would otherwise embed the bare task prefix and return whatever
             # sits near it (observed live before this guard existed).
-            return []
-        if settings.rerank_enabled:
-            raise NotImplementedError("rerank ships only if evals justify it (D8, decided in #19)")
+            return SearchOutcome()
+        # The reranker reorders a deeper pool than it returns; without one the
+        # legs retrieve exactly what the caller reads.
+        depth = max(settings.rerank_pool_k, top_k) if self._reranker is not None else top_k
+        usd = 0.0
         tracer = telemetry.get_tracer("askrag.retrieval")
         with tracer.start_as_current_span("askrag.retrieval.search") as span:
             span.set_attribute("askrag.model_slug", settings.embedding_model_slug)
@@ -162,10 +198,12 @@ class HybridSearch:
 
             legs: dict[str, list[str]] = {}
             try:
-                embedding = self._embedder.embed_query(query)
+                embedding, embed_usd = self._embedder.embed_query_priced(query)
+                # A backend that reports no price runs locally and bills nothing.
+                usd += embed_usd or 0.0
                 legs["vector"] = self._store.query(
                     embedding,
-                    top_k,
+                    depth,
                     category=filters.category,
                     year_min=filters.year_min,
                     year_max=filters.year_max,
@@ -186,22 +224,41 @@ class HybridSearch:
                     legs["bm25"] = fts.search_bm25(
                         conn,
                         query,
-                        top_k,
+                        depth,
                         category=filters.category,
                         year_min=filters.year_min,
                         year_max=filters.year_max,
                         paper_ids=filters.paper_ids,
                     )
                 fused = rrf_fuse(legs, settings.rrf_k)
-                ranked = sorted(fused.items(), key=lambda kv: kv[1][0], reverse=True)[:top_k]
-                results = self._hydrate(conn, ranked)
+                ranked = sorted(fused.items(), key=lambda kv: kv[1][0], reverse=True)[:depth]
+                pool = self._hydrate(conn, ranked)
             finally:
                 conn.close()
+
+            results = pool[:top_k]
+            if self._reranker is not None and pool:
+                with tracer.start_as_current_span("askrag.retrieval.rerank") as rerank_span:
+                    rerank_span.set_attribute("askrag.pool", len(pool))
+                    try:
+                        reranked = self._reranker.rerank(
+                            query, [(c.chunk_id, c.text) for c in pool], top_k
+                        )
+                    except RerankUnavailable:
+                        # Fail-soft like the vector leg (D8): the fused order
+                        # stands, and the reader still gets an answer.
+                        _log.warning("reranker unavailable; keeping fused order", exc_info=True)
+                        span.set_attribute("askrag.rerank_degraded", True)
+                    else:
+                        usd += reranked.usd
+                        by_id = {c.chunk_id: c for c in pool}
+                        results = [by_id[chunk_id] for chunk_id in reranked.chunk_ids]
 
             span.set_attribute("askrag.results", len(results))
             for leg_name, ids in legs.items():
                 span.set_attribute(f"askrag.leg.{leg_name}", len(ids))
-        return results
+            span.set_attribute("askrag.usd", usd)
+        return SearchOutcome(results, usd)
 
     def _hydrate(
         self,

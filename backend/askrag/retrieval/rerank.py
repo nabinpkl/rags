@@ -3,11 +3,11 @@ and each chunk together.
 
 Two scorers behind one interface: a hosted reranker through OpenRouter's
 /rerank (what a live path could afford) and a local cross-encoder (the
-comparison point, far too slow on the build host to serve). Eval-only for
-now: `rerank_enabled` stays False until the evals justify it (D8), so
-nothing on the request path constructs this. Chunk text is only scored,
-never returned, so the §6 fencing rules are unaffected; the hosted scorer
-sends it to the provider exactly as the agent's model calls do.
+comparison point, far too slow on the build host to serve). Live search
+builds the hosted one through `live_reranker` (D8 amendment 2026-10-14).
+Chunk text is only scored, never returned, so the §6 fencing rules are
+unaffected; the hosted scorer sends it to the provider exactly as the
+agent's model calls do.
 """
 
 import math
@@ -25,6 +25,12 @@ _OPENROUTER_RERANK_URL = "https://openrouter.ai/api/v1/rerank"
 
 class RerankError(RuntimeError):
     """The reranker failed or answered out of contract."""
+
+
+class RerankUnavailable(RerankError):
+    """The hosted reranker could not be reached, or stayed rate-limited or
+    5xx past the last attempt: an outage, which live search survives by
+    keeping the fused order. Any other failure is a bug and stays loud."""
 
 
 class Scorer(Protocol):
@@ -57,6 +63,23 @@ class Reranker:
         return Reranked([candidates[i][0] for i in order[:k]], usd)
 
 
+def live_reranker(settings: Settings) -> Reranker:
+    """The reranker on the request path: hosted, with the live retry budget."""
+    if settings.rerank_backend != "openrouter":
+        raise RerankError(
+            "live search reranks only through the hosted scorer; the local one"
+            " takes minutes per query on this host"
+        )
+    return Reranker(
+        settings,
+        OpenRouterScorer(
+            settings,
+            max_attempts=settings.search_rerank_max_attempts,
+            timeout_seconds=settings.search_rerank_timeout_seconds,
+        ),
+    )
+
+
 def make_scorer(settings: Settings) -> Scorer:
     if settings.rerank_backend == "openrouter":
         return OpenRouterScorer(settings)
@@ -73,29 +96,46 @@ class OpenRouterScorer:
         settings: Settings,
         transport: httpx.BaseTransport | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        *,
+        max_attempts: int | None = None,
+        timeout_seconds: float | None = None,
     ) -> None:
         key = settings.openrouter_api_key.get_secret_value()
         if not key:
             raise RerankError("OPENROUTER_API_KEY is not set")
         self._model = settings.rerank_openrouter_model
-        self._attempts = settings.rerank_max_attempts
+        self._attempts = max_attempts if max_attempts is not None else settings.rerank_max_attempts
         self._backoff = settings.rerank_backoff_base_seconds
         self._sleep = sleep  # test seam
         self._client = httpx.Client(
             headers={"Authorization": f"Bearer {key}"},
-            timeout=settings.rerank_request_timeout_seconds,
+            timeout=(
+                timeout_seconds
+                if timeout_seconds is not None
+                else settings.rerank_request_timeout_seconds
+            ),
             transport=transport,
         )
 
     def score(self, query: str, texts: list[str]) -> tuple[list[float], float]:
         for attempt in range(self._attempts):
-            response = self._client.post(
-                _OPENROUTER_RERANK_URL,
-                json={"model": self._model, "query": query, "documents": texts},
-            )
+            try:
+                response = self._client.post(
+                    _OPENROUTER_RERANK_URL,
+                    json={"model": self._model, "query": query, "documents": texts},
+                )
+            except httpx.TransportError as exc:
+                if attempt == self._attempts - 1:
+                    raise RerankUnavailable(f"rerank request failed: {exc}") from exc
+                self._sleep(self._backoff * 2**attempt)
+                continue
             retryable = response.status_code == 429 or response.status_code >= 500
-            if not retryable or attempt == self._attempts - 1:
+            if not retryable:
                 break
+            if attempt == self._attempts - 1:
+                raise RerankUnavailable(
+                    f"HTTP {response.status_code} from rerank: {response.text[:200]}"
+                )
             self._sleep(self._backoff * 2**attempt)
         if response.status_code != 200:
             raise RerankError(f"HTTP {response.status_code} from rerank: {response.text[:200]}")

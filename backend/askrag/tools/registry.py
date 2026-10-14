@@ -136,7 +136,8 @@ TOOLS: dict[str, ToolSpec] = {
     "search_corpus": ToolSpec(
         name="search_corpus",
         description=(
-            "Hybrid keyword+vector search over the arXiv CS corpus. Returns "
+            "Hybrid keyword+vector search over the arXiv CS corpus, reranked "
+            "by a model that reads the query and each passage. Returns "
             "the top-k matching chunks with paper id, section, page range, "
             "and text — use this to find passages relevant to a question."
         ),

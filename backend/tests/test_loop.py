@@ -128,8 +128,9 @@ class StubSearchCorpusResult:
     """Mimics SearchCorpusResult's real shape (`.chunks` of paper_id/chunk_id
     objects) — `_citations_of` reads exactly that, duck-typed (issue #27)."""
 
-    def __init__(self, chunks):
+    def __init__(self, chunks, usd=0.0):
         self.chunks = chunks
+        self.usd = usd
 
     def to_model_payload(self):
         return {"chunks": [{"paper_id": c.paper_id, "chunk_id": c.chunk_id} for c in self.chunks]}
@@ -559,3 +560,37 @@ def test_a_turn_that_fails_on_its_first_call_records_nothing(tmp_path):
             [], "q", session_id="s1", ip="1.2.3.4", client=FailingOnCall(1), settings=settings
         )
     assert traces.message_count_for_session("s1", settings=settings) == 0
+
+
+def test_search_spend_counts_toward_the_daily_caps(tmp_path, monkeypatch):
+    """The reranked search bills its own provider (D8 amendment 2026-10-14).
+    That spend joins the turn's cost, which is the figure D11's per-visitor
+    and sitewide caps read back from traces."""
+    monkeypatch.setattr(
+        registry,
+        "dispatch",
+        lambda name, args, *, scope=None: StubSearchCorpusResult([], usd=0.0007),
+    )
+    settings = make_settings(tmp_path)
+    client = ScriptedModelClient(
+        [
+            tool_use_response("t1", name="search_corpus", args={"query": "a"}, tokens=(1000, 100)),
+            tool_use_response("t2", name="search_corpus", args={"query": "b"}, tokens=(1000, 100)),
+            text_response("final", tokens=(500, 50)),
+        ]
+    )
+
+    result = loop.run_turn(
+        [], "question", session_id="s1", ip="203.0.113.9", client=client, settings=settings
+    )
+
+    model_cost = (
+        2500 / 1_000_000 * settings.agent_usd_per_mtok_in
+        + 250 / 1_000_000 * settings.agent_usd_per_mtok_out
+    )
+    assert result.cost_usd == pytest.approx(model_cost + 2 * 0.0007)
+    assert traces.spend_today(settings=settings) == pytest.approx(model_cost + 2 * 0.0007)
+    ip_hash = traces.hash_ip("203.0.113.9", settings=settings)
+    assert traces.spend_for_ip_today(ip_hash, settings=settings) == pytest.approx(
+        model_cost + 2 * 0.0007
+    )

@@ -303,7 +303,13 @@ class Settings(BaseSettings):
     # The evals' second depth: the candidates a reranker would reorder into
     # the top search_top_k. Recall here is the most any reordering can reach.
     eval_pool_k: int = 50
-    rerank_enabled: bool = False  # ships only if evals justify it (D8)
+    # Live search reranks (D8 amendment 2026-10-14): the hosted reranker took
+    # recall@10 from 79% to 90% for about $0.0007 and half a second a search.
+    # Its billed cost joins the turn's spend, so D11's caps count it.
+    rerank_enabled: bool = True
+    # The candidates live search hands the reranker: both legs retrieve this
+    # deep, fusion keeps this many. Matches eval_pool_k, the depth measured.
+    rerank_pool_k: int = 50
     # Where reranking runs (D8 amendment 2026-10-05). "openrouter": a hosted
     # reranker through OpenRouter's /rerank, about 1 s and $0.0007 for 50
     # passages. "local": the pinned cross-encoder below on this host's CPU,
@@ -316,6 +322,11 @@ class Settings(BaseSettings):
     # the third eval question (2026-10-05). Past the last attempt it raises.
     rerank_max_attempts: int = 6
     rerank_backoff_base_seconds: float = 2.0
+    # Live search waits less than the evals do: a reader is watching the
+    # turn, and a reranker that is down costs ranking quality, not the
+    # answer (search falls back to the fused order). One retry, 10 s each.
+    search_rerank_max_attempts: int = 2
+    search_rerank_timeout_seconds: float = 10.0
     # The local cross-encoder: Apache-2.0, 149M parameters. Pinned like the
     # embedding model, so a model-card push cannot move the numbers.
     rerank_model: str = "Alibaba-NLP/gte-reranker-modernbert-base"

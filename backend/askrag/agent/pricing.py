@@ -10,6 +10,10 @@ Two sources of truth, in priority order:
    prod path), so Haiku turns are priced from `agent_usd_per_mtok_*` exactly as
    before.
 
+Tool spend (the search's query embedding and rerank, D8 amendment
+2026-10-14) is always the provider's billed figure and is added on top of
+the model's cost, whichever source priced the model.
+
 Mixed turns price from the table, never a half-provider/half-table sum: a
 partial provider total silently *under*-reports, and under-reporting is the one
 error direction D11's caps cannot tolerate (spend passes the gate that should
@@ -37,6 +41,7 @@ class TurnCost:
     out: int = 0
     cache_read: int = 0
     provider_usd: float = 0.0
+    tool_usd: float = 0.0
     calls: int = 0
     # Vacuously true; the first unpriced response falsifies it for the turn.
     every_call_priced: bool = field(default=True)
@@ -63,6 +68,13 @@ class TurnCost:
             return
         self.provider_usd += float(reported)
 
+    def add_tool_spend(self, usd: float) -> None:
+        if not math.isfinite(usd) or usd < 0:
+            # Under-reporting is the error D11 cannot absorb, so a bad figure
+            # is a bug to surface, not a zero to swallow.
+            raise ValueError(f"tool spend must be a finite, non-negative dollar amount: {usd!r}")
+        self.tool_usd += usd
+
     @property
     def tokens_in(self) -> int:
         """The persisted/reported input total, billing-tier-agnostic."""
@@ -75,6 +87,9 @@ class TurnCost:
         return self.fresh_in + self.cache_read + self.out
 
     def usd(self, settings: Settings) -> float:
+        return self._model_usd(settings) + self.tool_usd
+
+    def _model_usd(self, settings: Settings) -> float:
         if self.calls == 0:
             return 0.0
         if self.every_call_priced:

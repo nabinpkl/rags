@@ -3011,3 +3011,32 @@ ids without first drafting its own set.
 that all carry a CC license.
 
 **Spec updated:** yes, D14 amendment (2026-10-09).
+
+## 2026-10-14 — live search reranks, and search spend joins the turn's budget (owner directive)
+
+**Context:** the evals put hybrid + Voyage rerank-3-lite at 90% recall@10
+against hybrid's 79% (run bf072fb0bfba), but `rerank_enabled` was False and
+the flag raised NotImplementedError. The turn's cost, the figure D11's
+per-visitor and sitewide caps read from traces, counted only the agent
+model: the query embedding was never priced into a turn, and a live rerank
+would not have been either.
+
+**Decision:** `rerank_enabled` is True. Live search retrieves a 50-deep
+fused pool and reranks it through OpenRouter with a short retry budget (2
+attempts, 10 s timeout); an outage keeps the fused order, any other rerank
+error propagates. `HybridSearch.search_priced` returns the providers' billed
+cost; `search_corpus` carries it on its result (never in the model payload);
+the loop adds it to `TurnCost` as tool spend, which `record_run` writes and
+the caps read. A non-finite or negative tool spend raises rather than
+counting as zero.
+
+**Consequence:** a search costs about $0.0007 and 0.95 s median warm (0.28 s
+without). Search spend per turn is bounded by the step and tool-call caps
+at about $0.03. The provider's shared rate limit returned a 429 on one of
+six test queries; that search served the fused order and billed no rerank.
+
+**Revisit when:** 429s show up in the API logs often enough to matter (a
+second allowlisted reranker, or a paid tier), or the agent's answers are
+measured with and without reranking.
+
+**Spec updated:** yes, D8 amendment (2026-10-14).

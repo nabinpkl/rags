@@ -430,6 +430,24 @@ half a second and a tenth of a cent per search. `rerank_enabled` stays False
 until the agent's answers are measured with it; a turn of about five searches
 would add about $0.003 to a $0.0067 turn.
 
+**Amendment (2026-10-14, owner directive): live search reranks, and its
+spend is budgeted.** `rerank_enabled` is True. Both legs retrieve
+`rerank_pool_k` (50) deep, fusion keeps 50, and the hosted reranker
+(`live_reranker`: OpenRouter only, `search_rerank_max_attempts` 2,
+`search_rerank_timeout_seconds` 10) returns the top k. A reranker outage
+(transport failure, or 429/5xx past the last attempt) keeps the fused order
+with a warning, the same limp-not-die contract as the vector leg; any other
+rerank failure propagates. Each search reports what it billed (query
+embedding plus rerank, the providers' `usage.cost`); `search_corpus` carries
+it on its result, outside the model payload, and the loop adds it to the
+turn's cost. Before this the turn's cost, which D11's per-visitor and
+sitewide caps read, counted only the agent model, so search-side spend was
+never budgeted. Measured on the build host over six warm queries: median
+search 0.95 s against 0.28 s fused, $0.0005 to $0.0008 a search; one of the
+six hit the provider's shared rate limit and fell back to the fused order.
+A turn is bounded at 8 steps of 4 calls, so search spend tops out near
+$0.03 a turn, inside the $0.10 per-visitor cap.
+
 **Decision.** `search_corpus` runs vector search (Chroma) and BM25 (FTS5)
 in parallel, fuses with reciprocal rank fusion, applies metadata filters
 (category, year, facets — pushed into Chroma's `where` and SQL respectively),
