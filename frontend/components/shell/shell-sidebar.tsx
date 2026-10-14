@@ -1,6 +1,13 @@
 "use client";
 
-import { ChartNoAxesColumn, Library, MessagesSquare, Quote, TrendingUp } from "lucide-react";
+import {
+  ChartNoAxesColumn,
+  Library,
+  MessagesSquare,
+  Network,
+  Quote,
+  TrendingUp,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -10,7 +17,8 @@ import { cn } from "@/lib/utils";
 
 /** The app's reading surfaces, one route each: the whole catalog (home),
  * the citation counts, arXiv's category census, the RAG demo (the indexed
- * papers with the agent that reads them), and the retrieval benchmark.
+ * papers with the agent that reads them), the retrieval benchmark, and how
+ * retrieval and the agent are built.
  *
  * The rail addresses ROUTES, not bands of a scrolling canvas. It used to do
  * both: four rows that scroll-spied the dashboard's bands, and a fifth,
@@ -25,6 +33,7 @@ export const VIEWS = [
   { id: "trends", label: "Trends", href: "/trends", icon: TrendingUp },
   { id: "demo", label: "RAG Demo", href: "/demo", icon: MessagesSquare },
   { id: "benchmarks", label: "Benchmarks", href: "/benchmarks", icon: ChartNoAxesColumn },
+  { id: "architecture", label: "Architecture", href: "/architecture", icon: Network },
 ] as const satisfies readonly { id: string; label: string; href: string; icon: LucideIcon }[];
 
 export type ShellView = (typeof VIEWS)[number]["id"];

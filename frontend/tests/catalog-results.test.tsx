@@ -117,7 +117,11 @@ describe("CatalogResults", () => {
       <CatalogResults
         papers={[
           paper({ primary_category: "cs.CR", primary_category_name: "Cryptography and Security" }),
-          paper({ arxiv_id: "2608.00002", primary_category: "math.NA", primary_category_name: null }),
+          paper({
+            arxiv_id: "2608.00002",
+            primary_category: "math.NA",
+            primary_category_name: null,
+          }),
         ]}
         total={2}
         topic={null}

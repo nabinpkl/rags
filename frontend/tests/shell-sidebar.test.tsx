@@ -21,7 +21,14 @@ describe("ShellSidebar", () => {
     render(<ShellSidebar current="demo" />);
 
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(labels).toEqual(["Explore", "Citations", "Trends", "RAG Demo", "Benchmarks"]);
+    expect(labels).toEqual([
+      "Explore",
+      "Citations",
+      "Trends",
+      "RAG Demo",
+      "Benchmarks",
+      "Architecture",
+    ]);
     expect(screen.getByRole("link", { name: "RAG Demo" })).toHaveAttribute("aria-current", "page");
   });
 
