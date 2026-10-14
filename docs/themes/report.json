@@ -1,0 +1,2475 @@
+{
+ "baseline": 0.29148200154304504,
+ "themes": [
+  {
+   "theme": "agent memory",
+   "kw_n": 1450,
+   "near": {
+    "lift": 2.04,
+    "noise": 0.1,
+    "top_cluster": 7,
+    "top_share": 0.96,
+    "clusters_80": 1
+   },
+   "kw": {
+    "lift": 1.45,
+    "noise": 0.34,
+    "top_cluster": 7,
+    "top_share": 0.43,
+    "clusters_80": 8,
+    "cluster_purity": 0.73,
+    "cluster_size": 569
+   }
+  },
+  {
+   "theme": "multi-agent",
+   "kw_n": 1631,
+   "near": {
+    "lift": 1.93,
+    "noise": 0.66,
+    "top_cluster": 61,
+    "top_share": 0.68,
+    "clusters_80": 3
+   },
+   "kw": {
+    "lift": 1.37,
+    "noise": 0.53,
+    "top_cluster": 27,
+    "top_share": 0.16,
+    "clusters_80": 16,
+    "cluster_purity": 0.03,
+    "cluster_size": 4177
+   }
+  },
+  {
+   "theme": "world models",
+   "kw_n": 918,
+   "near": {
+    "lift": 1.87,
+    "noise": 0.14,
+    "top_cluster": 27,
+    "top_share": 0.97,
+    "clusters_80": 1
+   },
+   "kw": {
+    "lift": 1.5,
+    "noise": 0.28,
+    "top_cluster": 27,
+    "top_share": 0.83,
+    "clusters_80": 1,
+    "cluster_purity": 0.13,
+    "cluster_size": 4177
+   }
+  },
+  {
+   "theme": "tool use",
+   "kw_n": 684,
+   "near": {
+    "lift": 1.74,
+    "noise": 0.72,
+    "top_cluster": 68,
+    "top_share": 0.36,
+    "clusters_80": 6
+   },
+   "kw": {
+    "lift": 1.41,
+    "noise": 0.58,
+    "top_cluster": 63,
+    "top_share": 0.16,
+    "clusters_80": 18,
+    "cluster_purity": 0.07,
+    "cluster_size": 646
+   }
+  },
+  {
+   "theme": "RAG",
+   "kw_n": 1082,
+   "near": {
+    "lift": 1.75,
+    "noise": 0.32,
+    "top_cluster": 37,
+    "top_share": 0.66,
+    "clusters_80": 3
+   },
+   "kw": {
+    "lift": 1.41,
+    "noise": 0.39,
+    "top_cluster": 37,
+    "top_share": 0.53,
+    "clusters_80": 9,
+    "cluster_purity": 0.84,
+    "cluster_size": 417
+   }
+  },
+  {
+   "theme": "reasoning RL",
+   "kw_n": 931,
+   "near": {
+    "lift": 1.88,
+    "noise": 0.27,
+    "top_cluster": 17,
+    "top_share": 0.75,
+    "clusters_80": 2
+   },
+   "kw": {
+    "lift": 1.5,
+    "noise": 0.38,
+    "top_cluster": 17,
+    "top_share": 0.43,
+    "clusters_80": 12,
+    "cluster_purity": 0.33,
+    "cluster_size": 765
+   }
+  },
+  {
+   "theme": "code agents",
+   "kw_n": 685,
+   "near": {
+    "lift": 1.82,
+    "noise": 0.4,
+    "top_cluster": 66,
+    "top_share": 0.94,
+    "clusters_80": 1
+   },
+   "kw": {
+    "lift": 1.4,
+    "noise": 0.45,
+    "top_cluster": 66,
+    "top_share": 0.41,
+    "clusters_80": 8,
+    "cluster_purity": 0.2,
+    "cluster_size": 780
+   }
+  },
+  {
+   "theme": "embodied VLA",
+   "kw_n": 815,
+   "near": {
+    "lift": 2.18,
+    "noise": 0.04,
+    "top_cluster": 27,
+    "top_share": 1.0,
+    "clusters_80": 1
+   },
+   "kw": {
+    "lift": 1.83,
+    "noise": 0.11,
+    "top_cluster": 27,
+    "top_share": 0.92,
+    "clusters_80": 1,
+    "cluster_purity": 0.16,
+    "cluster_size": 4177
+   }
+  },
+  {
+   "theme": "interpretability",
+   "kw_n": 246,
+   "near": {
+    "lift": 1.54,
+    "noise": 0.7,
+    "top_cluster": 10,
+    "top_share": 0.2,
+    "clusters_80": 10
+   },
+   "kw": {
+    "lift": 1.43,
+    "noise": 0.67,
+    "top_cluster": 64,
+    "top_share": 0.12,
+    "clusters_80": 19,
+    "cluster_purity": 0.04,
+    "cluster_size": 285
+   }
+  },
+  {
+   "theme": "efficient inference",
+   "kw_n": 1477,
+   "near": {
+    "lift": 1.93,
+    "noise": 0.23,
+    "top_cluster": 21,
+    "top_share": 0.68,
+    "clusters_80": 2
+   },
+   "kw": {
+    "lift": 1.34,
+    "noise": 0.34,
+    "top_cluster": 24,
+    "top_share": 0.22,
+    "clusters_80": 12,
+    "cluster_purity": 0.94,
+    "cluster_size": 231
+   }
+  },
+  {
+   "theme": "safety alignment",
+   "kw_n": 4027,
+   "near": {
+    "lift": 1.69,
+    "noise": 0.4,
+    "top_cluster": 64,
+    "top_share": 0.76,
+    "clusters_80": 2
+   },
+   "kw": {
+    "lift": 1.08,
+    "noise": 0.46,
+    "top_cluster": 27,
+    "top_share": 0.11,
+    "clusters_80": 30,
+    "cluster_purity": 0.06,
+    "cluster_size": 4177
+   }
+  },
+  {
+   "theme": "benchmarks",
+   "kw_n": 8197,
+   "near": {
+    "lift": 1.78,
+    "noise": 0.68,
+    "top_cluster": 65,
+    "top_share": 0.26,
+    "clusters_80": 9
+   },
+   "kw": {
+    "lift": 1.13,
+    "noise": 0.49,
+    "top_cluster": 27,
+    "top_share": 0.12,
+    "clusters_80": 34,
+    "cluster_purity": 0.12,
+    "cluster_size": 4177
+   }
+  },
+  {
+   "theme": "surveys",
+   "kw_n": 851,
+   "near": {
+    "lift": 1.28,
+    "noise": 0.57,
+    "top_cluster": 59,
+    "top_share": 0.34,
+    "clusters_80": 9
+   },
+   "kw": {
+    "lift": 1.04,
+    "noise": 0.46,
+    "top_cluster": 61,
+    "top_share": 0.17,
+    "clusters_80": 22,
+    "cluster_purity": 0.11,
+    "cluster_size": 698
+   }
+  }
+ ],
+ "clusters": [
+  {
+   "id": 27,
+   "size": 4177,
+   "words": [
+    "robot",
+    "action",
+    "world",
+    "manipulation",
+    "control",
+    "motion",
+    "policy",
+    "task"
+   ],
+   "cats": [
+    [
+     "cs.RO",
+     3177
+    ],
+    [
+     "cs.CV",
+     392
+    ]
+   ],
+   "titles": [
+    "World Action Learning via Interaction-Centric Spectral Latent Guidance",
+    "Towards Predictive, Aligned, and Scalable Robot Learning",
+    "HIL-UMI: Bringing Human-in-the-Loop Post-Training of Vision-Language-Action Models to Univ",
+    "MotorMind: Scaffolding General Vision Language Models for Zero-Shot Robot Manipulation",
+    "ABot-M0.5: Unified Mobility-and-Manipulation World Action Model",
+    "Robust Bimanual Vision-Language-Action Models via Embarrassingly Simple Modality Masking"
+   ]
+  },
+  {
+   "id": 56,
+   "size": 1181,
+   "words": [
+    "algorithm",
+    "log",
+    "graphs",
+    "problem",
+    "polynomial",
+    "approximation",
+    "vertex",
+    "bound"
+   ],
+   "cats": [
+    [
+     "cs.DS",
+     548
+    ],
+    [
+     "cs.CC",
+     176
+    ]
+   ],
+   "titles": [
+    "Submodular Maximization over Bipartite Perfect Matchings and Matroid Intersection Bases",
+    "On the Communication Complexity of Maximum Matching and Negative-Weight Shortest Paths",
+    "Cluster-Graph Edit Distance: Optimal Explicit Embeddings, Metric Proxies, and Complexity",
+    "Fixed-Threshold Peeling in Sublinear MPC: Round-Approximation Tradeoffs and Applications",
+    "Deterministic online matching under short augmenting paths and restricted vertex reassignm",
+    "One-Sided-Error Parameterized Reductions for the Minimum Distance and Shortest Vector Prob"
+   ]
+  },
+  {
+   "id": 31,
+   "size": 1118,
+   "words": [
+    "segmentation",
+    "ct",
+    "mri",
+    "clinical",
+    "medical",
+    "image",
+    "imaging",
+    "anatomical"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     938
+    ],
+    [
+     "cs.LG",
+     80
+    ]
+   ],
+   "titles": [
+    "Topology-Driven Transferability Estimation for 3D Medical Vision Foundation Models",
+    "Anatomical Grounding and Leakage-Aware Multimodal Contrastive Learning for Alzheimer's Dis",
+    "Solving the Needle-in-a-Haystack Problem in Mammography Vision-Language Model with Differe",
+    "Bridging Vision Foundation Model Priors with CLIP for Spatial-aware Few-shot Anomaly Detec",
+    "RadiomicNet: A Hybrid Radiomics-Guided Lightweight Architecture for Interpretable Medical ",
+    "CoM$^3$eT: A foundation model for medical image analysis through federated, multidimension"
+   ]
+  },
+  {
+   "id": 2,
+   "size": 920,
+   "words": [
+    "channel",
+    "communication",
+    "wireless",
+    "sensing",
+    "network",
+    "networks",
+    "radio",
+    "power"
+   ],
+   "cats": [
+    [
+     "cs.NI",
+     353
+    ],
+    [
+     "cs.IT",
+     318
+    ]
+   ],
+   "titles": [
+    "Cross-Layer Optimization and System-Level Design of Next-Generation Wireless Networks via ",
+    "Toward Blockage-Resilient 6G-V2X Connectivity: Semi-Distributed Bandit with Dynamic Arm Se",
+    "Secrecy Energy Efficiency for IRS-Assisted Low-Altitude Communications: A D3QN-PER Based A",
+    "Secure Cooperative THz ISAC via Mamba Empowered Graph Neural Network Precoding",
+    "Twin-Fidelity-Aware Resolution of Direct xApp Conflicts in Open RAN",
+    "Performance Analysis and Sensing-Aware Resource Allocation for Full-Duplex Massive MIMO IS"
+   ]
+  },
+  {
+   "id": 66,
+   "size": 780,
+   "words": [
+    "code",
+    "software",
+    "repository",
+    "coding",
+    "vulnerability",
+    "llm",
+    "test",
+    "repair"
+   ],
+   "cats": [
+    [
+     "cs.SE",
+     527
+    ],
+    [
+     "cs.CR",
+     114
+    ]
+   ],
+   "titles": [
+    "On the Reliability of LLM-Based Vulnerability Patching Benchmarks",
+    "Metrics Failure in LLM-Based Code Vulnerability Repair: An Empirical Study and a Change-Aw",
+    "Tool-Guided Retrieval-Augmented Repair for Securing LLM-Generated C Code",
+    "Can Large Language Models Generate Observability-Aware Code?",
+    "Securing AI-Generated Code: A Just-in-Time Vulnerability Detection and Remediation Pipelin",
+    "Security Tests as Executable Specifications for LLM Code Generation: Benefits, Trade-offs,"
+   ]
+  },
+  {
+   "id": 17,
+   "size": 765,
+   "words": [
+    "reward",
+    "policy",
+    "reinforcement",
+    "reinforcement learning",
+    "rl",
+    "learning",
+    "rewards",
+    "grpo"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     460
+    ],
+    [
+     "cs.AI",
+     183
+    ]
+   ],
+   "titles": [
+    "Don't Peek at the Answer: Outcome-Masked Group Relative Policy Optimization for Label-Free",
+    "Reinforcement Learning for Hierarchical Reasoning Rewards: Minimax-Optimal Rates with Tran",
+    "Unlocking the Critic: Reward-Free Policy Optimization for LLM Post-Training",
+    "SIPO: Unifying Reinforcement Learning with On-Policy Self-Distillation",
+    "Semifactual Credit-Augmented Policy Optimization",
+    "Start Classifying: Categorical Critics for LLM Reinforcement Learning"
+   ]
+  },
+  {
+   "id": 23,
+   "size": 719,
+   "words": [
+    "gpu",
+    "energy",
+    "hardware",
+    "memory",
+    "workloads",
+    "latency",
+    "serving",
+    "inference"
+   ],
+   "cats": [
+    [
+     "cs.DC",
+     246
+    ],
+    [
+     "cs.AR",
+     167
+    ]
+   ],
+   "titles": [
+    "Hydra: Phase-Aware Workload Characterization of LLM Inference across Edge SoC Generations,",
+    "LLM Inference on IMC-NoC Architecture with Balanced Dataflow and Fine-Grained Parallelism",
+    "A Measurement Study of LLM Inference Trade-offs Across Edge Continuum Hardware",
+    "Evaluating Inference Compute for Generative AI: A Framework for Enterprise Workloads",
+    "Validating Memory-Optimal Transformer Kernels on Real Hardware: From Formal Derivation to ",
+    "Phase-Decoupled, Model-Calibrated Power Control for Disaggregated LLM Serving"
+   ]
+  },
+  {
+   "id": 61,
+   "size": 698,
+   "words": [
+    "social",
+    "persona",
+    "llm",
+    "llms",
+    "human",
+    "agents",
+    "political",
+    "agent"
+   ],
+   "cats": [
+    [
+     "cs.CL",
+     277
+    ],
+    [
+     "cs.AI",
+     154
+    ]
+   ],
+   "titles": [
+    "The Failure Happens Before the Drift: The Social Dynamics of Values in LLM Agent Societies",
+    "Recognition, Simulation, and Refusal: A Contamination-Aware Study of Classic Psychological",
+    "Before You Poll with LLMs: A Deliberative Diagnostic Framework",
+    "Persona Conditioning as an Assessor-Sensitivity Probe for LLM-Based IR Evaluation",
+    "Shaping Opinion: Quantifying the Psychological Impact of Autonomous Multi-Agent LLM Intera",
+    "Passing Coarse Marginal Checks Can Be Cheap: Persona Mixtures and Imprecise Treatment-Resp"
+   ]
+  },
+  {
+   "id": 63,
+   "size": 646,
+   "words": [
+    "skill",
+    "harness",
+    "skills",
+    "agent",
+    "evolution",
+    "self",
+    "agents",
+    "harnesses"
+   ],
+   "cats": [
+    [
+     "cs.AI",
+     359
+    ],
+    [
+     "cs.CL",
+     81
+    ]
+   ],
+   "titles": [
+    "Evo-Harness: Context-to-Harness Skill Compilation for Self-Evolving Agents",
+    "MetaSkill-Evolve: Recursive Self-Improvement of LLM Agents via Two-Timescale Meta-Skill Ev",
+    "Rep2Skill: Representation-Guided Skill Self-Evolution for LLM Agents",
+    "SkillCommit: Evolving Agent Skills through Behaviorally Validated Scope Expansion",
+    "SkillHEX: Improving Agent Skills via Hypothesis-Driven Autonomous Exploration and Exploita",
+    "Evo-Bench: Can Language Models Improve Agent Harness?"
+   ]
+  },
+  {
+   "id": 9,
+   "size": 634,
+   "words": [
+    "clinical",
+    "patient",
+    "medical",
+    "health",
+    "evidence",
+    "models",
+    "diagnostic",
+    "llms"
+   ],
+   "cats": [
+    [
+     "cs.AI",
+     199
+    ],
+    [
+     "cs.CL",
+     199
+    ]
+   ],
+   "titles": [
+    "Large Language Models as Unified Multimodal Learners for Clinical Prediction",
+    "ClinTraceBench: Source-Verifiable Longitudinal Clinical Reasoning over EHR-Derived Dialogu",
+    "Large Language Models Show Metacognitive Sensitivity in Medical Reasoning",
+    "CliniCARE-Bench: Clinical Calibrated Audit of Medical Reasoning in EHR",
+    "MedReaMM: Evaluating Large Multimodal Models on Expert-Level Clinical Diagnostic Synthesis",
+    "CARE-Bench: Benchmarking Patient-Facing LLM Triage"
+   ]
+  },
+  {
+   "id": 29,
+   "size": 621,
+   "words": [
+    "forecasting",
+    "series",
+    "time series",
+    "time",
+    "forecast",
+    "temporal",
+    "series forecasting",
+    "weather"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     469
+    ],
+    [
+     "cs.AI",
+     77
+    ]
+   ],
+   "titles": [
+    "RACE: Residual-Aware Test-Time Adaptation for Neighbor-Rich Time-Series Foundation Model F",
+    "TFGformer: Multivariate Time Series Forecasting via Time-Frequency Graph Learning and Cova",
+    "Revisiting Identity and Spectra Dispersion in Media-Bridged Time Series Forecasting: Linki",
+    "$t_0$: A Time-Series Foundation Model for Forecasting with Context",
+    "Parameter-Efficient Adaptation of Pretrained Language Models for Time-Series Forecasting",
+    "CLaST: Context-aware Contrastive VAE for Probabilistic Time Series Forecasting"
+   ]
+  },
+  {
+   "id": 7,
+   "size": 569,
+   "words": [
+    "memory",
+    "agents",
+    "long",
+    "context",
+    "retrieval",
+    "agent",
+    "memories",
+    "long term"
+   ],
+   "cats": [
+    [
+     "cs.AI",
+     279
+    ],
+    [
+     "cs.CL",
+     140
+    ]
+   ],
+   "titles": [
+    "AgentMemBench: A Systematic Benchmark for Evaluating Long-Term Memory Management Strategie",
+    "Agent Zero Memory: Provenance-Aware Long-Term Memory for LLM Agents",
+    "Memory as a Controlled Process: Learned Adaptive Memory Management for LLM Agents",
+    "When Does Memory Help? A Cost-Aware Evaluation of Long-Term Memory in Tool-Using LLM Agent",
+    "MemoryCPT: An End-to-End Agent Memory Framework for Cost-Performance Trade-off",
+    "Accurate and Efficient Long-Term Memory for LLM Agents"
+   ]
+  },
+  {
+   "id": 46,
+   "size": 550,
+   "words": [
+    "neural",
+    "physics",
+    "pde",
+    "physics informed",
+    "operator",
+    "informed",
+    "equations",
+    "informed neural"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     351
+    ],
+    [
+     "cs.CE",
+     124
+    ]
+   ],
+   "titles": [
+    "Alternating Levenberg-Marquardt Training of Physics-Informed Neural Networks with Fourier-",
+    "Optimizing Parameterized Physics-Informed Neural Networks to Solve Multilayered Static Lin",
+    "Physics-Informed Neural Embeddings of PDE Solution Families",
+    "Amortizing Physics-Informed Neural Solvers via Graph Hypernetworks",
+    "Feature Interaction Modeling for Physics-Informed Neural Networks and Neural Operators",
+    "Solving the Elastic Wave Equation with Physics-Informed Neural Networks: A Robust and Crit"
+   ]
+  },
+  {
+   "id": 42,
+   "size": 547,
+   "words": [
+    "gaussian",
+    "3d",
+    "view",
+    "splatting",
+    "gaussian splatting",
+    "reconstruction",
+    "scene",
+    "3dgs"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     450
+    ],
+    [
+     "cs.GR",
+     52
+    ]
+   ],
+   "titles": [
+    "D3GS: Depth, DINO, and RGB Diffusion Co-Guided 3D Gaussian Splatting for Sparse-View Recon",
+    "GaussVid: Sparse-View Gaussian Splatting with 3D-Aware Video Diffusion Priors",
+    "Sparse-View 4D Gaussian Splatting via Spatiotemporal Priors and Generative Assistance",
+    "StereoSplat+: Feed-Forward Stereo Gaussian Splatting with Diffusion-Assisted Progressive I",
+    "Remote Sensing Sparse-View 3D Gaussian Splatting via Depth Image-Based Rendering",
+    "GAPS: Generative Active Pseudo-view Selection for Sparse-View 3D Gaussian Splatting"
+   ]
+  },
+  {
+   "id": 60,
+   "size": 531,
+   "words": [
+    "languages",
+    "language",
+    "translation",
+    "english",
+    "multilingual",
+    "arabic",
+    "cultural",
+    "models"
+   ],
+   "cats": [
+    [
+     "cs.CL",
+     481
+    ],
+    [
+     "cs.AI",
+     17
+    ]
+   ],
+   "titles": [
+    "Language Unalignability: Why Some Concepts Resist Cross-Cultural Benchmark Evaluation",
+    "M-GATE: Multilingual Grammar, Accuracy in Translation, and Efficiency Benchmark for Large ",
+    "Translation as a Computationally Efficient Bridge: Feasibility of English BERT for Low-Res",
+    "Choosing the Right Language Mode at Inference Time for Multilingual Reliability",
+    "Right Tool, Right Job: Native-Language Evaluation, Tokenizer Sensitivity, and Methodologic",
+    "Assessing the Impact of Language Disparity on Multilingual Linguistic Ability in Large Lan"
+   ]
+  },
+  {
+   "id": 18,
+   "size": 524,
+   "words": [
+    "teacher",
+    "distillation",
+    "student",
+    "opd",
+    "policy",
+    "policy distillation",
+    "self distillation",
+    "supervision"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     218
+    ],
+    [
+     "cs.AI",
+     95
+    ]
+   ],
+   "titles": [
+    "When Teacher Guidance Misleads: Reward-Aligned On-Policy Distillation",
+    "Recursive Self-Improvement via On-Policy Distillation for Reasoning",
+    "Does On-Policy Distillation Really Distill? From Noisy Teacher to Self-Improvement",
+    "How Should Teachers Be Prepared? RL on Student-Induced States for On-Policy Distillation",
+    "Reward-Aligned Reweighting for On-Policy Distillation",
+    "Distill What the Student Can See: Fisher-Projected On-Policy Distillation for Vision-Langu"
+   ]
+  },
+  {
+   "id": 53,
+   "size": 510,
+   "words": [
+    "speech",
+    "audio",
+    "asr",
+    "speaker",
+    "tts",
+    "acoustic",
+    "voice",
+    "text"
+   ],
+   "cats": [
+    [
+     "cs.CL",
+     241
+    ],
+    [
+     "cs.SD",
+     217
+    ]
+   ],
+   "titles": [
+    "TASTE2: Text-Aligned Speech Modeling and Deployment toward Full-Duplex Voice Interaction",
+    "Taming Long-form Text-to-Speech",
+    "Leading-Silence Augmentation and Multi-Stage Synthetic Supervision for the Second MLC-SLM ",
+    "Auditing Generative Audio Calls for Known-Task Audio-LLM Evaluation",
+    "FireRedAudio: A General-Purpose Audio Language Model with Decoupled Continuous Representat",
+    "ParaASR: Multi-Token Prediction for Fast and Long-Context LLM-Based Speech Recognition"
+   ]
+  },
+  {
+   "id": 20,
+   "size": 497,
+   "words": [
+    "attention",
+    "transformers",
+    "token",
+    "diffusion",
+    "recurrent",
+    "tokens",
+    "transformer",
+    "depth"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     232
+    ],
+    [
+     "cs.CL",
+     144
+    ]
+   ],
+   "titles": [
+    "Linear Attention Architectures: Mechanisms, Trade-offs, and Cross-Layer Routing",
+    "RIS-Kernel: A Model-Agnostic Architecture for Long-Context LLM Inference via Sparse Attent",
+    "ResonatorLM: Causal Resonant Field Mixing for Efficient Long-Context Language Modeling",
+    "Persistent Recurrent Memory Between Transformer Layers - Improves Language Model Generaliz",
+    "ALoDLM: Adaptively Looped Diffusion Language Models",
+    "Retrofitting Linear Attention into Diffusion Language Models"
+   ]
+  },
+  {
+   "id": 37,
+   "size": 417,
+   "words": [
+    "rag",
+    "retrieval",
+    "retrieval augmented",
+    "augmented generation",
+    "augmented",
+    "document",
+    "query",
+    "evidence"
+   ],
+   "cats": [
+    [
+     "cs.IR",
+     134
+    ],
+    [
+     "cs.CL",
+     121
+    ]
+   ],
+   "titles": [
+    "Re-ranking and Late Interaction Drive Retrieval Quality: A Controlled Comparison of RAG St",
+    "Hierarchical Evidence-Driven Reasoning for Long Document Understanding",
+    "A Triple-Robustness Analysis of Retrieval-Augmented Generation for Multi-Hop Requirements ",
+    "From Naive RAG to Deep Agentic Retrieval: An Evolving Context Engineering Pipeline for Reg",
+    "EvidentialRAG: Quantifying and Mitigating Information Conflict in Multi-Source Retrieval-A",
+    "ORDER: Task-Conditioned Routing for Retrieval-Augmented Generation"
+   ]
+  },
+  {
+   "id": 11,
+   "size": 407,
+   "words": [
+    "federated",
+    "privacy",
+    "federated learning",
+    "client",
+    "fl",
+    "learning",
+    "data",
+    "clients"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     225
+    ],
+    [
+     "cs.CR",
+     76
+    ]
+   ],
+   "titles": [
+    "Privacy-enhanced federated learning via asynchronous aggregation and local differential pe",
+    "FedImp: Enhancing Federated Learning Convergence with Impurity-Based Weighting",
+    "Global Federated Learning Strategies for Building Efficient Personalized Models",
+    "Privacy-Preserving and Verifiable Approximate Distributed Coded Computing",
+    "Robust and Personalized Federated Learning for Aircraft-Engine Prognostics under Benign an",
+    "Assessing the Impacts of Imperfect Datasets on Client Selections in Federated Learning"
+   ]
+  },
+  {
+   "id": 68,
+   "size": 406,
+   "words": [
+    "agent",
+    "agents",
+    "attack",
+    "tool",
+    "injection",
+    "security",
+    "prompt injection",
+    "authorization"
+   ],
+   "cats": [
+    [
+     "cs.CR",
+     241
+    ],
+    [
+     "cs.AI",
+     90
+    ]
+   ],
+   "titles": [
+    "Trust propagation and structural containment in Multi-agent LLM pipelines",
+    "Silent Failures in Agentic Security Evaluation: A Validated Harness for Tool-Call Mediatio",
+    "Delegation Without Trust: An Empirical Gap Analysis of Identity, Authorization, and Runtim",
+    "Agentic Security: A Systematization of Tools, Failure Modes, and Design Laws for LLM-Drive",
+    "Bounded Agents: Delegation Security for Multi-Agent AI Systems",
+    "AgentBoundary: Counterfactual Evaluation of Safety in Tool-Using LLM Agents"
+   ]
+  },
+  {
+   "id": 67,
+   "size": 405,
+   "words": [
+    "ai",
+    "students",
+    "genai",
+    "education",
+    "governance",
+    "human",
+    "generative ai",
+    "course"
+   ],
+   "cats": [
+    [
+     "cs.CY",
+     169
+    ],
+    [
+     "cs.HC",
+     100
+    ]
+   ],
+   "titles": [
+    "A Risk-Adaptive and Evidence-Constrained Framework for Generative AI Feedback in Programmi",
+    "LearnAI: Just-in-Time AI Co-Creation Across Disciplines at a University",
+    "AI literacy over tool design: a mixed-methods study of scaffolded versus unrestricted gene",
+    "Instructional Governance by Design: A Framework for AI in Computing Education",
+    "Making the Invisible Visible: A Framework for Reflective AI Use in Software Engineering Ed",
+    "Three Pathways of Student-AI Interaction: Constraint-First Design for Higher-Order Thinkin"
+   ]
+  },
+  {
+   "id": 47,
+   "size": 398,
+   "words": [
+    "muon",
+    "networks",
+    "gradient",
+    "loss",
+    "neural",
+    "adam",
+    "descent",
+    "training"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     352
+    ],
+    [
+     "cs.AI",
+     16
+    ]
+   ],
+   "titles": [
+    "Implicit Bias of SGD in Multivariate ReLU Networks: Effective Width Collapse",
+    "Optimizer Geometry Sets the Pace: Spectral Learning Dynamics in Matrix Factorization",
+    "Predicting When Random Low-Dimensional Reparameterizations Train Neural Networks",
+    "Gradient Flow Dynamics and Implicit Bias of Diagonal Linear Networks under Infinitesimal I",
+    "Across the Loss Landscape with Progressive Growth",
+    "Generalized Convexity and Smoothness via Conjugate Duality: Optimization Theory for Deep N"
+   ]
+  },
+  {
+   "id": 38,
+   "size": 392,
+   "words": [
+    "recommendation",
+    "item",
+    "user",
+    "recommender",
+    "ranking",
+    "semantic",
+    "generative",
+    "recommender systems"
+   ],
+   "cats": [
+    [
+     "cs.IR",
+     317
+    ],
+    [
+     "cs.AI",
+     32
+    ]
+   ],
+   "titles": [
+    "X-Rec Technical Report",
+    "RecGPT-V3 Technical Report",
+    "Learning Better Reasoning for Generative Recommendation with Semantic IDs",
+    "Auditing Semantic Gains in Sequential Recommendation: A Lightweight Recovery Test",
+    "CogRec: Structure-Cognitive Fast-and-Slow Reasoning for Generative Recommendation",
+    "Once Generated, Ranked: End-to-End Generative Slate Recommendation with Unified Semantic-C"
+   ]
+  },
+  {
+   "id": 34,
+   "size": 386,
+   "words": [
+    "proof",
+    "logic",
+    "lean",
+    "mathematical",
+    "type",
+    "proofs",
+    "theorem",
+    "formal"
+   ],
+   "cats": [
+    [
+     "cs.LO",
+     171
+    ],
+    [
+     "cs.AI",
+     84
+    ]
+   ],
+   "titles": [
+    "AIProver: Agentic Auto-Formalization of Mathematical Research via Certificate-Driven Evolv",
+    "SCOPE: Certified Theorem Proving with a Language Model as the Policy Planner",
+    "ProofLoom: Proof-Obligation-Driven Theory Construction for Autoformalizing Research-Level ",
+    "Albilich: Steerable Proof-State Orchestration for LLM-Based Mathematical Research with CAS",
+    "Efficient Test-Time Optimization for Multi-Agent Proof Autoformalization",
+    "AoA: Theorem Proving Agent over Abstract Syntax Tree of Redesigned Language"
+   ]
+  },
+  {
+   "id": 28,
+   "size": 371,
+   "words": [
+    "driving",
+    "autonomous driving",
+    "autonomous",
+    "vehicle",
+    "safety",
+    "trajectory",
+    "end",
+    "traffic"
+   ],
+   "cats": [
+    [
+     "cs.RO",
+     152
+    ],
+    [
+     "cs.CV",
+     104
+    ]
+   ],
+   "titles": [
+    "Localized Conformal Safety Monitoring with Vision-Language Models for Autonomous Driving",
+    "Deferred Exposure of Future Trajectories for Verifiable Reasoning in Autonomous Driving VL",
+    "READ: Learning Risk-Informed Fields for End-to-End Autonomous Driving",
+    "Drive the Thoughts: Runtime Monitoring of VLA Reasoning-Trajectory Consistency",
+    "A Collaborative Multi-Modality Interaction for VLA-based End-to-End Autonomous Driving",
+    "FactorDrive: Adaptive Multi-Step Reasoning Driven by Planning-Critical Factors for End-to-"
+   ]
+  },
+  {
+   "id": 43,
+   "size": 366,
+   "words": [
+    "detection",
+    "deepfake",
+    "face",
+    "image",
+    "forensic",
+    "detectors",
+    "ai generated",
+    "images"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     267
+    ],
+    [
+     "cs.SD",
+     44
+    ]
+   ],
+   "titles": [
+    "Harnessing CLIP and DINO: An Uncertainty-Aware Cascaded Fusion Network for Generalizable D",
+    "MSU Team at the Explainable Deepfake Detection Challenge 2026: Grounded Artifact Evidence ",
+    "Unleashing the Potential of Vision-Language Models for Generalizable AI-Generated Image De",
+    "DBCF: Dual-Branch Complementary Fusion of Foundation Models for Generalized Deepfake Detec",
+    "Continuously Evolving Deepfake Detection: An Architecture and Public-Benchmark Evaluation ",
+    "Multi-Agent Forensic Reasoning for Generalizable Deepfake Video Detection"
+   ]
+  },
+  {
+   "id": 51,
+   "size": 354,
+   "words": [
+    "visual",
+    "vision",
+    "vlms",
+    "image",
+    "vision language",
+    "reasoning",
+    "language",
+    "language models"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     257
+    ],
+    [
+     "cs.CL",
+     42
+    ]
+   ],
+   "titles": [
+    "Seeing and Solving Are Not Enough for Vision-Language Models",
+    "ConvCue: Complementary Visual Inductive Biases for Vision-Language Models",
+    "Composition, Not Conversation: VLMs Lose the Scene, Not the Thread",
+    "Seeing is not Enough: Vision-Language Models Perceive Evidence but Fail to Act",
+    "Which Source Wins? Task-Dependent Reliance in Vision-Language Models",
+    "From Perception to Integration: Revisiting the Internal Dynamics of Reasoning in Vision-La"
+   ]
+  },
+  {
+   "id": 48,
+   "size": 340,
+   "words": [
+    "graph",
+    "node",
+    "graphs",
+    "networks",
+    "graph neural",
+    "gnn",
+    "neural",
+    "structural"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     222
+    ],
+    [
+     "cs.SI",
+     51
+    ]
+   ],
+   "titles": [
+    "Repurposing Unified Topological Signatures for Graph Representation Learning",
+    "Graph Neural Networks for Scalable and Transferable Node Centrality Approximation",
+    "Why Does Graph Learning Fail to Fully Benefit from a Text Teacher?",
+    "Neural Message Passing on Structural Interaction Graphs for Fully-Inductive Graph Neural N",
+    "Structure-Feature Aligned Graph Learning via Alternating Constrained Optimization",
+    "Scaffold: Support Graph Theory Based Sparsification for Graph Neural Networks"
+   ]
+  },
+  {
+   "id": 55,
+   "size": 333,
+   "words": [
+    "regret",
+    "games",
+    "equilibrium",
+    "game",
+    "bandits",
+    "nash",
+    "sqrt",
+    "equilibria"
+   ],
+   "cats": [
+    [
+     "cs.GT",
+     162
+    ],
+    [
+     "cs.LG",
+     135
+    ]
+   ],
+   "titles": [
+    "Optimal Alternating Regret for Online Learning and Games",
+    "Polylogarithmic Nash Regret in Matrix Games with Bandit Feedback",
+    "High-Probability Nash Regret for Decentralized Learning in Markov $\\alpha$-Potential Games",
+    "Toward Optimal Switching Regret for Multi-Armed Bandits with Oblivious Adversary",
+    "Sublogarithmic Swap Regret in Multiplayer General-Sum Games via Hybrid Regularization",
+    "Fully Online Decentralized Learning in Stochastic Games with Unknown Independent Chains"
+   ]
+  },
+  {
+   "id": 57,
+   "size": 326,
+   "words": [
+    "codes",
+    "mathbb",
+    "code",
+    "bound",
+    "binary",
+    "decoding",
+    "linear",
+    "bounds"
+   ],
+   "cats": [
+    [
+     "cs.IT",
+     309
+    ],
+    [
+     "cs.CR",
+     4
+    ]
+   ],
+   "titles": [
+    "Algebraic Geometry Codes Approach the Half-Singleton Bound with Constant Field Size",
+    "The automorphism groups of random linear codes",
+    "Function-Correcting Lee-distance Codes for Symbol-Pair Read Channels",
+    "A Tight Second-Order Converse Bound for Variable-Length Feedback Codes",
+    "Exact Minimum Distance of the Ding--Li--Xia Cyclic Codes",
+    "Three Improved Lower Bounds for Binary Error-Correcting Codes"
+   ]
+  },
+  {
+   "id": 41,
+   "size": 325,
+   "words": [
+    "lidar",
+    "radar",
+    "depth",
+    "inertial",
+    "point",
+    "estimation",
+    "localization",
+    "odometry"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     192
+    ],
+    [
+     "cs.RO",
+     122
+    ]
+   ],
+   "titles": [
+    "From LiDAR Maps to Visual Localization: Unified Visual Association for Robust Point-Line-P",
+    "Geometry Beats Estimated Depth: RGB-Only Multi-Camera 3D Tracking under Sim2Real",
+    "G-PROBE: Cross-FOV Place Recognition and Certainty-Coupled Localization for 3D Point Cloud",
+    "Where Am I? Semantic Map Grounding via Vision-Language Models for Multi-Modal Localization",
+    "Monocular Navigation Relative to Unknown Spacecraft Using a Transformer-Aided Kalman Filte",
+    "Does Robust VIO Need More Learning? Geometry-Verified Visual Measurements under Distributi"
+   ]
+  },
+  {
+   "id": 35,
+   "size": 321,
+   "words": [
+    "restoration",
+    "image",
+    "resolution",
+    "detection",
+    "degradation",
+    "infrared",
+    "object detection",
+    "rgb"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     309
+    ],
+    [
+     "cs.LG",
+     4
+    ]
+   ],
+   "titles": [
+    "DISTA-Net++: Rethinking Infrared Small Target Unmixing Beyond Sub-Pixel Separation",
+    "ReDiffNet: Differential RGB-Infrared Learning for Low-Light UAV Oriented Vehicle Detection",
+    "When Latents Forget Pixels: Restoring Fidelity in Diffusion Transformer Super-Resolution",
+    "HDMamba-YOLO: Efficient State-Space Perception and Local Spatial Reconstruction for UAV Sm",
+    "Decoupling Cross-Modality Manifold Discrepancy: Leveraging Visible Diffusion Priors for In",
+    "PixelIR: Fidelity-Perception Decoupling via Pixel-Space Image-Residual Flow Matching for E"
+   ]
+  },
+  {
+   "id": 40,
+   "size": 310,
+   "words": [
+    "flow",
+    "diffusion",
+    "flow matching",
+    "matching",
+    "transport",
+    "sampling",
+    "generative",
+    "diffusion models"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     206
+    ],
+    [
+     "cs.CV",
+     66
+    ]
+   ],
+   "titles": [
+    "Score-Calibrated Flow for Sampling from Unnormalized Densities with Applications to Genera",
+    "Conditional Flow Matching for ML-Based Inverse Design Problems",
+    "A Lagrangian View of Flow Matching",
+    "One-Step Generative Modeling via Unbalanced Optimal Transport",
+    "Difficulty-Calibrated Interpolation Paths for Conditional Flow Matching",
+    "Smoother Flow Matching via Contrastive Trajectory Repulsion"
+   ]
+  },
+  {
+   "id": 21,
+   "size": 291,
+   "words": [
+    "kv",
+    "cache",
+    "kv cache",
+    "eviction",
+    "compression",
+    "attention",
+    "context",
+    "memory"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     92
+    ],
+    [
+     "cs.CL",
+     50
+    ]
+   ],
+   "titles": [
+    "The KV Cache Is the New Memory Wall",
+    "KVFetch: Temporal Prefetching for the Missing Half of KV Cache Compression",
+    "Minima-KV: Retention-Preserving KV Cache Compression with Mixed-Format Paged Attention",
+    "C$^2$KV: Compressed and Composable KV Cache Reuse for Efficient LLM Inference",
+    "DistillCache: KL-Guided Adaptive KV-Cache Eviction for Memory-Efficient LLM Inference",
+    "SemKV: Semantic Mixed-Precision KV Cache Quantization Guided by the Quality Cliff for Long"
+   ]
+  },
+  {
+   "id": 64,
+   "size": 285,
+   "words": [
+    "safety",
+    "refusal",
+    "harmful",
+    "jailbreak",
+    "benign",
+    "attack",
+    "safety alignment",
+    "alignment"
+   ],
+   "cats": [
+    [
+     "cs.AI",
+     83
+    ],
+    [
+     "cs.CR",
+     79
+    ]
+   ],
+   "titles": [
+    "Diffusion LLMs as Targets and Adversaries: Mechanistic Safety Exploits",
+    "Safety Beyond the Interface: Detecting Harm via Latent States in Large Language Models",
+    "Beyond Refusal Patterns: Safe-Role Internalization for Robust and Generalizable LLM Safety",
+    "Do All LLMs Know When They're Being Harmful? A Reproducibility Study of Latent-Space Safet",
+    "Safety Reconstructed: Generative Modeling via Masked Diffusion Builds Strong Safety Guardr",
+    "Beyond Unsafe Detection: Counterfactually Anchored Evidence Attribution for Multi-Turn LLM"
+   ]
+  },
+  {
+   "id": 1,
+   "size": 280,
+   "words": [
+    "molecular",
+    "protein",
+    "drug",
+    "chemical",
+    "prediction",
+    "molecules",
+    "structure",
+    "molecule"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     191
+    ],
+    [
+     "cs.AI",
+     51
+    ]
+   ],
+   "titles": [
+    "Language-Informed Flow Matching for Trend-Guided Structure-Based 3D Molecular Generation",
+    "Multi-Granular Rationale-Guided Molecular LLM for Property Prediction",
+    "One Sequence, Many Decodings: CAGenMol-2 Recasts Drug Design as Masked Molecular Inference",
+    "CoMPASS: Collaborative Molecular Property Prediction via Adaptive Small-Large Model Synerg",
+    "Do Language Models Dream of Binding Molecules? Benchmarking LLMs under Spatial Constraints",
+    "Adopting Reinforcement Learning with Verifiable Rewards for Molecular Generation"
+   ]
+  },
+  {
+   "id": 33,
+   "size": 271,
+   "words": [
+    "sql",
+    "graph",
+    "knowledge",
+    "schema",
+    "text sql",
+    "knowledge graph",
+    "query",
+    "ontology"
+   ],
+   "cats": [
+    [
+     "cs.AI",
+     87
+    ],
+    [
+     "cs.CL",
+     68
+    ]
+   ],
+   "titles": [
+    "Enabling Knowledge Graph Understanding at Scale with the EXplore Your Graphs ENgine (EXYGE",
+    "Natural Language Questions as an Interface for Knowledge Graphs: QRAKEN Graph Distillation",
+    "From SQL to Knowledge Graphs: An LLM-Driven Multi-Agent Approach with Data Schema Improvem",
+    "Natural Language Knowledge Graph Query Execution: Leveraging Controlled Semantics in the L",
+    "Towards Researcher Agents for Knowledge-Graph Question Answering",
+    "ABISS: Evaluating Text-to-SQL Systems Through Agent Interaction"
+   ]
+  },
+  {
+   "id": 26,
+   "size": 265,
+   "words": [
+    "anomaly",
+    "anomaly detection",
+    "detection",
+    "normal",
+    "anomalies",
+    "defect",
+    "industrial",
+    "anomalous"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     144
+    ],
+    [
+     "cs.LG",
+     86
+    ]
+   ],
+   "titles": [
+    "Augmenting Visual Anomaly Detection with Automated Interpretability",
+    "Industrial Anomaly Detection via Defect-Grounded Reasoning in Visual Latent Space",
+    "Neural-Collapse-guided Task-Free Continual Anomaly Detection",
+    "DuoAD: Leveraging [CLS] Dual Characteristics for Training-Free Few-Shot Anomaly Detection",
+    "Detecting Defects that Matter: An Application-Driven Benchmark for Anomaly Detection in Ma",
+    "OPD-IAD: From Language Judgment to Industrial Anomaly Detection via On-Policy Self-Distill"
+   ]
+  },
+  {
+   "id": 62,
+   "size": 259,
+   "words": [
+    "judge",
+    "judges",
+    "confidence",
+    "llm",
+    "uncertainty",
+    "llm judge",
+    "answer",
+    "llms"
+   ],
+   "cats": [
+    [
+     "cs.CL",
+     132
+    ],
+    [
+     "cs.AI",
+     72
+    ]
+   ],
+   "titles": [
+    "When Consistency Does Not Mean Reliability: Evaluating Local LLM Judges Against Human Rati",
+    "LLM-as-a-Judge Scores Are Unreliable Optimization Signals in Closed-Loop Table Recognition",
+    "Judge, Retrieve, or Abstain: Uncertainty-Guarded LLM Judging with Provable Risk Guarantees",
+    "A Tale of Two Error Categories: Exploring Concealed Trade-Offs in the Errors of Automated ",
+    "Beyond Accuracy: A Dual-Judge Evaluation Protocol for Vision-Language Models in Legally Gr",
+    "Rethinking Uncertainty Evaluation in Large Language Models"
+   ]
+  },
+  {
+   "id": 36,
+   "size": 249,
+   "words": [
+    "crop",
+    "agricultural",
+    "imagery",
+    "plant",
+    "remote sensing",
+    "remote",
+    "earth",
+    "dataset"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     159
+    ],
+    [
+     "cs.LG",
+     38
+    ]
+   ],
+   "titles": [
+    "A Comparative Evaluation of Deep Learning Object Detection Models on a Real-World Multi-Pl",
+    "From Foundation Embeddings to Cropland Maps: Label Efficiency, Temporal Transferability an",
+    "A Dual-Track Curation-and-Classification Framework for Resolving Ground-Truth Label Noise ",
+    "Foundation Models Meet Agriculture: Challenges Beyond Pretraining",
+    "The Earth in One Gaze: Training-Free Active Focus for UHR Remote Sensing Understanding",
+    "More with Less: a Large Scale Remote Sensing VLM with a Simple Recipe"
+   ]
+  },
+  {
+   "id": 30,
+   "size": 248,
+   "words": [
+    "blockchain",
+    "transaction",
+    "transactions",
+    "chain",
+    "byzantine",
+    "smart",
+    "consensus",
+    "protocol"
+   ],
+   "cats": [
+    [
+     "cs.CR",
+     120
+    ],
+    [
+     "cs.DC",
+     65
+    ]
+   ],
+   "titles": [
+    "Proof-Gated Signing: Solver-Checked Transaction Guards that Hold Under State Drift for Onc",
+    "Competition, Collusion, and Corruption: The Spectrum of MEV Attacks on DAG-Based BFT Conse",
+    "One Node, Two Roles: Simultaneous Contests for Validation and Attention in Rollups",
+    "Mitigating Front-Running Attacks through Fair and Resilient Transaction Dissemination",
+    "Werracle: Sub-Cent Intra-Block AI Reflex Oracles and Flash-Loan Circuit Breakers for EVM S",
+    "Quantifying Bitcoin Network Resilience Through Critical Scenario Discovery: A Dual-Layer F"
+   ]
+  },
+  {
+   "id": 5,
+   "size": 247,
+   "words": [
+    "moe",
+    "experts",
+    "expert",
+    "routing",
+    "mixture experts",
+    "mixture",
+    "experts moe",
+    "moe models"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     93
+    ],
+    [
+     "cs.DC",
+     39
+    ]
+   ],
+   "titles": [
+    "CIPHER-MoE: Balancing Efficiency and Routing Fidelity in Trillion-Scale MoE Training",
+    "Launch-Bound and Substitutable: Why Three Inference Optimizations Fail to Pay Off in Mixtu",
+    "BrownoutMoE: Structure-Aware Expert Grouping for Efficient and Accurate LLM Web-based Serv",
+    "Training Communication-Efficient Mixture-of-Experts Language Models with Layer Re-Configur",
+    "Efficient Mixture-of-Experts with Speculative Decoding via Expert Coactivation",
+    "Cache-Aware Joint Router Adaptation for Memory-Efficient MoE Inference"
+   ]
+  },
+  {
+   "id": 32,
+   "size": 240,
+   "words": [
+    "eeg",
+    "brain",
+    "subject",
+    "decoding",
+    "neural",
+    "eeg foundation",
+    "electroencephalography",
+    "foundation"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     113
+    ],
+    [
+     "cs.HC",
+     35
+    ]
+   ],
+   "titles": [
+    "Multimodal LLMs Can Learn to Read Brain Signals: A Vision--Language Model for Unified Mult",
+    "Multimodal Pretraining for Generalizable EEG Representation Learning",
+    "Taming foundation model with invariance-oriented pre-training for broad-spectrum EEG analy",
+    "EEG-PRIME: Prototype-Aligned Representation Learning with Multi-Level Conditioning for EEG",
+    "CoCoT-EEG: Contrastive-Pretrained Multiscale Convolutional Transformer for EEG Decoding",
+    "Stacked LoRA for Subject-Adaptive EEG Foundation Models in Motor Imagery Decoding"
+   ]
+  },
+  {
+   "id": 54,
+   "size": 240,
+   "words": [
+    "music",
+    "audio",
+    "musical",
+    "pitch",
+    "midi",
+    "music generation",
+    "symbolic",
+    "generation"
+   ],
+   "cats": [
+    [
+     "cs.SD",
+     197
+    ],
+    [
+     "cs.HC",
+     12
+    ]
+   ],
+   "titles": [
+    "The Algorithmic Flattening of Sound: Computational Evidence and Justice Implications of AI",
+    "Helping Music Co-Creation Agents 'Listen' Well: Hierarchical Self-Supervised World Models ",
+    "MIDI-RAE-JEPA: Hierarchical Representation Learning and Generation for Symbolic Music",
+    "DiffSynth-Music: Audio-Conditioned KV-Cache Adapters for Controllable Music Generation",
+    "Music Hallucination in Audio-Language Models: A Hierarchical Formulation and Empirical Stu",
+    "Agogic: Performance-Timed Music Tokens for LLM-Native Text-to-Symbolic-Music Generation"
+   ]
+  },
+  {
+   "id": 59,
+   "size": 240,
+   "words": [
+    "legal",
+    "citation",
+    "review",
+    "papers",
+    "scientific",
+    "research",
+    "peer",
+    "citations"
+   ],
+   "cats": [
+    [
+     "cs.CL",
+     90
+    ],
+    [
+     "cs.DL",
+     50
+    ]
+   ],
+   "titles": [
+    "Beyond Imitation: A Framework and Benchmark for LLM-Assisted Peer Review",
+    "Do large language models scrutinise what they review? A multimodal audit of scoring calibr",
+    "Do You Need a Frontier Model as a Citation Verifier? Benchmarking Rubric LLMs for Deep-Res",
+    "Beyond Human-Likeness: Mapping the Scientific Critique Profiles of LLMs and Human Reviewer",
+    "TRACES: A Benchmark for Epistemic Reliability in Scientific Reasoning by LLMs",
+    "PRISMA-LLM: An Empirical Reporting Framework for AI-Assisted Systematic Reviews"
+   ]
+  },
+  {
+   "id": 19,
+   "size": 238,
+   "words": [
+    "adaptation",
+    "ood",
+    "tta",
+    "class",
+    "distribution",
+    "conformal",
+    "label",
+    "domain"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     144
+    ],
+    [
+     "cs.CV",
+     75
+    ]
+   ],
+   "titles": [
+    "When Test-Time Adaptation Helps, Harms, or Becomes Inactive: A Condition-Level Study on CI",
+    "Respect Your Zero-Shot Uncertainty: Conservative Calibration for Test-Time-Adapted Vision-",
+    "Distilling Image Prototypes for Guided Test-Time Adaptation",
+    "Continual Test-Time Adaptation in Computer Vision: Methods, Benchmarks, and Future Directi",
+    "C-Score: Beyond Accuracy for Robustness Assessment in Semi-Supervised Learning under Open-",
+    "Learning to Adapt and Calibrate: Score Distribution Alignment for Few-Shot Uncertainty Pre"
+   ]
+  },
+  {
+   "id": 49,
+   "size": 234,
+   "words": [
+    "video",
+    "video understanding",
+    "temporal",
+    "understanding",
+    "long video",
+    "frame",
+    "evidence",
+    "long"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     204
+    ],
+    [
+     "cs.AI",
+     11
+    ]
+   ],
+   "titles": [
+    "Beyond Frame Selection: Rethinking Long-Video Understanding with MLLMs",
+    "Incentivizing Vision Language Models to Search for Long Video Question Answering",
+    "Evidence-Backed Video Question Answering",
+    "Enhancing Localized Reasoning for Long Video Understanding via Efficient Segment-to-Video ",
+    "Video-HolmesV2: Can MLLMs Reason with Spatio-Temporal Audio-Visual Evidence in Long Videos",
+    "VideoHarness-RSI: Recursive Harness Self-Improvement for Long-Video Understanding with Fro"
+   ]
+  },
+  {
+   "id": 24,
+   "size": 231,
+   "words": [
+    "quantization",
+    "bit",
+    "precision",
+    "ptq",
+    "quantized",
+    "training quantization",
+    "weight",
+    "low bit"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     116
+    ],
+    [
+     "cs.CV",
+     28
+    ]
+   ],
+   "titles": [
+    "The Structure of Quantization Damage in LLMs: Why the Next Bit Should Be Spent Globally",
+    "Activation Outliers Matter: Robust Recovery for Quantized Multimodal LLMs",
+    "SchurQuant: Groupwise Discrete Optimization for Layer-Wise LLM Quantization",
+    "Recurrent Residual Quantization: A Progressive Multi-Precision Representation for LLMs",
+    "MixQuant: Adaptive Mixed-Precision Quantization for Large Language Models",
+    "JustQuant: You Don't Need Smoothing, SVD, or Rotation for 4-Bit Activation Quantization"
+   ]
+  },
+  {
+   "id": 4,
+   "size": 221,
+   "words": [
+    "lora",
+    "rank",
+    "merging",
+    "low rank",
+    "fine tuning",
+    "tuning",
+    "fine",
+    "adaptation"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     115
+    ],
+    [
+     "cs.AI",
+     34
+    ]
+   ],
+   "titles": [
+    "ChainDoRA: Tensor-Train Factorized Weight-Decomposed Low-Rank Adaptation for Parameter-Eff",
+    "New LoRA Skills Should Read but Never Write",
+    "On the Efficiency of LoRA Fine-Tuning for Vision-Language-Action Models in Industrial Robo",
+    "LoRA-GA$^2$: Low Rank Adaptation with Multi-step Gradient Adaptive Alignment",
+    "LoRA-Diffusion: Parameter-Efficient Fine-Tuning via Low-Rank Trajectory Decomposition",
+    "Where to Adapt Matters: Layer-Selective Fine-Tuning for Capability Retention"
+   ]
+  },
+  {
+   "id": 10,
+   "size": 215,
+   "words": [
+    "causal",
+    "explanations",
+    "counterfactual",
+    "causal discovery",
+    "xai",
+    "discovery",
+    "explanation",
+    "data"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     120
+    ],
+    [
+     "cs.AI",
+     57
+    ]
+   ],
+   "titles": [
+    "GENESIS: Towards Explainable Causal Discovery",
+    "FCA-Guided Counterfactual Explanations for Multi-Modal Breast Cancer Diagnosis: A Framewor",
+    "Actionable CBFI: Integrating Structural Decomposition and Causal Counterfactual Recourse f",
+    "xWhyL: Causal Interactive Learning",
+    "Causal State-Space Model for Causal Inference: Estimating Longitudinal Individual Treatmen",
+    "LLM-Augmented Causal Discovery: Probabilistic Fusion of Edge Existence and Orientation"
+   ]
+  },
+  {
+   "id": 58,
+   "size": 207,
+   "words": [
+    "reasoning",
+    "cot",
+    "thought",
+    "chain thought",
+    "chain",
+    "answer",
+    "latent",
+    "models"
+   ],
+   "cats": [
+    [
+     "cs.AI",
+     78
+    ],
+    [
+     "cs.CL",
+     70
+    ]
+   ],
+   "titles": [
+    "A*-Thought-V2: Efficient Latent Reasoning via Geometric Dynamics of LLM",
+    "ChainPrune: Evaluating and Reducing Redundancy in Long Chain-of-Thought Reasoning",
+    "Valid $\\ne$ Necessary: Diagnosing Latent Inefficiency in Chain-of-Thought",
+    "Efficient Reasoning Training Does Not Always Harm CoT Faithfulness and Monitorability",
+    "From Chain-of-Thought to Loops: Non-Autoregressive Latent Reasoning via Looped Transformer",
+    "When Chain-of-Thought Helps and When It Hurts: An Empirical Investigation of the Serial-De"
+   ]
+  },
+  {
+   "id": 65,
+   "size": 206,
+   "words": [
+    "scientific",
+    "research",
+    "agents",
+    "agent",
+    "tasks",
+    "ai",
+    "benchmark",
+    "autonomous"
+   ],
+   "cats": [
+    [
+     "cs.AI",
+     133
+    ],
+    [
+     "cs.CL",
+     25
+    ]
+   ],
+   "titles": [
+    "DSAgentBench: Can Agents Automate End-to-End Data-Science Workflows in Real Computer Envir",
+    "TruthInsightBench: An Evidence-Grounded Benchmark for Automated Evaluation of Open-Ended S",
+    "AutoSciBench: Autonomous Benchmark Generation for Evaluating Scientific Agents",
+    "AgentSLABench: Evaluating and Benchmarking Agentic Systems Under Resource Constraints",
+    "DISCERN: Can AI Agents Work Like Scientists and Guide Discovery?",
+    "Autonomous Research Agents: A Survey of AI Scientists and the Verification Gap"
+   ]
+  },
+  {
+   "id": 6,
+   "size": 205,
+   "words": [
+    "detection",
+    "traffic",
+    "intrusion",
+    "intrusion detection",
+    "attacks",
+    "iot",
+    "attack",
+    "network"
+   ],
+   "cats": [
+    [
+     "cs.CR",
+     157
+    ],
+    [
+     "cs.NI",
+     23
+    ]
+   ],
+   "titles": [
+    "Unmasking Shortcut Learning in IoT Intrusion Detection: A Forensic, Multi-Paradigm Evaluat",
+    "Detecting Adversarial Evasion Attacks Against Autoencoder-Based Network Intrusion Detectio",
+    "Enhancing Anomaly Resilience in Research Networks: A Large-Scale Forecasting Benchmark for",
+    "A Deployment-Oriented and Resource-Efficient Neuro-Symbolic Framework for Explainable DDoS",
+    "Cross-Domain Generalization Failure in Lightweight Intrusion Detection Models for IIoT Net",
+    "Evasion Attacks on Cost-Utility-Based Adversarial Training for Online AutoML in IoT Networ"
+   ]
+  },
+  {
+   "id": 13,
+   "size": 192,
+   "words": [
+    "quantum",
+    "classical",
+    "circuit",
+    "circuits",
+    "quantum classical",
+    "qubit",
+    "hybrid quantum",
+    "hybrid"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     50
+    ],
+    [
+     "cs.SE",
+     26
+    ]
+   ],
+   "titles": [
+    "A Unified Physics-Aware Quantum Machine Learning Framework across Power GaN HEMTs and Logi",
+    "Backend-Aware Graph Learning for Denoising Outcome Distributions in Quantum Program Testin",
+    "LLM-Driven Algorithm Design for Quantum Circuit Synthesis based on Binary Decision Diagram",
+    "Federating Quantum and Classical Computing: A Privacy-Preserving Hybrid Approach",
+    "Unified Uncertainty Quantification Framework Bridging Noisy Quantum Backends Across Variat",
+    "Quantum Circuits in Diffusion Models: A Fair-Comparison Study and a Mechanistic Analysis o"
+   ]
+  },
+  {
+   "id": 25,
+   "size": 188,
+   "words": [
+    "emotion",
+    "affective",
+    "recognition",
+    "emotional",
+    "emotion recognition",
+    "multimodal",
+    "facial",
+    "sentiment"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     62
+    ],
+    [
+     "cs.CL",
+     46
+    ]
+   ],
+   "titles": [
+    "Multimodal Emotion Recognition in Conversations via Class-Wise Adaptive Modality Fusion an",
+    "Beyond Text: LLM-Based Dimensional Emotion Evaluation in Multimodal Dialogue",
+    "Cross-Modal Emotion Understanding: A Transformer-GAT Approach for Dialogue Emotion Recogni",
+    "EmoLASP: Emotion Recognition with Language Models and Answer Set Programming",
+    "E$^3$mo-Bench: A Scalable Benchmark for Multimodal Evoked and Expressed Emotion Understand",
+    "ReH-FUSE: Reliability-Aware Hierarchical Fusion of Experts for Multimodal Emotion Recognit"
+   ]
+  },
+  {
+   "id": 8,
+   "size": 185,
+   "words": [
+    "token",
+    "pruning",
+    "tokens",
+    "visual",
+    "visual token",
+    "token pruning",
+    "compression",
+    "visual tokens"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     158
+    ],
+    [
+     "cs.AI",
+     8
+    ]
+   ],
+   "titles": [
+    "Attention-Free and Lightweight Token Reduction for Efficient Vision-Language Models",
+    "When Vision Becomes Text: Visual Token Pruning via Cross-Modal Residual Guidance in VLMs",
+    "Structured Redundancy Modeling for Efficient Visual Token Pruning in High-Resolution MLLMs",
+    "Adaptive Visual Token Reduction for Accelerated Image Understanding",
+    "Adaptive Two-Stage Visual Token Pruning for Efficient Inference in Video-Language Models",
+    "When Text Matters: Design Principles for Visual Token Pruning in Vision-Language Model"
+   ]
+  },
+  {
+   "id": 45,
+   "size": 181,
+   "words": [
+    "ocr",
+    "document",
+    "handwriting",
+    "text",
+    "character",
+    "extraction",
+    "recognition",
+    "documents"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     94
+    ],
+    [
+     "cs.CL",
+     46
+    ]
+   ],
+   "titles": [
+    "From Pixels to Structure: Lightweight Vision-Language Models for Document OCR and Structur",
+    "When Do VLMs Help Arabic Manuscript OCR? A Cross-Dataset Study",
+    "Beyond Accuracy: Robustness, Cost, and Governance Trade-offs for Vision-Language Models in",
+    "OmniHandwritingOCR: A Diagnostic Benchmark for Evaluating Multimodal LLMs in Handwritten O",
+    "When Low CER is Not Enough: An Analysis of Hallucinations in Vision-Language OCR Systems o",
+    "Evaluating Structured Information Extraction with Open Models in a High Risk Public Sector"
+   ]
+  },
+  {
+   "id": 12,
+   "size": 174,
+   "words": [
+    "quantum",
+    "post quantum",
+    "key",
+    "encryption",
+    "homomorphic",
+    "pqc",
+    "post",
+    "encrypted"
+   ],
+   "cats": [
+    [
+     "cs.CR",
+     151
+    ],
+    [
+     "cs.AR",
+     10
+    ]
+   ],
+   "titles": [
+    "Practical Post-Quantum Cryptography for Bandwidth Constrained or Non-Terrestrial Networks,",
+    "Energy-Aware System-Level Evaluation of Post-Quantum TLS on Embedded User Equipment over a",
+    "Accelerating HQC for Post-Quantum TLS 1.3 on x86 IoT Gateways",
+    "A Throughput-Oriented Analytical Model for Post-Quantum Security Protocols",
+    "A Scenario-Based Evaluation of CRQC+AI Vulnerability Spectrum for TLS 1.3 Cryptographic De",
+    "A Zero-Knowledge Signature Framework for Efficient Post-Quantum Message Authentication in "
+   ]
+  },
+  {
+   "id": 52,
+   "size": 155,
+   "words": [
+    "visualization",
+    "chart",
+    "design",
+    "visual",
+    "charts",
+    "scientific",
+    "visualizations",
+    "data"
+   ],
+   "cats": [
+    [
+     "cs.HC",
+     70
+    ],
+    [
+     "cs.CV",
+     36
+    ]
+   ],
+   "titles": [
+    "Beyond Static Charts: Can Language and Vision Language Models Generate Interactive Data Vi",
+    "Faithful Chart Generation for Multimodal Deep Research: Frame-Evidence Co-Adaptation",
+    "Chart Deception in Vision-Language Models: From Vulnerability to Mitigation",
+    "VisCanvas: A Node-Based Interface for Exploratory Visualization Authoring with LLMs",
+    "ReFigBench: Benchmarking Scientific Figure Reconstruction as Editable PowerPoint Artifacts",
+    "Chart-Supported or Model-Supplied? Examining MLLM-Generated Claims for Accessible Visualiz"
+   ]
+  },
+  {
+   "id": 22,
+   "size": 144,
+   "words": [
+    "spiking",
+    "neuromorphic",
+    "neural",
+    "spike",
+    "snns",
+    "snn",
+    "spiking neural",
+    "networks"
+   ],
+   "cats": [
+    [
+     "cs.NE",
+     54
+    ],
+    [
+     "cs.LG",
+     33
+    ]
+   ],
+   "titles": [
+    "A Time-Multiplexed Spiking Neural Network Accelerator with Pipelined Readout for FPGA Infe",
+    "Large Language Model-Guided Evolutionary Discovery of Native Neural Architectures for Spik",
+    "AIGOR: A Modular, Event-Driven Neuromorphic Architecture for Configurable SNN Inference",
+    "Simulating Synchrony Loop Networks in the Open Source RISP Neuroprocessor",
+    "DVA-Neurons: Design and Verification of Adaptive LIF Neurons: From Single-Neuron Dynamics ",
+    "The Neural Division of Labor: Biologically-Inspired Modular Architectures for Robust Neuro"
+   ]
+  },
+  {
+   "id": 0,
+   "size": 141,
+   "words": [
+    "watermarking",
+    "watermark",
+    "watermarks",
+    "attacks",
+    "robustness",
+    "image",
+    "removal",
+    "bit"
+   ],
+   "cats": [
+    [
+     "cs.CR",
+     73
+    ],
+    [
+     "cs.CV",
+     28
+    ]
+   ],
+   "titles": [
+    "AutoMark: Enabling Autoresearch to Discover Better LLM Watermarks",
+    "DenMark: Robust Semantic Watermarking for Diffusion Language Models",
+    "Selective Disclosure Watermarking for Large Language Models",
+    "WaterMoE: Expert-Routing-based Watermarking for High Fidelity and Efficiency",
+    "Toward Stronger Code Watermarking: A Grammar-Driven Approach to Optimizing the Trade-off B",
+    "ChainMark: Model-Free LLM Watermarking with Closed-Form Calibration"
+   ]
+  },
+  {
+   "id": 50,
+   "size": 130,
+   "words": [
+    "spatial",
+    "spatial reasoning",
+    "reasoning",
+    "3d",
+    "grounding",
+    "vlms",
+    "visual",
+    "object"
+   ],
+   "cats": [
+    [
+     "cs.CV",
+     96
+    ],
+    [
+     "cs.AI",
+     23
+    ]
+   ],
+   "titles": [
+    "Chain of Spatial Thoughts: Modality-Agnostic Spatial Grounding for Vision Language Models",
+    "Geometric Encoding for Spatial Reasoning in Vision-Language Models",
+    "Is Visual Prompting All You Need? Studying VLM Spatial Reasoning under Progressive Visual ",
+    "From Sight to Foresight: Predictive Spatial Reasoning in Vision-Language Models",
+    "SpatialCORE: Confidence-Aware Grounded Spatial Reasoning in Large Vision--Language Models",
+    "SpatialCLI: Learning to Reason With Spatial Tools, Then Without Them"
+   ]
+  },
+  {
+   "id": 16,
+   "size": 128,
+   "words": [
+    "continual",
+    "forgetting",
+    "continual learning",
+    "learning",
+    "catastrophic forgetting",
+    "catastrophic",
+    "replay",
+    "plasticity"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     80
+    ],
+    [
+     "cs.CV",
+     16
+    ]
+   ],
+   "titles": [
+    "The Art of Not Forgetting A Local Learning Architecture for Continual Learning",
+    "Continual Learning without Continual Training",
+    "Hidden Forgetting in Continual Multimodal Learning: When Accuracy Survives but Grounding F",
+    "Continual Learning Mechanisms Compose for Long-Horizon Memorization",
+    "Drift and Dependence: Layer-wise Information-Theoretic Bounds for Replay-Based Continual L",
+    "Learning Dynamics of Continual Learning: A Unified View of Data Attribution, Forgetting, a"
+   ]
+  },
+  {
+   "id": 44,
+   "size": 127,
+   "words": [
+    "hallucination",
+    "hallucinations",
+    "hallucination detection",
+    "detection",
+    "hallucinated",
+    "language models",
+    "language",
+    "models"
+   ],
+   "cats": [
+    [
+     "cs.CL",
+     56
+    ],
+    [
+     "cs.CV",
+     45
+    ]
+   ],
+   "titles": [
+    "Domain-Specific Hallucination Detection in Large Language Models",
+    "Test-Time Hallucination Control in Large Vision-Language Models",
+    "HalluScope: Fine-grained Hallucination Diagnosis for Multimodal Large Language Models",
+    "UniProbe: A Learnable Token-Level Hallucination Detector for Large VLMs using Multi-Struct",
+    "External Observers May See More Clearly: Cross-Model Span-Level Hallucination Detection in",
+    "HIVE: Understanding Post-Hallucination Reasoning in Vision Language Models"
+   ]
+  },
+  {
+   "id": 14,
+   "size": 126,
+   "words": [
+    "ecg",
+    "sleep",
+    "ppg",
+    "physiological",
+    "cardiac",
+    "heart",
+    "lead",
+    "bp"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     70
+    ],
+    [
+     "cs.CV",
+     19
+    ]
+   ],
+   "titles": [
+    "CardioState-JEPA: Delay-Aware Cross-Modal Learning of a Shared Cardiac Representation",
+    "BeatFlow-ECG: Rectified Flow for ECG Reconstruction from Indirect Wearable Signals",
+    "P2E-VQ: ECG-linked representation augmentation for PPG via discrete patch retrieval",
+    "ECG Mirage: Revealing and Mitigating the Underutilisation of ECGs in Vision-Language Model",
+    "A Hybrid CNN--State-Space--Attention Backbone with Joint-Embedding Predictive Pretraining ",
+    "X-Beat: An Explainable Framework for ECG Image Classification"
+   ]
+  },
+  {
+   "id": 3,
+   "size": 122,
+   "words": [
+    "multi agent",
+    "marl",
+    "routing",
+    "agent",
+    "learning",
+    "reinforcement learning",
+    "multi",
+    "reinforcement"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     43
+    ],
+    [
+     "cs.AI",
+     30
+    ]
+   ],
+   "titles": [
+    "Reinforcement Learning Enhanced LLM Agents for Complex Vehicle Routing Problems",
+    "Dynamic Multi-Depot Vehicle Routing with Online Requests: Event-Driven Transformer--DRL an",
+    "From Prior-Guided Heuristics to Deployable Agents: Accelerating Demonstration-Driven Reinf",
+    "Test-time Multi-agent Coordination by Decomposed Value Gradient Flow",
+    "Multi-Agent Off-Policy Deep Reinforcement Learning for Smart Campus Coverage",
+    "Improving Cross-Problem Vehicle Routing with Locally Augmented Preferences and Representat"
+   ]
+  },
+  {
+   "id": 39,
+   "size": 122,
+   "words": [
+    "optimization",
+    "bayesian",
+    "bayesian optimization",
+    "bo",
+    "objective",
+    "multi objective",
+    "surrogate",
+    "problems"
+   ],
+   "cats": [
+    [
+     "cs.LG",
+     70
+    ],
+    [
+     "cs.NE",
+     24
+    ]
+   ],
+   "titles": [
+    "LLM-Driven Evolutionary Generation of Multi-Objective Bayesian Optimization Algorithms",
+    "Reduced-Space Multi-Fidelity Bayesian Optimization of Process Simulation Models",
+    "Adapting Nonstationary Multi-output Gaussian Processes to Bayesian Optimization",
+    "No-Regret Bayesian Optimization with Finite-Library Input-Warped Kernels",
+    "Pre-training of Bayesian Optimization Algorithm through Bayesian Optimization",
+    "Frugal Bayesian Optimization: Scalable Surrogates for Data- and Resource-Limited Discovery"
+   ]
+  },
+  {
+   "id": 15,
+   "size": 120,
+   "words": [
+    "speculative",
+    "draft",
+    "speculative decoding",
+    "decoding",
+    "drafter",
+    "drafting",
+    "target",
+    "verification"
+   ],
+   "cats": [
+    [
+     "cs.CL",
+     49
+    ],
+    [
+     "cs.LG",
+     29
+    ]
+   ],
+   "titles": [
+    "Training Parallel Speculative Draft Models by Directly Minimizing Expected Decoding Rounds",
+    "Margins, Not Windows: Training-Free Per-Step Lossy Speculative Decoding",
+    "DARTree: Speculative Diffusion Decoding with Autoregressive Draft Trees",
+    "DEdit: Iterative Draft Editing for Speculative Decoding",
+    "A Sparse Glimpse of the Whole: Train-Free Self-Speculative Decoding",
+    "Unlocking Parallelism in Autoregressive Language Models via Speculative Decoding with Prog"
+   ]
+  }
+ ]
+}
