@@ -34,7 +34,7 @@ export function placeLabels(
       c.px + w / 2,
       c.py + h / 2,
     ];
-    if (box[2] < 0 || box[0] > width || box[3] < 0 || box[1] > height) return;
+    if (box[0] < 0 || box[2] > width || box[1] < 0 || box[3] > height) return;
     if (placed.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]))
       return;
     placed.push(box);

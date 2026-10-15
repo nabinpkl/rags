@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const deck = vi.hoisted(() => ({ setProps: vi.fn(), finalize: vi.fn(), ctor: vi.fn() }));
 
@@ -43,6 +43,13 @@ const points = {
 };
 
 describe("PaperMapCanvas", () => {
+  // jsdom lays nothing out; give the map container a real size so labels fit.
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
   it("draws the papers and the theme label, and finalizes the deck on unmount", () => {
     document.documentElement.style.setProperty("--ink", "#1a2128");
     document.documentElement.style.setProperty("--paper", "#e6e8e3");

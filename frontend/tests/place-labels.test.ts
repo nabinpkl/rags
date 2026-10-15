@@ -28,7 +28,9 @@ describe("placeLabels", () => {
     expect(labelTier(40)).toBe(2);
   });
 
-  it("skips labels outside the viewport", () => {
+  it("skips labels that would be cut off at the viewport edge", () => {
     expect(placeLabels([c(0, 10, -500, 100)], 0, 800, 600)).toEqual([]);
+    expect(placeLabels([c(0, 10, 10, 100)], 0, 800, 600)).toEqual([]);
+    expect(placeLabels([c(0, 10, 400, 100)], 0, 800, 600)).toEqual([0]);
   });
 });
