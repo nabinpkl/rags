@@ -55,6 +55,7 @@ describe("PaperMapCanvas", () => {
   it("draws the papers and the group label, and finalizes the deck on unmount", () => {
     document.documentElement.style.setProperty("--ink", "#1a2128");
     document.documentElement.style.setProperty("--paper", "#e6e8e3");
+    document.documentElement.style.setProperty("--ink-2", "#3f4a53");
     const { unmount } = render(
       <PaperMapCanvas
         meta={meta}
@@ -70,9 +71,14 @@ describe("PaperMapCanvas", () => {
     );
     expect(deck.ctor).toHaveBeenCalledWith(expect.objectContaining({ pickingRadius: 6 }));
     const layers = deck.setProps.mock.calls.at(-1)?.[0].layers;
-    expect(layers.map((l: { props: { id: string } }) => l.props.id)).toEqual(["papers", "labels"]);
-    // Fitted view, zoomed out: the group is labelled, not the theme.
-    expect(layers[1].props.data.map((t: { name: string }) => t.name)).toEqual(["robotics"]);
+    expect(layers.map((l: { props: { id: string } }) => l.props.id)).toEqual([
+      "papers",
+      "theme-labels",
+      "group-labels",
+    ]);
+    // Fitted view, zoomed out: the group is labelled, in capitals; themes wait.
+    expect(layers[2].props.data.map((t: { text: string }) => t.text)).toEqual(["ROBOTICS"]);
+    expect(layers[1].props.data).toEqual([]);
     unmount();
     expect(deck.finalize).toHaveBeenCalled();
   });

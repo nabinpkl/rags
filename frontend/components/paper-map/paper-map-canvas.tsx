@@ -11,7 +11,14 @@ import {
   type MapSelection,
   NO_THEME,
 } from "@/lib/paper-map/paper-map-data";
-import { LABEL_PX, placeLabels, THEME_ZOOM, themeMinLevel } from "@/lib/paper-map/place-labels";
+import {
+  type Box,
+  LABEL_STYLE,
+  type LabelKind,
+  labelText,
+  placeLabels,
+  themeMinLevel,
+} from "@/lib/paper-map/place-labels";
 import { lighten, parseColor, type RGB, UNTHEMED_RGB } from "@/lib/paper-map/theme-colors";
 
 export type PaperMapHandle = {
@@ -97,21 +104,43 @@ export function PaperMapCanvas(props: Props) {
     if (!view || !home) return [];
     const [w, h] = size();
     const levels = view.zoom - home.zoom;
-    // Zoomed out: the umbrella groups. From THEME_ZOOM on: the themes.
-    const groupsShown = levels < THEME_ZOOM;
-    const items = groupsShown ? p.meta.groups : p.meta.themes;
-    const px = groupsShown ? LABEL_PX.group : LABEL_PX.theme;
-    const shown = placeLabels(
+    // Groups at every zoom, placed first so no theme covers its parent;
+    // themes from THEME_ZOOM on, in the space the groups leave.
+    const taken: Box[] = [];
+    const candidates = (
+      items: { name: string; size: number; cx: number; cy: number }[],
+      kind: LabelKind,
+    ) =>
       items.map((t, index) => {
         const [x, y] = project(view, w, h, t.cx, t.cy);
-        const minLevel = groupsShown ? 0 : themeMinLevel(index);
-        return { index, name: t.name, size: t.size, px: x, py: y, minLevel };
-      }),
-      levels,
-      w,
-      h,
-      px,
-    );
+        const minLevel = kind === "group" ? 0 : themeMinLevel(index);
+        return { index, name: labelText(t.name, kind), size: t.size, px: x, py: y, minLevel };
+      });
+    const groupCands = candidates(p.meta.groups, "group");
+    const groupsShown = placeLabels(groupCands, levels, w, h, "group", taken);
+    const themeCands = candidates(p.meta.themes, "theme");
+    const themesShown = placeLabels(themeCands, levels, w, h, "theme", taken);
+    const ink2 = parseColor(css.getPropertyValue("--ink-2"));
+    const textLayer = (id: string, cands: typeof groupCands, shown: number[], kind: LabelKind) =>
+      new TextLayer({
+        id,
+        data: shown.map((i) => ({
+          ...cands[i],
+          ...(kind === "group" ? p.meta.groups[i] : p.meta.themes[i]),
+          text: cands[i].name,
+        })),
+        getPosition: (t: { cx: number; cy: number }) => [t.cx, t.cy],
+        getText: (t: { text: string }) => t.text,
+        getSize: LABEL_STYLE[kind].px,
+        sizeUnits: "pixels",
+        getColor: kind === "group" ? ink : ink2,
+        fontFamily,
+        fontWeight: LABEL_STYLE[kind].weight,
+        fontSettings: { sdf: true },
+        outlineWidth: 3,
+        outlineColor: halo,
+        characterSet: "auto",
+      });
     return [
       new ScatterplotLayer({
         id: "papers",
@@ -130,21 +159,8 @@ export function PaperMapCanvas(props: Props) {
         autoHighlight: true,
         highlightColor: [255, 255, 255, 255],
       }),
-      new TextLayer({
-        id: "labels",
-        data: shown.map((i) => items[i]),
-        getPosition: (t: { cx: number; cy: number }) => [t.cx, t.cy],
-        getText: (t: { name: string }) => t.name,
-        getSize: px,
-        sizeUnits: "pixels",
-        getColor: ink,
-        fontFamily,
-        fontWeight: groupsShown ? 700 : 600,
-        fontSettings: { sdf: true },
-        outlineWidth: 3,
-        outlineColor: halo,
-        characterSet: "auto",
-      }),
+      textLayer("theme-labels", themeCands, themesShown, "theme"),
+      textLayer("group-labels", groupCands, groupsShown, "group"),
     ];
   }
 
