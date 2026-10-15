@@ -3124,3 +3124,27 @@ names are curated (they need stable layouts).
 
 **Spec updated:** yes, D20 amendment (2026-10-15).
 
+## 2026-10-15 — paper map: umbrella groups over themes (owner directive)
+
+**Context:** the owner found the unseeded recent map vaguer than the first
+build: "robot · action · world" (4,177 papers) had become "vla · action ·
+robot" (472) with the world-model themes too small to be labelled zoomed out.
+
+**Decision:** two levels. Groups are Ward clusters of the themes' mean unit
+abstract vectors (round(themes / 6) groups), named like themes. Zoomed out
+the map labels groups; from one zoom level in, themes. Theme colours are
+shades of the group hue. Ward rather than average linkage: average linkage
+tends to put most themes in one group.
+
+**Consequence:** recent has 20 groups, including a world-models group
+("world · action · latent": JEPA world models, world-action models,
+interactive world video) apart from robot hardware and VLA/driving; full has
+34. Some group names are loose ("memory · policy · learning" holds RL, agent
+memory, distillation and federated learning); they are keywords, like theme
+names.
+
+**Revisit when:** names are curated, or a group mixes topics a reader
+would not put together.
+
+**Spec updated:** yes, D20 amendment (2026-10-15).
+

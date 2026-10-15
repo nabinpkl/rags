@@ -1,15 +1,29 @@
-/** One colour per theme, by golden-angle hue so neighbours in size order
- * still differ, plus a neutral for papers with no theme. RGB tuples because
- * deck.gl takes numbers, not CSS. */
+/** Colours: one hue per umbrella group (golden-angle, so neighbours in size
+ * order differ), and each theme a shade of its group's hue, so a group reads
+ * as one region zoomed out and its themes stay apart zoomed in. RGB tuples
+ * because deck.gl takes numbers, not CSS. */
 
 export type RGB = [number, number, number];
 
 export const UNTHEMED_RGB: RGB = [150, 150, 158];
 
-export function themeColors(count: number): RGB[] {
-  return Array.from({ length: count }, (_, i) =>
-    hslToRgb((i * 137.508) % 360, 0.62 - (i % 3) * 0.08, 0.52 + (i % 2) * 0.08),
-  );
+const hue = (group: number) => (group * 137.508) % 360;
+
+export function groupColors(count: number): RGB[] {
+  return Array.from({ length: count }, (_, g) => hslToRgb(hue(g), 0.6, 0.52));
+}
+
+/** `groupOf[i]` is theme i's group. Shades step through lightness and
+ * saturation in the order themes appear within their group. */
+export function themeColors(groupOf: number[]): RGB[] {
+  const seen = new Map<number, number>();
+  return groupOf.map((g) => {
+    const k = seen.get(g) ?? 0;
+    seen.set(g, k + 1);
+    const l = [0.5, 0.62, 0.42, 0.7, 0.56, 0.36][k % 6];
+    const s = [0.62, 0.5, 0.7, 0.45][k % 4];
+    return hslToRgb((hue(g) + ((k % 3) - 1) * 8 + 360) % 360, s, l);
+  });
 }
 
 /** Mix toward white by `k` in [0, 1] (at most 60%), for dark backgrounds. */

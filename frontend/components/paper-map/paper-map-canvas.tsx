@@ -5,14 +5,19 @@ import { ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import { type Ref, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef } from "react";
 
 import { fitView, type MapViewState, project, themeBox } from "@/lib/paper-map/fit-view";
-import { type MapMeta, type MapPoints, NO_THEME } from "@/lib/paper-map/paper-map-data";
-import { LABEL_PX, placeLabels } from "@/lib/paper-map/place-labels";
+import {
+  type MapMeta,
+  type MapPoints,
+  type MapSelection,
+  NO_THEME,
+} from "@/lib/paper-map/paper-map-data";
+import { LABEL_PX, placeLabels, THEME_ZOOM, themeMinLevel } from "@/lib/paper-map/place-labels";
 import { lighten, parseColor, type RGB, UNTHEMED_RGB } from "@/lib/paper-map/theme-colors";
 
 export type PaperMapHandle = {
   zoomBy: (factor: number) => void;
   reset: () => void;
-  flyTo: (themeIndex: number) => void;
+  flyTo: (selection: NonNullable<MapSelection>) => void;
 };
 
 type Props = {
@@ -23,7 +28,7 @@ type Props = {
   hideUnthemed: boolean;
   /** 0..1: lightens colours and raises opacity, for dark backgrounds. */
   brightness: number;
-  selectedTheme: number | null;
+  selection: MapSelection;
   /** Changes when the site theme does, so labels re-read the page tokens. */
   colorScheme: string | undefined;
   onHover: (index: number, x: number, y: number) => void;
@@ -37,8 +42,13 @@ const DIMMED = 0.2;
 /** The map itself: every paper as a GPU point, theme labels as GPU text in
  * the same canvas, so labels never drift from their points while panning.
  * deck.gl is driven imperatively; React owns the inputs, not the frames. */
+function inSelection(meta: MapMeta, sel: NonNullable<MapSelection>, theme: number): boolean {
+  if (theme === NO_THEME) return false;
+  return sel.kind === "theme" ? theme === sel.index : meta.themes[theme].group === sel.index;
+}
+
 export function PaperMapCanvas(props: Props) {
-  const { ref, points, colors, hideUnthemed, brightness, selectedTheme } = props;
+  const { ref, meta, points, colors, hideUnthemed, brightness, selection } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const deckRef = useRef<Deck<OrthographicView> | null>(null);
   const viewRef = useRef<MapViewState | null>(null);
@@ -62,12 +72,12 @@ export function PaperMapCanvas(props: Props) {
       const t = points.theme[i];
       const themed = t !== NO_THEME;
       let a = themed ? THEMED_ALPHA : hideUnthemed ? 0 : UNTHEMED_ALPHA;
-      if (selectedTheme !== null && t !== selectedTheme) a = Math.round(a * DIMMED);
+      if (selection && !inSelection(meta, selection, t)) a = Math.round(a * DIMMED);
       const c = themed ? lit[t] : grey;
       out.set([c[0], c[1], c[2], a], 4 * i);
     }
     return out;
-  }, [points, colors, brightness, hideUnthemed, selectedTheme]);
+  }, [meta, points, colors, brightness, hideUnthemed, selection]);
 
   const fillRef = useRef(fill);
 
@@ -87,14 +97,20 @@ export function PaperMapCanvas(props: Props) {
     if (!view || !home) return [];
     const [w, h] = size();
     const levels = view.zoom - home.zoom;
+    // Zoomed out: the umbrella groups. From THEME_ZOOM on: the themes.
+    const groupsShown = levels < THEME_ZOOM;
+    const items = groupsShown ? p.meta.groups : p.meta.themes;
+    const px = groupsShown ? LABEL_PX.group : LABEL_PX.theme;
     const shown = placeLabels(
-      p.meta.themes.map((t, index) => {
-        const [px, py] = project(view, w, h, t.cx, t.cy);
-        return { index, name: t.name, size: t.size, px, py };
+      items.map((t, index) => {
+        const [x, y] = project(view, w, h, t.cx, t.cy);
+        const minLevel = groupsShown ? 0 : themeMinLevel(index);
+        return { index, name: t.name, size: t.size, px: x, py: y, minLevel };
       }),
       levels,
       w,
       h,
+      px,
     );
     return [
       new ScatterplotLayer({
@@ -116,14 +132,14 @@ export function PaperMapCanvas(props: Props) {
       }),
       new TextLayer({
         id: "labels",
-        data: shown.map((i) => ({ ...p.meta.themes[i], rank: i })),
+        data: shown.map((i) => items[i]),
         getPosition: (t: { cx: number; cy: number }) => [t.cx, t.cy],
         getText: (t: { name: string }) => t.name,
-        getSize: (t: { rank: number }) => (t.rank < 12 ? LABEL_PX.tier0 : LABEL_PX.rest),
+        getSize: px,
         sizeUnits: "pixels",
         getColor: ink,
         fontFamily,
-        fontWeight: 600,
+        fontWeight: groupsShown ? 700 : 600,
         fontSettings: { sdf: true },
         outlineWidth: 3,
         outlineColor: halo,
@@ -203,8 +219,8 @@ export function PaperMapCanvas(props: Props) {
     reset: () => {
       if (homeRef.current) go(homeRef.current);
     },
-    flyTo: (themeIndex) => {
-      const box = themeBox(points.x, points.y, (i) => points.theme[i] === themeIndex);
+    flyTo: (sel) => {
+      const box = themeBox(points.x, points.y, (i) => inSelection(meta, sel, points.theme[i]));
       const [w, h] = size();
       go(fitView(box, w, h, 0.7));
     },

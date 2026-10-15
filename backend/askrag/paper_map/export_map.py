@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 _QMAX = 65535
 
 
@@ -26,6 +26,16 @@ class Theme:
     cx: float
     cy: float
     top_category: str
+    group: int
+
+
+@dataclass(frozen=True)
+class Group:
+    index: int
+    name: str
+    size: int
+    cx: float
+    cy: float
 
 
 def quantize(xy: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[float]]:
@@ -44,6 +54,7 @@ def write_map(
     xy: np.ndarray,
     theme_index: np.ndarray,
     themes: list[Theme],
+    groups: list[Group],
 ) -> None:
     n = len(ids)
     if not (len(versions) == len(titles) == len(xy) == len(theme_index) == n):
@@ -74,8 +85,13 @@ def write_map(
                 "cx": round(t.cx, 4),
                 "cy": round(t.cy, 4),
                 "top_category": t.top_category,
+                "group": t.group,
             }
             for t in sorted(themes, key=lambda t: t.index)
+        ],
+        "groups": [
+            {"name": g.name, "size": g.size, "cx": round(g.cx, 4), "cy": round(g.cy, 4)}
+            for g in sorted(groups, key=lambda g: g.index)
         ],
     }
     (out_dir / "map.json").write_text(json.dumps(meta, separators=(",", ":")))

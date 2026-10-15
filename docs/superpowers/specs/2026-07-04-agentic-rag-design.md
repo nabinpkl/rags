@@ -1376,6 +1376,18 @@ layout of 89,628 papers took 100 s against 186 s seeded on the 4-core host.
 The cached layout files, keyed by ids and parameters, are the reproducible
 record; a seed is for recomputing one exactly. Both maps built in 8 minutes.
 
+**Amendment (2026-10-15, owner directive): two levels of themes.** An
+unseeded rebuild cut the recent map's single robotics theme into its
+subtopics (VLA, JEPA world models, world-action models), which is more
+specific but left the zoomed-out view naming fragments. Themes are now
+grouped: Ward clustering of the themes' mean abstract vectors, about
+`paper_map_themes_per_group` (6) themes per group, each group named by class
+TF-IDF over its papers. The zoomed-out map labels groups; from one zoom level
+in it labels themes. Each theme's colour is a shade of its group's hue, and
+the side panel lists groups that open onto their themes. Recent: 20 groups
+over 118 themes; full: 34 over 205. `map.json` is format 2 (`groups`, and a
+`group` per theme).
+
 ## 4. Architecture
 
 ```

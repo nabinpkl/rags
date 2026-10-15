@@ -9,8 +9,14 @@ import { type ReactNode, useMemo, useRef, useState } from "react";
 import type { PaperMapHandle } from "@/components/paper-map/paper-map-canvas";
 import { PaperCard } from "@/components/paper-map/paper-card";
 import { ThemeList } from "@/components/paper-map/theme-list";
-import { fetchMap, fetchPapers, type MapScope, NO_THEME } from "@/lib/paper-map/paper-map-data";
-import { themeColors } from "@/lib/paper-map/theme-colors";
+import {
+  fetchMap,
+  fetchPapers,
+  type MapScope,
+  type MapSelection,
+  NO_THEME,
+} from "@/lib/paper-map/paper-map-data";
+import { groupColors, themeColors } from "@/lib/paper-map/theme-colors";
 
 // deck.gl needs a browser (WebGL, window); the static export renders the
 // page shell without it.
@@ -62,13 +68,14 @@ export function PaperMapView({ scope }: { scope: MapScope }) {
 
   const [hideUnthemed, setHideUnthemed] = useState(false);
   const [brightness, setBrightness] = useState<number | null>(null);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selection, setSelection] = useState<MapSelection>(null);
   const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
 
   const meta = map.data?.meta;
   const points = map.data?.points;
-  const colors = useMemo(() => themeColors(meta?.themes.length ?? 0), [meta]);
+  const colors = useMemo(() => themeColors(meta?.themes.map((t) => t.group) ?? []), [meta]);
+  const gColors = useMemo(() => groupColors(meta?.groups.length ?? 0), [meta]);
   const level = brightness ?? (resolvedTheme === "dark" ? DARK_BRIGHTNESS : 0);
 
   if (map.isError) {
@@ -83,11 +90,15 @@ export function PaperMapView({ scope }: { scope: MapScope }) {
     const t = points?.theme[i] ?? NO_THEME;
     return t === NO_THEME ? "No theme" : (meta?.themes[t].name ?? "");
   };
+  const groupName = (i: number) => {
+    const t = points?.theme[i] ?? NO_THEME;
+    return t === NO_THEME || !meta ? null : meta.groups[meta.themes[t].group].name;
+  };
 
-  function select(i: number | null) {
-    setSelected(i);
-    if (i === null) canvas.current?.reset();
-    else canvas.current?.flyTo(i);
+  function select(next: MapSelection) {
+    setSelection(next);
+    if (next === null) canvas.current?.reset();
+    else canvas.current?.flyTo(next);
   }
 
   return (
@@ -101,7 +112,7 @@ export function PaperMapView({ scope }: { scope: MapScope }) {
             colors={colors}
             hideUnthemed={hideUnthemed}
             brightness={level}
-            selectedTheme={selected}
+            selection={selection}
             colorScheme={resolvedTheme}
             onHover={(i, x, y) => setHover(i < 0 ? null : { i, x, y })}
             onPick={(i) => setPicked(i < 0 ? null : i)}
@@ -139,7 +150,10 @@ export function PaperMapView({ scope }: { scope: MapScope }) {
                 {papers.data.titles[hover.i]}
               </p>
             )}
-            <p className="text-muted text-[14px]">{themeName(hover.i)}</p>
+            <p className="text-ink-2 text-[14px]">{themeName(hover.i)}</p>
+            {groupName(hover.i) && (
+              <p className="text-muted text-[14px]">in {groupName(hover.i)}</p>
+            )}
           </div>
         )}
 
@@ -149,6 +163,7 @@ export function PaperMapView({ scope }: { scope: MapScope }) {
             version={papers.data.versions[picked]}
             title={papers.data.titles[picked]}
             theme={themeName(picked)}
+            group={groupName(picked)}
             onClose={() => setPicked(null)}
           />
         )}
@@ -188,7 +203,14 @@ export function PaperMapView({ scope }: { scope: MapScope }) {
         </h2>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
           {meta && (
-            <ThemeList themes={meta.themes} colors={colors} selected={selected} onSelect={select} />
+            <ThemeList
+              groups={meta.groups}
+              themes={meta.themes}
+              groupColors={gColors}
+              themeColors={colors}
+              selection={selection}
+              onSelect={select}
+            />
           )}
         </div>
       </aside>

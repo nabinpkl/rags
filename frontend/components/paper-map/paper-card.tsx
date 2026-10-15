@@ -9,12 +9,14 @@ export function PaperCard({
   version,
   title,
   theme,
+  group,
   onClose,
 }: {
   arxivId: string;
   version: string;
   title: string;
   theme: string;
+  group: string | null;
   onClose: () => void;
 }) {
   return (
@@ -36,7 +38,10 @@ export function PaperCard({
         {version}
       </p>
       <p className="text-ink pr-8 text-[18px] leading-snug font-semibold">{title}</p>
-      <p className="text-ink-2 text-[16px]">{theme}</p>
+      <p className="text-ink-2 text-[16px]">
+        {theme}
+        {group && <span className="text-muted"> · in {group}</span>}
+      </p>
       <a
         href={arxivAbsUrl(arxivId, version || null)}
         target="_blank"

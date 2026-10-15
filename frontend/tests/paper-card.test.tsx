@@ -11,7 +11,8 @@ describe("PaperCard", () => {
         arxivId="2607.00001"
         version="v2"
         title="A paper"
-        theme="robot · action · world"
+        theme="vla · action · robot"
+        group="robotics · world models"
         onClose={onClose}
       />,
     );
@@ -19,6 +20,7 @@ describe("PaperCard", () => {
       "href",
       "https://arxiv.org/abs/2607.00001v2",
     );
+    expect(screen.getByText(/in robotics · world models/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
   });

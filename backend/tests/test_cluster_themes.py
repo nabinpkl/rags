@@ -1,6 +1,12 @@
 import numpy as np
 
-from askrag.paper_map.cluster_themes import NO_THEME, cluster, theme_name, theme_words
+from askrag.paper_map.cluster_themes import (
+    NO_THEME,
+    cluster,
+    group_themes,
+    theme_name,
+    theme_words,
+)
 
 
 def test_cluster_finds_separated_blobs_and_leaves_far_points_unthemed():
@@ -31,3 +37,13 @@ def test_theme_name_skips_a_word_inside_a_taken_bigram():
     assert theme_name(["autonomous driving", "driving", "autonomous", "lidar"], 2) == (
         "autonomous driving · lidar"
     )
+
+
+def test_group_themes_joins_themes_pointing_the_same_way():
+    centroids = np.array([[1.0, 0.0], [0.9, 0.1], [0.0, 1.0], [0.1, 0.9]])
+    g = group_themes(centroids, 2)
+    assert g[0] == g[1] and g[2] == g[3] and g[0] != g[2]
+
+
+def test_group_themes_keeps_each_theme_alone_when_groups_outnumber_themes():
+    assert group_themes(np.eye(3), 5).tolist() == [0, 1, 2]

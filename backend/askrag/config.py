@@ -477,6 +477,9 @@ class Settings(BaseSettings):
     paper_map_min_cluster_size: int = 60
     paper_map_min_samples: int = 15
     paper_map_label_words: int = 3
+    # Themes per umbrella group, on average: the zoomed-out map labels groups
+    # (about 20 for the recent map) and the specific themes appear on zoom.
+    paper_map_themes_per_group: int = 6
 
     # --- derived paths (spec §4c corpus/ tree; one root, one rule) ---------
     @property

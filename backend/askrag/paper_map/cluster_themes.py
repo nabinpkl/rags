@@ -7,7 +7,7 @@ centre assignment was measured wrong on 6 of 15 papers (docs/themes).
 """
 
 import numpy as np
-from sklearn.cluster import HDBSCAN
+from sklearn.cluster import HDBSCAN, AgglomerativeClustering
 from sklearn.feature_extraction.text import CountVectorizer
 
 NO_THEME = -1
@@ -47,3 +47,14 @@ def theme_name(words: list[str], n: int) -> str:
         if len(taken) == n:
             break
     return " · ".join(taken)
+
+
+def group_themes(centroids: np.ndarray, n_groups: int) -> np.ndarray:
+    """Umbrella group per theme: Ward clustering of the themes' mean unit
+    vectors. Ward over unit vectors is close to cosine and keeps groups
+    comparable in size, where average linkage left one group holding most
+    themes."""
+    if len(centroids) <= n_groups:
+        return np.arange(len(centroids))
+    unit = centroids / np.linalg.norm(centroids, axis=1, keepdims=True)
+    return AgglomerativeClustering(n_clusters=n_groups, linkage="ward").fit_predict(unit)

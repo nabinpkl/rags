@@ -17,7 +17,8 @@ vi.mock("@/lib/paper-map/paper-map-data", async (orig) => ({
       n: 3,
       unthemed: 1,
       bounds: [0, 0, 1, 1],
-      themes: [{ name: "robot · arm", size: 2, cx: 0, cy: 0, top_category: "cs.RO" }],
+      themes: [{ name: "robot · arm", size: 2, cx: 0, cy: 0, top_category: "cs.RO", group: 0 }],
+      groups: [{ name: "robotics · world", size: 2, cx: 0, cy: 0 }],
     },
     points: { n: 3, x: new Float32Array(3), y: new Float32Array(3), theme: new Int16Array(3) },
   })),
@@ -34,7 +35,7 @@ function wrap({ children }: { children: ReactNode }) {
 describe("PaperMapView", () => {
   it("shows the themes, the unthemed count, and starts brighter in dark mode", async () => {
     render(<PaperMapView scope="recent" />, { wrapper: wrap });
-    expect(await screen.findByText("robot · arm")).toBeInTheDocument();
+    expect(await screen.findByText("robotics · world")).toBeInTheDocument();
     expect(screen.getByTestId("canvas")).toBeInTheDocument();
     expect(screen.getByLabelText(/hide papers with no theme/i)).not.toBeChecked();
     expect(screen.getByText("1")).toBeInTheDocument();

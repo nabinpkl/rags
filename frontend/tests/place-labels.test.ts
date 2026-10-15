@@ -1,36 +1,46 @@
 import { describe, expect, it } from "vitest";
 
-import { labelTier, placeLabels } from "@/lib/paper-map/place-labels";
+import { placeLabels, THEME_ZOOM, themeMinLevel } from "@/lib/paper-map/place-labels";
 
-const c = (index: number, size: number, px: number, py: number, name = "theme name") => ({
+const c = (
+  index: number,
+  size: number,
+  px: number,
+  py: number,
+  minLevel = 0,
+  name = "theme name",
+) => ({
   index,
   name,
   size,
   px,
   py,
+  minLevel,
 });
 
 describe("placeLabels", () => {
-  it("keeps the bigger theme when two labels would overlap", () => {
-    expect(placeLabels([c(0, 10, 100, 100), c(1, 50, 110, 102)], 0, 800, 600)).toEqual([1]);
+  it("keeps the bigger label when two would overlap", () => {
+    expect(placeLabels([c(0, 10, 100, 100), c(1, 50, 110, 102)], 0, 800, 600, 14)).toEqual([1]);
   });
 
   it("places labels that do not touch", () => {
-    expect(placeLabels([c(0, 10, 100, 100), c(1, 50, 400, 300)], 0, 800, 600)).toEqual([1, 0]);
+    expect(placeLabels([c(0, 10, 100, 100), c(1, 50, 400, 300)], 0, 800, 600, 14)).toEqual([1, 0]);
   });
 
-  it("holds smaller themes back until zoomed in", () => {
-    const many = Array.from({ length: 13 }, (_, i) => c(i, 100 - i, 60 * i, 40 * i, "x"));
-    expect(placeLabels(many, 0, 2000, 2000)).not.toContain(12);
-    expect(placeLabels(many, 1, 2000, 2000)).toContain(12);
-    expect(labelTier(11)).toBe(0);
-    expect(labelTier(39)).toBe(1);
-    expect(labelTier(40)).toBe(2);
+  it("holds a label back until its zoom level", () => {
+    expect(placeLabels([c(0, 10, 400, 300, 2)], 1, 800, 600, 14)).toEqual([]);
+    expect(placeLabels([c(0, 10, 400, 300, 2)], 2, 800, 600, 14)).toEqual([0]);
+  });
+
+  it("brings themes in after the groups, the biggest first", () => {
+    expect(themeMinLevel(0)).toBe(THEME_ZOOM);
+    expect(themeMinLevel(12)).toBe(THEME_ZOOM + 1);
+    expect(themeMinLevel(40)).toBe(THEME_ZOOM + 2);
   });
 
   it("skips labels that would be cut off at the viewport edge", () => {
-    expect(placeLabels([c(0, 10, -500, 100)], 0, 800, 600)).toEqual([]);
-    expect(placeLabels([c(0, 10, 10, 100)], 0, 800, 600)).toEqual([]);
-    expect(placeLabels([c(0, 10, 400, 100)], 0, 800, 600)).toEqual([0]);
+    expect(placeLabels([c(0, 10, -500, 100)], 0, 800, 600, 14)).toEqual([]);
+    expect(placeLabels([c(0, 10, 10, 100)], 0, 800, 600, 14)).toEqual([]);
+    expect(placeLabels([c(0, 10, 400, 100)], 0, 800, 600, 14)).toEqual([0]);
   });
 });

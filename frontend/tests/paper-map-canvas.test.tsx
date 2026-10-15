@@ -34,7 +34,8 @@ const meta = {
   n: 2,
   unthemed: 1,
   bounds: [0, 0, 10, 10] as [number, number, number, number],
-  themes: [{ name: "robot · arm", size: 1, cx: 5, cy: 5, top_category: "cs.RO" }],
+  themes: [{ name: "robot · arm", size: 1, cx: 5, cy: 5, top_category: "cs.RO", group: 0 }],
+  groups: [{ name: "robotics", size: 1, cx: 5, cy: 5 }],
 };
 const points = {
   n: 2,
@@ -51,7 +52,7 @@ describe("PaperMapCanvas", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("draws the papers and the theme label, and finalizes the deck on unmount", () => {
+  it("draws the papers and the group label, and finalizes the deck on unmount", () => {
     document.documentElement.style.setProperty("--ink", "#1a2128");
     document.documentElement.style.setProperty("--paper", "#e6e8e3");
     const { unmount } = render(
@@ -61,7 +62,7 @@ describe("PaperMapCanvas", () => {
         colors={[[200, 50, 50]]}
         hideUnthemed={false}
         brightness={0}
-        selectedTheme={null}
+        selection={null}
         colorScheme="light"
         onHover={() => {}}
         onPick={() => {}}
@@ -70,7 +71,8 @@ describe("PaperMapCanvas", () => {
     expect(deck.ctor).toHaveBeenCalledWith(expect.objectContaining({ pickingRadius: 6 }));
     const layers = deck.setProps.mock.calls.at(-1)?.[0].layers;
     expect(layers.map((l: { props: { id: string } }) => l.props.id)).toEqual(["papers", "labels"]);
-    expect(layers[1].props.data.map((t: { name: string }) => t.name)).toEqual(["robot · arm"]);
+    // Fitted view, zoomed out: the group is labelled, not the theme.
+    expect(layers[1].props.data.map((t: { name: string }) => t.name)).toEqual(["robotics"]);
     unmount();
     expect(deck.finalize).toHaveBeenCalled();
   });

@@ -8,7 +8,12 @@ from askrag.paper_map import build_map
 
 
 def test_run_orders_themes_by_size_and_exports(tmp_path, monkeypatch):
-    s = Settings(corpus_dir=tmp_path, paper_map_min_cluster_size=10, paper_map_min_samples=5)
+    s = Settings(
+        corpus_dir=tmp_path,
+        paper_map_min_cluster_size=10,
+        paper_map_min_samples=5,
+        paper_map_themes_per_group=2,
+    )
     ids = [f"2607.{i:05d}" for i in range(91)]
     db = sqlite3.connect(s.corpus_db_path)
     db.execute(
@@ -32,6 +37,8 @@ def test_run_orders_themes_by_size_and_exports(tmp_path, monkeypatch):
     assert [t["size"] for t in meta["themes"]] == [50, 40]
     assert meta["themes"][0]["top_category"] == "cs.RO"
     assert meta["unthemed"] == 1
+    assert len(meta["groups"]) == 1
+    assert {t["group"] for t in meta["themes"]} == {0}
     raw = (s.paper_map_dir / "recent" / "points.bin").read_bytes()
     themes = np.frombuffer(raw[4 * 91 :], "<i2")
     assert themes[0] == 0 and themes[60] == 1 and themes[90] == -1

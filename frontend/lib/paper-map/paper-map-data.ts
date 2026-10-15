@@ -23,7 +23,14 @@ export type MapTheme = {
   cx: number;
   cy: number;
   top_category: string;
+  /** Index into `groups`. */
+  group: number;
 };
+
+export type MapGroup = { name: string; size: number; cx: number; cy: number };
+
+/** What the map highlights: one theme, or every theme in a group. */
+export type MapSelection = { kind: "group" | "theme"; index: number } | null;
 
 export type MapMeta = {
   version: number;
@@ -36,6 +43,7 @@ export type MapMeta = {
   unthemed: number;
   bounds: [number, number, number, number];
   themes: MapTheme[];
+  groups: MapGroup[];
 };
 
 export type MapPoints = {

@@ -18,6 +18,7 @@ const meta = (n: number): MapMeta => ({
   unthemed: 1,
   bounds: [-2, 10, 2, 14],
   themes: [],
+  groups: [],
 });
 
 function encode(xs: number[], ys: number[], themes: number[]): ArrayBuffer {
