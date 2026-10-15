@@ -3148,3 +3148,22 @@ would not put together.
 
 **Spec updated:** yes, D20 amendment (2026-10-15).
 
+## 2026-10-15 — paper map: recent layout pinned to seed 7 (owner directive)
+
+**Context:** the owner preferred the first recent-map build, where the
+bottom-left robotics region, world models and agent memory each read as one
+region, to the unseeded draw, which cut robotics into fragments.
+
+**Decision:** per-scope seeds, `paper_map_seeds = {"recent": 7}`; full stays
+unseeded. Rejected: offering the two layouts as tabs, since they are two
+random draws of the same papers rather than two views of them.
+
+**Consequence:** recent is the first build again (106 themes, robotics 4,177,
+43.0% unthemed) with 18 umbrella groups on top. Its rebuild is single-
+threaded when the cache is gone, about 5 minutes.
+
+**Revisit when:** recent gains a month (new papers mean a new layout, seed or
+not, and the result needs reviewing again).
+
+**Spec updated:** yes, D20 amendment (2026-10-15).
+

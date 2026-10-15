@@ -1388,6 +1388,16 @@ the side panel lists groups that open onto their themes. Recent: 20 groups
 over 118 themes; full: 34 over 205. `map.json` is format 2 (`groups`, and a
 `group` per theme).
 
+**Amendment (2026-10-15, owner directive): the recent map is pinned.**
+`paper_map_seeds` gives a UMAP seed per scope; recent is 7, full is unseeded.
+Seed 7 in the locked environment reproduces the first reviewed build exactly
+(106 themes, "robot · action · world" at 4,177 papers, 43.0% unthemed), in
+which robotics, world models and agent memory each read as one region; the
+unseeded draw had cut robotics into fragments. Neither cut is more correct;
+this one was reviewed and kept. Recent now has 18 groups over its 106
+themes. A seeded rebuild of recent costs about 5 minutes when its layout
+cache is gone.
+
 ## 4. Architecture
 
 ```

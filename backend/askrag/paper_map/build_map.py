@@ -28,7 +28,8 @@ from askrag.paper_map.layout_papers import layout
 def run(settings: Settings, scope: str) -> None:
     from_month = settings.paper_map_scopes[scope]
     ids, x = embed_abstracts(settings, from_month)
-    common = {"neighbors": settings.paper_map_neighbors, "seed": settings.paper_map_seed}
+    seed = settings.paper_map_seeds.get(scope)
+    common = {"neighbors": settings.paper_map_neighbors, "seed": seed}
     cache = settings.paper_map_dir
     z = layout(x, ids, cache, dims=settings.paper_map_cluster_dims, min_dist=0.0, **common)
     xy = layout(x, ids, cache, dims=2, min_dist=settings.paper_map_display_min_dist, **common)

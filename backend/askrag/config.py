@@ -466,11 +466,14 @@ class Settings(BaseSettings):
     paper_map_neighbors: int = 30
     paper_map_cluster_dims: int = 10
     paper_map_display_min_dist: float = 0.1
-    # None runs UMAP on every core; a seed forces it onto one (umap-learn
-    # overrides n_jobs). 89,628 papers, 10-d: 100 s unseeded, 186 s seeded on
-    # the 4-core host. The cached layout_*.npy files are the reproducible
-    # record either way; set a seed only to recompute one exactly.
-    paper_map_seed: int | None = None
+    # UMAP seed per scope; a scope not listed runs unseeded. A seed makes the
+    # layout reproducible but forces UMAP onto one core (umap-learn overrides
+    # n_jobs): 89,628 papers, 10-d, 186 s seeded against 100 s unseeded on the
+    # 4-core host. Recent is pinned to 7 because that layout was reviewed and
+    # kept: robotics, world models and agent memory each read as one region,
+    # where an unseeded run cut robotics into fragments. The cached
+    # layout_*.npy files spare the recompute either way.
+    paper_map_seeds: dict[str, int] = Field(default_factory=lambda: {"recent": 7})
     # HDBSCAN. 60 was chosen against 120 and 40 (docs/themes/README.md): it
     # keeps agent memory and world models whole and finds the small topics
     # 120 left unclustered.

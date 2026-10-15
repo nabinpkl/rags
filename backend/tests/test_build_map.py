@@ -30,8 +30,15 @@ def test_run_orders_themes_by_size_and_exports(tmp_path, monkeypatch):
     rng = np.random.default_rng(0)
     pts = np.vstack([rng.normal(0, 0.1, (50, 2)), rng.normal(5, 0.1, (40, 2)), [[20, -20]]])
     monkeypatch.setattr(build_map, "embed_abstracts", lambda _s, _from: (ids, pts))
-    monkeypatch.setattr(build_map, "layout", lambda x, *_a, **_k: x)
+    seeds = []
+
+    def layout(x, *_a, seed, **_k):
+        seeds.append(seed)
+        return x
+
+    monkeypatch.setattr(build_map, "layout", layout)
     build_map.run(s, "recent")
+    assert seeds == [7, 7]  # recent is pinned; see config.paper_map_seeds
 
     meta = json.loads((s.paper_map_dir / "recent" / "map.json").read_text())
     assert [t["size"] for t in meta["themes"]] == [50, 40]
