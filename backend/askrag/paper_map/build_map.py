@@ -61,7 +61,6 @@ def run(settings: Settings) -> None:
         xy=xy,
         theme_index=theme_index,
         themes=themes,
-        from_month=settings.paper_map_from_month,
     )
     unthemed = float((theme_index == NO_THEME).mean())
     print(f"{len(ids)} papers, {len(themes)} themes, {unthemed:.1%} unthemed")

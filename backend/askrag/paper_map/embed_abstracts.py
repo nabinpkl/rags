@@ -58,6 +58,18 @@ def missing(cache: dict[str, np.ndarray], wanted: list[str]) -> list[str]:
     return [i for i in wanted if i not in cache]
 
 
+def save_cache(settings: Settings, cache: dict[str, np.ndarray]) -> None:
+    vec_path, ids_path = cache_paths(settings)
+    vec_path.parent.mkdir(parents=True, exist_ok=True)
+    keys = sorted(cache)
+    np.save(vec_path, np.stack([cache[k] for k in keys]))
+    ids_path.write_text(json.dumps(keys))
+
+
+# Batches between cache writes: a run that dies keeps what it paid for.
+_SAVE_EVERY = 20
+
+
 def embed_abstracts(settings: Settings) -> tuple[list[str], np.ndarray]:
     """Ids in scope and their vectors, unit-normalised, embedding only what is new."""
     papers = select_papers(settings.corpus_db_path, settings.paper_map_from_month)
@@ -67,26 +79,30 @@ def embed_abstracts(settings: Settings) -> tuple[list[str], np.ndarray]:
     todo = missing(cache, [a for a, _ in papers])
     if todo:
         text = dict(papers)
-        usd, tokens = 0.0, 0
+        usd, tokens, unsaved = 0.0, 0, 0
         batch = settings.paper_map_embed_batch
-        with OpenRouterEmbeddings(settings) as backend:
-            for i in range(0, len(todo), batch):
-                ids = todo[i : i + batch]
-                r = _embed_splitting(
-                    backend,
-                    [text[a] for a in ids],
-                    settings.embed_retry_max_attempts,
-                    settings.embed_retry_base_seconds,
-                )
-                cache.update(zip(ids, np.asarray(r.vectors, dtype=np.float32), strict=True))
-                tokens += r.total_tokens
-                usd += r.usd or 0.0
+        try:
+            with OpenRouterEmbeddings(settings) as backend:
+                for i in range(0, len(todo), batch):
+                    ids = todo[i : i + batch]
+                    r = _embed_splitting(
+                        backend,
+                        [text[a] for a in ids],
+                        settings.embed_retry_max_attempts,
+                        settings.embed_retry_base_seconds,
+                    )
+                    cache.update(zip(ids, np.asarray(r.vectors, dtype=np.float32), strict=True))
+                    tokens += r.total_tokens
+                    usd += r.usd or 0.0
+                    unsaved += 1
+                    if unsaved == _SAVE_EVERY:
+                        save_cache(settings, cache)
+                        unsaved = 0
+                        _log.info(f"embedded {i + len(ids)}/{len(todo)}, ${usd:.4f}")
+        finally:
+            if unsaved:
+                save_cache(settings, cache)
         _log.info(f"embedded {len(todo)} papers, {tokens} tokens, ${usd:.4f}")
-        vec_path, ids_path = cache_paths(settings)
-        vec_path.parent.mkdir(parents=True, exist_ok=True)
-        keys = sorted(cache)
-        np.save(vec_path, np.stack([cache[k] for k in keys]))
-        ids_path.write_text(json.dumps(keys))
     ids = [a for a, _ in papers]
     x = np.stack([cache[a] for a in ids]).astype(np.float32)
     x /= np.linalg.norm(x, axis=1, keepdims=True)

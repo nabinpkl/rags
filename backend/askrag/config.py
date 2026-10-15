@@ -453,8 +453,10 @@ class Settings(BaseSettings):
     api_cache_control: str = "public, max-age=300, s-maxage=3600"
 
     # --- paper map (D20) ---------------------------------------------------
-    # The map's scope: catalog papers whose id month is this or later.
-    paper_map_from_month: str = "2607"
+    # The map's scope: catalog papers whose id month is this or later. 0704
+    # is the first new-style arXiv id (April 2007), so this is the whole
+    # catalog; the old sample is sparse, the months from 2607 complete.
+    paper_map_from_month: str = "0704"
     paper_map_embed_batch: int = 256
     # One neighbourhood size for both layouts: 10-d for clustering, 2-d for
     # display. The seed is fixed so a rerun over the same papers reproduces

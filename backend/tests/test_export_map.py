@@ -17,13 +17,12 @@ def test_write_map_round_trips_points_and_meta(tmp_path):
     xy = np.array([[0.0, 0.0], [1.0, 2.0], [0.5, 1.0]])
     write_map(
         tmp_path,
-        ids=["2607.00001", "2607.00002", "2607.00003"],
+        ids=["2607.00001", "2607.00002", "2609.00003"],
         versions=["v1", "v2", "v1"],
         titles=["A", "B", "C"],
         xy=xy,
         theme_index=np.array([0, -1, 0]),
         themes=[Theme(0, "robot · arm", 2, 0.25, 0.5, "cs.RO")],
-        from_month="2607",
     )
     raw = (tmp_path / "points.bin").read_bytes()
     assert len(raw) == 3 * 2 + 3 * 2 + 3 * 2
@@ -34,7 +33,7 @@ def test_write_map_round_trips_points_and_meta(tmp_path):
     meta = json.loads((tmp_path / "map.json").read_text())
     assert meta["version"] == FORMAT_VERSION
     assert meta["n"] == 3 and meta["unthemed"] == 1
-    assert (meta["from_month"], meta["to_month"]) == ("2607", "2607")
+    assert (meta["from_month"], meta["to_month"]) == ("2607", "2609")
     assert meta["themes"][0]["name"] == "robot · arm"
     papers = json.loads((tmp_path / "papers.json").read_text())
     assert papers["versions"] == ["v1", "v2", "v1"]
@@ -50,5 +49,4 @@ def test_write_map_rejects_mismatched_lengths(tmp_path):
             xy=np.zeros((1, 2)),
             theme_index=np.zeros(1),
             themes=[],
-            from_month="2607",
         )

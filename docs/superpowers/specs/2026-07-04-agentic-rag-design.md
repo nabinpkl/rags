@@ -1355,6 +1355,15 @@ across rebuilds, so names need matching by membership); the map's scope
 widens past the months above (rerun, positions move); or per-paper aspects
 (multi-agent, tool use) are added, which clustering cannot tag.
 
+**Amendment (2026-10-15, owner directive): the whole catalog.**
+`paper_map_from_month` is 0704, the first new-style arXiv id, so the map
+draws all 89,628 catalog papers, not only the complete months from 2607.
+The 37,598 older papers cost $0.03 to embed. The layout and themes are
+global, so the widening reran both: 213 themes, 46.6% unthemed. The older
+sample leans to classic NLP, which now leads the theme list (machine
+translation, question answering, dialogue). `map.json` takes its month range
+from the ids. The embedding cache now saves every 20 batches and on failure.
+
 ## 4. Architecture
 
 ```

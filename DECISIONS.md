@@ -3076,3 +3076,21 @@ cached layout. 43% of papers are unthemed.
 
 **Spec updated:** yes, D20, §4b.
 
+## 2026-10-15 — paper map widened to the whole catalog (owner directive)
+
+**Context:** /map drew the 52,030 papers from 2607 on; the owner asked for
+all 89,628.
+
+**Decision:** `paper_map_from_month` = 0704 (first new-style id). Rebuilt:
+37,598 papers embedded ($0.0316, 7.9M tokens), fresh 10-d and 2-d layouts,
+213 themes, 41,749 papers (46.6%) unthemed. `points.bin` 538 KB,
+`papers.json` 9.1 MB raw.
+
+**Consequence:** classic NLP topics from the older sample are now the
+largest themes. Positions and colours all moved; nothing carries over from
+the 52k map. An embedding run that dies now keeps its finished batches.
+
+**Revisit when:** the triggers in D20.
+
+**Spec updated:** yes, D20 amendment (2026-10-15).
+

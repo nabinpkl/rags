@@ -43,7 +43,6 @@ def write_map(
     xy: np.ndarray,
     theme_index: np.ndarray,
     themes: list[Theme],
-    from_month: str,
 ) -> None:
     n = len(ids)
     if not (len(versions) == len(titles) == len(xy) == len(theme_index) == n):
@@ -57,7 +56,7 @@ def write_map(
     meta = {
         "version": FORMAT_VERSION,
         "generated": date.today().isoformat(),
-        "from_month": from_month,
+        "from_month": min(i[:4] for i in ids),
         "to_month": max(i[:4] for i in ids),
         "n": n,
         "unthemed": int((theme_index < 0).sum()),
