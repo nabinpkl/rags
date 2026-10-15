@@ -118,6 +118,13 @@ text *ARGS:
 
 # Order matters — resolve reads extract's output. Both are inputs to
 # build_indexes, so run this BEFORE rebuilding corpus.db. ~3.5 min today.
+# Paper map (D20): title + abstract vectors -> UMAP -> HDBSCAN themes ->
+# corpus/paper-map/{map.json,points.bin,papers.json}, which Caddy serves at
+# /paper-map/. Embeds only papers the cache lacks and reuses cached layouts,
+# so an unchanged scope rebuilds in about a minute.
+paper-map:
+    cd backend && uv run --group map python -m askrag.paper_map.build_map
+
 # Rebuild the citation graph the landing page ranks
 citations:
     cd backend && uv run python -m askrag.ingest.extract_citations

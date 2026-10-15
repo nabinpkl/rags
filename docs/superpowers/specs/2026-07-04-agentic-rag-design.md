@@ -1313,6 +1313,48 @@ deleting one JPEG is the whole remedy).
 
 ---
 
+### D20. A paper map: abstract embeddings in 2-d, themes by clustering, drawn with deck.gl
+
+**Decision (2026-10-15).** `/map` draws every catalog paper from
+`paper_map_from_month` (2607) on as a point, placed by the similarity of its
+title and abstract, coloured by theme. `just paper-map` builds it offline:
+
+1. Embed title + abstract with the corpus embedder (pplx-embed-v1-0.6b,
+   512-d), caching vectors by model slug so a new month embeds only itself.
+   52,030 papers cost $0.06.
+2. UMAP to 10-d (to cluster) and to 2-d (to draw), cosine, 30 neighbours,
+   fixed seed; each layout is cached under a key of the ids and parameters.
+3. HDBSCAN (min cluster size 60, min samples 15) on the 10-d layout. Each
+   cluster is a theme, named by its top class TF-IDF keywords. Papers in no
+   cluster stay unthemed: assigning them to the nearest theme was wrong on 6
+   of 15 checked (docs/themes/README.md).
+4. Export `map.json` (bounds, themes), `points.bin` (uint16 x/y + int16
+   theme per paper, ~300 KB) and `papers.json` (ids, versions, titles) to
+   `corpus/paper-map/`.
+
+**Served as files, not by the API.** Caddy serves those three files from a
+read-only mount and 404s the rest of the directory, so the vector cache
+beside them is never reachable. The page draws from `points.bin` first and
+fetches titles after. No request touches arxiv.org until a reader follows a
+paper's version-pinned link (§6b).
+
+**Renderer: deck.gl** (`@deck.gl/core`, `@deck.gl/layers`). Points and theme
+labels draw in the same WebGL canvas, so labels stay attached while panning.
+Labels are placed all-or-nothing, biggest theme first; deck.gl's collision
+filter faded half-covered labels into ghosts. Chosen over regl-scatterplot
+(lighter, one maintainer, built on a library in maintenance mode) and
+Embedding Atlas (WebGPU with shader-f16 only, so many browsers get no map)
+after a side-by-side prototype on the real data.
+
+**The themes are AI-made and the page says so.** The subtitle reads "Themes
+are grouped by AI and may be wrong." Theme names are keywords, not curated
+labels.
+
+**Revisit when:** curated theme names are wanted (cluster ids are not stable
+across rebuilds, so names need matching by membership); the map's scope
+widens past the months above (rerun, positions move); or per-paper aspects
+(multi-agent, tool use) are added, which clustering cannot tag.
+
 ## 4. Architecture
 
 ```
@@ -1366,6 +1408,7 @@ implies. Anything not listed here is not in v1.
 | Tokens | tiktoken / `anthropic.count_tokens` | chunk sizing + budget accounting |
 | HTTP client | httpx | arXiv checks, health probes |
 | Sandbox control | `docker` CLI via subprocess (or docker SDK) | D10; the invocation is ~20 lines, a library is optional |
+| Paper map build | **umap-learn** (pinned), scikit-learn, numpy, in the `map` dependency group | offline only (D20); the API image never installs the group |
 | Lint/type/test | ruff, **ty**, pytest | CI gate — Astral trio (uv+ruff+ty), one vendor; entry point `just check` |
 
 ### Frontend (Next.js, managed with `pnpm`)
@@ -1383,6 +1426,7 @@ implies. Anything not listed here is not in v1.
 | Tables/lists | TanStack Table + TanStack Virtual | 6,460-row explorer stays smooth |
 | SSE client | `@microsoft/fetch-event-source` | POST + headers support that native `EventSource` lacks |
 | Markdown | react-markdown + remark-gfm, **no raw HTML** | the §6 output-sanitization defense, as a dependency choice |
+| Paper map | **deck.gl** (`@deck.gl/core`, `@deck.gl/layers`, pinned) | `/map` points and theme labels in WebGL (D20); gate record in DECISIONS.md 2026-10-15 |
 | API types | openapi-typescript (generated from FastAPI schema) | backend pydantic models become frontend types; no drift |
 | PDF fallback | react-pdf/pdf.js — **only if** D9's iframe rung fails | do not install preemptively |
 | Lint/test | eslint, prettier, vitest + Testing Library; Playwright smoke on the deployed demo flow | CI gate |

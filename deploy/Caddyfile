@@ -101,6 +101,21 @@
 		}
 	}
 
+	# --- paper map (D20) --------------------------------------------------
+	# `just paper-map` output, mounted read-only. Only the three files the
+	# /map page reads are served; the vector and layout caches beside them
+	# are build inputs and 404 here.
+	@paper_map path /paper-map/map.json /paper-map/points.bin /paper-map/papers.json
+	handle @paper_map {
+		root * /srv
+		encode zstd gzip
+		file_server
+		header Cache-Control "public, max-age=3600"
+	}
+	handle /paper-map/* {
+		error 404
+	}
+
 	# --- static export ----------------------------------------------------
 	handle {
 		root * /srv

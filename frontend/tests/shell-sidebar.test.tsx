@@ -25,6 +25,7 @@ describe("ShellSidebar", () => {
       "Explore",
       "Citations",
       "Trends",
+      "Map",
       "RAG Demo",
       "Benchmarks",
       "Architecture",

@@ -452,7 +452,31 @@ class Settings(BaseSettings):
     # redeploy that changed the corpus, or wait the hour.
     api_cache_control: str = "public, max-age=300, s-maxage=3600"
 
+    # --- paper map (D20) ---------------------------------------------------
+    # The map's scope: catalog papers whose id month is this or later.
+    paper_map_from_month: str = "2607"
+    paper_map_embed_batch: int = 256
+    # One neighbourhood size for both layouts: 10-d for clustering, 2-d for
+    # display. The seed is fixed so a rerun over the same papers reproduces
+    # both, and with them the themes.
+    paper_map_neighbors: int = 30
+    paper_map_cluster_dims: int = 10
+    paper_map_display_min_dist: float = 0.1
+    paper_map_seed: int = 7
+    # HDBSCAN. 60 was chosen against 120 and 40 (docs/themes/README.md): it
+    # keeps agent memory and world models whole and finds the small topics
+    # 120 left unclustered.
+    paper_map_min_cluster_size: int = 60
+    paper_map_min_samples: int = 15
+    paper_map_label_words: int = 3
+
     # --- derived paths (spec §4c corpus/ tree; one root, one rule) ---------
+    @property
+    def paper_map_dir(self) -> Path:
+        # Served read-only by Caddy at /paper-map/ (D20); the caches beside
+        # the export are build inputs, never served.
+        return self.corpus_dir / "paper-map"
+
     @property
     def corpus_db_path(self) -> Path:
         return self.corpus_dir / "corpus.db"

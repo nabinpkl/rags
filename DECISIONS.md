@@ -3040,3 +3040,39 @@ second allowlisted reranker, or a paid tier), or the agent's answers are
 measured with and without reranking.
 
 **Spec updated:** yes, D8 amendment (2026-10-14).
+
+## 2026-10-15 — paper map at /map, drawn with deck.gl (owner directive)
+
+**Context:** the theme exploration (docs/themes) showed abstract embeddings
+form readable topic regions. The owner asked for the UMAP as a zoomable tab
+and chose deck.gl after comparing regl-scatterplot, Embedding Atlas and
+deck.gl on the real 52,030 points.
+
+**Decision:** D20. `just paper-map` writes `corpus/paper-map/{map.json,
+points.bin,papers.json}`; Caddy serves those three read-only; `/map` draws
+them with deck.gl. Themes are HDBSCAN clusters named by keywords, and the
+page says they are grouped by AI and may be wrong.
+
+**Dependency gate (checked 2026-10-15, npm, PyPI, GitHub APIs):**
+
+| Package | Version | Released | Downloads | Maintenance | Advisories / scripts |
+|---|---|---|---|---|---|
+| @deck.gl/core | 9.4.0 (pinned) | 2026-09-05 | 1,010,759 / week (npm) | visgl/deck.gl 14.7k stars, human merges 2026-10-13 | `pnpm audit --prod` clean; no install scripts; MIT |
+| @deck.gl/layers | 9.4.0 (pinned) | 2026-09-05 | 983,581 / week | same repo | same |
+| umap-learn | 0.5.12 (pinned) | 2026-04-08 | 5,387,966 / month (pypistats) | lmcinnes/umap 8.3k stars, human merges 2026-10-08 | BSD; pulls numba, llvmlite, pynndescent |
+| scikit-learn, numpy | ≥1.9.0, ≥2.5.1 | 2026-09-10, 2026-10-10 | 184M, 802M / month | already in the lock through sentence-transformers | BSD |
+
+Verdict: pass. umap-learn's last release is six months old, inside the
+12-month bar, with human-merged fixes this month. The Python packages sit in
+a `map` dependency group, so the API image (`uv sync --no-dev`, which installs
+no non-default group) does not carry numba.
+
+**Consequence:** the first locked-environment build gave 106 themes against
+the exploration's 113 (adjusted Rand 0.82): UMAP under the locked numba is a
+different layout from the ad hoc run, and reruns now reproduce from the
+cached layout. 43% of papers are unthemed.
+
+**Revisit when:** the triggers in D20.
+
+**Spec updated:** yes, D20, §4b.
+

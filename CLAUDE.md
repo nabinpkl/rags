@@ -141,7 +141,8 @@ tracked as GitHub issues.
   2026-09-16), the citation counts at `/citations`, arXiv's category
   census at `/trends`, the RAG demo at `/demo`
   (indexed papers, reader, agent), and the retrieval eval at `/benchmarks`
-  (static, from `just eval-publish`).
+  (static, from `just eval-publish`), and the paper map at `/map` (D20: `just
+  paper-map` writes `corpus/paper-map/`, which Caddy serves read-only).
 - Deploy (#81): `just deploy` (compose up on loopback, plus the Cloudflare
   tunnel for rag.nabin.org when `deploy/.env` has its token), `just
   deploy-tailnet` (tailscaled), plus `deploy-logs`, `deploy-down`,

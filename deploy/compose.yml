@@ -123,11 +123,14 @@ services:
       start_period: 30s
       retries: 3
     volumes:
-      # The ONE corpus path the web tier may read: the thumbnail cache (D19).
+      # Corpus paths the web tier may read: the thumbnail cache (D19).
       # Read-only here — the api is what writes into it on a cache miss.
       # pdfs/ stays absent from THIS container and that is the §6b line: we
       # never serve the e-print, only a crop beside a link to arxiv.org.
       - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/thumbs:/srv/thumbs:ro
+      # The paper map (D20), read-only. Caddy serves three files from it and
+      # 404s the rest, so the vector cache in the same directory stays private.
+      - ${ASKRAG_CORPUS_HOST_DIR:-../corpus}/paper-map:/srv/paper-map:ro
     restart: unless-stopped
 
   # Public ingress (D13 amendment 2026-10-10): an outbound-only Cloudflare

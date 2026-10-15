@@ -3,6 +3,7 @@
 import {
   ChartNoAxesColumn,
   Library,
+  Map as MapIcon,
   MessagesSquare,
   Network,
   Quote,
@@ -16,7 +17,7 @@ import { BrandMark } from "@/components/shell/brand-mark";
 import { cn } from "@/lib/utils";
 
 /** The app's reading surfaces, one route each: the whole catalog (home),
- * the citation counts, arXiv's category census, the RAG demo (the indexed
+ * the citation counts, arXiv's category census, the paper map, the RAG demo (the indexed
  * papers with the agent that reads them), the retrieval benchmark, and how
  * retrieval and the agent are built.
  *
@@ -31,6 +32,7 @@ export const VIEWS = [
   { id: "explore", label: "Explore", href: "/", icon: Library },
   { id: "citations", label: "Citations", href: "/citations", icon: Quote },
   { id: "trends", label: "Trends", href: "/trends", icon: TrendingUp },
+  { id: "map", label: "Map", href: "/map", icon: MapIcon },
   { id: "demo", label: "RAG Demo", href: "/demo", icon: MessagesSquare },
   { id: "benchmarks", label: "Benchmarks", href: "/benchmarks", icon: ChartNoAxesColumn },
   { id: "architecture", label: "Architecture", href: "/architecture", icon: Network },

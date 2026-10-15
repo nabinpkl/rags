@@ -1,7 +1,8 @@
 # Theme exploration (2026-10-14)
 
-An exploration toward AI-assigned themes on Explore. Nothing here is wired
-into the app yet; it is the evidence for a future decision record.
+The exploration behind the paper map (spec D20, `/map`, `just paper-map`).
+The app's build lives in `backend/askrag/paper_map/`; this folder keeps the
+evidence it was decided on.
 
 ## What was run
 
