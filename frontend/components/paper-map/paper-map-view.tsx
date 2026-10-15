@@ -48,8 +48,8 @@ function MapButton({
 export function PaperMapView() {
   const map = useQuery({ queryKey: ["paper-map"], queryFn: fetchMap, staleTime: Infinity });
   const papers = useQuery({
-    queryKey: ["paper-map-papers"],
-    queryFn: fetchPapers,
+    queryKey: ["paper-map-papers", map.data?.meta.digest],
+    queryFn: () => fetchPapers(map.data?.meta.digest ?? ""),
     staleTime: Infinity,
     enabled: map.isSuccess,
   });

@@ -27,6 +27,7 @@ import { PaperMapCanvas } from "@/components/paper-map/paper-map-canvas";
 
 const meta = {
   version: 1,
+  digest: "abc123",
   generated: "2026-10-15",
   from_month: "2607",
   to_month: "2610",

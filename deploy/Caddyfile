@@ -105,12 +105,22 @@
 	# `just paper-map` output, mounted read-only. Only the three files the
 	# /map page reads are served; the vector and layout caches beside them
 	# are build inputs and 404 here.
-	@paper_map path /paper-map/map.json /paper-map/points.bin /paper-map/papers.json
+	# map.json always revalidates; the page fetches the other two with
+	# ?v=<digest from map.json>, so a rebuild changes their URLs and they
+	# can be cached for good.
+	@paper_map_meta path /paper-map/map.json
+	handle @paper_map_meta {
+		root * /srv
+		encode zstd gzip
+		file_server
+		header Cache-Control "no-cache"
+	}
+	@paper_map path /paper-map/points.bin /paper-map/papers.json
 	handle @paper_map {
 		root * /srv
 		encode zstd gzip
 		file_server
-		header Cache-Control "public, max-age=3600"
+		header Cache-Control "public, max-age=31536000, immutable"
 	}
 	handle /paper-map/* {
 		error 404

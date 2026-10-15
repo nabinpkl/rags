@@ -6,6 +6,7 @@ none). 52k papers is about 300 KB, drawn before the 4 MB of titles in
 papers.json arrive.
 """
 
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import date
@@ -48,13 +49,18 @@ def write_map(
     if not (len(versions) == len(titles) == len(xy) == len(theme_index) == n):
         raise ValueError("ids, versions, titles, xy and theme_index differ in length")
     qx, qy, bounds = quantize(xy)
+    points = qx.tobytes() + qy.tobytes() + theme_index.astype("<i2").tobytes()
+    papers = json.dumps(
+        {"ids": ids, "versions": versions, "titles": titles}, separators=(",", ":")
+    ).encode()
     out_dir.mkdir(parents=True, exist_ok=True)
-    with (out_dir / "points.bin").open("wb") as f:
-        f.write(qx.tobytes())
-        f.write(qy.tobytes())
-        f.write(theme_index.astype("<i2").tobytes())
+    (out_dir / "points.bin").write_bytes(points)
+    (out_dir / "papers.json").write_bytes(papers)
     meta = {
         "version": FORMAT_VERSION,
+        # The page fetches the other two files with ?v=<digest>, so a rebuild
+        # changes their URLs and no cache can pair new meta with old points.
+        "digest": hashlib.sha256(points + papers).hexdigest()[:16],
         "generated": date.today().isoformat(),
         "from_month": min(i[:4] for i in ids),
         "to_month": max(i[:4] for i in ids),
@@ -73,5 +79,3 @@ def write_map(
         ],
     }
     (out_dir / "map.json").write_text(json.dumps(meta, separators=(",", ":")))
-    papers = {"ids": ids, "versions": versions, "titles": titles}
-    (out_dir / "papers.json").write_text(json.dumps(papers, separators=(",", ":")))

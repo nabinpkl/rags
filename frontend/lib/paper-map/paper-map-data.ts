@@ -14,6 +14,8 @@ export type MapTheme = {
 
 export type MapMeta = {
   version: number;
+  /** Hash of points.bin + papers.json; versions their URLs. */
+  digest: string;
   generated: string;
   from_month: string;
   to_month: string;
@@ -56,18 +58,20 @@ export function decodePoints(buf: ArrayBuffer, meta: MapMeta): MapPoints {
   return { n, x, y, theme };
 }
 
-async function get(path: string): Promise<Response> {
-  const res = await fetch(`${BASE}/${path}`);
+async function get(path: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(`${BASE}/${path}`, init);
   if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
   return res;
 }
 
 export async function fetchMap(): Promise<{ meta: MapMeta; points: MapPoints }> {
-  const meta = (await (await get("map.json")).json()) as MapMeta;
-  const points = decodePoints(await (await get("points.bin")).arrayBuffer(), meta);
+  // map.json always revalidates; the files it names are fetched by digest,
+  // so a rebuild can never pair new meta with cached old points.
+  const meta = (await (await get("map.json", { cache: "no-cache" })).json()) as MapMeta;
+  const points = decodePoints(await (await get(`points.bin?v=${meta.digest}`)).arrayBuffer(), meta);
   return { meta, points };
 }
 
-export async function fetchPapers(): Promise<MapPapers> {
-  return (await (await get("papers.json")).json()) as MapPapers;
+export async function fetchPapers(digest: string): Promise<MapPapers> {
+  return (await (await get(`papers.json?v=${digest}`)).json()) as MapPapers;
 }

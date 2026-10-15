@@ -10,6 +10,7 @@ vi.mock("@/lib/paper-map/paper-map-data", async (orig) => ({
   fetchMap: vi.fn(async () => ({
     meta: {
       version: 1,
+      digest: "abc123",
       generated: "2026-10-15",
       from_month: "2607",
       to_month: "2610",

@@ -32,6 +32,7 @@ def test_write_map_round_trips_points_and_meta(tmp_path):
     assert themes.tolist() == [0, -1, 0]
     meta = json.loads((tmp_path / "map.json").read_text())
     assert meta["version"] == FORMAT_VERSION
+    assert len(meta["digest"]) == 16
     assert meta["n"] == 3 and meta["unthemed"] == 1
     assert (meta["from_month"], meta["to_month"]) == ("2607", "2609")
     assert meta["themes"][0]["name"] == "robot · arm"
@@ -50,3 +51,19 @@ def test_write_map_rejects_mismatched_lengths(tmp_path):
             theme_index=np.zeros(1),
             themes=[],
         )
+
+
+def test_digest_changes_when_the_points_do(tmp_path):
+    def build(xy):
+        write_map(
+            tmp_path,
+            ids=["2607.00001", "2607.00002", "2607.00003"],
+            versions=["v1", "v1", "v1"],
+            titles=["A", "B", "C"],
+            xy=np.array(xy),
+            theme_index=np.array([0, -1, 0]),
+            themes=[Theme(0, "t", 2, 0.0, 0.0, "cs.RO")],
+        )
+        return json.loads((tmp_path / "map.json").read_text())["digest"]
+
+    assert build([[0, 0], [1, 1], [0.5, 0.5]]) != build([[0, 0], [1, 1], [0.2, 0.7]])
