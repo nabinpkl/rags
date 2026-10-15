@@ -50,7 +50,7 @@ def test_embed_abstracts_reuses_cache_without_a_provider(tmp_path):
     vec.parent.mkdir(parents=True)
     np.save(vec, np.array([[3.0, 4.0], [0.0, 2.0]], dtype=np.float32))
     ids.write_text(json.dumps(["2607.00001", "2607.00002"]))
-    got_ids, x = ea.embed_abstracts(s)
+    got_ids, x = ea.embed_abstracts(s, "2607")
     assert got_ids == ["2607.00001", "2607.00002"]
     np.testing.assert_allclose(x, [[0.6, 0.8], [0.0, 1.0]], rtol=1e-6)
 
@@ -80,5 +80,5 @@ def test_a_failed_run_keeps_the_batches_it_finished(tmp_path, monkeypatch):
     monkeypatch.setattr(ea, "OpenRouterEmbeddings", Backend)
     monkeypatch.setattr(ea, "_embed_splitting", embed)
     with pytest.raises(EmbeddingError):
-        ea.embed_abstracts(s)
+        ea.embed_abstracts(s, "2607")
     assert list(ea.load_cache(s)) == ["2607.00001"]

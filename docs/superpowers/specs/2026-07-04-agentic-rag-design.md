@@ -1322,8 +1322,8 @@ title and abstract, coloured by theme. `just paper-map` builds it offline:
 1. Embed title + abstract with the corpus embedder (pplx-embed-v1-0.6b,
    512-d), caching vectors by model slug so a new month embeds only itself.
    52,030 papers cost $0.06.
-2. UMAP to 10-d (to cluster) and to 2-d (to draw), cosine, 30 neighbours,
-   fixed seed; each layout is cached under a key of the ids and parameters.
+2. UMAP to 10-d (to cluster) and to 2-d (to draw), cosine, 30 neighbours
+   (unseeded since the amendment below); each layout is cached under a key of the ids and parameters.
 3. HDBSCAN (min cluster size 60, min samples 15) on the 10-d layout. Each
    cluster is a theme, named by its top class TF-IDF keywords. Papers in no
    cluster stay unthemed: assigning them to the nearest theme was wrong on 6
@@ -1363,6 +1363,18 @@ global, so the widening reran both: 213 themes, 46.6% unthemed. The older
 sample leans to classic NLP, which now leads the theme list (machine
 translation, question answering, dialogue). `map.json` takes its month range
 from the ids. The embedding cache now saves every 20 batches and on failure.
+
+**Amendment (2026-10-15, owner directive): two maps, and no seed.** The page
+opens on the recent complete months and offers the full catalog on a second
+tab (`?scope=full`). `paper_map_scopes` names both (recent from 2607, full
+from 0704), and `just paper-map` builds each into `corpus/paper-map/<scope>/`
+from one shared vector cache. The full map's count is the same 89,628 that
+Explore shows. Recent: 52,030 papers, 118 themes, 49.1% unthemed. Full:
+89,628, 205 themes, 46.3% unthemed. `paper_map_seed` defaults to None:
+umap-learn runs single-threaded whenever a seed is set, and unseeded the 10-d
+layout of 89,628 papers took 100 s against 186 s seeded on the 4-core host.
+The cached layout files, keyed by ids and parameters, are the reproducible
+record; a seed is for recomputing one exactly. Both maps built in 8 minutes.
 
 ## 4. Architecture
 

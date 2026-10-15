@@ -102,20 +102,21 @@
 	}
 
 	# --- paper map (D20) --------------------------------------------------
-	# `just paper-map` output, mounted read-only. Only the three files the
-	# /map page reads are served; the vector and layout caches beside them
-	# are build inputs and 404 here.
+	# `just paper-map` output, mounted read-only: one folder per map scope
+	# (config.py paper_map_scopes). Only the files the /map page reads are
+	# served; the vector and layout caches beside them are build inputs and
+	# 404 here.
 	# map.json always revalidates; the page fetches the other two with
 	# ?v=<digest from map.json>, so a rebuild changes their URLs and they
 	# can be cached for good.
-	@paper_map_meta path /paper-map/map.json
+	@paper_map_meta path /paper-map/recent/map.json /paper-map/full/map.json
 	handle @paper_map_meta {
 		root * /srv
 		encode zstd gzip
 		file_server
 		header Cache-Control "no-cache"
 	}
-	@paper_map path /paper-map/points.bin /paper-map/papers.json
+	@paper_map path /paper-map/recent/points.bin /paper-map/recent/papers.json /paper-map/full/points.bin /paper-map/full/papers.json
 	handle @paper_map {
 		root * /srv
 		encode zstd gzip

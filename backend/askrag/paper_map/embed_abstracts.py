@@ -70,11 +70,12 @@ def save_cache(settings: Settings, cache: dict[str, np.ndarray]) -> None:
 _SAVE_EVERY = 20
 
 
-def embed_abstracts(settings: Settings) -> tuple[list[str], np.ndarray]:
-    """Ids in scope and their vectors, unit-normalised, embedding only what is new."""
-    papers = select_papers(settings.corpus_db_path, settings.paper_map_from_month)
+def embed_abstracts(settings: Settings, from_month: str) -> tuple[list[str], np.ndarray]:
+    """Ids from `from_month` on and their vectors, unit-normalised, embedding
+    only what the cache lacks. One cache serves every scope."""
+    papers = select_papers(settings.corpus_db_path, from_month)
     if not papers:
-        raise ValueError(f"no papers from month {settings.paper_map_from_month}")
+        raise ValueError(f"no papers from month {from_month}")
     cache = load_cache(settings)
     todo = missing(cache, [a for a, _ in papers])
     if todo:

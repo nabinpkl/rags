@@ -453,18 +453,24 @@ class Settings(BaseSettings):
     api_cache_control: str = "public, max-age=300, s-maxage=3600"
 
     # --- paper map (D20) ---------------------------------------------------
-    # The map's scope: catalog papers whose id month is this or later. 0704
-    # is the first new-style arXiv id (April 2007), so this is the whole
-    # catalog; the old sample is sparse, the months from 2607 complete.
-    paper_map_from_month: str = "0704"
+    # The maps, each a scope of catalog papers from an id month on, built
+    # into corpus/paper-map/<scope>/. "recent" is the complete months the
+    # page opens on; "full" starts at 0704, the first new-style arXiv id, so
+    # its count is Explore's.
+    paper_map_scopes: dict[str, str] = Field(
+        default_factory=lambda: {"recent": "2607", "full": "0704"}
+    )
     paper_map_embed_batch: int = 256
     # One neighbourhood size for both layouts: 10-d for clustering, 2-d for
-    # display. The seed is fixed so a rerun over the same papers reproduces
-    # both, and with them the themes.
+    # display.
     paper_map_neighbors: int = 30
     paper_map_cluster_dims: int = 10
     paper_map_display_min_dist: float = 0.1
-    paper_map_seed: int = 7
+    # None runs UMAP on every core; a seed forces it onto one (umap-learn
+    # overrides n_jobs). 89,628 papers, 10-d: 100 s unseeded, 186 s seeded on
+    # the 4-core host. The cached layout_*.npy files are the reproducible
+    # record either way; set a seed only to recompute one exactly.
+    paper_map_seed: int | None = None
     # HDBSCAN. 60 was chosen against 120 and 40 (docs/themes/README.md): it
     # keeps agent memory and world models whole and finds the small topics
     # 120 left unclustered.

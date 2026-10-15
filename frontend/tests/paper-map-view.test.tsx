@@ -33,7 +33,7 @@ function wrap({ children }: { children: ReactNode }) {
 
 describe("PaperMapView", () => {
   it("shows the themes, the unthemed count, and starts brighter in dark mode", async () => {
-    render(<PaperMapView />, { wrapper: wrap });
+    render(<PaperMapView scope="recent" />, { wrapper: wrap });
     expect(await screen.findByText("robot · arm")).toBeInTheDocument();
     expect(screen.getByTestId("canvas")).toBeInTheDocument();
     expect(screen.getByLabelText(/hide papers with no theme/i)).not.toBeChecked();

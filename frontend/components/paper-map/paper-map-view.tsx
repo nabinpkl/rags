@@ -9,7 +9,7 @@ import { type ReactNode, useMemo, useRef, useState } from "react";
 import type { PaperMapHandle } from "@/components/paper-map/paper-map-canvas";
 import { PaperCard } from "@/components/paper-map/paper-card";
 import { ThemeList } from "@/components/paper-map/theme-list";
-import { fetchMap, fetchPapers, NO_THEME } from "@/lib/paper-map/paper-map-data";
+import { fetchMap, fetchPapers, type MapScope, NO_THEME } from "@/lib/paper-map/paper-map-data";
 import { themeColors } from "@/lib/paper-map/theme-colors";
 
 // deck.gl needs a browser (WebGL, window); the static export renders the
@@ -45,11 +45,15 @@ function MapButton({
   );
 }
 
-export function PaperMapView() {
-  const map = useQuery({ queryKey: ["paper-map"], queryFn: fetchMap, staleTime: Infinity });
+export function PaperMapView({ scope }: { scope: MapScope }) {
+  const map = useQuery({
+    queryKey: ["paper-map", scope],
+    queryFn: () => fetchMap(scope),
+    staleTime: Infinity,
+  });
   const papers = useQuery({
-    queryKey: ["paper-map-papers", map.data?.meta.digest],
-    queryFn: () => fetchPapers(map.data?.meta.digest ?? ""),
+    queryKey: ["paper-map-papers", scope, map.data?.meta.digest],
+    queryFn: () => fetchPapers(scope, map.data?.meta.digest ?? ""),
     staleTime: Infinity,
     enabled: map.isSuccess,
   });

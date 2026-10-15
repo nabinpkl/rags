@@ -8,6 +8,7 @@ def test_cache_key_changes_with_ids_and_params():
     assert base == cache_key(["a", "b"], seed=7, dims=2)
     assert base != cache_key(["a", "c"], dims=2, seed=7)
     assert base != cache_key(["a", "b"], dims=10, seed=7)
+    assert base != cache_key(["a", "b"], dims=2, seed=None)
 
 
 def test_layout_returns_the_cached_file(tmp_path):

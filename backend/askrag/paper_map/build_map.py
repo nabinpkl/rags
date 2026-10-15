@@ -1,7 +1,8 @@
-"""Build the paper map (D20): embed -> layout -> themes -> corpus/paper-map/.
+"""Build the paper maps (D20): embed -> layout -> themes -> corpus/paper-map/<scope>/.
 
-`just paper-map`. Embeds only papers the cache lacks and reuses cached
-layouts, so a rerun over an unchanged scope rewrites the same files.
+`just paper-map` builds every scope in `paper_map_scopes`; `--scope` builds
+one. Embeds only papers the shared cache lacks and reuses cached layouts, so
+a rerun over an unchanged scope skips UMAP.
 """
 
 import argparse
@@ -18,8 +19,9 @@ from askrag.paper_map.export_map import Theme, write_map
 from askrag.paper_map.layout_papers import layout
 
 
-def run(settings: Settings) -> None:
-    ids, x = embed_abstracts(settings)
+def run(settings: Settings, scope: str) -> None:
+    from_month = settings.paper_map_scopes[scope]
+    ids, x = embed_abstracts(settings, from_month)
     common = {"neighbors": settings.paper_map_neighbors, "seed": settings.paper_map_seed}
     cache = settings.paper_map_dir
     z = layout(x, ids, cache, dims=settings.paper_map_cluster_dims, min_dist=0.0, **common)
@@ -33,7 +35,7 @@ def run(settings: Settings) -> None:
             for a, t, ab, v, pc in db.execute(
                 "SELECT arxiv_id, title, abstract, version, primary_category FROM papers "
                 "WHERE substr(arxiv_id, 1, 4) >= ?",
-                (settings.paper_map_from_month,),
+                (from_month,),
             )
         }
     finally:
@@ -54,7 +56,7 @@ def run(settings: Settings) -> None:
         themes.append(Theme(index_of[c], name, int(m.sum()), float(cx), float(cy), top))
 
     write_map(
-        settings.paper_map_dir,
+        settings.paper_map_dir / scope,
         ids=ids,
         versions=[meta[a][2] for a in ids],
         titles=[" ".join(meta[a][0].split()) for a in ids],
@@ -63,14 +65,17 @@ def run(settings: Settings) -> None:
         themes=themes,
     )
     unthemed = float((theme_index == NO_THEME).mean())
-    print(f"{len(ids)} papers, {len(themes)} themes, {unthemed:.1%} unthemed")
+    print(f"{scope}: {len(ids)} papers, {len(themes)} themes, {unthemed:.1%} unthemed")
 
 
 def main(argv: list[str] | None = None) -> int:
+    settings = Settings()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    parser.parse_args(argv)
+    parser.add_argument("--scope", choices=sorted(settings.paper_map_scopes))
+    args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-    run(Settings())
+    for scope in [args.scope] if args.scope else settings.paper_map_scopes:
+        run(settings, scope)
     return 0
 
 

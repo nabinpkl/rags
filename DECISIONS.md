@@ -3094,3 +3094,33 @@ the 52k map. An embedding run that dies now keeps its finished batches.
 
 **Spec updated:** yes, D20 amendment (2026-10-15).
 
+## 2026-10-15 — paper map: recent and full tabs, UMAP unseeded (owner directive)
+
+**Context:** the whole-catalog map buried the complete recent months under
+the older sample's classic NLP themes, and its count differed from the map
+the owner wanted by default. Separately, a seeded UMAP runs on one core: the
+build log warned "n_jobs value 1 overridden to 1 by setting random_state".
+
+**Decision:** two scopes in `paper_map_scopes`, recent (2607 on, the page's
+default) and full (0704 on, Explore's 89,628), each built into its own
+folder and offered as tabs on /map. `paper_map_seed` is optional and None by
+default.
+
+**Measured (2026-10-15, 4-core host, cached vectors, 10-d, 30 neighbours,
+min_dist 0, after a JIT warm-up):** 89,628 papers, unseeded 99.8 s, seeded
+186.0 s. The full two-scope build took 8 minutes: recent 10-d 88 s, 2-d 42 s,
+themes and export 63 s; full 10-d 85 s, 2-d 67 s, themes and export 131 s.
+Theme naming and HDBSCAN are now the larger share.
+
+**Consequence:** an uncached rebuild of the same papers gives a different
+layout and different themes; the cached `layout_*.npy` files under
+`corpus/paper-map/` (gitignored, this host only) are what keep a rerun
+stable. A build on another machine must carry them, and the 183 MB vector
+cache, in and out. Recent: 118 themes, 49.1% unthemed. Full: 205 themes,
+46.3% unthemed.
+
+**Revisit when:** the build moves off this host (ship the caches), or theme
+names are curated (they need stable layouts).
+
+**Spec updated:** yes, D20 amendment (2026-10-15).
+

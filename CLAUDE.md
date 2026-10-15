@@ -142,7 +142,8 @@ tracked as GitHub issues.
   census at `/trends`, the RAG demo at `/demo`
   (indexed papers, reader, agent), and the retrieval eval at `/benchmarks`
   (static, from `just eval-publish`), and the paper map at `/map` (D20: `just
-  paper-map` writes `corpus/paper-map/`, which Caddy serves read-only).
+  paper-map` writes one map per scope, recent and full, to
+  `corpus/paper-map/<scope>/`, which Caddy serves read-only).
 - Deploy (#81): `just deploy` (compose up on loopback, plus the Cloudflare
   tunnel for rag.nabin.org when `deploy/.env` has its token), `just
   deploy-tailnet` (tailscaled), plus `deploy-logs`, `deploy-down`,

@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { decodePoints, fetchMap, fetchPapers, type MapMeta } from "@/lib/paper-map/paper-map-data";
+import {
+  decodePoints,
+  fetchMap,
+  fetchPapers,
+  type MapMeta,
+  parseScope,
+} from "@/lib/paper-map/paper-map-data";
 
 const meta = (n: number): MapMeta => ({
   version: 1,
@@ -48,13 +54,21 @@ describe("fetching", () => {
       return new Response(JSON.stringify({ ids: [], versions: [], titles: [] }));
     });
     vi.stubGlobal("fetch", fetchMock);
-    await fetchMap();
-    await fetchPapers(m.digest);
+    await fetchMap("full");
+    await fetchPapers("full", m.digest);
     expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
-      "/paper-map/map.json",
-      "/paper-map/points.bin?v=abc123",
-      "/paper-map/papers.json?v=abc123",
+      "/paper-map/full/map.json",
+      "/paper-map/full/points.bin?v=abc123",
+      "/paper-map/full/papers.json?v=abc123",
     ]);
     expect(fetchMock.mock.calls[0][1]).toEqual({ cache: "no-cache" });
+  });
+});
+
+describe("parseScope", () => {
+  it("opens on recent unless the URL asks for the full catalog", () => {
+    expect(parseScope(null)).toBe("recent");
+    expect(parseScope("full")).toBe("full");
+    expect(parseScope("anything")).toBe("recent");
   });
 });

@@ -24,7 +24,7 @@ def layout(
     dims: int,
     neighbors: int,
     min_dist: float,
-    seed: int,
+    seed: int | None,
 ) -> np.ndarray:
     key = cache_key(ids, dims=dims, neighbors=neighbors, min_dist=min_dist, seed=seed)
     path = cache_dir / f"layout_{dims}d_{key}.npy"
@@ -37,6 +37,7 @@ def layout(
         n_neighbors=neighbors,
         min_dist=min_dist,
         metric="cosine",
+        # A seed pins umap-learn to one thread; None lets it use every core.
         random_state=seed,
     ).fit_transform(x)
     z = np.asarray(z, dtype=np.float32)

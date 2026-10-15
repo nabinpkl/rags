@@ -4,6 +4,19 @@
 
 const BASE = "/paper-map";
 
+/** The maps `just paper-map` builds (config.py `paper_map_scopes`). Recent
+ * is the complete months and the default; full is every catalog paper, the
+ * same count Explore shows. */
+export const MAP_SCOPES = [
+  { id: "recent", label: "Recent months" },
+  { id: "full", label: "Full catalog" },
+] as const;
+export type MapScope = (typeof MAP_SCOPES)[number]["id"];
+
+export function parseScope(value: string | null): MapScope {
+  return value === "full" ? "full" : "recent";
+}
+
 export type MapTheme = {
   name: string;
   size: number;
@@ -64,14 +77,17 @@ async function get(path: string, init?: RequestInit): Promise<Response> {
   return res;
 }
 
-export async function fetchMap(): Promise<{ meta: MapMeta; points: MapPoints }> {
+export async function fetchMap(scope: MapScope): Promise<{ meta: MapMeta; points: MapPoints }> {
   // map.json always revalidates; the files it names are fetched by digest,
   // so a rebuild can never pair new meta with cached old points.
-  const meta = (await (await get("map.json", { cache: "no-cache" })).json()) as MapMeta;
-  const points = decodePoints(await (await get(`points.bin?v=${meta.digest}`)).arrayBuffer(), meta);
+  const meta = (await (await get(`${scope}/map.json`, { cache: "no-cache" })).json()) as MapMeta;
+  const points = decodePoints(
+    await (await get(`${scope}/points.bin?v=${meta.digest}`)).arrayBuffer(),
+    meta,
+  );
   return { meta, points };
 }
 
-export async function fetchPapers(digest: string): Promise<MapPapers> {
-  return (await (await get(`papers.json?v=${digest}`)).json()) as MapPapers;
+export async function fetchPapers(scope: MapScope, digest: string): Promise<MapPapers> {
+  return (await (await get(`${scope}/papers.json?v=${digest}`)).json()) as MapPapers;
 }
