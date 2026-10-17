@@ -29,6 +29,7 @@ _DROP_BLOCKS = re.compile(
 )
 _TAG = re.compile(r"</?[a-zA-Z][\w-]*(?:\s[^<>]*)?>")
 # The input fields that say what a tool call did, in the order they are tried.
+_TOOL_PREFIX = re.compile(r"(?m)^\[([^\]\s]+)\]")
 _TOOL_FIELDS = ("description", "command", "file_path", "path", "pattern", "query", "url", "prompt")
 
 
@@ -72,6 +73,11 @@ def tool_line(name: str, tool_input: Any, max_chars: int) -> str:
     if len(summary) > max_chars:
         summary = summary[: max_chars - 3] + "..."
     return f"[{name}] {summary}".rstrip()
+
+
+def tool_names(text: str) -> set[str]:
+    """The tool names `tool_line` wrote into a turn's text."""
+    return set(_TOOL_PREFIX.findall(text))
 
 
 def _prompt_of(content: Any) -> str | None:

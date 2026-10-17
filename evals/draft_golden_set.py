@@ -233,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
         mismatch_max_df=settings.golden_mismatch_max_shared_df,
         multi_hop_min_shared=settings.golden_multi_hop_min_shared_terms,
         per_doc=ev.per_doc(settings),
+        excluded_terms=ev.anchor_excluded(chunks),
     )
     if args.types:
         sources = [s for s in sources if s.type in args.types]

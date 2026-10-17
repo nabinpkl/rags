@@ -6,6 +6,7 @@ from askrag.config import Settings
 from evals import golden_set, rewrite_queries, run_store
 from evals.eval_sources import EVAL_SOURCES
 from evals.golden_set import GoldenType
+from evals.sample_sources import SourceChunk
 
 
 @pytest.fixture(autouse=True)
@@ -43,6 +44,13 @@ def test_transcripts_draft_on_the_anthropic_api_with_two_models(monkeypatch):
     # Anthropic model ids, not OpenRouter's provider/model slugs.
     assert "/" not in ev.draft_model(s) and "/" not in ev.check_model(s)
     assert ev.client(s).client.base_url.host == "api.anthropic.com"
+
+
+def test_transcripts_never_anchor_on_a_tool_name():
+    chunk = SourceChunk("s#0", "s", "p", "turns 1-2", "User: fix it\n[Bash] ls\n[Read] a.py")
+    ev = EVAL_SOURCES["claude_transcripts"]
+    assert ev.anchor_excluded([chunk]) == {"Bash", "Read"}
+    assert EVAL_SOURCES["arxiv"].anchor_excluded([chunk]) == frozenset()
 
 
 @pytest.mark.parametrize("name", sorted(EVAL_SOURCES))

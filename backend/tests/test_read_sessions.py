@@ -7,6 +7,7 @@ from askrag.sources.claude_transcripts.read_sessions import (
     read_session_file,
     read_sessions,
     tool_line,
+    tool_names,
 )
 
 SID = "11111111-2222-3333-4444-555555555555"
@@ -92,3 +93,8 @@ def test_sessions_are_read_across_projects_in_id_order(tmp_path):
     write(tmp_path / "a" / "y.jsonl", [rec("user", "one", sessionId="a-session")])
     write(tmp_path / "a" / "empty.jsonl", [rec("ai-title", aiTitle="no turns")])
     assert [s.session_id for s in read_sessions(tmp_path, 200)] == ["a-session", "b-session"]
+
+
+def test_tool_names_are_read_back_from_tool_lines_only():
+    text = "User: ask the [owner]\n[Bash] run | uv sync\n[AskUserQuestion] pick one"
+    assert tool_names(text) == {"Bash", "AskUserQuestion"}

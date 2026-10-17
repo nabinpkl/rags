@@ -1,6 +1,7 @@
 """Source sampling for the golden set: pure over chunk lists, no model."""
 
 from collections import Counter
+from typing import Any
 
 from evals.golden_set import GoldenType
 from evals.sample_sources import (
@@ -61,7 +62,7 @@ def test_sampling_is_seeded_stratified_and_one_per_paper():
         for i in range(2)
     ]
     quota = {GoldenType.SINGLE_HOP.value: 4}
-    kw = dict(seed=1, rare_max_df=40, mismatch_max_df=500, multi_hop_min_shared=0)
+    kw: dict[str, Any] = dict(seed=1, rare_max_df=40, mismatch_max_df=500, multi_hop_min_shared=0)
     first = sample_sources(chunks, Counter(), quota, **kw)
     again = sample_sources(chunks, Counter(), quota, **kw)
     assert [s.chunks for s in first] == [s.chunks for s in again]
@@ -137,7 +138,7 @@ def test_vocabulary_mismatch_bars_words_under_the_wider_bar_and_moves_nothing():
     df = Counter({"train": 2000, "robot": 300, "grokking": 3, "grpo": 6})
     base = {GoldenType.EXACT_MATCH.value: 2}
     widened = {**base, GoldenType.VOCABULARY_MISMATCH.value: 2}
-    kw = dict(seed=3, rare_max_df=40, mismatch_max_df=500, multi_hop_min_shared=0)
+    kw: dict[str, Any] = dict(seed=3, rare_max_df=40, mismatch_max_df=500, multi_hop_min_shared=0)
     before = sample_sources(chunks, df, base, **kw)
     after = sample_sources(chunks, df, widened, **kw)
     assert [s.chunks for s in after[:2]] == [s.chunks for s in before]
@@ -189,3 +190,12 @@ def test_chunks_load_through_the_contract_with_their_stratum(tmp_path):
     conn.execute("INSERT INTO rag_facets VALUES ('s', 'project', 'rags')")
     [c] = load_chunks(conn, 250, "project")
     assert (c.chunk_id, c.doc_id, c.stratum, c.section) == ("s#0", "s", "rags", "fix the map")
+
+
+def test_an_excluded_term_is_never_an_anchor():
+    term_df = Counter({"AskUserQuestion": 2, "GRPO": 3})
+    papers = Counter({"AskUserQuestion": 2, "GRPO": 2})
+    text = "AskUserQuestion about GRPO"
+    assert anchor_term(text, term_df, papers, max_df=40) == "AskUserQuestion"
+    excluded = frozenset({"AskUserQuestion"})
+    assert anchor_term(text, term_df, papers, max_df=40, excluded=excluded) == "GRPO"

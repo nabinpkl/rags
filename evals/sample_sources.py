@@ -103,6 +103,7 @@ def anchor_term(
     term_papers: Counter[str],
     max_df: int,
     word_df: Counter[str] | None = None,
+    excluded: frozenset[str] = frozenset(),
 ) -> str | None:
     """The chunk's rarest distinctive term that other papers also use.
 
@@ -113,12 +114,14 @@ def anchor_term(
     ("DISTRIBUTED"). An all-caps word whose lowercase form is common is a
     shouted word too ("ANSWER", "INPUT" in prompt templates), and a hyphenated
     capitalised phrase ("Low-Level") is a phrase, not a name — both were
-    anchors in the first full run."""
+    anchors in the first full run. `excluded` names a source's own
+    vocabulary that no searcher types (a transcript's tool names)."""
     common = word_df or Counter()
     terms = {
         t
         for t in _TERM.findall(text)
-        if term_papers[t] >= 2
+        if t not in excluded
+        and term_papers[t] >= 2
         and term_df[t] <= max_df
         and not (t.isupper() and len(t) > 6)
         and not (t.isupper() and common[t.lower().removesuffix("s")] > max_df)
@@ -161,6 +164,7 @@ def sample_sources(
     mismatch_max_df: int,
     multi_hop_min_shared: int,
     per_doc: int = 1,
+    excluded_terms: frozenset[str] = frozenset(),
 ) -> list[Source]:
     rng = random.Random(seed)
     term_df: Counter[str] = Counter()
@@ -191,14 +195,18 @@ def sample_sources(
         return picked
 
     sources: list[Source] = []
-    anchored = [c for c in prose if anchor_term(c.text, term_df, term_papers, rare_max_df, df)]
+
+    def anchor(chunk: SourceChunk) -> str | None:
+        return anchor_term(chunk.text, term_df, term_papers, rare_max_df, df, excluded_terms)
+
+    anchored = [c for c in prose if anchor(c)]
     for chunk in take(anchored, quota.get(GoldenType.EXACT_MATCH, 0)):
         sources.append(
             Source(
                 GoldenType.EXACT_MATCH,
                 (chunk,),
                 rare_terms(chunk.text, df, rare_max_df),
-                anchor_term(chunk.text, term_df, term_papers, rare_max_df, df),
+                anchor(chunk),
             )
         )
     for type_, candidates in ((GoldenType.KNOWN_HARD, hard), (GoldenType.SINGLE_HOP, prose)):

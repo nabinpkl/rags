@@ -14,11 +14,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from askrag.config import Settings
+from askrag.sources.claude_transcripts.read_sessions import tool_names
 from askrag.sources.source_specs import SOURCES, SourceSpec
 
 from evals import draft_progress, golden_set, rewrite_queries, run_store
 from evals.draft_prompts import ARXIV, CLAUDE_TRANSCRIPTS, DraftPrompts
 from evals.model_client import MessagesClient
+from evals.sample_sources import SourceChunk
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,8 @@ class EvalSource:
     per_doc: Callable[[Settings], int]
     # The settings every leg and the rerank row run under.
     eval_settings: Callable[[Settings], Settings]
+    # Terms no exact_match question may hinge on, from the sampled chunks.
+    anchor_excluded: Callable[[list[SourceChunk]], frozenset[str]]
     # Words for the report: what a document is, and how the vector leg embeds.
     doc_noun: str
     embed_note: str
@@ -48,6 +52,16 @@ class EvalSource:
 
 def _transcript_evals(settings: Settings) -> Path:
     return settings.transcripts_dir / "evals"
+
+
+def _no_terms(chunks: list[SourceChunk]) -> frozenset[str]:
+    return frozenset()
+
+
+def _transcript_tool_names(chunks: list[SourceChunk]) -> frozenset[str]:
+    # A tool name is the agent's vocabulary, not the developer's: the first
+    # smoke draft anchored a question on "AskUserQuestion".
+    return frozenset(name for c in chunks for name in tool_names(c.text))
 
 
 def _transcript_eval_settings(settings: Settings) -> Settings:
@@ -70,6 +84,7 @@ EVAL_SOURCES: dict[str, EvalSource] = {
         quota=lambda s: s.golden_quota,
         per_doc=lambda s: 1,
         eval_settings=SOURCES["arxiv"].search_settings,
+        anchor_excluded=_no_terms,
         doc_noun="paper",
         embed_note="the embedding API call",
         cost_note=(
@@ -91,6 +106,7 @@ EVAL_SOURCES: dict[str, EvalSource] = {
         quota=lambda s: s.transcripts_golden_quota,
         per_doc=lambda s: s.transcripts_golden_per_doc,
         eval_settings=_transcript_eval_settings,
+        anchor_excluded=_transcript_tool_names,
         doc_noun="session",
         embed_note="the embedding API call",
         cost_note="Cost is the mean per question that the providers billed: the embedding.",
