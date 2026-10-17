@@ -147,7 +147,10 @@ tracked as GitHub issues.
   groups them as Papers (Explore, Citations, Trends, Map), Experiments (RAG
   Demo, Benchmarks) and Documentation (Architecture). Next for
   Documentation: a Vector DB page (when the store matters: filtering,
-  scale, multi-tenancy, hybrid search; not built yet).
+  scale, multi-tenancy, hybrid search; not built yet). Its material
+  collects in `docs/vector-db/README.md`, one entry per question (what
+  decides it, where it bites, askRAG today); add to it as stores get
+  researched.
 - Deploy (#81): `just deploy` (compose up on loopback, plus the Cloudflare
   tunnel for rag.nabin.org when `deploy/.env` has its token), `just
   deploy-tailnet` (tailscaled), plus `deploy-logs`, `deploy-down`,
