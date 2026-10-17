@@ -120,10 +120,10 @@ tracked as GitHub issues.
   (about 3 min and $0.06 with the hosted reranker, hours with
   `rerank_backend=local`, so run that one detached); both `just golden` and `just eval` take
   `--source claude_transcripts` (D21: its set and runs stay under
-  `corpus/sources/claude_transcripts/evals/`, legs and rerank local); `just eval-publish`
+  `corpus/sources/claude_transcripts/evals/`, drafted on the Anthropic API, rerank local); `just eval-publish`
   writes the finished run to the README table and to
   `frontend/lib/benchmarks/retrieval.json` for `/benchmarks`, without
-  re-running anything. Retrieval spine (#16): `just ask q="..."`; any source with `cd backend && uv run python -m askrag.ask --source claude_transcripts "..."` (D21). Transcripts index: `just transcripts` (private, local embedder, never mounted). Agent REPL (#24):
+  re-running anything. Retrieval spine (#16): `just ask q="..."`; any source with `cd backend && uv run python -m askrag.ask --source claude_transcripts "..."` (D21). Transcripts index: `just transcripts` (private, embedded on OpenRouter, never mounted). Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
   `POST /api/chat`). Frontend (after #26): `pnpm build`, also run by the gate
   (#52 — `tsc` is not `next build` in export mode). After ANY route or
