@@ -152,6 +152,14 @@ index:
     cd backend && uv run python -m askrag.ingest.build_indexes
     cd backend && uv run python -m askrag.ingest.select_frontier --verify
 
+# Claude Code session logs -> the private transcripts index (D21) under
+# corpus/sources/claude_transcripts/: redact, chunk by turn, embed with the
+# local nomic model (CPU, about 0.35 chunks/s, so ~45 min for ~1,000 chunks
+# the first time; later runs embed only chunks whose text changed), build.
+# `--dry-run` prints counts and redactions and writes nothing.
+transcripts *ARGS:
+    cd backend && ASKRAG_EMBED_DEVICE=cpu uv run python -m askrag.sources.claude_transcripts.build_transcripts {{ARGS}}
+
 # Warm the card-image cache from the PDFs we already hold (D19). Optional:
 # a missing image renders on the first request for it, so this only saves
 # readers that first wait. Measured 2026-09-16: ~8 papers/s, and a rerun

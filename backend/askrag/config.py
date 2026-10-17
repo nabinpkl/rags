@@ -484,7 +484,41 @@ class Settings(BaseSettings):
     # (about 20 for the recent map) and the specific themes appear on zoom.
     paper_map_themes_per_group: int = 6
 
+    # --- source: Claude Code transcripts (D21) ------------------------------
+    # The session logs Claude Code writes, one jsonl per session under a
+    # folder per project. Read-only input; the index lives under corpus/.
+    transcripts_root: Path = Path.home() / ".claude" / "projects"
+    # Transcripts stay on this machine: embedded and searched with the local
+    # nomic model already cached under corpus/models (the pre-pplx corpus
+    # embedder), never a hosted embedding API. Its revision pins the weights.
+    transcripts_embedding_model: str = "nomic-ai/nomic-embed-text-v1.5"
+    transcripts_embedding_revision: str = "e9b6763023c676ca8431644204f50c2b100d9aab"
+    # A tool call is indexed as one line: its name and the head of its
+    # input (a Bash command, a file path). Tool OUTPUT is never indexed.
+    transcripts_tool_input_chars: int = 200
+    # The golden set for transcripts is drafted and checked by Anthropic
+    # models through OpenRouter: the sessions were Claude sessions already,
+    # so no new model provider reads them. Two models, as D14 requires.
+    transcripts_golden_draft_model: str = "anthropic/claude-haiku-5.5"
+    transcripts_golden_check_model: str = "anthropic/claude-sonnet-5.5"
+    # No known_hard (tables and math are arXiv's extraction floor). A
+    # session may give up to transcripts_golden_per_doc sources per type:
+    # there are tens of sessions, not hundreds of papers.
+    transcripts_golden_quota: dict[str, int] = {
+        "single_hop": 40,
+        "exact_match": 30,
+        "multi_hop": 20,
+        "vocabulary_mismatch": 30,
+    }
+    transcripts_golden_per_doc: int = 4
+
     # --- derived paths (spec §4c corpus/ tree; one root, one rule) ---------
+    @property
+    def transcripts_dir(self) -> Path:
+        # The transcripts index and everything derived from it, golden set
+        # and eval runs included: private, so never under evals/ in git.
+        return self.corpus_dir / "sources" / "claude_transcripts"
+
     @property
     def paper_map_dir(self) -> Path:
         # Served read-only by Caddy at /paper-map/ (D20); the caches beside

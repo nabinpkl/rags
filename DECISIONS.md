@@ -3206,3 +3206,42 @@ the FTS table is renamed and the vectors carry `doc_id`/`day`/
 `facet_category` metadata in place of `paper_id`/`year`/`category`.
 
 Spec updated: D21; §4c layout tree.
+
+## 2026-10-17 — Claude Code transcripts are the second retrieval source, kept on this machine (owner directive)
+
+**Context:** D21's contract needs a second, unlike source to show it is not
+arXiv in disguise. The Claude Code session logs on the build host are one:
+conversational, not sectioned, dated, grouped by project, and private.
+
+**Decision:** `askrag/sources/claude_transcripts/` reads every
+`~/.claude/projects/*/*.jsonl`. A document is a session, faceted by the
+project folder its first record ran in; a turn is a typed prompt plus the
+assistant's prose and one line per tool call (name and the head of its
+input, `transcripts_tool_input_chars`); chunks pack whole turns to
+`chunk_size_tokens` with no overlap, positions being turn numbers. Tool
+output, thinking blocks, subagent (`isSidechain`), harness (`isMeta`) and
+compaction-summary records are not indexed. `redact_secrets.py` replaces
+known credential shapes, `NAME=value` assignments named key, token, secret,
+password or salt, and email addresses, before anything is written; only
+per-kind counts are logged. The index pair is built by the core's
+`build_index.py`; embedding is the core's `embed_chunks.py` with the local
+nomic-embed-text-v1.5 model already cached, and a chunk whose text changed
+since the last build is embedded again (text hashes kept beside the
+vectors). `just transcripts` builds it; `--dry-run` only counts.
+
+**Measured (dry run, 2026-10-17):** 24 sessions, 871 turns, 975 chunks,
+775,359 tokens, 27 redactions (21 email addresses, 5 assignments, 1 token).
+An audit of the redacted chunk text for key shapes found none left; the
+`sk-` hits were words ("desk-1040", "task-notification").
+
+**Alternatives rejected:** the hosted pplx embedder (the arXiv corpus's):
+it would send private sessions to a third party; indexing tool output (most
+of the bytes, mostly file dumps, and where secrets sit); one document per
+project (only three projects, so document recall would say nothing).
+
+**Consequence:** the index is private by construction: under
+`corpus/sources/`, which no compose mount reaches (a test reads compose.yml),
+and served by no route. Live search over it uses the local embedder and no
+reranker.
+
+Spec updated: D21.

@@ -121,7 +121,7 @@ tracked as GitHub issues.
   `rerank_backend=local`, so run that one detached); `just eval-publish`
   writes the finished run to the README table and to
   `frontend/lib/benchmarks/retrieval.json` for `/benchmarks`, without
-  re-running anything. Retrieval spine (#16): `just ask q="..."`. Agent REPL (#24):
+  re-running anything. Retrieval spine (#16): `just ask q="..."`; any source with `cd backend && uv run python -m askrag.ask --source claude_transcripts "..."` (D21). Transcripts index: `just transcripts` (private, local embedder, never mounted). Agent REPL (#24):
   `just repl q="..."`. Chat API (#30): `just serve` (uvicorn dev server,
   `POST /api/chat`). Frontend (after #26): `pnpm build`, also run by the gate
   (#52 — `tsc` is not `next build` in export mode). After ANY route or
