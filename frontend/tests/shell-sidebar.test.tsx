@@ -33,6 +33,21 @@ describe("ShellSidebar", () => {
     expect(screen.getByRole("link", { name: "RAG Demo" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("groups the views under Papers, Experiments and Documentation", () => {
+    render(<ShellSidebar current="explore" />);
+
+    const sections = screen.getAllByRole("list").map((list) => ({
+      name: list.getAttribute("aria-labelledby"),
+      links: Array.from(list.querySelectorAll("a")).map((link) => link.textContent),
+    }));
+    expect(sections).toEqual([
+      { name: "nav-papers", links: ["Explore", "Citations", "Trends", "Map"] },
+      { name: "nav-experiments", links: ["RAG Demo", "Benchmarks"] },
+      { name: "nav-documentation", links: ["Architecture"] },
+    ]);
+    expect(screen.getByRole("list", { name: "Experiments" })).toBeInTheDocument();
+  });
+
   it("marks the view being read, and only that one", () => {
     render(<ShellSidebar current="explore" />);
 

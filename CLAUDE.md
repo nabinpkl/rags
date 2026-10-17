@@ -143,7 +143,11 @@ tracked as GitHub issues.
   (indexed papers, reader, agent), and the retrieval eval at `/benchmarks`
   (static, from `just eval-publish`), and the paper map at `/map` (D20: `just
   paper-map` writes one map per scope, recent and full, to
-  `corpus/paper-map/<scope>/`, which Caddy serves read-only).
+  `corpus/paper-map/<scope>/`, which Caddy serves read-only). The sidebar
+  groups them as Papers (Explore, Citations, Trends, Map), Experiments (RAG
+  Demo, Benchmarks) and Documentation (Architecture). Next for
+  Documentation: a Vector DB page (when the store matters: filtering,
+  scale, multi-tenancy, hybrid search; not built yet).
 - Deploy (#81): `just deploy` (compose up on loopback, plus the Cloudflare
   tunnel for rag.nabin.org when `deploy/.env` has its token), `just
   deploy-tailnet` (tailscaled), plus `deploy-logs`, `deploy-down`,

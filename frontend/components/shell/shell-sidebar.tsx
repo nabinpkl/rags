@@ -16,10 +16,10 @@ import type { ReactNode } from "react";
 import { BrandMark } from "@/components/shell/brand-mark";
 import { cn } from "@/lib/utils";
 
-/** The app's reading surfaces, one route each: the whole catalog (home),
- * the citation counts, arXiv's category census, the paper map, the RAG demo (the indexed
- * papers with the agent that reads them), the retrieval benchmark, and how
- * retrieval and the agent are built.
+/** The app's reading surfaces, one route each, in three sections: Papers
+ * (the whole catalog, the citation counts, arXiv's category census, the
+ * paper map), Experiments (the RAG demo and its retrieval benchmark) and
+ * Documentation (how retrieval and the agent are built).
  *
  * The rail addresses ROUTES, not bands of a scrolling canvas. It used to do
  * both: four rows that scroll-spied the dashboard's bands, and a fifth,
@@ -28,17 +28,43 @@ import { cn } from "@/lib/utils";
  * the band rows were the weaker half — the canvas is four panels tall, so
  * scrolling finds them faster than aiming at a row does.
  */
-export const VIEWS = [
-  { id: "explore", label: "Explore", href: "/", icon: Library },
-  { id: "citations", label: "Citations", href: "/citations", icon: Quote },
-  { id: "trends", label: "Trends", href: "/trends", icon: TrendingUp },
-  { id: "map", label: "Map", href: "/map", icon: MapIcon },
-  { id: "demo", label: "RAG Demo", href: "/demo", icon: MessagesSquare },
-  { id: "benchmarks", label: "Benchmarks", href: "/benchmarks", icon: ChartNoAxesColumn },
-  { id: "architecture", label: "Architecture", href: "/architecture", icon: Network },
-] as const satisfies readonly { id: string; label: string; href: string; icon: LucideIcon }[];
+export const VIEW_SECTIONS = [
+  {
+    id: "papers",
+    label: "Papers",
+    views: [
+      { id: "explore", label: "Explore", href: "/", icon: Library },
+      { id: "citations", label: "Citations", href: "/citations", icon: Quote },
+      { id: "trends", label: "Trends", href: "/trends", icon: TrendingUp },
+      { id: "map", label: "Map", href: "/map", icon: MapIcon },
+    ],
+  },
+  {
+    id: "experiments",
+    label: "Experiments",
+    views: [
+      { id: "demo", label: "RAG Demo", href: "/demo", icon: MessagesSquare },
+      { id: "benchmarks", label: "Benchmarks", href: "/benchmarks", icon: ChartNoAxesColumn },
+    ],
+  },
+  {
+    id: "documentation",
+    label: "Documentation",
+    views: [{ id: "architecture", label: "Architecture", href: "/architecture", icon: Network }],
+  },
+] as const satisfies readonly {
+  id: string;
+  label: string;
+  views: readonly { id: string; label: string; href: string; icon: LucideIcon }[];
+}[];
 
-export type ShellView = (typeof VIEWS)[number]["id"];
+type ShellViewEntry = (typeof VIEW_SECTIONS)[number]["views"][number];
+
+export const VIEWS: readonly ShellViewEntry[] = VIEW_SECTIONS.flatMap(
+  (section): readonly ShellViewEntry[] => section.views,
+);
+
+export type ShellView = ShellViewEntry["id"];
 
 /** The one rail both routes hang off: what this is, which view, and whatever
  * that view needs to steer itself.
@@ -60,35 +86,45 @@ export function ShellSidebar({ current, children }: { current: ShellView; childr
           for height: the nav is three rows tall and never grows, so a scroll
           container of its own would only ever clip the filter. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <nav aria-label="Views" className="shrink-0 p-2">
-          <ul className="flex flex-col gap-0.5">
-            {VIEWS.map((view) => {
-              const active = view.id === current;
-              return (
-                <li key={view.id}>
-                  <Link
-                    href={view.href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-[13px] transition-colors motion-reduce:transition-none",
-                      // Both branches carry a hover: the current row is still
-                      // a target, and it steps AWAY from the resting surface
-                      // rather than toward it.
-                      active
-                        ? "bg-teal-soft text-teal-ink hover:bg-teal-soft-strong font-semibold"
-                        : "text-ink hover:bg-panel-hover",
-                    )}
-                  >
-                    <view.icon
-                      className={cn("size-4 shrink-0", active ? "text-teal-ink" : "text-muted")}
-                      aria-hidden
-                    />
-                    {view.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        <nav aria-label="Views" className="flex shrink-0 flex-col gap-3 p-2">
+          {VIEW_SECTIONS.map((section) => (
+            <div key={section.id} className="flex flex-col gap-0.5">
+              <h2
+                id={`nav-${section.id}`}
+                className="text-muted px-2.5 pt-1 pb-0.5 text-[11px] font-semibold tracking-wide uppercase"
+              >
+                {section.label}
+              </h2>
+              <ul aria-labelledby={`nav-${section.id}`} className="flex flex-col gap-0.5">
+                {section.views.map((view) => {
+                  const active = view.id === current;
+                  return (
+                    <li key={view.id}>
+                      <Link
+                        href={view.href}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-[13px] transition-colors motion-reduce:transition-none",
+                          // Both branches carry a hover: the current row is still
+                          // a target, and it steps AWAY from the resting surface
+                          // rather than toward it.
+                          active
+                            ? "bg-teal-soft text-teal-ink hover:bg-teal-soft-strong font-semibold"
+                            : "text-ink hover:bg-panel-hover",
+                        )}
+                      >
+                        <view.icon
+                          className={cn("size-4 shrink-0", active ? "text-teal-ink" : "text-muted")}
+                          aria-hidden
+                        />
+                        {view.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
 
         {/* Same 8px inset as the nav rows above, so the controls line up with
