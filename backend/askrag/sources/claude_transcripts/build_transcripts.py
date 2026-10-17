@@ -1,7 +1,7 @@
 """`just transcripts`: Claude Code session logs -> the transcripts index (D21).
 
 Read the logs, redact secrets and email addresses, chunk by turns, embed with
-the local model, and build the index pair with the same core every source
+the corpus embedder, and build the index pair with the same core every source
 uses (retrieval/embed_chunks.py, retrieval/build_index.py). Outputs land in
 `corpus/sources/claude_transcripts/`: chunks.jsonl, the vectors parquet,
 index.db and chroma/. Nothing here is served: the deploy mounts none of it.
@@ -152,9 +152,10 @@ def run(settings: Settings, *, dry_run: bool = False) -> dict[str, int]:
             dims=local.embedding_dims,
             batch_max_items=batch_max_items,
             batch_max_tokens=batch_max_tokens,
-            usd_per_mtok=0.0,
+            usd_per_mtok=local.embedding_usd_per_mtok,
             retry_max_attempts=local.embed_retry_max_attempts,
             retry_base_seconds=local.embed_retry_base_seconds,
+            tokens_per_minute=local.embed_tokens_per_minute,
         )
     stats["embedded"] = embedded.embedded
     hashes_path.write_text(json.dumps({c.chunk_id: _text_hash(c.text) for c in chunks}))

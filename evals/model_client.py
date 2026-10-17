@@ -1,6 +1,6 @@
-"""The model client the golden drafter and the query rewriter share: OpenRouter's
-Anthropic-compatible endpoint through the anthropic SDK, with token and cost
-accounting."""
+"""The model client the golden drafter and the query rewriter share: the
+anthropic SDK pointed at OpenRouter's Anthropic-compatible endpoint or at the
+Anthropic API itself, with token and cost accounting."""
 
 from collections import Counter
 from dataclasses import dataclass
@@ -15,20 +15,27 @@ class ModelClient(Protocol):
 
 
 @dataclass
-class OpenRouterClient:
-    """OpenRouter's Anthropic-compatible endpoint, the same seam the agent's
-    smoke path uses, so one SDK reaches both model families."""
+class MessagesClient:
+    """One Messages API seam for both hosts: OpenRouter (the same seam the
+    agent's smoke path uses) takes its model slugs, Anthropic its model ids."""
 
     client: anthropic.Anthropic
     usage: Counter[str]
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "OpenRouterClient":
+    def openrouter(cls, settings: Settings) -> "MessagesClient":
         key = settings.openrouter_api_key.get_secret_value()
         if not key:
             raise RuntimeError("OPENROUTER_API_KEY is not set")
         client = anthropic.Anthropic(base_url=settings.golden_api_base_url, api_key=key)
         return cls(client, Counter())
+
+    @classmethod
+    def anthropic(cls, settings: Settings) -> "MessagesClient":
+        key = settings.anthropic_api_key.get_secret_value()
+        if not key:
+            raise RuntimeError("ANTHROPIC_API_KEY is not set")
+        return cls(anthropic.Anthropic(api_key=key), Counter())
 
     def complete(self, model: str, system: str, user: str, max_tokens: int) -> str:
         return self.complete_priced(model, system, user, max_tokens)[0]
@@ -37,7 +44,8 @@ class OpenRouterClient:
         self, model: str, system: str, user: str, max_tokens: int
     ) -> tuple[str, float | None]:
         """The reply text and OpenRouter's billed dollars (`usage.cost`, kept
-        by the SDK as an extra field), or None where the reply has no price."""
+        by the SDK as an extra field), or None where the reply has no price
+        (the Anthropic API reports tokens only)."""
         response = self.client.messages.create(
             model=model,
             system=system,

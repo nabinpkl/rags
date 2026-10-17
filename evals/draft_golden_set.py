@@ -45,7 +45,7 @@ from evals.golden_set import (
     dump_golden,
     load_drafted,
 )
-from evals.openrouter_client import ModelClient, OpenRouterClient
+from evals.model_client import ModelClient
 from evals.sample_sources import (
     Source,
     document_frequency,
@@ -254,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
         file=sys.stderr,
     )
 
-    client = OpenRouterClient.from_settings(settings)
+    client = ev.client(settings)
     progress = ProgressLog(sig, progress_path)
     failures: list[str] = []
     done = Counter[str]()

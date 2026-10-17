@@ -26,7 +26,7 @@ from askrag.config import get_settings
 from pydantic import BaseModel, ConfigDict
 
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, load_golden
-from evals.openrouter_client import OpenRouterClient
+from evals.model_client import MessagesClient
 
 REWRITES_PATH = Path(__file__).parent / "rewrites.jsonl"
 # DeepSeek V4 Flash reasons before replying, and thinking spends max_tokens.
@@ -73,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     settings = get_settings()
     records = load_golden(GOLDEN_PATH)
-    client = OpenRouterClient.from_settings(settings)
+    client = MessagesClient.openrouter(settings)
 
     def rewrite(record: GoldenRecord) -> Rewrite:
         t0 = time.monotonic()

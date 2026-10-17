@@ -3,10 +3,10 @@ set and runs live, how it is drafted, and what its searches run under.
 
 arXiv's entries are the paths and models the committed set and runs always
 used. The transcripts' entries keep everything under corpus/ (the set quotes
-private sessions, so it is never committed), draft with Anthropic models, and
-search and rerank locally: no question or session text reaches a hosted
-embedder or reranker, and there is no rewrite row (that row is the agent
-model's rewrite, and this source has no agent).
+private sessions, so it is never committed), draft with Anthropic models on
+the Anthropic API, embed with the corpus embedder and rerank locally, and have
+no rewrite row (that row is the agent model's rewrite, and this source has no
+agent).
 """
 
 from collections.abc import Callable
@@ -18,6 +18,7 @@ from askrag.sources.source_specs import SOURCES, SourceSpec
 
 from evals import draft_progress, golden_set, rewrite_queries, run_store
 from evals.draft_prompts import ARXIV, CLAUDE_TRANSCRIPTS, DraftPrompts
+from evals.model_client import MessagesClient
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,8 @@ class EvalSource:
     progress_path: Callable[[Settings], Path]
     runs_dir: Callable[[Settings], Path]
     rewrites_path: Path | None
+    # Where the drafting and checking models are called.
+    client: Callable[[Settings], MessagesClient]
     draft_model: Callable[[Settings], str]
     check_model: Callable[[Settings], str]
     quota: Callable[[Settings], dict[str, int]]
@@ -61,6 +64,7 @@ EVAL_SOURCES: dict[str, EvalSource] = {
         progress_path=lambda s: draft_progress.PROGRESS_PATH,
         runs_dir=lambda s: run_store.RUNS_DIR,
         rewrites_path=rewrite_queries.REWRITES_PATH,
+        client=MessagesClient.openrouter,
         draft_model=lambda s: s.golden_draft_model,
         check_model=lambda s: s.golden_check_model,
         quota=lambda s: s.golden_quota,
@@ -81,13 +85,14 @@ EVAL_SOURCES: dict[str, EvalSource] = {
         progress_path=lambda s: _transcript_evals(s) / "golden.progress.jsonl",
         runs_dir=lambda s: _transcript_evals(s) / "runs",
         rewrites_path=None,
+        client=MessagesClient.anthropic,
         draft_model=lambda s: s.transcripts_golden_draft_model,
         check_model=lambda s: s.transcripts_golden_check_model,
         quota=lambda s: s.transcripts_golden_quota,
         per_doc=lambda s: s.transcripts_golden_per_doc,
         eval_settings=_transcript_eval_settings,
         doc_noun="session",
-        embed_note="the local embedding",
-        cost_note="Everything runs on this machine, so nothing is billed.",
+        embed_note="the embedding API call",
+        cost_note="Cost is the mean per question that the providers billed: the embedding.",
     ),
 }

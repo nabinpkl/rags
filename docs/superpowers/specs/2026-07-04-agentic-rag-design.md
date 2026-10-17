@@ -1436,14 +1436,16 @@ session (facet: its project); a chunk is whole turns packed to
 `chunk_size_tokens`, a turn being a typed prompt plus the assistant's prose and
 one line per tool call. Tool output, thinking, subagent and harness records
 are never indexed. Secrets and email addresses are redacted before anything
-is written. The source is private: embedded and searched with the local
-nomic model (no hosted embedding API sees it), searchable from `just ask
---source claude_transcripts` and the evals only, and never mounted by the
-deploy.
+is written. The source is private: its redacted chunk text and its queries
+reach the corpus embedder on OpenRouter and no other host (amended
+2026-10-17; it was the local nomic model), it is searchable from `just ask
+--source claude_transcripts` and the evals only, and the deploy never
+mounts it.
 
 **The evals run per source** (`--source`), with the same metrics, legs and
 fusion. Transcripts' golden set and runs live under `corpus/` (they quote
-private sessions), drafted and checked by Anthropic models.
+private sessions), drafted and checked by Anthropic models on the Anthropic
+API.
 
 **Not now:** email; an answer step without the agent; a separate package;
 search across sources at once.

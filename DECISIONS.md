@@ -3282,3 +3282,29 @@ owner (the first writes the private index to disk, the second sends
 excerpts to OpenRouter).
 
 Spec updated: D21.
+
+## 2026-10-17 — transcripts embed on OpenRouter, draft on the Anthropic API (owner directive)
+
+**Context:** the real transcript index and golden set waited on two calls:
+CPU embedding with the local nomic model (about 45 min for 975 chunks), and
+drafting through OpenRouter. The owner chose the hosted embedder and the
+Anthropic API.
+
+**Decision:** the transcripts source embeds with the corpus embedder
+(`embedding_model`, pplx-embed-v1-0.6b on OpenRouter), so its index shares
+arXiv's slug and pacing; `transcripts_embedding_model` and
+`transcripts_embedding_revision` are deleted. The drafter and checker are
+`claude-haiku-5-5` and `claude-sonnet-5-5` on the Anthropic API
+(`ANTHROPIC_API_KEY`); `evals/model_client.py`'s `MessagesClient` has one
+constructor per host and `EvalSource.client` picks it. The quota is halved
+to 60 candidates. The eval's rerank row stays on the local cross-encoder.
+
+**Alternatives rejected:** keep the local embedder (45 min of CPU for a
+cost under a cent); draft through OpenRouter's Anthropic slugs (the owner
+asked for the direct key).
+
+**Consequence:** redacted session text reaches OpenRouter's embedder and
+Anthropic's API; tool output, thinking and unredacted secrets still reach
+neither, since they are never indexed.
+
+Spec updated: D21.

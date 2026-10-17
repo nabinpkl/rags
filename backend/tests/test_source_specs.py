@@ -29,10 +29,11 @@ def test_the_sources_keep_separate_index_files():
     assert len(paths) == len(SOURCES)
 
 
-def test_transcripts_never_embed_through_a_hosted_api():
-    local = SOURCES["claude_transcripts"].search_settings(Settings(embedding_backend="openrouter"))
-    assert local.embedding_backend == "local"
-    assert not local.rerank_enabled
+def test_transcripts_search_with_the_corpus_embedder_and_no_hosted_rerank():
+    settings = Settings()
+    search = SOURCES["claude_transcripts"].search_settings(settings)
+    assert search.embedding_model_slug == settings.embedding_model_slug
+    assert not search.rerank_enabled
 
 
 def test_no_deploy_mount_reaches_a_private_source():
