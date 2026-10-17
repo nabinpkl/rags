@@ -25,8 +25,8 @@ from pathlib import Path
 from askrag.config import get_settings
 from pydantic import BaseModel, ConfigDict
 
-from evals.draft_golden_set import OpenRouterClient
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, load_golden
+from evals.openrouter_client import OpenRouterClient
 
 REWRITES_PATH = Path(__file__).parent / "rewrites.jsonl"
 # DeepSeek V4 Flash reasons before replying, and thinking spends max_tokens.

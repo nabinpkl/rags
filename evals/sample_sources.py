@@ -4,8 +4,11 @@ Pure over a corpus.db connection: no model calls, so the sample is testable
 and a redraft with the same seed sees the same chunks.
 
 Stratified, not random: the indexed corpus is 43% cs.CL, so a random draw
-would make the set a cs.CL set. Categories are visited round-robin in a
-seeded order, and a paper gives at most one source per type.
+would make the set a cs.CL set. Strata (a source's facet: arXiv's category,
+a transcript's project) are visited round-robin in a seeded order, and a
+document gives at most `per_doc` sources per type (one paper; a few sessions,
+since there are tens of sessions, not hundreds of papers). Reads only the
+index contract (D21), so it samples any source.
 
 "Rare" is measured against this corpus, not English: a term in at most
 `golden_rare_term_max_df` chunks is distinctive enough that a question
@@ -36,8 +39,8 @@ _SKIP_SECTIONS = ("reference", "bibliograph", "acknowledg", "__paper__")
 @dataclass(frozen=True)
 class SourceChunk:
     chunk_id: str
-    paper_id: str
-    category: str
+    doc_id: str
+    stratum: str
     section: str
     text: str
 
@@ -67,13 +70,15 @@ def is_known_hard(text: str) -> bool:
     return table_rows >= 3 or text.count("$") + text.count("\\") >= 12
 
 
-def load_chunks(conn: sqlite3.Connection, min_tokens: int) -> list[SourceChunk]:
+def load_chunks(conn: sqlite3.Connection, min_tokens: int, stratum_facet: str) -> list[SourceChunk]:
     rows = conn.execute(
-        "SELECT c.chunk_id, c.paper_id, c.section, c.text, c.n_tokens, p.primary_category"
-        " FROM chunks c JOIN papers p ON p.arxiv_id = c.paper_id ORDER BY c.chunk_id"
+        "SELECT c.chunk_id, c.doc_id, c.section, c.text, c.n_tokens, f.value AS stratum"
+        " FROM rag_chunks c JOIN rag_facets f ON f.doc_id = c.doc_id AND f.key = ?"
+        " ORDER BY c.chunk_id",
+        (stratum_facet,),
     ).fetchall()
     return [
-        SourceChunk(r["chunk_id"], r["paper_id"], r["primary_category"], r["section"], r["text"])
+        SourceChunk(r["chunk_id"], r["doc_id"], r["stratum"], r["section"], r["text"])
         for r in rows
         if r["n_tokens"] >= min_tokens
         and not any(s in r["section"].lower() for s in _SKIP_SECTIONS)
@@ -83,7 +88,7 @@ def load_chunks(conn: sqlite3.Connection, min_tokens: int) -> list[SourceChunk]:
 def document_frequency(conn: sqlite3.Connection) -> Counter[str]:
     """Chunks each term appears in, over the WHOLE index (short chunks too)."""
     df: Counter[str] = Counter()
-    for (text,) in conn.execute("SELECT text FROM chunks"):
+    for (text,) in conn.execute("SELECT text FROM rag_chunks"):
         df.update(words(text))
     return df
 
@@ -123,23 +128,23 @@ def anchor_term(
 
 
 def _round_robin(
-    pools: dict[str, list[SourceChunk]], n: int, rng: random.Random
+    pools: dict[str, list[SourceChunk]], n: int, rng: random.Random, per_doc: int = 1
 ) -> list[SourceChunk]:
-    """Up to n chunks, one category at a time, one per paper."""
+    """Up to n chunks, one stratum at a time, at most per_doc per document."""
     order = sorted(pools)
     rng.shuffle(order)
     for pool in pools.values():
         rng.shuffle(pool)
     picked: list[SourceChunk] = []
-    seen_papers: set[str] = set()
+    taken: Counter[str] = Counter()
     while len(picked) < n and any(pools[c] for c in order):
-        for category in order:
-            pool = pools[category]
+        for stratum in order:
+            pool = pools[stratum]
             while pool:
                 chunk = pool.pop()
-                if chunk.paper_id not in seen_papers:
+                if taken[chunk.doc_id] < per_doc:
                     picked.append(chunk)
-                    seen_papers.add(chunk.paper_id)
+                    taken[chunk.doc_id] += 1
                     break
             if len(picked) == n:
                 break
@@ -155,6 +160,7 @@ def sample_sources(
     rare_max_df: int,
     mismatch_max_df: int,
     multi_hop_min_shared: int,
+    per_doc: int = 1,
 ) -> list[Source]:
     rng = random.Random(seed)
     term_df: Counter[str] = Counter()
@@ -162,7 +168,7 @@ def sample_sources(
     for chunk in chunks:
         found = set(_TERM.findall(chunk.text))
         term_df.update(found)
-        paper_terms[chunk.paper_id] |= found
+        paper_terms[chunk.doc_id] |= found
     term_papers: Counter[str] = Counter()
     for found in paper_terms.values():
         term_papers.update(found)
@@ -173,14 +179,14 @@ def sample_sources(
     used: set[str] = set()
 
     def pools(candidates: list[SourceChunk]) -> dict[str, list[SourceChunk]]:
-        by_category: dict[str, list[SourceChunk]] = defaultdict(list)
+        by_stratum: dict[str, list[SourceChunk]] = defaultdict(list)
         for chunk in candidates:
             if chunk.chunk_id not in used:
-                by_category[chunk.category].append(chunk)
-        return by_category
+                by_stratum[chunk.stratum].append(chunk)
+        return by_stratum
 
     def take(candidates: list[SourceChunk], n: int) -> list[SourceChunk]:
-        picked = _round_robin(pools(candidates), n, rng)
+        picked = _round_robin(pools(candidates), n, rng, per_doc)
         used.update(c.chunk_id for c in picked)
         return picked
 
@@ -205,13 +211,13 @@ def sample_sources(
     by_paper: dict[str, list[SourceChunk]] = defaultdict(list)
     body = [c for c in prose if not _SUMMARY_SECTION.search(c.section)]
     for chunk in body:
-        by_paper[chunk.paper_id].append(chunk)
+        by_paper[chunk.doc_id].append(chunk)
     rare_of = {c.chunk_id: rare_terms(c.text, df, rare_max_df) for c in body}
 
     def partners(first: SourceChunk) -> list[tuple[int, SourceChunk]]:
         return [
             (shared, c)
-            for c in by_paper[first.paper_id]
+            for c in by_paper[first.doc_id]
             if c.section != first.section
             and c.chunk_id not in used
             and (shared := len(rare_of[first.chunk_id] & rare_of[c.chunk_id]))

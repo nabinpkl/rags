@@ -118,7 +118,9 @@ tracked as GitHub issues.
   (`evals/rewrites.jsonl`); `just eval` scores BM25, vector, hybrid,
   hybrid + rerank and rewrite + hybrid on it at the top 10 and top 50
   (about 3 min and $0.06 with the hosted reranker, hours with
-  `rerank_backend=local`, so run that one detached); `just eval-publish`
+  `rerank_backend=local`, so run that one detached); both `just golden` and `just eval` take
+  `--source claude_transcripts` (D21: its set and runs stay under
+  `corpus/sources/claude_transcripts/evals/`, legs and rerank local); `just eval-publish`
   writes the finished run to the README table and to
   `frontend/lib/benchmarks/retrieval.json` for `/benchmarks`, without
   re-running anything. Retrieval spine (#16): `just ask q="..."`; any source with `cd backend && uv run python -m askrag.ask --source claude_transcripts "..."` (D21). Transcripts index: `just transcripts` (private, local embedder, never mounted). Agent REPL (#24):

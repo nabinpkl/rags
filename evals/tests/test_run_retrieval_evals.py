@@ -11,7 +11,9 @@ from evals.golden_set import Difficulty, GoldenChecks, GoldenRecord, GoldenType
 from evals.run_retrieval_evals import (
     CONFIGS,
     _usd,
+    configs_for,
     fingerprint,
+    missing_chunks,
     ndcg_at,
     paper_recall_at,
     recall_at,
@@ -181,3 +183,57 @@ def test_render_explains_the_mismatch_row():
 )
 def test_costs_print_as_plain_dollars(usd, shown):
     assert _usd(usd) == shown
+
+
+def test_a_source_without_rewrites_has_no_rewrite_row():
+    from evals.eval_sources import EVAL_SOURCES
+
+    assert "rewrite" in configs_for(EVAL_SOURCES["arxiv"])
+    assert list(configs_for(EVAL_SOURCES["claude_transcripts"])) == [
+        "bm25",
+        "vector",
+        "hybrid",
+        "rerank",
+    ]
+
+
+def test_a_transcripts_table_names_sessions_and_no_rewrite():
+    configs = {c: CONFIGS[c] for c in ("bm25", "vector", "hybrid", "rerank")}
+    records = [record("q1", ["s#1"])]
+    rankings = {"q1": {c: ["s#1"] for c in configs}}
+    table = render(
+        records,
+        rankings,
+        rankings,
+        dict.fromkeys(configs, 5.0),
+        dict.fromkeys(configs, 0.0),
+        10,
+        50,
+        n_papers=3,
+        n_chunks=9,
+        run_id="r",
+        reranker="local",
+        configs=configs,
+        doc_noun="session",
+        embed_note="the local embedding",
+        cost_note="Nothing is billed.",
+    )
+    assert "3 indexed sessions" in table and "Session recall@10" in table
+    assert "Rewrite" not in table and "Nothing is billed." in table
+
+
+def test_only_non_arxiv_sources_add_their_name_to_the_fingerprint(tmp_path: Path):
+    golden = tmp_path / "golden.jsonl"
+    golden.write_text("a\n")
+    arxiv = fingerprint(Settings(), golden, 10, None, "arxiv")
+    assert fingerprint(Settings(), golden, 10, None) == arxiv
+    assert fingerprint(Settings(), golden, 10, None, "claude_transcripts") != arxiv
+
+
+def test_missing_chunks_names_ids_the_index_lacks(tmp_path: Path):
+    import sqlite3
+
+    conn = sqlite3.connect(tmp_path / "i.db")
+    conn.execute("CREATE TABLE rag_chunks (chunk_id TEXT)")
+    conn.execute("INSERT INTO rag_chunks VALUES ('s#0')")
+    assert missing_chunks(conn, [record("q", ["s#0", "s#7"])]) == ["s#7"]

@@ -3245,3 +3245,40 @@ and served by no route. Live search over it uses the local embedder and no
 reranker.
 
 Spec updated: D21.
+
+## 2026-10-17 — the retrieval evals and golden drafter take --source (owner directive)
+
+**Context:** D21 claims one retrieval core serves any source; the evals are
+where that claim is measured, and they read arXiv's tables and paths
+directly.
+
+**Decision:** `evals/eval_sources.py` names, per source, the golden set's
+two copies, the drafting checkpoint, the runs directory, the rewrites file
+(none for transcripts: that row is the agent model's rewrite), the drafting
+models and quota, the per-document cap and the settings every leg runs
+under. `just golden --source <name>` and `just eval --source <name>` (default
+arxiv). The sampler reads the index contract and stratifies by the source's
+facet. Prompts live in `draft_prompts.py`, one set per source; arXiv's moved
+there unchanged (its drafting signature is still 56b12e92845c, so old
+checkpoints resume) and its run fingerprints gain no input. The OpenRouter
+client moved to `openrouter_client.py`, which breaks the import cycle the
+rewriter would otherwise close. Before scoring, the runner refuses a set
+whose expected chunks the index does not hold.
+
+Transcripts' set and runs live under `corpus/sources/claude_transcripts/evals/`
+(never committed: they quote private sessions); its legs embed and rerank
+locally; drafting uses `transcripts_golden_draft_model` and
+`transcripts_golden_check_model` (Anthropic models through OpenRouter).
+
+**Verified (2026-10-17), locally and with no API key set:** four synthetic
+sessions, 8 chunks, built by `just transcripts` with the local nomic
+embedder in 28 s; `askrag.ask --source claude_transcripts` with a project
+facet and a day floor; six hand-written golden questions scored by `just
+eval --source claude_transcripts` on all four rows, the rerank row with the
+local gte cross-encoder, in 33 s at $0. With 8 chunks every row finds every
+chunk, so this proves the path, not a retrieval number. No real transcripts
+were indexed and no transcript golden set was drafted: both wait on the
+owner (the first writes the private index to disk, the second sends
+excerpts to OpenRouter).
+
+Spec updated: D21.

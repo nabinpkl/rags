@@ -44,13 +44,14 @@ from askrag.retrieval import fts
 from askrag.retrieval.embeddings import QueryEmbedder
 from askrag.retrieval.filters import Filters
 from askrag.retrieval.hybrid_search import rrf_fuse
+from askrag.retrieval.index_location import IndexLocation
 from askrag.retrieval.rerank import Reranked, Reranker
 from askrag.retrieval.vector_store import VectorStore
-from askrag.sources import arxiv
 
-from evals.golden_set import GOLDEN_PATH, GoldenRecord, GoldenType, load_golden
+from evals.eval_sources import EVAL_SOURCES, EvalSource
+from evals.golden_set import GoldenRecord, GoldenType, load_golden
 from evals.rewrite_queries import REWRITES_PATH, load_rewrites
-from evals.run_store import Retrieved, append_run, load_run, run_path
+from evals.run_store import Retrieved, append_run, load_run
 
 # Row order and labels of the table; the keys are what `retrieve` returns.
 CONFIGS: dict[str, str] = {
@@ -130,12 +131,12 @@ def score(
 
 
 def make_retriever(
-    settings: Settings, conn: sqlite3.Connection, k: int, pool_k: int
-) -> Callable[[str, str], Retrieved]:
+    settings: Settings, conn: sqlite3.Connection, index: IndexLocation, k: int, pool_k: int
+) -> Callable[[str, str | None], Retrieved]:
     """`retrieve(question, rewrite)`: the three methods on the question,
-    hybrid's pool reranked, and hybrid on the rewrite."""
+    hybrid's pool reranked, and hybrid on the rewrite when there is one."""
     embedder = QueryEmbedder(settings)
-    store = VectorStore(arxiv.index(settings))
+    store = VectorStore(index)
     unfiltered = Filters()
     reranker = Reranker(settings)
 
@@ -181,8 +182,10 @@ def make_retriever(
             },
         )
 
-    def retrieve(question: str, rewrite: str) -> Retrieved:
+    def retrieve(question: str, rewrite: str | None) -> Retrieved:
         got = hybrid(question)
+        if rewrite is None:
+            return got
         rw = hybrid(rewrite, rerank=False)
         return Retrieved(
             rankings={**got.rankings, "rewrite": rw.rankings["hybrid"]},
@@ -211,14 +214,21 @@ def p50_ms(samples: Sequence[float]) -> float:
 
 
 def fingerprint(
-    settings: Settings, golden_path: Path, n_chunks: int, rewrites_path: Path = REWRITES_PATH
+    settings: Settings,
+    golden_path: Path,
+    n_chunks: int,
+    rewrites_path: Path | None = REWRITES_PATH,
+    source: str = "arxiv",
 ) -> str:
     """Twelve hex characters naming everything a score depends on: the set,
     its rewrites, the index's size, the embedding model and the chunking and
-    fusion constants. Two tables with the same fingerprint are comparable."""
-    inputs = {
+    fusion constants. Two tables with the same fingerprint are comparable.
+    arXiv's inputs are unchanged since before D21, so its runs keep their ids."""
+    inputs: dict[str, object] = {
         "golden_sha256": hashlib.sha256(golden_path.read_bytes()).hexdigest(),
-        "rewrites_sha256": hashlib.sha256(rewrites_path.read_bytes()).hexdigest(),
+        "rewrites_sha256": (
+            hashlib.sha256(rewrites_path.read_bytes()).hexdigest() if rewrites_path else None
+        ),
         "chunks": n_chunks,
         "embedding": settings.embedding_model_slug,
         "embedding_revision": settings.embedding_model_revision,
@@ -236,6 +246,8 @@ def fingerprint(
             else [settings.rerank_model, settings.rerank_model_revision, settings.rerank_max_tokens]
         ),
     }
+    if source != "arxiv":
+        inputs["source"] = source
     blob = json.dumps(inputs, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:12]
 
@@ -267,25 +279,33 @@ def render(
     n_chunks: int,
     run_id: str,
     reranker: str,
+    configs: dict[str, str] = CONFIGS,
+    doc_noun: str = "paper",
+    embed_note: str = "the embedding API call",
+    cost_note: str = (
+        "Cost is the mean per question that the providers billed: the embedding,"
+        " the rerank and the rewrite call."
+    ),
 ) -> str:
     """Configs ranked by recall@k, best first, then recall@k per type."""
-    scores = {c: score(records, rankings, c, k) for c in CONFIGS}
-    pool_recall = {c: score(records, pools, c, pool_k).recall for c in CONFIGS}
-    ranked = sorted(CONFIGS, key=lambda c: scores[c].recall, reverse=True)
+    scores = {c: score(records, rankings, c, k) for c in configs}
+    pool_recall = {c: score(records, pools, c, pool_k).recall for c in configs}
+    ranked = sorted(configs, key=lambda c: scores[c].recall, reverse=True)
     lines = [
         f"{len(records)} golden questions, drafted by one model and checked by another"
         " (D14 amendment 2026-09-30), over"
-        f" {n_papers:,} indexed papers and {n_chunks:,} chunks, scored at the"
+        f" {n_papers:,} indexed {doc_noun}s and {n_chunks:,} chunks, scored at the"
         f" top {k} the agent reads. Run `{run_id}`.",
         "",
-        f"| Retrieval | Recall@{k} | nDCG@{k} | MRR | Paper recall@{k} | Recall@{pool_k}"
+        f"| Retrieval | Recall@{k} | nDCG@{k} | MRR | {doc_noun.capitalize()} recall@{k}"
+        f" | Recall@{pool_k}"
         " | p50 latency | Cost / query |",
         "|---|---|---|---|---|---|---|---|",
     ]
     for c in ranked:
         s = scores[c]
         lines.append(
-            f"| {CONFIGS[c]} | {_pct(s.recall)} | {s.ndcg:.2f} | {s.mrr:.2f}"
+            f"| {configs[c]} | {_pct(s.recall)} | {s.ndcg:.2f} | {s.mrr:.2f}"
             f" | {_pct(s.paper_recall)} | {_pct(pool_recall[c])} | {latency_ms[c]:.0f} ms"
             f" | {_usd(cost_usd[c])} |"
         )
@@ -295,8 +315,8 @@ def render(
         "",
         f"Recall@{k} by question type:",
         "",
-        "| Question type | n | " + " | ".join(CONFIGS[c] for c in ranked) + " |",
-        "|" + "---|" * (2 + len(CONFIGS)),
+        "| Question type | n | " + " | ".join(configs[c] for c in ranked) + " |",
+        "|" + "---|" * (2 + len(configs)),
     ]
     for t in types:
         subset = [r for r in records if r.type == t]
@@ -309,21 +329,29 @@ def render(
             " appears in 500 or fewer chunks, so keyword search can match them only"
             " on common field words.",
         ]
+    rewrite_note = (
+        " Rewrite + hybrid searches one model rewrite of the question; its latency"
+        " includes the rewrite call."
+        if "rewrite" in configs
+        else ""
+    )
     lines += [
         "",
         f"Recall@{pool_k} is the most a reranker reordering the top {pool_k} into"
-        f" the top {k} could reach. Rewrite + hybrid searches one model rewrite of"
-        " the question; its latency includes the rewrite call. Hybrid + rerank"
+        f" the top {k} could reach.{rewrite_note} Hybrid + rerank"
         f" reorders hybrid's top {pool_k} with {reranker}; its latency includes"
         " retrieving that pool.",
         "",
         f"One question is {100 / len(records):.1f} points at this size, so gaps"
         " under about 5 points are noise. Latency is the median per question on"
-        f" a {HARDWARE}; the semantic leg includes the embedding API call. Cost is"
-        " the mean per question that the providers billed: the embedding, the"
-        " rerank and the rewrite call.",
+        f" a {HARDWARE}; the semantic leg includes {embed_note}. {cost_note}",
     ]
     return "\n".join(lines) + "\n"
+
+
+def configs_for(ev: EvalSource) -> dict[str, str]:
+    """The table's rows for a source: no rewrite row without rewrites."""
+    return {c: label for c, label in CONFIGS.items() if c != "rewrite" or ev.rewrites_path}
 
 
 def report(
@@ -336,12 +364,14 @@ def report(
     n_chunks: int,
     run_id: str,
     reranker: str,
+    ev: EvalSource = EVAL_SOURCES["arxiv"],
 ) -> str:
     """The results table for a finished run, from its saved questions alone."""
+    configs = configs_for(ev)
     rankings = {r.id: done[r.id].rankings for r in records}
     pools = {r.id: done[r.id].pools for r in records}
-    latency = {c: p50_ms([done[r.id].seconds[c] for r in records]) for c in CONFIGS}
-    cost = {c: statistics.mean(done[r.id].usd[c] for r in records) for c in CONFIGS}
+    latency = {c: p50_ms([done[r.id].seconds[c] for r in records]) for c in configs}
+    cost = {c: statistics.mean(done[r.id].usd[c] for r in records) for c in configs}
     return render(
         records,
         rankings,
@@ -354,38 +384,71 @@ def report(
         n_chunks=n_chunks,
         run_id=run_id,
         reranker=reranker,
+        configs=configs,
+        doc_noun=ev.doc_noun,
+        embed_note=ev.embed_note,
+        cost_note=ev.cost_note,
     )
+
+
+def missing_chunks(conn: sqlite3.Connection, records: Sequence[GoldenRecord]) -> list[str]:
+    """Expected chunk ids the index does not hold: a set drafted against
+    another build of the index, which would score as misses."""
+    wanted = sorted({c for r in records for c in r.expected_chunk_ids})
+    have = {
+        row[0]
+        for start in range(0, len(wanted), 500)
+        for row in conn.execute(
+            "SELECT chunk_id FROM rag_chunks WHERE chunk_id IN"
+            f" ({','.join('?' * len(wanted[start : start + 500]))})",
+            wanted[start : start + 500],
+        )
+    }
+    return [c for c in wanted if c not in have]
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    parser.parse_args(argv)
-    settings = get_settings()
+    parser.add_argument("--source", choices=sorted(EVAL_SOURCES), default="arxiv")
+    args = parser.parse_args(argv)
+    ev = EVAL_SOURCES[args.source]
+    settings = ev.eval_settings(get_settings())
     k, pool_k = settings.search_top_k, settings.eval_pool_k
-    records = load_golden(GOLDEN_PATH)
-    rewrites = load_rewrites(records)
+    golden_path = ev.golden_path(settings)
+    records = load_golden(golden_path)
+    rewrites = load_rewrites(records, ev.rewrites_path) if ev.rewrites_path else None
+    index = ev.spec.index(settings)
 
-    conn = db.connect_corpus(None)
+    conn = db.connect_corpus(index.db_path)
     try:
+        stale = missing_chunks(conn, records)
+        if stale:
+            raise SystemExit(
+                f"{len(stale)} expected chunk(s) are not in the index (first: {stale[0]}):"
+                " the golden set was drafted against another build; redraft it"
+            )
         n_chunks = conn.execute("SELECT count(*) FROM rag_chunks").fetchone()[0]
         n_papers = conn.execute("SELECT count(DISTINCT doc_id) FROM rag_chunks").fetchone()[0]
-        run_id = fingerprint(settings, GOLDEN_PATH, n_chunks)
-        path = run_path(run_id)
+        run_id = fingerprint(settings, golden_path, n_chunks, ev.rewrites_path, ev.spec.name)
+        path = ev.runs_dir(settings) / f"{run_id}.jsonl"
         done = load_run(path)
         todo = [r for r in records if r.id not in done]
         print(f"run {run_id}: {len(done)} questions on file, {len(todo)} to score", file=sys.stderr)
         # Built only when there is work: it loads the reranker.
-        retrieve = make_retriever(settings, conn, k, pool_k) if todo else None
+        retrieve = make_retriever(settings, conn, index, k, pool_k) if todo else None
         for i, r in enumerate(todo, start=1):
             assert retrieve is not None
-            got = retrieve(r.question, rewrites[r.id].rewrite)
-            rw = rewrites[r.id]
-            done[r.id] = Retrieved(
-                got.rankings,
-                got.pools,
-                {**got.seconds, "rewrite": got.seconds["rewrite"] + rw.seconds},
-                {**got.usd, "rewrite": got.usd["rewrite"] + rw.usd},
-            )
+            if rewrites is None:
+                done[r.id] = retrieve(r.question, None)
+            else:
+                rw = rewrites[r.id]
+                got = retrieve(r.question, rw.rewrite)
+                done[r.id] = Retrieved(
+                    got.rankings,
+                    got.pools,
+                    {**got.seconds, "rewrite": got.seconds["rewrite"] + rw.seconds},
+                    {**got.usd, "rewrite": got.usd["rewrite"] + rw.usd},
+                )
             append_run(path, r.id, done[r.id])
             print(f"\r{i}/{len(todo)}", end="", file=sys.stderr, flush=True)
         print(file=sys.stderr)
@@ -402,10 +465,12 @@ def main(argv: list[str] | None = None) -> int:
             n_chunks=n_chunks,
             run_id=run_id,
             reranker=reranker_label(settings),
+            ev=ev,
         ),
         end="",
     )
-    print("`just eval-publish` writes this run to the README and /benchmarks", file=sys.stderr)
+    if args.source == "arxiv":
+        print("`just eval-publish` writes this run to the README and /benchmarks", file=sys.stderr)
     return 0
 
 

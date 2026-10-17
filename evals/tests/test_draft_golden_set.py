@@ -1,15 +1,11 @@
 """The drafter's checks, with a stubbed model: no test calls a real API."""
 
 import json
-from collections import Counter
-from types import SimpleNamespace
 
 import pytest
 from askrag.config import Settings, get_settings
 
 from evals.draft_golden_set import (
-    FENCE,
-    OpenRouterClient,
     check_record,
     draft_prompt,
     lexical_rule,
@@ -18,10 +14,13 @@ from evals.draft_golden_set import (
     run_signature,
     spans_verbatim,
 )
+from evals.draft_prompts import ARXIV
+from evals.eval_sources import EVAL_SOURCES
 from evals.golden_set import GoldenType
 from evals.sample_sources import Source, SourceChunk
 
 TEXT = "We fine-tune with **LoRA** adapters. The rank r = 8 gives the best recall."
+EV = EVAL_SOURCES["arxiv"]
 CHUNK = SourceChunk("1234.5678#2", "1234.5678", "cs.CL", "Method", TEXT)
 
 
@@ -79,8 +78,8 @@ def test_lexical_rule_per_type():
 
 
 def test_the_prompt_fences_paper_text_and_bans_rare_terms():
-    prompt = draft_prompt(source())
-    assert f"<{FENCE}>\n{TEXT}\n</{FENCE}>" in prompt
+    prompt = draft_prompt(source(), ARXIV)
+    assert f"<{ARXIV.fence}>\n{TEXT}\n</{ARXIV.fence}>" in prompt
     assert "Banned terms: lora" in prompt
 
 
@@ -101,7 +100,7 @@ def test_check_record_carries_every_verdict():
         "spans": ["The rank r = 8 gives the best recall."],
         "difficulty": "easy",
     }
-    rec = check_record(source(), draft, client, get_settings())
+    rec = check_record(source(), draft, client, get_settings(), EV)
     assert rec.counts()
     assert rec.expected_chunk_ids == ["1234.5678#2"]
     # the grader saw the closed-book answer it has to judge
@@ -129,7 +128,7 @@ DRAFT = {
 @pytest.mark.parametrize("natural", [True, False])
 def test_every_type_counts_only_when_the_checker_finds_it_natural(type_, natural):
     client = StubClient("I don't know.", json.dumps({**GRADE, "natural": natural}))
-    rec = check_record(source(type_), DRAFT, client, get_settings())
+    rec = check_record(source(type_), DRAFT, client, get_settings(), EV)
     assert '"natural"' in client.systems[1]
     assert rec.checks.natural is natural
     assert rec.counts() is natural
@@ -137,7 +136,7 @@ def test_every_type_counts_only_when_the_checker_finds_it_natural(type_, natural
 
 def test_a_query_with_another_correct_answer_is_culled():
     client = StubClient("I don't know.", json.dumps({**GRADE, "unambiguous": False}))
-    rec = check_record(source(), DRAFT, client, get_settings())
+    rec = check_record(source(), DRAFT, client, get_settings(), EV)
     assert '"unambiguous"' in client.systems[1]
     assert rec.checks.unambiguous is False
     assert not rec.counts()
@@ -147,31 +146,27 @@ def test_a_question_longer_than_a_search_query_is_culled():
     cap = get_settings().golden_question_max_words
     long_draft = {**DRAFT, "question": " ".join(["setting"] * (cap + 1))}
     rec = check_record(
-        source(), long_draft, StubClient("I don't know.", json.dumps(GRADE)), get_settings()
+        source(), long_draft, StubClient("I don't know.", json.dumps(GRADE)), get_settings(), EV
     )
     assert not rec.checks.question_within_cap
     assert not rec.counts()
 
 
 def test_a_checkpoint_is_reused_only_by_a_run_with_the_same_models_and_caps():
-    base = run_signature(Settings())
-    assert run_signature(Settings()) == base
-    assert run_signature(Settings(golden_draft_model="other/model")) != base
-    assert run_signature(Settings(golden_check_model="other/model")) != base
-    assert run_signature(Settings(golden_question_max_words=20)) != base
+    base = run_signature(Settings(), EV)
+    assert run_signature(Settings(), EV) == base
+    assert run_signature(Settings(golden_draft_model="other/model"), EV) != base
+    assert run_signature(Settings(golden_check_model="other/model"), EV) != base
+    assert run_signature(Settings(golden_question_max_words=20), EV) != base
 
 
-def test_a_reply_without_usage_fails_one_draft_not_the_run():
-    reply = SimpleNamespace(usage=None, content=None)
-    sdk = SimpleNamespace(messages=SimpleNamespace(create=lambda **_: reply))
-    client = OpenRouterClient(sdk, Counter())  # ty: ignore[invalid-argument-type]
-    with pytest.raises(ValueError, match="no usage"):
-        client.complete("m", "system", "user", 10)
+def test_the_arxiv_signature_is_the_one_the_committed_set_was_drafted_under():
+    """Moving the prompts into draft_prompts.py changed no string: arXiv
+    checkpoints written before D21 still resume."""
+    assert run_signature(Settings(), EV) == "56b12e92845c"
 
 
-def test_a_priced_call_returns_the_billed_cost_from_the_reply():
-    usage = SimpleNamespace(input_tokens=5, output_tokens=3, cost=2.5e-05)
-    reply = SimpleNamespace(usage=usage, content=[SimpleNamespace(type="text", text="query")])
-    sdk = SimpleNamespace(messages=SimpleNamespace(create=lambda **_: reply))
-    client = OpenRouterClient(sdk, Counter())  # ty: ignore[invalid-argument-type]
-    assert client.complete_priced("m", "system", "user", 10) == ("query", 2.5e-05)
+def test_each_source_fences_with_its_own_tag():
+    for name, ev in EVAL_SOURCES.items():
+        assert ev.prompts.fence in draft_prompt(source(), ev.prompts), name
+    assert EVAL_SOURCES["claude_transcripts"].prompts.fence == "session_excerpt"

@@ -65,9 +65,9 @@ def test_sampling_is_seeded_stratified_and_one_per_paper():
     first = sample_sources(chunks, Counter(), quota, **kw)
     again = sample_sources(chunks, Counter(), quota, **kw)
     assert [s.chunks for s in first] == [s.chunks for s in again]
-    papers = [s.chunks[0].paper_id for s in first]
+    papers = [s.chunks[0].doc_id for s in first]
     assert len(papers) == len(set(papers)) == 4
-    assert {s.chunks[0].category for s in first} == {"cl", "cv"}
+    assert {s.chunks[0].stratum for s in first} == {"cl", "cv"}
 
 
 def test_multi_hop_pairs_two_sections_of_one_paper():
@@ -86,7 +86,7 @@ def test_multi_hop_pairs_two_sections_of_one_paper():
     )
     assert len(sources) == 1
     pair = sources[0].chunks
-    assert pair[0].paper_id == pair[1].paper_id
+    assert pair[0].doc_id == pair[1].doc_id
     assert pair[0].section != pair[1].section
 
 
@@ -145,3 +145,47 @@ def test_vocabulary_mismatch_bars_words_under_the_wider_bar_and_moves_nothing():
     assert len(mismatch) == 2
     assert {"robot", "grokking", "grpo"} <= mismatch[0].rare_terms
     assert "train" not in mismatch[0].rare_terms
+
+
+def test_a_document_may_give_several_sources_when_per_doc_allows():
+    chunks = [chunk(f"s#{i}", "rags", f"distinct words number{i} here") for i in range(6)]
+    one = sample_sources(
+        chunks,
+        Counter(),
+        {"single_hop": 6},
+        seed=1,
+        rare_max_df=0,
+        mismatch_max_df=0,
+        multi_hop_min_shared=99,
+    )
+    four = sample_sources(
+        chunks,
+        Counter(),
+        {"single_hop": 6},
+        seed=1,
+        rare_max_df=0,
+        mismatch_max_df=0,
+        multi_hop_min_shared=99,
+        per_doc=4,
+    )
+    assert (len(one), len(four)) == (1, 4)
+
+
+def test_chunks_load_through_the_contract_with_their_stratum(tmp_path):
+    import sqlite3
+
+    from askrag.retrieval import index_schema
+
+    from evals.sample_sources import load_chunks
+
+    conn = sqlite3.connect(tmp_path / "i.db")
+    conn.row_factory = sqlite3.Row
+    index_schema.create_tables(conn)
+    conn.execute("INSERT INTO rag_documents VALUES ('s', 't', 20261001, NULL)")
+    conn.execute(
+        "INSERT INTO rag_chunks(chunk_id, doc_id, section, pos_start, pos_end, text, n_tokens)"
+        " VALUES ('s#0', 's', 'fix the map', 1, 2, 'text', 300)"
+    )
+    conn.execute("INSERT INTO rag_facets VALUES ('s', 'project', 'rags')")
+    [c] = load_chunks(conn, 250, "project")
+    assert (c.chunk_id, c.doc_id, c.stratum, c.section) == ("s#0", "s", "rags", "fix the map")
