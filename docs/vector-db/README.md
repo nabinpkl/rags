@@ -114,3 +114,210 @@ keeps those in SQLite on disk). `ef_search` changes how much a query
 - [ClickHouse: scaling pgvector (memory, working set)](https://clickhouse.com/resources/engineering/scale-vector-search-postgres)
 - [Disk vs in-memory ANN indexes](https://towardsdatascience.com/optimizing-vector-search-on-disk-vs-in-memory-ann-indexes-when-ram-gets-too-expensive/)
 - [turbopuffer: object-storage-first architecture](https://jxnl.co/writing/2025/09/11/turbopuffer-object-storage-first-vector-database-architecture/)
+
+## Retrieval quality
+
+### What happens
+
+Every store named here (pgvector, Chroma, Qdrant, Milvus, Weaviate) searches
+with HNSW by default, which is approximate: it can miss a true neighbour.
+An exact scan (no index) returns the same top-k in any store for the same
+vectors and distance, at recall 1.0.
+
+### What decides it
+
+Index settings, not the brand: `ef_search` at query time and `M` at build
+time. Defaults differ (pgvector `ef_search` 40, Chroma 100, Chroma's
+distributed SPANN 200), so stores left at defaults show different recall on
+identical data. Matched settings should give similar recall; no independent
+head-to-head was found that proves it.
+
+### Where it bites
+
+- Comparing stores at their defaults and reading the gap as the store's.
+- Public benchmarks: ANN-benchmarks is single-threaded on synthetic sets
+  (GloVe, SIFT) with no filters; VectorDBBench is built by Zilliz (Milvus),
+  its public results date from 2023-2024 and leave out Chroma; vendors
+  dispute each other's numbers.
+- Above about 0.95 recall the difference is rarely visible in RAG answers,
+  and BM25 plus a reranker in a hybrid stack recovers most misses.
+
+### askRAG today
+
+Chroma, cosine, `ef_search` 100, `max_neighbors` 16
+(`backend/askrag/ingest/build_indexes.py`). At 65,401 vectors an exact numpy
+scan takes milliseconds, so the HNSW miss rate can be measured against it on
+the golden set; not measured yet. Swapping stores would not move the
+`just eval` table unless HNSW is the thing missing passages.
+
+### Sources
+
+- [ANN-Benchmarks paper](https://arxiv.org/pdf/1807.05614) · [ann-benchmarks.com](https://ann-benchmarks.com/)
+- [VectorDBBench](https://pypi.org/project/vectordb-bench/) · [Zilliz: Milvus vs Qdrant benchmark divergence](https://zilliz.com/blog/demystify-benchmark-result-divergence-milvus-vs-qdrant)
+- [MariaDB: 10-database vector benchmark](https://mariadb.org/big-vector-search-benchmark-10-databases-comparison/)
+- [Percona: benchmarking vector indexes](https://percona.com/blog/benchmarking-vector-indexes)
+- [Chroma: collection configuration](https://docs.trychroma.com/docs/collections/configure)
+
+## Filtered search
+
+### What happens
+
+"Nearest chunks, but only cs.CL from 2026." The store either filters
+inside the graph walk (skipping nodes that fail) or after it (walk first,
+drop failures). Filtering after returns too few results when the filter is
+selective: pgvector with `ef_search` 40 and a filter matching 10% of rows
+returns about 4 rows for `LIMIT 10`.
+
+### What decides it
+
+- **pgvector**: filters after the index pass by default. 0.8 added
+  iterative scans (`hnsw.iterative_scan`, strict or relaxed order) that keep
+  walking until enough rows match or `hnsw.max_scan_tuples` is hit, after
+  which it can still return short. Workarounds: a B-tree on the filter
+  column for very selective filters, partial HNSW indexes per value, or
+  partitioning by the filter key.
+- **Qdrant, Milvus, Weaviate**: filter inside the search natively (Qdrant
+  builds extra graph links per indexed payload field).
+- **Chroma**: takes a `where` clause on metadata; how its local HNSW applies
+  it (inside the walk or by brute force over the matching set) is not
+  verified here.
+
+### Where it bites
+
+- Selective filters (one category, one month, a small paper set) on large
+  collections: short or missing results with no error.
+- A 2026 study found Postgres's planner often picks the approximate index
+  even when an exact scan would match its latency at full recall, and that
+  IVFFlat can beat HNSW at low selectivity.
+
+### askRAG today
+
+Live: `search_corpus` pushes category, year range and paper scope into
+Chroma's `where` (`backend/askrag/retrieval/vector_store.py`, D8). With
+65,401 vectors even a brute-force scan of the matching set is cheap; worth a
+check that a narrow scope (one paper's chunks) still returns `k` results.
+
+### Sources
+
+- [pgvector iterative index scans](https://docs.pgedge.com/pgvector/v0-8-5/iterative-index-scans/)
+- [AWS: pgvector 0.8 on Aurora](https://aws.amazon.com/blogs/database/supercharging-vector-search-performance-and-relevance-with-pgvector-0-8-0-on-amazon-aurora-postgresql)
+- [Filtered ANN in vector databases (2026)](https://arxiv.org/html/2602.11443v1)
+- [Crunchy Data: hybrid search with pgvector](https://www.crunchydata.com/blog/hybrid-vector-search)
+- [ClickHouse: scaling pgvector](https://clickhouse.com/resources/engineering/scale-vector-search-postgres)
+
+## Multi-tenancy
+
+### What happens
+
+Many customers share one deployment and each searches only their own
+vectors. Either every tenant gets its own collection or index (strong
+isolation, each one loaded in full, see HNSW memory), or all tenants share
+one index with a tenant field that every query filters on (cheap, but
+filtered search above applies).
+
+### What decides it
+
+- **Qdrant**: one collection with a tenant id in the payload; from 1.16,
+  small tenants share a fallback shard and large ones get dedicated shards.
+- **Weaviate**: native tenants, one shard each.
+- **Milvus**: a partition key routes each tenant to its own partition.
+- **pgvector**: Postgres row-level security or table partitioning; how RLS
+  interacts with HNSW index use was not found in any source.
+- **turbopuffer**: built around very many cheap namespaces on object storage.
+
+None of these replace authentication: the store partitions data, the app
+still decides who may query which tenant.
+
+### Where it bites
+
+- Thousands of per-tenant collections in an in-memory store.
+- One shared index where a single huge tenant skews results or latency for
+  the rest.
+
+### askRAG today
+
+Not applicable: one public corpus, no tenants.
+
+### Sources
+
+- [Qdrant: multitenancy and custom sharding](https://qdrant.tech/articles/multitenancy/index.md)
+- [Qdrant: multitenant search](https://qdrant.tech/documentation/production-operations/multitenant-search/index.md)
+- [Qdrant: collection per tenant or payload partitioning](https://oneuptime.com/blog/post/2026-08-28-qdrant-one-collection-per-tenant-or-payload-partitioning/markdown)
+- [vectordb: multi-tenancy across stores](https://mintlify.com/avnlp/vectordb/data/multi-tenancy)
+
+## Vector types and hybrid search
+
+### What happens
+
+All of these take any dense float vector, dimension fixed per collection or
+column. They differ in the ceiling, smaller number formats (memory, see
+HNSW memory), sparse vectors (BM25 or SPLADE weights for keyword-style
+search) and multi-vectors (one vector per token, ColBERT-style).
+
+| | Max dense dims | Element types | Sparse | Multi-vector |
+|---|---|---|---|---|
+| pgvector | 16,000 stored; indexed 2,000 (`vector`), 4,000 (`halfvec`), 64,000 (`bit`) | float32, float16, binary | `sparsevec`, 1,000 non-zero indexed | no |
+| Chroma | none documented | float32 | BM25 / SPLADE via the Search API; documented under Cloud, local not confirmed | no |
+| Qdrant | 65,535 (configurable) | float32, float16, uint8 | yes | yes |
+| Milvus | 32,768 default (`proxy.maxDimension`; third-party source) | float32, float16, bfloat16, int8 (HNSW only), binary | yes | yes |
+
+Built-in dense plus sparse or BM25 fusion: Weaviate, Qdrant, Milvus,
+Elasticsearch/OpenSearch. pgvector does it in SQL with Postgres full-text
+search.
+
+### Where it bites
+
+- A model above pgvector's 2,000-dim index cap (3,072-dim embeddings need
+  `halfvec` or an MRL cut).
+- Moving to late-interaction (ColBERT) retrieval: only Qdrant and Milvus
+  store it natively.
+
+### askRAG today
+
+512-dim float32 fits every row. Hybrid search is two stores fused in code:
+Chroma for vectors, SQLite FTS5 for BM25, joined by RRF (D8).
+
+### Sources
+
+- [pgvector dimension limits](https://fast.io/resources/pgvector-max-vector-size.md)
+- [Qdrant FAQ](https://qdrant.tech/documentation/faq/qdrant-fundamentals/index.md)
+- [PyMilvus data types](https://tessl.io/registry/tessl/pypi-pymilvus/2.6.0/files/docs/types-enums.md) · [Milvus limits](https://fast.io/resources/milvus-limits.md)
+- [Chroma sparse vector search](https://docs.trychroma.com/cloud/schema/sparse-vector-search)
+
+## Choosing a store
+
+### What decides it
+
+Below a few million vectors with simple queries, any store gives the same
+results at similar speed, and the question is which database is already
+running. Past that, the entries above decide it.
+
+| Store | Chosen when |
+|---|---|
+| pgvector | Postgres is already there; up to tens of millions of vectors (50-100M with pgvectorscale); vectors in the same transaction as the rows |
+| Chroma | Embedded, no server; prototypes and small RAG; basic filtering |
+| Qdrant | Self-hosted with heavy filtering, multi-tenancy, dense plus sparse, quantization for tight memory |
+| Milvus | Billion scale, GPU indexes, the most index types; the heaviest to operate |
+| Weaviate | Built-in hybrid search and per-tenant shards |
+| Pinecone | Managed, no operations, small to medium corpora; pay per read and write |
+| turbopuffer / LanceDB | Very large or many-namespace corpora on object storage; cost over tail latency |
+| Elasticsearch / OpenSearch | Already running for keyword search |
+
+Also deciding: write churn (re-embedding bloats Postgres tables through
+MVCC) and transactional consistency (pgvector keeps vectors and rows in one
+transaction; a separate store has to be kept in sync).
+
+### askRAG today
+
+D4 (SQLite plus embedded Chroma, no database server) fits: 65,401 vectors,
+one box, no tenants, simple filters. Revisit if any of: the indexed set
+widens toward the whole catalog (about 2.6M vectors), Postgres arrives for
+another reason, or filtered vector search starts returning short.
+
+### Sources
+
+- [Firecrawl: best vector databases 2026](https://www.firecrawl.dev/blog/best-vector-databases)
+- [DEV: choosing a vector database in 2026](https://dev.to/arya_koste_5845807df94776/choosing-a-vector-database-in-2026-pgvector-vs-pinecone-vs-qdrant-vs-weaviate-vs-milvus-422k)
+- [Encore: vector database comparison](https://encore.dev/articles/best-vector-databases)
+- [pgvector vs Qdrant vs Weaviate at 100M vectors](https://blog.elest.io/pgvector-vs-qdrant-vs-weaviate-which-vector-database-holds-up-at-100m-vectors/)
+- [Next Platform: vector search cost](https://www.nextplatform.com/store/2026/09/22/vector-search-is-now-a-data-type-but-the-money-math-has-not-gone-away/5298393)
