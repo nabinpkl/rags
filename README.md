@@ -35,7 +35,7 @@ benchmarks page comes from a committed eval run.
 The design spec is the source of truth:
 [`docs/superpowers/specs/2026-07-04-agentic-rag-design.md`](docs/superpowers/specs/2026-07-04-agentic-rag-design.md),
 with its decision log in [`DECISIONS.md`](DECISIONS.md). The project was built
-with coding agents; their contract is [`CLAUDE.md`](CLAUDE.md).
+with coding agents; their contract is [`AGENTS.md`](AGENTS.md).
 
 ## Running it
 

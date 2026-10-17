@@ -16,7 +16,7 @@ role that merges. Role briefs live in `.claude/briefs/`.
   time to the implementor, relays diffs and findings between the two agents,
   arbitrates disputes (spec is the tiebreaker), merges PRs, closes issues,
   promotes newly unblocked board items, and maintains `DECISIONS.md`,
-  `CLAUDE.md`, and the spec.
+  `AGENTS.md`, and the spec.
 - **Implementor** (one instance, continued across tasks): implements exactly
   one issue at a time on a branch, self-reviews the diff before handoff,
   opens the PR, judges every review finding (fix, or reject with stated
@@ -122,7 +122,7 @@ Any choice the spec doesn't already make (or contradicts) stops the loop:
 2. The spec gets a new or amended decision record **in the same PR** as the
    code that depends on it. `DECISIONS.md` says which spec section changed;
    "Spec updated: pending" is only acceptable for process-only decisions.
-3. Silent drift between code and spec is a bug (CLAUDE.md hard rule).
+3. Silent drift between code and spec is a bug (AGENTS.md hard rule).
 
 ## Dependency gate
 

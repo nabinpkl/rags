@@ -1257,7 +1257,7 @@ before the bytes go, and whatever fails to render keeps the category glyph.
 
 **Nothing fetches arxiv.org to build a card.** Thirty cards would be thirty
 requests per render, and from arXiv's side that is a scraper. The image comes
-from our own PDF, every time. See CLAUDE.md's hard constraints.
+from our own PDF, every time. See AGENTS.md's hard constraints.
 
 **The licence governs the card, not the file.**
 

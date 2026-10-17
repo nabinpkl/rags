@@ -15,7 +15,7 @@ the process. `test_routes_thumbnails.py` asserts both.
 
 Nothing here touches arxiv.org. The image comes from the PDF we already
 hold, because thirty cards rendering from arxiv.org would be thirty requests
-per render — see CLAUDE.md's hard constraints.
+per render — see AGENTS.md's hard constraints.
 """
 
 import logging

@@ -22,7 +22,7 @@ moment its PDFs land, with no reindex and no two-hour batch in between.
 WE RENDER, WE NEVER FETCH. The image comes from the PDF we already hold.
 Nothing here or downstream may reach arxiv.org to build a card — thirty cards
 would be thirty requests per render, which is a scraper from arXiv's side.
-See CLAUDE.md's hard constraints.
+See AGENTS.md's hard constraints.
 
 Fair use is what permits the image for the 36,560 papers under arXiv's
 default licence, and it is the LOW-RESOLUTION crop beside a link back to the

@@ -77,7 +77,7 @@ rewrites *ARGS:
 # rewrite + hybrid over the golden set, at the top 10 and the top 50. With the
 # default hosted reranker a run takes about 3 minutes and $0.06; with
 # rerank_backend=local it takes about 4.5 hours on a 4-core Arm server, so run that
-# detached (CLAUDE.md). Each question is saved to evals/runs/<run id>.jsonl
+# detached (AGENTS.md). Each question is saved to evals/runs/<run id>.jsonl
 # as it is scored, so a killed run resumes and a finished one re-renders in
 # seconds. Prints the table; it never writes the README.
 eval *ARGS:

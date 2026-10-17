@@ -1,4 +1,4 @@
-// Compliance gate (§6b/§6c, CLAUDE.md hard constraint): the attribution
+// Compliance gate (§6b/§6c, AGENTS.md hard constraint): the attribution
 // sentence and takedown/contact links must actually render, verbatim.
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
