@@ -1,4 +1,4 @@
-"""FTS5/BM25 query construction and escaping — the BM25 leg of D8.
+"""FTS5/BM25 query construction and escaping: the BM25 leg of D8, any source.
 
 User query text is an injection surface (§6): FTS5 MATCH strings carry
 operators (AND/OR/NOT/NEAR), column filters (`col:value`), prefix `*`, and
@@ -18,6 +18,9 @@ zero rows because one word is missing.
 
 import sqlite3
 
+from askrag.retrieval.filters import Filters
+from askrag.retrieval.index_schema import CHUNKS, CHUNKS_FTS, DOCUMENTS, FACETS
+
 _CONTROL_CHARS = "".join(chr(c) for c in range(0x20)) + "\x7f"
 _CONTROL_TABLE = str.maketrans("", "", _CONTROL_CHARS)
 
@@ -30,48 +33,37 @@ def build_match_query(user_query: str) -> str:
     return " OR ".join(quoted)
 
 
-def search_bm25(
-    conn: sqlite3.Connection,
-    query: str,
-    k: int,
-    *,
-    category: str | None = None,
-    year_min: int | None = None,
-    year_max: int | None = None,
-    paper_ids: tuple[str, ...] | None = None,
-) -> list[str]:
+def search_bm25(conn: sqlite3.Connection, query: str, k: int, filters: Filters) -> list[str]:
     """Rank-ordered chunk_ids from the FTS5 index; filters push into SQL (D8).
 
-    Returns ids only — hybrid_search hydrates the fused top-k in one query
+    Reads only the index contract (index_schema.py), so it serves any source.
+    Returns ids only: hybrid_search hydrates the fused top-k in one query
     instead of every leg dragging full rows around.
     """
     match = build_match_query(query)
-    if not match:
+    if not match or filters.empty_scope:
+        # An empty scope means "no document is in scope", NOT "no filter":
+        # the difference between a landing-page claim that owns no indexed
+        # papers returning nothing, and it returning the whole corpus.
         return []
-    sql = (
-        "SELECT c.chunk_id FROM chunks_fts f"
-        " JOIN chunks c ON c.rowid = f.rowid"
-        " JOIN papers p ON p.arxiv_id = c.paper_id"
-        " WHERE chunks_fts MATCH ?"
-    )
-    params: list[str | int] = [match]
-    if category is not None:
-        sql += " AND p.primary_category = ?"
-        params.append(category)
-    if year_min is not None:
-        sql += " AND p.year >= ?"
-        params.append(year_min)
-    if year_max is not None:
-        sql += " AND p.year <= ?"
-        params.append(year_max)
-    if paper_ids is not None:
-        # An empty scope means "no paper is in scope", NOT "no filter" — the
-        # difference between a landing-page claim that owns no indexed papers
-        # returning nothing, and it returning the whole corpus.
-        if not paper_ids:
-            return []
-        sql += f" AND c.paper_id IN ({','.join('?' * len(paper_ids))})"
-        params.extend(paper_ids)
+    sql = f"SELECT c.chunk_id FROM {CHUNKS_FTS} f JOIN {CHUNKS} c ON c.chunk_rowid = f.rowid"
+    params: list[str | int] = []
+    if filters.day_min is not None or filters.day_max is not None:
+        sql += f" JOIN {DOCUMENTS} d ON d.doc_id = c.doc_id"
+    sql += f" WHERE {CHUNKS_FTS} MATCH ?"
+    params.append(match)
+    if filters.day_min is not None:
+        sql += " AND d.day >= ?"
+        params.append(filters.day_min)
+    if filters.day_max is not None:
+        sql += " AND d.day <= ?"
+        params.append(filters.day_max)
+    for key, value in filters.facets:
+        sql += f" AND c.doc_id IN (SELECT doc_id FROM {FACETS} WHERE key = ? AND value = ?)"
+        params.extend((key, value))
+    if filters.doc_ids is not None:
+        sql += f" AND c.doc_id IN ({','.join('?' * len(filters.doc_ids))})"
+        params.extend(filters.doc_ids)
     sql += " ORDER BY rank LIMIT ?"
     params.append(k)
     return [row[0] for row in conn.execute(sql, params).fetchall()]

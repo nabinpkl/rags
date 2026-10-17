@@ -1,6 +1,6 @@
 """Query-time embedding for retrieval (D5) — the "query" role of one factory.
 
-The corpus-batch role lives in ingest/embed_chunks.py; both sides construct
+The corpus-batch role lives in retrieval/embed_chunks.py; both sides construct
 their backend through the SAME `make_backend`, differing only in
 `input_kind`, so the asymmetric-prefix pairing (search_document: at ingest,
 search_query: here — mandatory per the model card, silent recall
@@ -15,7 +15,7 @@ import httpx
 
 from askrag import telemetry
 from askrag.config import Settings
-from askrag.ingest.embed_chunks import EmbeddingError, EmbeddingsBackend, make_backend
+from askrag.retrieval.embed_chunks import EmbeddingError, EmbeddingsBackend, make_backend
 
 
 class QueryEmbedder:

@@ -4,8 +4,8 @@ import httpx
 import pytest
 
 from askrag.config import Settings
-from askrag.ingest.embed_chunks import BatchEmbedding, EmbeddingError
 from askrag.retrieval import embeddings
+from askrag.retrieval.embed_chunks import BatchEmbedding, EmbeddingError
 from askrag.retrieval.embeddings import QueryEmbedder
 
 

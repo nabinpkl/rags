@@ -163,7 +163,7 @@ def _citations_of(name: str, result: Any) -> tuple[Citation, ...]:
     `name == "drive_ui"` special-case — the same "know one tool's shape at
     the translation boundary" pattern, not a new general interface."""
     if name == "search_corpus":
-        return tuple(Citation(paper_id=c.paper_id, chunk_id=c.chunk_id) for c in result.chunks)
+        return tuple(Citation(paper_id=c.doc_id, chunk_id=c.chunk_id) for c in result.chunks)
     return ()
 
 

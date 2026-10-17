@@ -31,20 +31,18 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
-from typing import cast
-
-import chromadb
-import chromadb.config
-import chromadb.errors
 
 from askrag import telemetry
 from askrag.category_names import unnamed_cs_codes
 from askrag.config import get_settings
 from askrag.ingest import kaggle_seed
-from askrag.ingest.embed_chunks import read_vectors
 from askrag.ingest.extract_citations import read_citations
 from askrag.ingest.latex_text import latex_to_text
 from askrag.ingest.resolve_cited_works import CitedWorkRow, read_cited_works
+from askrag.retrieval import index_schema
+from askrag.retrieval.embed_chunks import read_vectors
+from askrag.retrieval.vector_store import load_collection, vector_metadata
+from askrag.sources import arxiv
 
 _log = logging.getLogger("askrag.ingest.build_indexes")
 
@@ -90,6 +88,13 @@ class PaperRow:
             return int(self.published[:4])
         yy = int(self.arxiv_id[:2])
         return 1900 + yy if yy >= 90 else 2000 + yy
+
+    @property
+    def day(self) -> int:
+        """YYYYMMDD, the same rule as the rag_documents view (sources/arxiv.py)."""
+        if len(self.published) >= 10:
+            return int(self.published[:10].replace("-", ""))
+        return arxiv.year_day(self.year)
 
 
 @dataclass(frozen=True)
@@ -276,7 +281,7 @@ def _write_corpus_db(
             -- filter (/api/catalog) searches the whole table, and the Kaggle
             -- snapshot carries an abstract for every row, so this is the one
             -- text surface that does not depend on having extracted a PDF.
-            -- Separate from chunks_fts, which indexes retrieved chunk text and
+            -- Separate from rag_chunks_fts, which indexes retrieved chunk text and
             -- exists only for the 811 papers the agent can read (D16).
             CREATE VIRTUAL TABLE papers_fts USING fts5(
                 title, abstract, content=papers, content_rowid=rowid,
@@ -292,11 +297,6 @@ def _write_corpus_db(
                 n_tokens   INTEGER NOT NULL
             );
             CREATE INDEX chunks_paper_id ON chunks(paper_id);
-            -- External-content FTS5: BM25 over chunk text without storing it
-            -- twice; rowid joins back to chunks (D4).
-            CREATE VIRTUAL TABLE chunks_fts USING fts5(
-                text, content=chunks, content_rowid=rowid, tokenize='porter unicode61'
-            );
             -- Catalog metadata for works our papers CITE. Separate from
             -- `papers` on purpose: a `papers` row means we hold the text and
             -- can retrieve it, a `cited_works` row means we know only what the
@@ -339,6 +339,11 @@ def _write_corpus_db(
             CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
         )
+        # The retrieval contract (D21): an external-content FTS5 over chunks
+        # (BM25 without storing the text twice, D4) and views mapping papers
+        # and chunks onto the source-agnostic relations.
+        conn.execute(arxiv.FTS_DDL)
+        conn.executescript(arxiv.VIEWS_DDL)
         conn.executemany(
             "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
@@ -375,7 +380,9 @@ def _write_corpus_db(
             "INSERT INTO papers_fts(rowid, title, abstract)"
             " SELECT rowid, title, abstract FROM papers"
         )
-        conn.execute("INSERT INTO chunks_fts(rowid, text) SELECT rowid, text FROM chunks")
+        conn.execute(
+            f"INSERT INTO {index_schema.CHUNKS_FTS}(rowid, text) SELECT rowid, text FROM chunks"
+        )
         # cited_works before citations: the FK on cited_id is enforced (PRAGMA
         # foreign_keys=ON above), so the referenced rows must already exist.
         conn.executemany(
@@ -400,6 +407,7 @@ def _write_corpus_db(
         # these stats never go stale between builds.
         conn.execute("ANALYZE")
         conn.commit()
+        index_schema.check(conn)
     finally:
         conn.close()
     tmp.replace(db_path)
@@ -472,39 +480,13 @@ def _load_chroma(
     add_batch_size: int,
 ) -> int:
     """Pre-validated vectors -> the per-model Chroma collection; returns its count."""
-    client = chromadb.PersistentClient(
-        path=str(chroma_dir),
-        # The pinned 1.5.9 ships a no-op telemetry client (verified in review),
-        # but no-egress must be deliberate, not an accident of the pin.
-        settings=chromadb.config.Settings(anonymized_telemetry=False),
-    )
-    try:
-        client.delete_collection(collection_name)  # drop-and-rebuild
-    except chromadb.errors.NotFoundError:  # first build — nothing to drop
-        pass
-    collection = client.create_collection(
-        collection_name,
-        # Cosine over unit-normalized vectors (embed_chunks normalizes both
-        # backends); metadata fields power `where` filters in hybrid search.
-        configuration={"hnsw": {"space": "cosine"}},
-    )
-    for start in range(0, len(ids), add_batch_size):
-        batch_ids = ids[start : start + add_batch_size]
-        collection.add(
-            ids=batch_ids,
-            # cast only widens list[list[float]] to what chroma declares;
-            # list invariance blocks the direct assignment.
-            embeddings=cast("list[Sequence[float]]", vectors[start : start + add_batch_size]),
-            metadatas=[
-                {
-                    "paper_id": chunks_by_id[i].paper_id,
-                    "category": papers_by_id[chunks_by_id[i].paper_id].primary_category,
-                    "year": papers_by_id[chunks_by_id[i].paper_id].year,
-                }
-                for i in batch_ids
-            ],
+    metadatas = []
+    for chunk_id in ids:
+        paper = papers_by_id[chunks_by_id[chunk_id].paper_id]
+        metadatas.append(
+            vector_metadata(paper.arxiv_id, paper.day, [(arxiv.CATEGORY, paper.primary_category)])
         )
-    return collection.count()
+    return load_collection(chroma_dir, collection_name, ids, vectors, metadatas, add_batch_size)
 
 
 def run(

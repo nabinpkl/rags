@@ -1,6 +1,6 @@
 import pytest
 
-from askrag.ingest.token_bucket import TokenBucket
+from askrag.retrieval.token_bucket import TokenBucket
 
 
 class FakeClock:

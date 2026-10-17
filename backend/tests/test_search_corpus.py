@@ -6,6 +6,7 @@ import pytest
 from askrag.config import Settings
 from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
 from askrag.retrieval.hybrid_search import HybridSearch, ScoredChunk
+from askrag.retrieval.index_location import IndexLocation
 from askrag.retrieval.rerank import Reranked
 from askrag.tools.search_corpus import SearchCorpusArgs, run
 
@@ -54,10 +55,10 @@ class FakeStore:
         self.ids = ids
         self.calls: list[dict] = []
 
-    def query(self, embedding, k, *, category=None, year_min=None, year_max=None, paper_ids=None):
-        self.calls.append({"k": k, "paper_ids": paper_ids})
-        if paper_ids is not None:
-            wanted = set(paper_ids)
+    def query(self, embedding, k, *, filters):
+        self.calls.append({"k": k, "paper_ids": filters.doc_ids})
+        if filters.doc_ids is not None:
+            wanted = set(filters.doc_ids)
             return [i for i in self.ids if i.split("#")[0] in wanted][:k]
         return self.ids[:k]
 
@@ -65,21 +66,21 @@ class FakeStore:
 def test_run_wraps_hybrid_search_and_returns_scored_chunks(corpus_db):
     searcher = HybridSearch(
         Settings(rerank_enabled=False),
+        IndexLocation(corpus_db, corpus_db.parent / "chroma", "test"),
         embedder=FakeEmbedder(),
         vector_store=FakeStore(["2401.00001#0"]),
-        corpus_db_path=corpus_db,
     )
     result = run(SearchCorpusArgs(query="attention"), searcher=searcher)
     assert all(isinstance(c, ScoredChunk) for c in result.chunks)
-    assert result.chunks[0].paper_id == "2401.00001"
+    assert result.chunks[0].doc_id == "2401.00001"
 
 
 def test_to_model_payload_is_a_plain_dict_of_chunk_dicts(corpus_db):
     searcher = HybridSearch(
         Settings(rerank_enabled=False),
+        IndexLocation(corpus_db, corpus_db.parent / "chroma", "test"),
         embedder=FakeEmbedder(),
         vector_store=FakeStore(["2401.00001#0"]),
-        corpus_db_path=corpus_db,
     )
     result = run(SearchCorpusArgs(query="attention"), searcher=searcher)
     payload = result.to_model_payload()
@@ -95,9 +96,9 @@ def test_k_is_clamped_to_search_corpus_max_k(corpus_db):
     store = FakeStore(["2401.00001#0"])
     searcher = HybridSearch(
         Settings(search_corpus_max_k=3, rerank_enabled=False),
+        IndexLocation(corpus_db, corpus_db.parent / "chroma", "test"),
         embedder=FakeEmbedder(),
         vector_store=store,
-        corpus_db_path=corpus_db,
     )
     run(
         SearchCorpusArgs(query="attention", k=20),
@@ -130,9 +131,9 @@ def test_a_route_set_scope_narrows_retrieval(corpus_db):
     store = FakeStore(["2401.00001#0"])
     searcher = HybridSearch(
         Settings(rerank_enabled=False),
+        IndexLocation(corpus_db, corpus_db.parent / "chroma", "test"),
         embedder=FakeEmbedder(),
         vector_store=store,
-        corpus_db_path=corpus_db,
     )
 
     out_of_scope = run(
@@ -150,7 +151,7 @@ def test_a_route_set_scope_narrows_retrieval(corpus_db):
 
     assert store.calls[0]["paper_ids"] == ("2499.99999",)
     assert out_of_scope.chunks == ()
-    assert {c.paper_id for c in in_scope.chunks} == {"2401.00001"}
+    assert {c.doc_id for c in in_scope.chunks} == {"2401.00001"}
 
 
 def test_scope_is_absent_from_the_model_facing_schema():
@@ -169,9 +170,9 @@ class BilledReranker:
 def test_the_result_carries_what_the_search_billed(corpus_db):
     searcher = HybridSearch(
         Settings(),
+        IndexLocation(corpus_db, corpus_db.parent / "chroma", "test"),
         embedder=FakeEmbedder(),
         vector_store=FakeStore(["2401.00001#0"]),
-        corpus_db_path=corpus_db,
         reranker=BilledReranker(),
     )
     result = run(SearchCorpusArgs(query="attention"), searcher=searcher)

@@ -42,9 +42,11 @@ from askrag import db
 from askrag.config import Settings, get_settings
 from askrag.retrieval import fts
 from askrag.retrieval.embeddings import QueryEmbedder
+from askrag.retrieval.filters import Filters
 from askrag.retrieval.hybrid_search import rrf_fuse
 from askrag.retrieval.rerank import Reranked, Reranker
 from askrag.retrieval.vector_store import VectorStore
+from askrag.sources import arxiv
 
 from evals.golden_set import GOLDEN_PATH, GoldenRecord, GoldenType, load_golden
 from evals.rewrite_queries import REWRITES_PATH, load_rewrites
@@ -133,32 +135,33 @@ def make_retriever(
     """`retrieve(question, rewrite)`: the three methods on the question,
     hybrid's pool reranked, and hybrid on the rewrite."""
     embedder = QueryEmbedder(settings)
-    store = VectorStore(settings)
+    store = VectorStore(arxiv.index(settings))
+    unfiltered = Filters()
     reranker = Reranker(settings)
 
     def texts(chunk_ids: list[str]) -> list[tuple[str, str]]:
         marks = ",".join("?" * len(chunk_ids))
         rows = dict(
             conn.execute(
-                f"SELECT chunk_id, text FROM chunks WHERE chunk_id IN ({marks})", chunk_ids
+                f"SELECT chunk_id, text FROM rag_chunks WHERE chunk_id IN ({marks})", chunk_ids
             ).fetchall()
         )
         return [(c, rows[c]) for c in chunk_ids]
 
     def hybrid(query: str, *, rerank: bool = True) -> Retrieved:
         t0 = time.perf_counter()
-        bm25 = fts.search_bm25(conn, query, k)
+        bm25 = fts.search_bm25(conn, query, k, unfiltered)
         t1 = time.perf_counter()
         embedding, embed_usd = embedder.embed_query_priced(query)
         if embed_usd is None:
             raise RuntimeError("the embedding reply carried no cost")
-        vector = store.query(embedding, k)
+        vector = store.query(embedding, k, filters=unfiltered)
         t2 = time.perf_counter()
         fused = rrf_fuse({"bm25": bm25, "vector": vector}, settings.rrf_k)
         top = sorted(fused, key=lambda c: fused[c][0], reverse=True)[:k]
         t3 = time.perf_counter()
-        bm25_pool = fts.search_bm25(conn, query, pool_k)
-        vector_pool = store.query(embedder.embed_query(query), pool_k)
+        bm25_pool = fts.search_bm25(conn, query, pool_k, unfiltered)
+        vector_pool = store.query(embedder.embed_query(query), pool_k, filters=unfiltered)
         fused_pool = rrf_fuse({"bm25": bm25_pool, "vector": vector_pool}, settings.rrf_k)
         top_pool = sorted(fused_pool, key=lambda c: fused_pool[c][0], reverse=True)[:pool_k]
         reranked = reranker.rerank(query, texts(top_pool), pool_k) if rerank else Reranked([], 0.0)
@@ -364,8 +367,8 @@ def main(argv: list[str] | None = None) -> int:
 
     conn = db.connect_corpus(None)
     try:
-        n_chunks = conn.execute("SELECT count(*) FROM chunks").fetchone()[0]
-        n_papers = conn.execute("SELECT count(DISTINCT paper_id) FROM chunks").fetchone()[0]
+        n_chunks = conn.execute("SELECT count(*) FROM rag_chunks").fetchone()[0]
+        n_papers = conn.execute("SELECT count(DISTINCT doc_id) FROM rag_chunks").fetchone()[0]
         run_id = fingerprint(settings, GOLDEN_PATH, n_chunks)
         path = run_path(run_id)
         done = load_run(path)

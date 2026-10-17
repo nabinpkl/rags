@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 from askrag.config import Settings
-from askrag.ingest.embed_chunks import BatchEmbedding, EmbeddingError
 from askrag.paper_map import embed_abstracts as ea
+from askrag.retrieval.embed_chunks import BatchEmbedding, EmbeddingError
 
 
 def _db(path, rows):

@@ -303,7 +303,7 @@ one, so rollback is one env var.
 
 New operational invariant: an API embedding backend is **paced, not just
 retried**. Perplexity rate-limits upstream of OpenRouter, and the five 429s in
-the bulk run all traced to a cold-start burst, so `ingest/token_bucket.py`
+the bulk run all traced to a cold-start burst, so `retrieval/token_bucket.py`
 reserves tokens forward in time and banks nothing — an idle stretch earns no
 credit for a later burst. Batch caps come from the provider's own errors (512
 items, 120,000 tokens per request), not its docs, which state none.
@@ -1398,6 +1398,61 @@ this one was reviewed and kept. Recent now has 18 groups over its 106
 themes. A seeded rebuild of recent costs about 5 minutes when its layout
 cache is gone.
 
+### D21. A source-agnostic retrieval core; arXiv is one source, Claude Code transcripts a second
+
+**Decision (2026-10-17, owner directive).** Retrieval answers "a query in,
+ranked evidence out" for any document source, not only arXiv papers, and the
+agent is one of its callers rather than its shape. `askrag/retrieval/` is the
+core and imports no source and no caller (a test reads its imports);
+`askrag/sources/` holds the sources.
+
+**The index contract** (`retrieval/index_schema.py`). Every source's SQLite
+file exposes four relations, and retrieval reads nothing else:
+`rag_documents(doc_id, title, day, version)`, `rag_chunks(chunk_rowid,
+chunk_id, doc_id, section, pos_start, pos_end, text, n_tokens)`,
+`rag_chunks_fts` (FTS5 over chunk text, porter unicode61) and
+`rag_facets(doc_id, key, value)`. `day` is YYYYMMDD; `pos_*` are
+source-defined positions (PDF pages, transcript turns); chunk ids are
+`<doc_id>#<seq>`. The source's Chroma collection, still named by the
+embedding model slug, carries `doc_id`, `day` and `facet_<key>` metadata.
+Filters are a doc-id scope (server-set, §5), a day range and exact-match
+facets, pushed into both legs as D8 requires.
+
+**arXiv maps onto the contract with views**, so corpus.db keeps one home for
+its catalog: `rag_documents` over `papers` (day from `published`), `rag_chunks`
+over `chunks` (pages as positions), `rag_facets` as the primary category, and
+the FTS table renamed to `rag_chunks_fts`. The agent's tool contract is
+unchanged: `search_corpus` still takes category and years and still returns
+`paper_id` and `page_start`, mapped in `sources/arxiv.py`. Rebuilt with the
+new code, the 65,401-chunk index returns identical BM25 rankings on all 213
+golden questions under six filter cases each (none, category, year floor,
+year range, scope, empty scope); vector rankings differ only by HNSW
+approximation, equally close to exact neighbours for old and new (recall@10
+against exact: 0.926 old, 0.923 new, unfiltered).
+
+**Claude Code transcripts are the second source**, built by `just
+transcripts` into `corpus/sources/claude_transcripts/`. A document is a
+session (facet: its project); a chunk is whole turns packed to
+`chunk_size_tokens`, a turn being a typed prompt plus the assistant's prose and
+one line per tool call. Tool output, thinking, subagent and harness records
+are never indexed. Secrets and email addresses are redacted before anything
+is written. The source is private: embedded and searched with the local
+nomic model (no hosted embedding API sees it), searchable from `just ask
+--source claude_transcripts` and the evals only, and never mounted by the
+deploy.
+
+**The evals run per source** (`--source`), with the same metrics, legs and
+fusion. Transcripts' golden set and runs live under `corpus/` (they quote
+private sessions), drafted and checked by Anthropic models.
+
+**Not now:** email; an answer step without the agent; a separate package;
+search across sources at once.
+
+**Revisit when:** a third source arrives (the contract should not need to
+change; if it does, that is the finding); a second repo wants the core (split
+it into a package); one query should span sources (fuse per-source result
+lists with the same RRF).
+
 ## 4. Architecture
 
 ```
@@ -1613,11 +1668,23 @@ rags/
 │   │   │   ├── read_paper.py        # tool: extracted text spans by paper id + page range
 │   │   │   ├── run_python.py        # tool: dispatch code to sandbox/runner, collect stdout + PNGs
 │   │   │   └── drive_ui.py          # tool: enum-validated UI actions, server-verified against corpus.db (§5)
-│   │   ├── retrieval/
+│   │   ├── ask.py                   # `just ask`: top-k hybrid search over any source's index (D21)
+│   │   ├── retrieval/               # THE source-agnostic core (D21): imports no source and no caller
+│   │   │   ├── index_schema.py      # the index contract: rag_documents, rag_chunks, rag_chunks_fts, rag_facets
+│   │   │   ├── index_location.py    # where one source's index lives: db path, chroma dir, model-slug collection
+│   │   │   ├── filters.py           # doc-id scope, day range, declared facets; pushed into both legs
 │   │   │   ├── hybrid_search.py     # vector + BM25 → reciprocal rank fusion → top-k (D8); rerank behind a flag
-│   │   │   ├── vector_store.py      # Chroma wrapper — THE pgvector seam (D4 revisit lands here)
-│   │   │   ├── fts.py               # FTS5/BM25 query construction and escaping
-│   │   │   └── embeddings.py        # embedding API client, one function for corpus batch + query single (D5)
+│   │   │   ├── vector_store.py      # Chroma wrapper — THE pgvector seam (D4 revisit lands here); collection loader
+│   │   │   ├── fts.py               # FTS5/BM25 query construction and escaping, over the contract
+│   │   │   ├── embeddings.py        # query-side embedding (D5)
+│   │   │   ├── embed_chunks.py      # any chunks.jsonl → vectors/<model_slug>.parquet, batched, resumable (D5)
+│   │   │   ├── token_bucket.py      # embedding API pacing
+│   │   │   ├── rerank.py            # hosted or local cross-encoder rerank (D8 amendment)
+│   │   │   └── build_index.py       # documents + chunks + vectors → the contract tables + chroma, for a new source
+│   │   ├── sources/                 # what retrieval searches (D21); each maps itself onto the contract
+│   │   │   ├── source_specs.py      # literal dict: source name → index location + search settings
+│   │   │   ├── arxiv.py             # contract views over corpus.db, year/category filters, the §5 tool payload
+│   │   │   └── claude_transcripts/  # Claude Code session logs: read, redact, chunk by turn, build (local embedder)
 │   │   ├── ingest/
 │   │   │   ├── kaggle_seed.py       # streaming reader for corpus/archive.zip — one member name; targeted lookups + the per-month cs census
 │   │   │   ├── extract_text.py      # pdfs/ → corpus/text/{YYMM}/*.txt (PyMuPDF page text); `--months` scopes a top-up
@@ -1626,9 +1693,8 @@ rags/
 │   │   │   ├── select_frontier.py   # THE MANIFEST: citations.tsv → frontier.json; also `--verify` (D16 amendment)
 │   │   │   ├── extract_pdfs.py      # pdfs/ → corpus/extracted/*.json + skiplist.json (PyMuPDF4LLM, D6); `--frontier` scopes to the manifest
 │   │   │   ├── chunk_papers.py      # extracted/ → section-aware ~1k-token page-anchored chunks (D7)
-│   │   │   ├── embed_chunks.py      # chunks → vectors/<model_slug>.parquet, local (default) or Voyage backend, batched, resumable (D5)
 │   │   │   ├── render_thumbnails.py # pdfs/ → thumbs/{id}.jpg, on demand or in bulk (D19)
-│   │   │   ├── build_indexes.py     # chunks + vectors → corpus.db (FTS5) + chroma/, shared chunk ids (D4)
+│   │   │   ├── build_indexes.py     # chunks + vectors → corpus.db (catalog + contract views + FTS5) + chroma/ (D4, D21)
 │   │   │   └── ingest_stats.py      # per-stage report: counts, sizes, skip reasons, snapshot datestamp (D12)
 │   │   ├── sandbox/
 │   │   │   ├── runner.py            # docker run --network none, ro-mounts, rlimits, tmpfs, PNG collection (D10)

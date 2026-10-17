@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from askrag.config import Settings
-from askrag.ingest.embed_chunks import OpenRouterEmbeddings, _embed_splitting
+from askrag.retrieval.embed_chunks import OpenRouterEmbeddings, _embed_splitting
 
 _log = logging.getLogger("askrag.paper_map.embed_abstracts")
 

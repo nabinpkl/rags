@@ -6,10 +6,13 @@ import pytest
 
 from askrag.config import Settings
 from askrag.ingest.build_indexes import ChunkRow, PaperRow, _write_corpus_db
-from askrag.ingest.embed_chunks import EmbeddingError
-from askrag.retrieval.hybrid_search import Filters, HybridSearch, ScoredChunk, rrf_fuse
+from askrag.retrieval.embed_chunks import EmbeddingError
+from askrag.retrieval.filters import Filters
+from askrag.retrieval.hybrid_search import HybridSearch, ScoredChunk, rrf_fuse
+from askrag.retrieval.index_location import IndexLocation
 from askrag.retrieval.rerank import Reranked, RerankError, RerankUnavailable
 from askrag.retrieval.vector_store import VectorStoreError
+from askrag.sources.arxiv import filters as arxiv_filters
 
 
 def _http_status_error(status: int) -> httpx.HTTPStatusError:
@@ -103,22 +106,14 @@ class FakeStore:
         self.fail_with = fail_with
         self.calls: list[dict] = []
 
-    def query(self, embedding, k, *, category=None, year_min=None, year_max=None, paper_ids=None):
-        self.calls.append(
-            {
-                "k": k,
-                "category": category,
-                "year_min": year_min,
-                "year_max": year_max,
-                "paper_ids": paper_ids,
-            }
-        )
+    def query(self, embedding, k, *, filters: Filters):
+        self.calls.append({"k": k, "filters": filters})
         if self.fail_with is not None:
             raise self.fail_with
-        if paper_ids is not None:
+        if filters.doc_ids is not None:
             # The fake mirrors the real store's contract: an empty scope
             # returns nothing rather than falling back to unscoped results.
-            wanted = set(paper_ids)
+            wanted = set(filters.doc_ids)
             return [i for i in self.ids if i.split("#")[0] in wanted][:k]
         return self.ids[:k]
 
@@ -127,10 +122,10 @@ def searcher(corpus_db, embedder=None, store=None, reranker=None, **settings_ove
     settings_overrides.setdefault("rerank_enabled", reranker is not None)
     return HybridSearch(
         Settings(**settings_overrides),
+        IndexLocation(corpus_db, corpus_db.parent / "chroma", "test"),
         reranker=reranker,
         embedder=embedder if embedder is not None else FakeEmbedder(),
         vector_store=store if store is not None else FakeStore(["2401.00001#1"]),
-        corpus_db_path=corpus_db,
     )
 
 
@@ -143,7 +138,7 @@ def test_search_fuses_legs_and_hydrates_provenance(corpus_db):
     assert by_id["2401.00001#1"].leg == "both"
     assert results[0].chunk_id == "2401.00001#1"  # both-legs chunk outranks
     hit = by_id["2401.00001#0"]
-    assert (hit.paper_id, hit.section, hit.page_start, hit.page_end) == (
+    assert (hit.doc_id, hit.section, hit.pos_start, hit.pos_end) == (
         "2401.00001",
         "Intro",
         1,
@@ -156,13 +151,12 @@ def test_search_fuses_legs_and_hydrates_provenance(corpus_db):
 def test_filters_push_down_to_both_legs(corpus_db):
     store = FakeStore(["2401.00001#0"])
     s = searcher(corpus_db, store=store)
-    results = s.search("attention", filters=Filters(category="cs.CL", year_min=2024), k=4)
+    wanted = arxiv_filters(category="cs.CL", year_min=2024)
+    results = s.search("attention", filters=wanted, k=4)
     # Vector leg received the filters verbatim...
-    assert store.calls == [
-        {"k": 4, "category": "cs.CL", "year_min": 2024, "year_max": None, "paper_ids": None}
-    ]
+    assert store.calls == [{"k": 4, "filters": wanted}]
     # ...and the BM25 leg applied them in SQL: cs.DS and 2019 papers excluded.
-    assert {r.paper_id for r in results} == {"2401.00001"}
+    assert {r.doc_id for r in results} == {"2401.00001"}
 
 
 def test_paper_id_scope_pushes_down_to_both_legs(corpus_db):
@@ -175,10 +169,10 @@ def test_paper_id_scope_pushes_down_to_both_legs(corpus_db):
     store = FakeStore(["2401.00001#0", "2401.00002#0"])
     s = searcher(corpus_db, store=store)
 
-    results = s.search("attention", filters=Filters(paper_ids=("2401.00001",)), k=4)
+    results = s.search("attention", filters=Filters(doc_ids=("2401.00001",)), k=4)
 
-    assert store.calls[0]["paper_ids"] == ("2401.00001",)
-    assert {r.paper_id for r in results} == {"2401.00001"}
+    assert store.calls[0]["filters"].doc_ids == ("2401.00001",)
+    assert {r.doc_id for r in results} == {"2401.00001"}
 
 
 def test_an_empty_scope_returns_nothing_not_everything(corpus_db):
@@ -190,7 +184,7 @@ def test_an_empty_scope_returns_nothing_not_everything(corpus_db):
     store = FakeStore(["2401.00001#0"])
     s = searcher(corpus_db, store=store)
 
-    assert s.search("attention", filters=Filters(paper_ids=()), k=4) == []
+    assert s.search("attention", filters=Filters(doc_ids=()), k=4) == []
 
 
 def test_vector_leg_down_degrades_to_bm25_only(corpus_db):
@@ -243,7 +237,7 @@ def test_vector_leg_code_bug_fails_loud_not_degrades(corpus_db, fail_with):
 def test_missing_version_surfaces_as_none_not_v_something(corpus_db):
     s = searcher(corpus_db, store=FakeStore([]))
     results = s.search("translation", k=4)
-    assert results[0].paper_id == "1901.00003"
+    assert results[0].doc_id == "1901.00003"
     assert results[0].version is None  # D9 fallback is the caller's decision
 
 

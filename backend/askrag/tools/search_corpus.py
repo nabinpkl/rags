@@ -1,10 +1,10 @@
 """tool: search_corpus — hybrid retrieval, wrapped at the tool boundary (§5).
 
 `SearchCorpusArgs` is a closed schema (`extra="forbid"`): the model can only
-ever supply the three filter fields `retrieval.hybrid_search.Filters` already
-defines, never an open filter dict — that closed shape is this tool's "schema
-enum" enforcement (§5). `k` is clamped so one call can't ask for more than
-`search_corpus_max_k` chunks.
+ever supply the three arXiv filter fields that `sources.arxiv.filters` maps
+onto the source-agnostic `retrieval.filters.Filters`, never an open filter
+dict; that closed shape is this tool's "schema enum" enforcement (§5). `k`
+is clamped so one call can't ask for more than `search_corpus_max_k` chunks.
 
 Reranked when `rerank_enabled` (D8); the dollars that costs ride back on
 the result for the turn's budget, outside the model payload.
@@ -13,13 +13,14 @@ Read-only by construction: `HybridSearch.search` only ever opens
 `db.connect_corpus` (mode=ro, §4c) and queries the embedded Chroma store.
 """
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from askrag.config import Settings, get_settings
-from askrag.retrieval.hybrid_search import Filters, HybridSearch, ScoredChunk
+from askrag.retrieval.hybrid_search import HybridSearch, ScoredChunk
+from askrag.sources import arxiv
 
 # The JSON schema's advertised ceiling for `k` (review finding, PR #57: `ge=1`
 # alone left the model-facing schema silent about the real limit). Read off
@@ -50,7 +51,7 @@ class SearchCorpusResult:
     usd: float
 
     def to_model_payload(self) -> dict[str, Any]:
-        return {"chunks": [asdict(c) for c in self.chunks]}
+        return {"chunks": [arxiv.chunk_payload(c) for c in self.chunks]}
 
 
 def run(
@@ -68,9 +69,9 @@ def run(
     and no argument the model writes can reach past them.
     """
     settings = settings if settings is not None else get_settings()
-    searcher = searcher if searcher is not None else HybridSearch(settings)
+    searcher = searcher if searcher is not None else HybridSearch(settings, arxiv.index(settings))
     k = min(args.k, settings.search_corpus_max_k)
-    filters = Filters(
+    filters = arxiv.filters(
         category=args.category,
         year_min=args.year_min,
         year_max=args.year_max,

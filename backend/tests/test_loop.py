@@ -120,12 +120,12 @@ def test_tool_dispatch_round_trips_through_registry(tmp_path, monkeypatch):
 
 @dataclass
 class FakeScoredChunk:
-    paper_id: str
+    doc_id: str
     chunk_id: str
 
 
 class StubSearchCorpusResult:
-    """Mimics SearchCorpusResult's real shape (`.chunks` of paper_id/chunk_id
+    """Mimics SearchCorpusResult's real shape (`.chunks` of doc_id/chunk_id
     objects) — `_citations_of` reads exactly that, duck-typed (issue #27)."""
 
     def __init__(self, chunks, usd=0.0):
@@ -133,7 +133,7 @@ class StubSearchCorpusResult:
         self.usd = usd
 
     def to_model_payload(self):
-        return {"chunks": [{"paper_id": c.paper_id, "chunk_id": c.chunk_id} for c in self.chunks]}
+        return {"chunks": [{"paper_id": c.doc_id, "chunk_id": c.chunk_id} for c in self.chunks]}
 
 
 def test_search_corpus_result_ids_land_in_the_tool_call_record_as_citations(tmp_path, monkeypatch):
@@ -142,9 +142,9 @@ def test_search_corpus_result_ids_land_in_the_tool_call_record_as_citations(tmp_
         "dispatch",
         lambda name, args, *, scope=None: StubSearchCorpusResult(
             [
-                FakeScoredChunk(paper_id="2401.00001", chunk_id="2401.00001#0"),
-                FakeScoredChunk(paper_id="2401.00001", chunk_id="2401.00001#1"),
-                FakeScoredChunk(paper_id="2401.00002", chunk_id="2401.00002#0"),
+                FakeScoredChunk(doc_id="2401.00001", chunk_id="2401.00001#0"),
+                FakeScoredChunk(doc_id="2401.00001", chunk_id="2401.00001#1"),
+                FakeScoredChunk(doc_id="2401.00002", chunk_id="2401.00002#0"),
             ]
         ),
     )

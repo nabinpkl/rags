@@ -60,9 +60,9 @@ import pyarrow.parquet as pq
 
 from askrag import telemetry
 from askrag.config import Settings, get_settings
-from askrag.ingest.token_bucket import TokenBucket
+from askrag.retrieval.token_bucket import TokenBucket
 
-_log = logging.getLogger("askrag.ingest.embed_chunks")
+_log = logging.getLogger("askrag.retrieval.embed_chunks")
 
 # Provider REST endpoints (protocol facts, not tunables).
 _VOYAGE_BASE_URL = "https://api.voyageai.com/v1"

@@ -1,10 +1,13 @@
-"""Hybrid retrieval (D8): vector + BM25 legs, RRF fusion, filters pushed down,
-then a reranker reorders the fused pool into the top k.
+"""Hybrid retrieval (D8) over any source's index (D21): vector + BM25 legs,
+RRF fusion, filters pushed down, then a reranker reorders the fused pool into
+the top k.
 
-`search()` is the interface tools and evals consume; it returns ScoredChunk
-with full provenance (section + page anchors are what make citations
-verifiable, D7/D9). Fusion is reciprocal rank fusion — 1/(rrf_k + rank),
-summed across legs — so no leg weights to tune (D8).
+`search()` is the interface tools, evals and the `just ask` CLI consume; it
+returns ScoredChunk with full provenance (section + position anchors are what
+make citations verifiable, D7/D9). Fusion is reciprocal rank fusion —
+1/(rrf_k + rank), summed across legs — so no leg weights to tune (D8). The
+index is whatever `IndexLocation` the caller hands in; this module reads only
+the index contract (index_schema.py) and never names a source.
 
 Degradation contract (D8, deliberate): the VECTOR leg failing (model gone,
 API outage on the parked path) degrades to BM25-only results with a warning
@@ -16,7 +19,7 @@ raw `OSError`) — this module never names an httpx or chromadb type itself;
 operational errors into that vocabulary at their own boundary (a code bug
 there stays raw and propagates, PR #59 review findings 2/3). A code bug in
 the embed/query path fails loud instead of degrading (2026-07-06 checkpoint
-finding 3). corpus.db failing is fatal by design: without it there is no
+finding 3). The index db failing is fatal by design: without it there is no
 text to return at all.
 
 Rerank (config.rerank_enabled, D8 amendment 2026-10-14): both legs retrieve
@@ -25,27 +28,21 @@ the top k. A reranker outage (`RerankUnavailable`) keeps the fused order with
 a warning, the same limp-not-die contract as the vector leg; any other rerank
 failure is a bug and propagates. `search_priced` also returns what the search
 billed (query embedding plus rerank) so the agent's turn can count it (D11).
-
-__main__ is the spine checkpoint (#16): `just ask q="..."` prints top-k over
-the real corpus; `--bench` measures the p95 the spec §10 Chroma assumption
-asks for. The real REPL is #24.
 """
 
-import argparse
 import logging
 import sqlite3
-import statistics
-import sys
-import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Protocol
 
 from askrag import db, telemetry
-from askrag.config import Settings, get_settings
-from askrag.ingest.embed_chunks import EmbeddingError
+from askrag.config import Settings
 from askrag.retrieval import fts
+from askrag.retrieval.embed_chunks import EmbeddingError
 from askrag.retrieval.embeddings import QueryEmbedder
+from askrag.retrieval.filters import Filters
+from askrag.retrieval.index_location import IndexLocation
+from askrag.retrieval.index_schema import CHUNKS, DOCUMENTS
 from askrag.retrieval.rerank import Reranked, RerankUnavailable, live_reranker
 from askrag.retrieval.vector_store import VectorStore, VectorStoreError
 
@@ -63,36 +60,24 @@ _log = logging.getLogger("askrag.retrieval.hybrid_search")
 
 
 @dataclass(frozen=True)
-class Filters:
-    """Metadata filters, pushed down into BOTH legs (D8). None = no filter."""
-
-    category: str | None = None
-    year_min: int | None = None
-    year_max: int | None = None
-    # A scope, not a filter: `None` means unscoped, an EMPTY tuple means
-    # nothing is in scope. Set server-side from a landing-page claim, never
-    # by the model — see routes_chat's scope handling (§5/§6).
-    paper_ids: tuple[str, ...] | None = None
-
-
-@dataclass(frozen=True)
 class ScoredChunk:
     """The retrieval product (issue #16 interface): provenance + fused score.
 
+    `pos_start`/`pos_end` are the source's positions (PDF pages for arXiv).
     `leg` records which side(s) surfaced the chunk: "vector", "bm25", "both".
     """
 
     chunk_id: str
-    paper_id: str
+    doc_id: str
     section: str
-    page_start: int
-    page_end: int
+    pos_start: int
+    pos_end: int
     text: str
     # The RRF fusion score. With reranking on, list order is the ranking and
     # this score no longer sorts it.
     score: float
     leg: str
-    version: str | None  # papers.version — the D9 pinned-PDF anchor
+    version: str | None  # the document's revision (arXiv: the D9 pinned-PDF anchor)
 
 
 def rrf_fuse(legs: dict[str, list[str]], rrf_k: int) -> dict[str, tuple[float, str]]:
@@ -135,35 +120,27 @@ class RerankerLike(Protocol):
 class VectorStoreLike(Protocol):
     """The store seam — also what a pgvector implementation must satisfy (D4)."""
 
-    def query(
-        self,
-        embedding: list[float],
-        k: int,
-        *,
-        category: str | None = None,
-        year_min: int | None = None,
-        year_max: int | None = None,
-        paper_ids: tuple[str, ...] | None = None,
-    ) -> list[str]: ...
+    def query(self, embedding: list[float], k: int, *, filters: Filters) -> list[str]: ...
 
 
 class HybridSearch:
-    """Both legs + fusion + hydration, holding the process-wide resources."""
+    """Both legs + fusion + hydration over one index, holding its resources."""
 
     def __init__(
         self,
         settings: Settings,
+        index: IndexLocation,
+        *,
         embedder: QueryEmbedderLike | None = None,
         vector_store: VectorStoreLike | None = None,
-        corpus_db_path: Path | None = None,
         reranker: RerankerLike | None = None,
     ) -> None:
         # Injectable seams for tests; production loads the real model here —
         # the one-time cold cost the FastAPI lifespan will pay once (#30).
         self._settings = settings
+        self._index = index
         self._embedder = embedder if embedder is not None else QueryEmbedder(settings)
-        self._store = vector_store if vector_store is not None else VectorStore(settings)
-        self._corpus_db_path = corpus_db_path  # None -> settings path via db.py
+        self._store = vector_store if vector_store is not None else VectorStore(index)
         if reranker is not None:
             self._reranker: RerankerLike | None = reranker
         elif settings.rerank_enabled:
@@ -201,38 +178,23 @@ class HybridSearch:
                 embedding, embed_usd = self._embedder.embed_query_priced(query)
                 # A backend that reports no price runs locally and bills nothing.
                 usd += embed_usd or 0.0
-                legs["vector"] = self._store.query(
-                    embedding,
-                    depth,
-                    category=filters.category,
-                    year_min=filters.year_min,
-                    year_max=filters.year_max,
-                    paper_ids=filters.paper_ids,
-                )
+                legs["vector"] = self._store.query(embedding, depth, filters=filters)
             except _VECTOR_LEG_OPERATIONAL_ERRORS:
                 # Fail-soft BY DESIGN (D8): a dead vector leg degrades to
-                # BM25-only, never a dead site. corpus.db errors below stay
+                # BM25-only, never a dead site. Index db errors below stay
                 # fatal — without it there is nothing to return. Narrowed to
                 # the operational error set (finding 3): a code bug now
                 # propagates instead of silently degrading.
                 _log.warning("vector leg failed; degrading to BM25-only (D8)", exc_info=True)
                 span.set_attribute("askrag.degraded", True)
 
-            conn = db.connect_corpus(self._corpus_db_path)
+            conn = db.connect_corpus(self._index.db_path)
             try:
                 with tracer.start_as_current_span("askrag.retrieval.bm25"):
-                    legs["bm25"] = fts.search_bm25(
-                        conn,
-                        query,
-                        depth,
-                        category=filters.category,
-                        year_min=filters.year_min,
-                        year_max=filters.year_max,
-                        paper_ids=filters.paper_ids,
-                    )
+                    legs["bm25"] = fts.search_bm25(conn, query, depth, filters)
                 fused = rrf_fuse(legs, settings.rrf_k)
                 ranked = sorted(fused.items(), key=lambda kv: kv[1][0], reverse=True)[:depth]
-                pool = self._hydrate(conn, ranked)
+                pool = hydrate(conn, ranked)
             finally:
                 conn.close()
 
@@ -260,113 +222,37 @@ class HybridSearch:
             span.set_attribute("askrag.usd", usd)
         return SearchOutcome(results, usd)
 
-    def _hydrate(
-        self,
-        conn: sqlite3.Connection,
-        ranked: list[tuple[str, tuple[float, str]]],
-    ) -> list[ScoredChunk]:
-        """Fused ids -> full provenance rows, one query, input order kept."""
-        if not ranked:
-            return []
-        ids = [chunk_id for chunk_id, _ in ranked]
-        placeholders = ",".join("?" * len(ids))
-        rows = {
-            row["chunk_id"]: row
-            for row in conn.execute(
-                f"SELECT c.chunk_id, c.paper_id, c.section, c.page_start, c.page_end,"
-                f"       c.text, p.version FROM chunks c"
-                f" JOIN papers p ON p.arxiv_id = c.paper_id"
-                f" WHERE c.chunk_id IN ({placeholders})",
-                ids,
-            ).fetchall()
-        }
-        return [
-            ScoredChunk(
-                chunk_id=chunk_id,
-                paper_id=rows[chunk_id]["paper_id"],
-                section=rows[chunk_id]["section"],
-                page_start=rows[chunk_id]["page_start"],
-                page_end=rows[chunk_id]["page_end"],
-                text=rows[chunk_id]["text"],
-                score=score,
-                leg=leg,
-                version=rows[chunk_id]["version"],
-            )
-            for chunk_id, (score, leg) in ranked
-        ]
 
-
-# --- spine checkpoint CLI (#16); the real REPL is #24 -------------------------
-
-_BENCH_QUERIES = [
-    # Mixed shapes: natural-language, exact-match acronyms, names, filters' load
-    "chain of thought prompting",
-    "hallucination detection methods",
-    "graph neural network scalability",
-    "RLHF reward model overoptimization",
-    "BLEU score machine translation evaluation",
-    "transformer attention memory efficiency",
-    "quantized feedback fading channel capacity",
-    "convex optimization convergence rate",
-    "self-supervised speech representation",
-    "retrieval augmented generation citations",
-]
-
-
-def _print_results(results: list[ScoredChunk]) -> None:
-    for r in results:
-        version = r.version or "v?"
-        pages = f"p{r.page_start}" + (f"-{r.page_end}" if r.page_end != r.page_start else "")
-        text = " ".join(r.text.split())[:100]
-        print(f"{r.paper_id} {version} | {r.section[:40]} | {pages} | {r.score:.4f} | {text}")
-
-
-def _bench(searcher: HybridSearch, k: int) -> None:
-    # 100 mixed queries (spec §10: embedded-Chroma latency assumption).
-    queries = (_BENCH_QUERIES * 10)[:100]
-    times: list[float] = []
-    for q in queries:
-        start = time.perf_counter()
-        searcher.search(q, k=k)
-        times.append((time.perf_counter() - start) * 1000)
-    times.sort()
-    p50 = statistics.median(times)
-    p95 = times[int(len(times) * 0.95) - 1]
-    print(
-        f"bench: {len(times)} queries, k={k}: p50 {p50:.1f} ms, p95 {p95:.1f} ms, "
-        f"max {times[-1]:.1f} ms (warm process; cold model load reported separately)"
-    )
-
-
-def main(argv: list[str] | None = None) -> int:
-    settings = get_settings()
-    telemetry.init(settings)
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    parser.add_argument("query", nargs="?", default=None, help="query text")
-    parser.add_argument("-k", type=int, default=None, help="top-k (default: config)")
-    parser.add_argument("--category", default=None, help="primary category, e.g. cs.CL")
-    parser.add_argument("--year-min", type=int, default=None)
-    parser.add_argument("--year-max", type=int, default=None)
-    parser.add_argument("--bench", action="store_true", help="p95 over 100 mixed queries (§10)")
-    args = parser.parse_args(argv)
-    if not args.bench and args.query is None:
-        parser.error("a query is required unless --bench")
-    try:
-        cold_start = time.perf_counter()
-        searcher = HybridSearch(settings)
-        cold_ms = (time.perf_counter() - cold_start) * 1000
-        print(f"model+store cold load: {cold_ms:.0f} ms", file=sys.stderr)
-        if args.bench:
-            _bench(searcher, args.k or settings.search_top_k)
-        else:
-            filters = Filters(
-                category=args.category, year_min=args.year_min, year_max=args.year_max
-            )
-            _print_results(searcher.search(args.query, filters=filters, k=args.k))
-        return 0
-    finally:
-        telemetry.shutdown()
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+def hydrate(
+    conn: sqlite3.Connection,
+    ranked: list[tuple[str, tuple[float, str]]],
+) -> list[ScoredChunk]:
+    """Fused ids -> full provenance rows, one query, input order kept."""
+    if not ranked:
+        return []
+    ids = [chunk_id for chunk_id, _ in ranked]
+    placeholders = ",".join("?" * len(ids))
+    rows = {
+        row["chunk_id"]: row
+        for row in conn.execute(
+            f"SELECT c.chunk_id, c.doc_id, c.section, c.pos_start, c.pos_end,"
+            f"       c.text, d.version FROM {CHUNKS} c"
+            f" JOIN {DOCUMENTS} d ON d.doc_id = c.doc_id"
+            f" WHERE c.chunk_id IN ({placeholders})",
+            ids,
+        ).fetchall()
+    }
+    return [
+        ScoredChunk(
+            chunk_id=chunk_id,
+            doc_id=rows[chunk_id]["doc_id"],
+            section=rows[chunk_id]["section"],
+            pos_start=rows[chunk_id]["pos_start"],
+            pos_end=rows[chunk_id]["pos_end"],
+            text=rows[chunk_id]["text"],
+            score=score,
+            leg=leg,
+            version=rows[chunk_id]["version"],
+        )
+        for chunk_id, (score, leg) in ranked
+    ]

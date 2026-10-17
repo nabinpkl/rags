@@ -148,7 +148,7 @@ frontier:
 # Chunk, embed, and rebuild corpus.db + chroma
 index:
     cd backend && uv run python -m askrag.ingest.chunk_papers
-    cd backend && ASKRAG_EMBED_LOCAL_DTYPE=float32 uv run python -m askrag.ingest.embed_chunks
+    cd backend && ASKRAG_EMBED_LOCAL_DTYPE=float32 uv run python -m askrag.retrieval.embed_chunks
     cd backend && uv run python -m askrag.ingest.build_indexes
     cd backend && uv run python -m askrag.ingest.select_frontier --verify
 
@@ -188,7 +188,7 @@ ask *ARGS:
     # Recipe args arrive via interpolation ({{ARGS}}), never via shell $*.
     query={{quote(ARGS)}}
     query="${query#q=}"
-    cd backend && uv run python -m askrag.retrieval.hybrid_search "$query"
+    cd backend && uv run python -m askrag.ask "$query"
 
 # Terminal REPL (#24), milestone 3's exit artifact: interactive multi-turn
 # agent loop with a live tool timeline and running session cost. `q="..."`

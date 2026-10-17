@@ -3167,3 +3167,42 @@ not, and the result needs reviewing again).
 
 **Spec updated:** yes, D20 amendment (2026-10-15).
 
+
+## 2026-10-17 — retrieval is a source-agnostic core; arXiv maps onto it with views (owner directive)
+
+**Context:** retrieval was already separate from the agent (the agent reached
+it only through `search_corpus`), but arXiv was built into its types and
+SQL: `Filters` had category and year, `ScoredChunk` had paper_id and pages,
+both legs joined `papers`, and the query embedder imported its backends from
+`ingest/`. Adapting it to another kind of document (session transcripts,
+email) meant forking it.
+
+**Decision:** spec D21. `askrag/retrieval/` reads only an index contract
+(`index_schema.py`: rag_documents, rag_chunks, rag_chunks_fts, rag_facets) at
+an `IndexLocation`; filters are a doc-id scope, a day range and facets;
+`ScoredChunk` carries doc_id and pos_start/pos_end. `embed_chunks.py` and
+`token_bucket.py` moved from `ingest/` to `retrieval/`, so the dependency runs
+one way, and a test reads the core's imports to keep it so.
+`sources/arxiv.py` defines the views over corpus.db, the year and category
+filters, and the tool payload, which keeps the §5 names. `just ask` moved to
+`askrag/ask.py` and takes `--source`, `--facet`, `--day-min`, `--day-max`.
+The sources registry is `sources/source_specs.py` (`tools/registry.py`
+already owns the name `registry`).
+
+**Measured:** rebuilt with the new code in a worktree (7 minutes, same 65,401
+chunks), BM25 returned identical top-50 rankings on all 1,278 cases (213
+golden questions by six filter cases); the vector leg matched exact
+neighbours as closely as the old build did (recall@10 0.926 old vs 0.923
+new unfiltered, 0.9972 vs 0.9986 by category, 1.0 for both under a scope).
+
+**Alternatives rejected:** renaming corpus.db's `chunks` columns to the
+generic names (rippled into the catalog, paper-detail, drive_ui and
+query_metadata code for no retrieval gain; the views map them instead); a
+generic `facets` JSON column (not filterable in Chroma's `where`).
+
+**Consequence:** the live corpus.db and chroma need one rebuild with
+`just index` (the build step only; no re-embedding) before this code serves:
+the FTS table is renamed and the vectors carry `doc_id`/`day`/
+`facet_category` metadata in place of `paper_id`/`year`/`category`.
+
+Spec updated: D21; §4c layout tree.

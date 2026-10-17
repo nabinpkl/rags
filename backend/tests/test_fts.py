@@ -5,6 +5,8 @@ import sqlite3
 import pytest
 
 from askrag.retrieval import fts
+from askrag.retrieval.filters import Filters
+from askrag.sources.arxiv import filters as arxiv_filters
 
 # --- escaping: user queries must never reach FTS5 as syntax (§6) -------------
 # Written before the implementation (security-relevant is never test-after).
@@ -31,7 +33,9 @@ def test_hostile_input_is_neutralized(fts_db, hostile):
     # — worst case zero rows, never an fts5 syntax error, never a column filter.
     conn = sqlite3.connect(fts_db)
     match = fts.build_match_query(hostile)
-    conn.execute("SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ?", (match,)).fetchall()
+    conn.execute(
+        "SELECT rowid FROM rag_chunks_fts WHERE rag_chunks_fts MATCH ?", (match,)
+    ).fetchall()
     conn.close()  # reaching here without OperationalError IS the assertion
 
 
@@ -64,7 +68,7 @@ def test_search_bm25_never_raises_on_control_chars(fts_db, hostile):
     # because the BM25 leg sits outside D8's fail-soft try/except. A pure
     # control-char term must degrade to zero rows, not an exception.
     conn = sqlite3.connect(fts_db)
-    hits = fts.search_bm25(conn, hostile, k=10)
+    hits = fts.search_bm25(conn, hostile, 10, Filters())
     conn.close()
     assert hits == []
 
@@ -143,7 +147,7 @@ def connect(path):
 
 def test_bm25_leg_returns_rank_ordered_chunk_ids(fts_db):
     conn = connect(fts_db)
-    hits = fts.search_bm25(conn, "attention networks", k=10)
+    hits = fts.search_bm25(conn, "attention networks", 10, Filters())
     conn.close()
     assert hits[0] == "2401.00002#0"  # matches both terms, ranks first
     assert set(hits) == {"2401.00001#0", "2401.00002#0", "1901.00003#0"}
@@ -151,15 +155,15 @@ def test_bm25_leg_returns_rank_ordered_chunk_ids(fts_db):
 
 def test_bm25_category_filter_pushes_into_sql(fts_db):
     conn = connect(fts_db)
-    hits = fts.search_bm25(conn, "attention", k=10, category="cs.CL")
+    hits = fts.search_bm25(conn, "attention", 10, arxiv_filters(category="cs.CL"))
     conn.close()
     assert set(hits) == {"2401.00001#0", "1901.00003#0"}  # cs.DS paper excluded
 
 
 def test_bm25_year_range_filter(fts_db):
     conn = connect(fts_db)
-    hits = fts.search_bm25(conn, "attention", k=10, year_min=2024)
-    only_old = fts.search_bm25(conn, "attention", k=10, year_max=2019)
+    hits = fts.search_bm25(conn, "attention", 10, arxiv_filters(year_min=2024))
+    only_old = fts.search_bm25(conn, "attention", 10, arxiv_filters(year_max=2019))
     conn.close()
     assert set(hits) == {"2401.00001#0", "2401.00002#0"}
     assert only_old == ["1901.00003#0"]
@@ -167,8 +171,8 @@ def test_bm25_year_range_filter(fts_db):
 
 def test_bm25_k_caps_results_and_empty_query_returns_nothing(fts_db):
     conn = connect(fts_db)
-    assert len(fts.search_bm25(conn, "attention", k=1)) == 1
-    assert fts.search_bm25(conn, "   ", k=10) == []
+    assert len(fts.search_bm25(conn, "attention", 1, Filters())) == 1
+    assert fts.search_bm25(conn, "   ", 10, Filters()) == []
     conn.close()
 
 
@@ -182,7 +186,8 @@ def test_a_large_paper_id_scope_still_pushes_into_sql(fts_db):
     conn = connect(fts_db)
     try:
         scope = tuple(f"24{n:02d}.{n:05d}" for n in range(1500)) + ("2401.00001",)
-        assert fts.search_bm25(conn, "attention", 10, paper_ids=scope) == ["2401.00001#0"]
+        hits = fts.search_bm25(conn, "attention", 10, arxiv_filters(paper_ids=scope))
+        assert hits == ["2401.00001#0"]
     finally:
         conn.close()
 
@@ -191,8 +196,9 @@ def test_scope_narrows_and_an_empty_scope_returns_nothing(fts_db):
     """`()` means nothing is in scope; only `None` means unscoped."""
     conn = connect(fts_db)
     try:
-        assert fts.search_bm25(conn, "attention", 10, paper_ids=("2401.00002",)) == ["2401.00002#0"]
-        assert fts.search_bm25(conn, "attention", 10, paper_ids=()) == []
-        assert len(fts.search_bm25(conn, "attention", 10)) == 3
+        scoped = arxiv_filters(paper_ids=("2401.00002",))
+        assert fts.search_bm25(conn, "attention", 10, scoped) == ["2401.00002#0"]
+        assert fts.search_bm25(conn, "attention", 10, arxiv_filters(paper_ids=())) == []
+        assert len(fts.search_bm25(conn, "attention", 10, Filters())) == 3
     finally:
         conn.close()

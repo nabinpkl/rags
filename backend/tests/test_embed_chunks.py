@@ -1,4 +1,4 @@
-"""Tests for askrag.ingest.embed_chunks — faked backend, no network, no key."""
+"""Tests for askrag.retrieval.embed_chunks — faked backend, no network, no key."""
 
 import email.utils
 import json
@@ -11,8 +11,8 @@ import pyarrow.parquet as pq
 import pytest
 
 from askrag.config import Settings
-from askrag.ingest import embed_chunks
-from askrag.ingest.embed_chunks import (
+from askrag.retrieval import embed_chunks
+from askrag.retrieval.embed_chunks import (
     BatchEmbedding,
     BatchTooLargeError,
     ChunkText,

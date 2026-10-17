@@ -10,7 +10,8 @@ import pytest
 
 from askrag.ingest import build_indexes
 from askrag.ingest.build_indexes import IndexBuildError
-from askrag.ingest.embed_chunks import EmbeddingProvenance
+from askrag.retrieval import index_schema
+from askrag.retrieval.embed_chunks import EmbeddingProvenance
 
 DIMS = 4
 SLUG = f"fake-embed_{DIMS}"
@@ -188,8 +189,8 @@ def test_fts5_sample_query_returns_the_right_chunk(paths):
     run(paths)
     conn = sqlite3.connect(paths["corpus_db"])
     rows = conn.execute(
-        "SELECT c.chunk_id FROM chunks_fts f JOIN chunks c ON c.rowid = f.rowid"
-        " WHERE chunks_fts MATCH 'graph' ORDER BY rank"
+        "SELECT c.chunk_id FROM rag_chunks_fts f JOIN rag_chunks c ON c.chunk_rowid = f.rowid"
+        " WHERE rag_chunks_fts MATCH 'graph' ORDER BY rank"
     ).fetchall()
     conn.close()
     assert [r[0] for r in rows] == ["2401.00002#0"]
@@ -201,13 +202,15 @@ def test_vector_sample_query_returns_nearest_chunk(paths):
     collection = chroma_client(paths["chroma"]).get_collection(SLUG)
     result = collection.query(query_embeddings=[vector_for("2401.00001#1")], n_results=1)
     assert result["ids"] == [["2401.00001#1"]]
-    # `where` filter metadata is queryable (D4: paper_id/category/year).
+    # `where` filter metadata is queryable (D21: doc_id, day, facet_category).
     filtered = collection.query(
         query_embeddings=[vector_for("2401.00001#1")],
         n_results=3,
-        where={"paper_id": "2401.00002"},
+        where={"doc_id": "2401.00002"},
     )
     assert filtered["ids"] == [["2401.00002#0"]]
+    meta = collection.get(ids=["2401.00002#0"], include=["metadatas"])["metadatas"][0]
+    assert set(meta) == {"doc_id", "day", "facet_category"}
 
 
 def test_versions_and_licenses_land_in_papers(paths):
@@ -359,7 +362,7 @@ def test_other_models_parquet_is_refused(paths):
     # model's collection.
     from dataclasses import replace
 
-    from askrag.ingest.embed_chunks import EmbeddingError
+    from askrag.retrieval.embed_chunks import EmbeddingError
 
     other = replace(PROVENANCE, slug="other-model_4", model="fake/other-model")
     flat = pa.array([value for c in CHUNKS for value in vector_for(c[0])], type=pa.float32())
@@ -586,3 +589,27 @@ def test_a_full_build_still_refuses_a_chunk_without_a_vector(paths):
 
     with pytest.raises(build_indexes.IndexBuildError, match="re-run embed_chunks"):
         run(paths)
+
+
+def test_the_retrieval_contract_reads_papers_through_views(paths):
+    """D21: corpus.db meets index_schema's contract as views over papers and
+    chunks, so retrieval reads one home and nothing is copied."""
+    run(paths)
+    conn = sqlite3.connect(paths["corpus_db"])
+    try:
+        index_schema.check(conn)
+        doc = conn.execute(
+            "SELECT title, day, version FROM rag_documents WHERE doc_id = '2401.00002'"
+        ).fetchone()
+        facets = conn.execute(
+            "SELECT key, value FROM rag_facets WHERE doc_id = '2401.00002'"
+        ).fetchall()
+        chunk = conn.execute(
+            "SELECT doc_id, section, pos_start, pos_end FROM rag_chunks"
+            " WHERE chunk_id = '2401.00002#0'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert doc == ("Graphs at scale", 20240103, "v3")
+    assert facets == [("category", "cs.DS")]
+    assert chunk == ("2401.00002", "__paper__", 1, 1)
