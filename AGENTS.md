@@ -152,7 +152,9 @@ tracked as GitHub issues.
   scale, multi-tenancy, hybrid search; not built yet). Its material
   collects in `docs/vector-db/README.md`, one entry per question (what
   decides it, where it bites, askRAG today); add to it as stores get
-  researched.
+  researched. RAG questions beyond the store (corpus size, document types,
+  graph, visual and cache variants) collect the same way in
+  `docs/rag-at-scale/README.md`.
 - Deploy (#81): `just deploy` (compose up on loopback, plus the Cloudflare
   tunnel for rag.nabin.org when `deploy/.env` has its token), `just
   deploy-tailnet` (tailscaled), plus `deploy-logs`, `deploy-down`,
