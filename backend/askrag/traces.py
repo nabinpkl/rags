@@ -18,6 +18,7 @@ stored, so the per-IP budget layer (D11) works without holding a raw address.
 """
 
 import hashlib
+import ipaddress
 import json
 import uuid
 from dataclasses import asdict, dataclass
@@ -120,14 +121,34 @@ def _connect(settings: Settings):
     return conn
 
 
-def hash_ip(ip: str, *, settings: Settings | None = None) -> str:
-    """Salted SHA-256 of a client IP — the only IP form that reaches the DB.
+def budget_address(ip: str, *, ipv6_prefix: int) -> str:
+    """The address one visitor is budgeted as: an IPv4 address as is, an IPv6
+    one widened to its ``ipv6_prefix`` network, since a subscriber can rotate
+    freely inside that block (config.ip_budget_ipv6_prefix). An IPv4-mapped
+    IPv6 address is the IPv4 visitor it wraps. A peer that is not an address
+    at all ("unknown", a test client's name) keys on its own spelling."""
+    try:
+        parsed = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(parsed, ipaddress.IPv6Address):
+        if parsed.ipv4_mapped is not None:
+            return str(parsed.ipv4_mapped)
+        return str(ipaddress.IPv6Network((parsed, ipv6_prefix), strict=False))
+    return str(parsed)
 
-    Deterministic (same ip+salt → same digest) so the per-IP budget layer can
-    aggregate, but not reversible to the raw address without the salt.
+
+def hash_ip(ip: str, *, settings: Settings | None = None) -> str:
+    """Salted SHA-256 of a client's budget address — the only IP form that
+    reaches the DB.
+
+    Deterministic (same address+salt → same digest) so the per-IP budget layer
+    can aggregate, but not reversible to the raw address without the salt.
     """
-    salt = _settings(settings).trace_ip_hash_salt.get_secret_value()
-    return hashlib.sha256(f"{salt}:{ip}".encode()).hexdigest()
+    settings = _settings(settings)
+    key = budget_address(ip, ipv6_prefix=settings.ip_budget_ipv6_prefix)
+    salt = settings.trace_ip_hash_salt.get_secret_value()
+    return hashlib.sha256(f"{salt}:{key}".encode()).hexdigest()
 
 
 def record_run(

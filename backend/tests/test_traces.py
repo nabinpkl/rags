@@ -71,6 +71,57 @@ def test_distinct_ips_hash_distinctly(settings):
     )
 
 
+# --- the per-IP key: one IPv6 subscriber is one visitor (D11) ---------------
+
+
+def test_ipv6_addresses_in_one_64_share_a_budget_key(settings):
+    # A subscriber picks any address in their /64; rotating must not reset
+    # the per-IP cap.
+    a = traces.hash_ip("2001:db8:1:2::1", settings=settings)
+    b = traces.hash_ip("2001:db8:1:2:dead:beef:0:7", settings=settings)
+    assert a == b
+
+
+def test_ipv6_addresses_in_different_64s_stay_distinct(settings):
+    assert traces.hash_ip("2001:db8:1:2::1", settings=settings) != traces.hash_ip(
+        "2001:db8:1:3::1", settings=settings
+    )
+
+
+def test_ipv6_spellings_of_one_address_share_a_key(settings):
+    assert traces.hash_ip("2001:DB8:1:2:0:0:0:1", settings=settings) == traces.hash_ip(
+        "2001:db8:1:2::1", settings=settings
+    )
+
+
+def test_ipv4_mapped_ipv6_is_keyed_as_its_ipv4_address(settings):
+    assert traces.hash_ip("::ffff:203.0.113.7", settings=settings) == traces.hash_ip(
+        "203.0.113.7", settings=settings
+    )
+
+
+def test_ipv4_addresses_are_not_widened(settings):
+    assert traces.budget_address("203.0.113.7", ipv6_prefix=64) == "203.0.113.7"
+
+
+def test_ipv6_prefix_is_configurable(tmp_path):
+    wide = make_settings(tmp_path, ip_budget_ipv6_prefix=48)
+    assert traces.hash_ip("2001:db8:1:2::1", settings=wide) == traces.hash_ip(
+        "2001:db8:1:ffff::1", settings=wide
+    )
+
+
+def test_a_non_address_peer_keys_on_its_own_spelling():
+    assert traces.budget_address("unknown", ipv6_prefix=64) == "unknown"
+
+
+def test_spend_for_ip_today_counts_a_rotating_ipv6_subscriber_once(settings):
+    traces.record_run(**sample_run(ip="2001:db8:1:2::1", cost_usd=0.04), settings=settings)
+    traces.record_run(**sample_run(ip="2001:db8:1:2::99", cost_usd=0.04), settings=settings)
+    key = traces.hash_ip("2001:db8:1:2::abc", settings=settings)
+    assert traces.spend_for_ip_today(key, settings=settings) == pytest.approx(0.08)
+
+
 # --- spend aggregation: per-day and per-session (real assertions) -----------
 
 

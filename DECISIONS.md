@@ -3385,3 +3385,25 @@ budget design, D1/D2, for a loop that ran without thinking anyway).
 **Revisit trigger:** the eval's rewrite row or live traces showing Haiku 5.5
 without thinking below Haiku 4.5 on tool use, which would justify
 `agent_thinking="adaptive"` plus an append-only eviction.
+
+## 2026-10-23 — an IPv6 visitor's per-IP budget keys on their /64
+
+**Context:** a packet capture behind the Cloudflare tunnel showed visitors
+arriving over IPv6, and `traces.hash_ip` hashed the full address. An ISP
+hands each subscriber at least a /64 and every address in it is theirs, so a
+visitor could rotate addresses and get a fresh $0.10 per-IP allowance (D11)
+each time; only the global cap bounded them.
+
+**Decision:** `traces.budget_address` widens an IPv6 address to its
+`ip_budget_ipv6_prefix` network (64 by default) before hashing; an
+IPv4-mapped address keys as its IPv4 address; IPv4 is unchanged; a peer that
+is not an address keys on its spelling as before. Both the cap check
+(`budgets.py`) and the record (`record_run`) go through `hash_ip`, so they
+agree. Rows recorded earlier the same day keyed IPv6 on /128, so an IPv6
+visitor's per-IP spend restarts once at deploy.
+
+**Alternatives rejected:** /56 or /48 by default (a provider that hands
+single /64s to neighbours on one /56 would make them share a cap).
+
+**Revisit trigger:** traces showing one visitor's spend spread over many
+/64s in one /56, which would justify a wider prefix.

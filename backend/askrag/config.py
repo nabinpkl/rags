@@ -395,6 +395,13 @@ class Settings(BaseSettings):
     # hashes are not reversible via a public rainbow table; the empty default
     # still hashes (dev/tests), it just isn't secret.
     trace_ip_hash_salt: SecretStr = Field(default=SecretStr(""))
+    # An IPv6 visitor is keyed on this prefix, not the full address: a /64 is
+    # the smallest block an ISP hands one subscriber, and every address in it
+    # is theirs to use, so keying on /128 gave each of them 2^64 fresh per-IP
+    # allowances (observed 2026-10-23: the tunnel delivers visitors' IPv6).
+    # A subscriber holding a /56 or /48 can still rotate /64s; the global cap
+    # bounds that.
+    ip_budget_ipv6_prefix: int = Field(default=64, ge=1, le=128)
     # Live turns in flight at once, process-wide. Spend is recorded after a
     # turn, so this is what bounds the overshoot past the caps above (at most
     # this many turns' cost), and it keeps chat off the worker threads every
