@@ -64,6 +64,9 @@ export interface DoneEvent {
   stop_reason: string;
   run_id: string;
   citations: Citation[];
+  // False when no tool read paper text this turn: the answer is the model's
+  // own knowledge, and chat-panel.tsx says so under it.
+  retrieved: boolean;
 }
 
 export type SseEvent =

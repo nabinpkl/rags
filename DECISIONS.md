@@ -3332,3 +3332,28 @@ or any change that starts a Chroma server (D4's pgvector move would replace
 it instead). Also in the same change: `*.db-shm`, `*.db-wal` and
 `session-*.md*` are gitignored, since untracked side files of `traces.db`
 and an exported session sat at the repo root one `git add -A` from publication.
+
+## 2026-10-23 — the fence cannot be closed from inside; an unretrieved answer says so
+
+**Context:** a code read of the agent path against the LLM-hardening
+baseline found two gaps. `prompts.fence()` JSON-encoded tool results but
+`json.dumps` leaves angle brackets alone, so a chunk containing the literal
+closing tag ended the envelope early and what followed read as outside it
+(the read-only tools kept this to a misleading answer, not an action). And
+`loop.run_turn` never requires a tool call: a model that answers on its first
+response ships prose from its own knowledge, and the answer guard strips any
+citation, so the reader saw an uncited answer with nothing marking it.
+
+**Decision:** `fence()` escapes `<` and `>` as `<`/`>`, a JSON
+string escape, so the content decodes to the same text and no payload can
+spell the tag (`tests/test_prompts.py`). The `done` event gains
+`retrieved: bool`, true when any successful call used a content-reading tool
+(the registry's `scoped` ones, `sse_events.retrieved_content`); replay
+computes it from the recorded calls the same way. `lib/sse.ts` mirrors the
+field and `chat-panel.tsx` prints "No paper text was retrieved for this
+answer." under such an answer. Forcing a search instead was rejected: a
+greeting or a question about the demo itself needs none, and the label is
+the honest shape until a code gate can tell those apart.
+
+**Revisit trigger:** live traces showing unretrieved answers to corpus
+questions at any real rate, which would justify a forced first search.

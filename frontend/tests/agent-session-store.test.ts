@@ -81,7 +81,7 @@ describe("agent-session-store — status is one discriminated union", () => {
     expect(useAgentSessionStore.getState().status).toEqual({ kind: "streaming" });
 
     applyEvent({ type: "text", text: "the answer" });
-    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1", citations: [] });
+    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1", retrieved: true, citations: [] });
     expect(useAgentSessionStore.getState().status).toEqual({ kind: "idle" });
     expect(useAgentSessionStore.getState().turns[0].answer).toBe("the answer");
   });
@@ -139,7 +139,7 @@ describe("agent-session-store — mode is orthogonal to status (round 2 regressi
 
     applyEvent({ type: "tool_result_summary", name: "search_corpus", ok: true, error: null });
     applyEvent({ type: "text", text: "a replayed answer" });
-    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1", citations: [] });
+    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1", retrieved: true, citations: [] });
 
     // The lifecycle status still moved normally throughout...
     expect(useAgentSessionStore.getState().status).toEqual({ kind: "idle" });
@@ -173,6 +173,7 @@ describe("agent-session-store — citation capture (#29 seam)", () => {
       type: "done",
       stop_reason: "end_turn",
       run_id: "r1",
+      retrieved: true,
       citations: [{ paper_id: "1409.7842", chunk_ids: ["c1", "c2"] }],
     });
 
@@ -186,6 +187,7 @@ describe("agent-session-store — citation capture (#29 seam)", () => {
       type: "done",
       stop_reason: "end_turn",
       run_id: "r1",
+      retrieved: true,
       citations: [{ paper_id: "1409.7842", chunk_ids: ["c1", "c2"] }],
     });
 
@@ -194,6 +196,7 @@ describe("agent-session-store — citation capture (#29 seam)", () => {
       type: "done",
       stop_reason: "end_turn",
       run_id: "r2",
+      retrieved: true,
       citations: [{ paper_id: "1409.7842", chunk_ids: ["c2", "c3"] }],
     });
 
@@ -211,6 +214,7 @@ describe("agent-session-store — citation capture (#29 seam)", () => {
       type: "done",
       stop_reason: "end_turn",
       run_id: "r1",
+      retrieved: true,
       citations: [{ paper_id: "1409.7842", chunk_ids: ["c1"] }],
     });
 
@@ -222,7 +226,7 @@ describe("agent-session-store — citation capture (#29 seam)", () => {
   it("leaves citationsByPaper untouched when done carries no citations", () => {
     const { startTurn, applyEvent } = useAgentSessionStore.getState();
     startTurn("q");
-    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1", citations: [] });
+    applyEvent({ type: "done", stop_reason: "end_turn", run_id: "r1", retrieved: true, citations: [] });
 
     expect(useAgentSessionStore.getState().citationsByPaper.size).toBe(0);
   });
@@ -234,6 +238,7 @@ describe("agent-session-store — citation capture (#29 seam)", () => {
       type: "done",
       stop_reason: "end_turn",
       run_id: "r1",
+      retrieved: true,
       citations: [{ paper_id: "1409.7842", chunk_ids: ["c1"] }],
     });
 

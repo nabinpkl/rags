@@ -23,6 +23,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 from askrag.agent.loop import AgentEvent, EventKind, TurnResult
+from askrag.tools import registry
 from askrag.traces import ToolCallRecord
 
 
@@ -116,6 +117,11 @@ class DoneEvent:
     stop_reason: str
     run_id: str
     citations: tuple[Citation, ...] = ()
+    # Whether any successful call read paper content this turn. False means
+    # the answer came from the model's own knowledge, and the frontend says
+    # so beside it: the loop never forces a search, so this is the honest
+    # label for a turn that skipped one (2026-10-23 audit).
+    retrieved: bool = False
     type: Literal["done"] = "done"
 
 
@@ -181,6 +187,16 @@ def citations_from_tool_calls(tool_calls: Sequence[ToolCallRecord]) -> tuple[Cit
     )
 
 
+def retrieved_content(tool_calls: Sequence[ToolCallRecord]) -> bool:
+    """True when a successful call used a content-reading tool: the ones the
+    registry marks `scoped`, since those are exactly the tools that return
+    paper text. A metadata count or a UI action grounds nothing."""
+    return any(
+        call.ok and call.name in registry.TOOLS and registry.TOOLS[call.name].scoped
+        for call in tool_calls
+    )
+
+
 def cost_event(result: TurnResult) -> CostEvent:
     """The turn's final cost (no intra-turn per-step cost streaming — that's
     deferred to #30/frontend, per the turn-only `TurnResult.cost_usd` the
@@ -195,4 +211,5 @@ def done_event(result: TurnResult) -> DoneEvent:
         stop_reason=result.stop_reason.value,
         run_id=result.run_id,
         citations=citations_from_tool_calls(result.tool_calls),
+        retrieved=retrieved_content(result.tool_calls),
     )

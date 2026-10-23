@@ -4,8 +4,9 @@ The fence is the model-facing half of the data-vs-instructions boundary: text
 originating from a tool call (corpus content the model itself retrieved) is
 untrusted data, never instructions. The REAL backstop against prompt
 injection is capability-side, not this label — every tool is read-only by
-construction (§6), so a paper whose text happens to echo the fence's own
-delimiter is a non-event, not a break.
+construction (§6). The fence itself cannot be closed from inside: angle
+brackets in the payload are JSON-escaped, so a paper that spells the closing
+tag stays inside the block (2026-10-23 audit).
 """
 
 import json
@@ -63,4 +64,9 @@ def fence(payload: dict[str, Any]) -> str:
     parser, can't handle.
     """
     encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False)
+    # json.dumps leaves angle brackets as they are, so a chunk containing
+    # "</FENCE_TAG>" would end the envelope early and everything after it
+    # would read as outside the fence. \u003c is a JSON string escape: the
+    # content still parses to the same text, it just cannot spell the tag.
+    encoded = encoded.replace("<", "\\u003c").replace(">", "\\u003e")
     return f"<{FENCE_TAG}>\n{encoded}\n</{FENCE_TAG}>"

@@ -96,12 +96,14 @@ describe("parseSseEvent — golden shapes", () => {
       type: "done",
       stop_reason: "end_turn",
       run_id: "abc123",
+      retrieved: true,
       citations: [],
     });
     expect(parseSseEvent(raw)).toEqual({
       type: "done",
       stop_reason: "end_turn",
       run_id: "abc123",
+      retrieved: true,
       citations: [],
     });
   });
@@ -111,6 +113,7 @@ describe("parseSseEvent — golden shapes", () => {
       type: "done",
       stop_reason: "end_turn",
       run_id: "abc123",
+      retrieved: true,
       citations: [{ paper_id: "2401.00001", chunk_ids: ["2401.00001#0", "2401.00001#1"] }],
     });
     const event = parseSseEvent(raw);
@@ -118,6 +121,7 @@ describe("parseSseEvent — golden shapes", () => {
       type: "done",
       stop_reason: "end_turn",
       run_id: "abc123",
+      retrieved: true,
       citations: [{ paper_id: "2401.00001", chunk_ids: ["2401.00001#0", "2401.00001#1"] }],
     });
   });

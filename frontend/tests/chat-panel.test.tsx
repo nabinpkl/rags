@@ -67,3 +67,35 @@ describe("ChatPanel", () => {
     expect(ask).toHaveBeenCalledWith(first.textContent, undefined); // unscoped: no landing claim
   });
 });
+
+describe("ChatPanel unretrieved answers", () => {
+  it("says when no paper text was retrieved for an answer", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("what is attention?");
+    applyEvent({ type: "text", text: "Attention weighs tokens by relevance." });
+    applyEvent({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "r1",
+      retrieved: false,
+      citations: [],
+    });
+    render(<ChatPanel />);
+    expect(screen.getByText("No paper text was retrieved for this answer.")).toBeInTheDocument();
+  });
+
+  it("stays silent when the turn read the corpus", () => {
+    const { startTurn, applyEvent } = useAgentSessionStore.getState();
+    startTurn("what is attention?");
+    applyEvent({ type: "text", text: "Per 1706.03762, attention weighs tokens." });
+    applyEvent({
+      type: "done",
+      stop_reason: "end_turn",
+      run_id: "r1",
+      retrieved: true,
+      citations: [],
+    });
+    render(<ChatPanel />);
+    expect(screen.queryByText("No paper text was retrieved for this answer.")).toBeNull();
+  });
+});

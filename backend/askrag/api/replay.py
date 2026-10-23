@@ -55,5 +55,6 @@ def replay_events(run: Run) -> Iterator[dict[str, Any]]:
             # citations recorded (traces.py's .get() fallback), so this is
             # empty for them, same as any other field #30's schema added.
             citations=sse_events.citations_from_tool_calls(run.tool_calls),
+            retrieved=sse_events.retrieved_content(run.tool_calls),
         )
     )

@@ -55,6 +55,7 @@ def test_replay_with_no_tool_calls_yields_text_cost_done():
             "stop_reason": StopReason.END_TURN.value,
             "run_id": "r1",
             "citations": (),
+            "retrieved": False,
         },
     ]
 

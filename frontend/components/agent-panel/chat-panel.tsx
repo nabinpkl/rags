@@ -188,6 +188,11 @@ export function ChatPanel({
                   {turn.answer.length > 0 && (
                     <MessageMarkdown text={turn.answer} verifiedPaperIds={verifiedPaperIds} />
                   )}
+                  {turn.answer.length > 0 && turn.retrieved === false && (
+                    <p className="text-machine-muted text-[12px]">
+                      No paper text was retrieved for this answer.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

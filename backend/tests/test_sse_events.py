@@ -72,6 +72,7 @@ def test_done_event_shape():
         "stop_reason": "end_turn",
         "run_id": "abc123",
         "citations": (),
+        "retrieved": False,
     }
 
 
@@ -86,6 +87,7 @@ def test_done_event_shape_with_citations():
         "stop_reason": "end_turn",
         "run_id": "abc123",
         "citations": ({"paper_id": "2401.00001", "chunk_ids": ("2401.00001#0",)},),
+        "retrieved": False,
     }
 
 
@@ -236,3 +238,24 @@ def test_citations_from_tool_calls_dedupes_repeated_chunk_ids_within_one_paper()
 def test_citations_from_tool_calls_empty_when_no_calls_carry_citations():
     tool_calls = (ToolCallRecord(name="query_metadata", args={"op": "corpus_stats"}, ok=True),)
     assert sse_events.citations_from_tool_calls(tool_calls) == ()
+
+
+# --- done.retrieved: did any successful call read paper text? ---------------
+
+
+def test_retrieved_is_true_only_for_a_successful_content_reading_call():
+    search_ok = ToolCallRecord(name="search_corpus", args={"query": "a"}, ok=True)
+    search_failed = ToolCallRecord(name="search_corpus", args={"query": "a"}, ok=False, error="x")
+    read_ok = ToolCallRecord(name="read_paper", args={"paper_id": "2401.00001"}, ok=True)
+    stats = ToolCallRecord(name="query_metadata", args={"op": "corpus_stats"}, ok=True)
+    nudge = ToolCallRecord(name="drive_ui", args={"action": "open_paper"}, ok=True)
+    unknown = ToolCallRecord(name="hack_the_mainframe", args={}, ok=False, error="no such tool")
+    assert sse_events.retrieved_content([search_ok])
+    assert sse_events.retrieved_content([stats, read_ok])
+    assert not sse_events.retrieved_content([])
+    assert not sse_events.retrieved_content([search_failed, stats, nudge, unknown])
+
+
+def test_done_event_from_an_unretrieved_turn_says_so():
+    result = _turn_result()
+    assert sse_events.done_event(result).retrieved is False

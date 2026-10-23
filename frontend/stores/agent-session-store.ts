@@ -52,6 +52,8 @@ export interface Turn {
   stepsAtLastText: number;
   cost: CostEvent | null;
   stopReason: string | null;
+  // From done.retrieved; null until the turn ends.
+  retrieved: boolean | null;
 }
 
 interface PendingCall {
@@ -187,6 +189,7 @@ export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
           stepsAtLastText: 0,
           cost: null,
           stopReason: null,
+          retrieved: null,
         },
       ],
     })),
@@ -277,7 +280,11 @@ export const useAgentSessionStore = create<AgentSessionState>()((set, get) => ({
         case "done":
           return {
             status: { kind: "idle" as const },
-            turns: replaceLastTurn(state.turns, { ...turn, stopReason: event.stop_reason }),
+            turns: replaceLastTurn(state.turns, {
+              ...turn,
+              stopReason: event.stop_reason,
+              retrieved: event.retrieved,
+            }),
             citationsByPaper: mergeCitations(state.citationsByPaper, event.citations),
           };
 

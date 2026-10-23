@@ -248,6 +248,7 @@ describe("useDriveUi — applies only CONFIRMED ui_actions (D-1, issue #32)", ()
         type: "done",
         stop_reason: "end_turn",
         run_id: "r1",
+        retrieved: true,
         citations: [{ paper_id: "1409.7842", chunk_ids: ["c1"] }],
       });
     });
