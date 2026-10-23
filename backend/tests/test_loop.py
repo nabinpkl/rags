@@ -594,3 +594,40 @@ def test_search_spend_counts_toward_the_daily_caps(tmp_path, monkeypatch):
     assert traces.spend_for_ip_today(ip_hash, settings=settings) == pytest.approx(
         model_cost + 2 * 0.0007
     )
+
+
+# --- the provider factory and the thinking parameter (D3 amendment 2026-10-23) ---
+
+
+def test_the_anthropic_path_sends_thinking_off_and_the_smoke_path_sends_none(tmp_path):
+    direct = loop.anthropic_client_from_settings(
+        make_settings(tmp_path, anthropic_api_key="k", agent_api_base_url="")
+    )
+    assert direct.model == make_settings(tmp_path).agent_model
+    assert direct.thinking == {"type": "disabled"}
+
+    smoke = loop.anthropic_client_from_settings(
+        make_settings(
+            tmp_path, openrouter_api_key="k", agent_api_base_url="https://openrouter.ai/api"
+        )
+    )
+    assert smoke.model == make_settings(tmp_path).smoke_model
+    assert smoke.thinking is None
+
+
+def test_the_model_client_forwards_thinking_only_when_set():
+    from types import SimpleNamespace
+
+    seen: dict = {}
+
+    def create(**kwargs):
+        seen.clear()
+        seen.update(kwargs)
+        return SimpleNamespace()
+
+    sdk = SimpleNamespace(messages=SimpleNamespace(create=create))
+    with_thinking = loop.AnthropicModelClient(sdk, "m", 10, thinking={"type": "disabled"})  # ty: ignore[invalid-argument-type]
+    with_thinking.create(system="s", messages=[], tools=None)
+    assert seen["thinking"] == {"type": "disabled"}
+    loop.AnthropicModelClient(sdk, "m", 10).create(system="s", messages=[], tools=None)  # ty: ignore[invalid-argument-type]
+    assert "thinking" not in seen

@@ -27,12 +27,20 @@ class Settings(BaseSettings):
     traces_db_path: Path = _REPO_ROOT / "traces.db"
 
     # --- model ids + pricing (D3, D5) -------------------------------------
-    agent_model: str = "claude-haiku-4-5-20251001"
+    agent_model: str = "claude-haiku-5-5"
     # Pricing feeds budget accounting and the UI cost badge (D3, §7); update
-    # alongside any model change or the caps below lie.
-    agent_usd_per_mtok_in: float = 1.00
-    agent_usd_per_mtok_out: float = 5.00
-    agent_usd_per_mtok_cache_read: float = 0.10
+    # alongside any model change or the caps below lie. Haiku 5.5's rate card
+    # for prompts of 100K tokens or fewer (D3 amendment 2026-10-23); every
+    # call stays under that because message_token_budget is 80K.
+    agent_usd_per_mtok_in: float = 0.10
+    agent_usd_per_mtok_out: float = 0.50
+    agent_usd_per_mtok_cache_read: float = 0.01
+    # Haiku 5.5 thinks by default and binds each thinking block to the
+    # history before it; context_window.py edits that history (it stubs old
+    # tool results), which the API can reject once it holds thinking blocks.
+    # Off keeps the loop append-only in effect and matches how Haiku 4.5 ran
+    # it. "adaptive" turns thinking on; only sent on the Anthropic path.
+    agent_thinking: Literal["disabled", "adaptive"] = "disabled"
     # --- eval harness model ids (D14 amendment; issue #79 prefactor) -------
     # Golden set (D14 amendment 2026-09-30): no human pass, so the drafter and
     # the checker are different models, and neither is `smoke_model`, the

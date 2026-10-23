@@ -136,6 +136,15 @@ UI flatters a fast model (snappy timeline) more than a slow smart one.
 cap — fewer conversations/day); *open-weights on the VPS* (a $5 VPS cannot
 serve a competent tool-use model; a GPU box is 10× the budget).
 
+**Amendment 2026-10-23: Haiku 5.5.** The live agent is `claude-haiku-5-5`
+($0.10/M in, $0.50/M out, $0.01/M cache reads for prompts of 100K tokens or
+fewer, which the 80K per-message budget guarantees). Its tokenizer counts the
+same text at about 30% more tokens, so the saving per turn is nearer 7x than
+10x. Thinking is sent as `disabled` (`agent_thinking`): Haiku 5.5 thinks by
+default and ties each thinking block to the history before it, and the loop's
+eviction edits that history; off, the loop runs as it did on Haiku 4.5. The
+arithmetic above still holds at a tenth of the price.
+
 **Risks accepted.** Some hard multi-hop questions will get mediocre syntheses.
 Mitigated by: the eval harness measures this honestly, and the write-up states
 the cost/quality tradeoff as a *decision* with numbers — which is worth more

@@ -100,6 +100,9 @@ class AnthropicModelClient:
     client: anthropic.Anthropic
     model: str
     max_tokens: int
+    # The `thinking` request parameter, or None to send none (the OpenRouter
+    # smoke path, whose models may not accept it).
+    thinking: dict[str, str] | None = None
 
     def create(
         self, *, system: str, messages: list[Any], tools: list[dict[str, Any]] | None
@@ -110,6 +113,8 @@ class AnthropicModelClient:
             "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             "messages": messages,
         }
+        if self.thinking is not None:
+            kwargs["thinking"] = self.thinking
         if tools:
             capped = [dict(t) for t in tools]
             capped[-1] = {**capped[-1], "cache_control": {"type": "ephemeral"}}
@@ -133,14 +138,16 @@ def anthropic_client_from_settings(settings: Settings) -> AnthropicModelClient:
             timeout=settings.agent_request_timeout_seconds,
         )
         model = settings.smoke_model
+        thinking = None
     else:
         client = anthropic.Anthropic(
             api_key=settings.anthropic_api_key.get_secret_value(),
             timeout=settings.agent_request_timeout_seconds,
         )
         model = settings.agent_model
+        thinking = {"type": settings.agent_thinking}
     return AnthropicModelClient(
-        client=client, model=model, max_tokens=settings.agent_max_output_tokens
+        client=client, model=model, max_tokens=settings.agent_max_output_tokens, thinking=thinking
     )
 
 

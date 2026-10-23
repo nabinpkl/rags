@@ -3357,3 +3357,31 @@ the honest shape until a code gate can tell those apart.
 
 **Revisit trigger:** live traces showing unretrieved answers to corpus
 questions at any real rate, which would justify a forced first search.
+
+## 2026-10-23 — the live agent moves to Claude Haiku 5.5 (D3 amendment)
+
+**Context:** D3 priced the loop on Haiku 4.5 ($1 / $5 per MTok). Haiku 5.5
+is $0.10 / $0.50 / $0.01 cache reads for prompts of 100K tokens or fewer
+(platform.claude.com/docs/en/about-claude/pricing, read 2026-10-23), and the
+loop's 80K per-message budget keeps every call under that line. Its tokenizer
+counts the same text at about 30% more tokens, so the saving is nearer 7x.
+
+**Decision:** `agent_model` is `claude-haiku-5-5` with those three rates.
+Haiku 5.5 thinks by default and binds each thinking block to the history
+before it (enforced for accounts created from 2026-08-31, opt-in before);
+`context_window.evict_oldest` edits that history by stubbing old tool
+results, so the loop sends `thinking: {"type": "disabled"}` on the Anthropic
+path (`agent_thinking`), which Haiku 5.5 accepts at the default effort and
+which is how Haiku 4.5 ran the loop. The OpenRouter smoke path sends no
+`thinking` parameter. Nothing else in the request changes: the loop never
+used `budget_tokens`, sampling parameters or prefill, the three other things
+Haiku 5.5 rejects.
+
+**Alternatives rejected:** adaptive thinking with `block_binding`
+`drop_block` (a beta header, and the eviction would silently discard the
+reasoning it bound); making eviction append-only (a larger change to the
+budget design, D1/D2, for a loop that ran without thinking anyway).
+
+**Revisit trigger:** the eval's rewrite row or live traces showing Haiku 5.5
+without thinking below Haiku 4.5 on tool use, which would justify
+`agent_thinking="adaptive"` plus an append-only eviction.

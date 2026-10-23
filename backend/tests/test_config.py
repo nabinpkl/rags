@@ -28,7 +28,7 @@ def test_spec_constants_load_without_env(monkeypatch):
     for var in [name for name in os.environ if name.startswith("ASKRAG_")]:
         monkeypatch.delenv(var)
     settings = make_settings()
-    assert settings.agent_model == "claude-haiku-4-5-20251001"  # D3
+    assert settings.agent_model == "claude-haiku-5-5"  # D3 amendment 2026-10-23
     assert settings.embedding_backend == "openrouter"  # D5 (third amendment)
     assert settings.embedding_model == "perplexity/pplx-embed-v1-0.6b"  # D5
     assert settings.embedding_dims == 512  # D5
