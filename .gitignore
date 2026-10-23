@@ -28,3 +28,9 @@ __pycache__/
 # Infisical project link — machine-local, written by `infisical init`.
 .infisical.json
 evals/golden.progress.jsonl
+
+# SQLite side files of the gitignored traces.db, and exported agent sessions
+*.db-shm
+*.db-wal
+session-*.md
+session-*.mdx

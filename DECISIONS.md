@@ -3308,3 +3308,27 @@ Anthropic's API; tool output, thinking and unredacted secrets still reach
 neither, since they are never indexed.
 
 Spec updated: D21.
+
+## 2026-10-23 — advisory bumps, and chromadb's five server-side advisories accepted
+
+**Context:** a public-readiness audit (`pnpm audit`, `pip-audit` over the
+lock) found `next` 16.4.0 with two critical and one high advisory (fixed in
+16.4.1), `torch` 2.12.1 (PYSEC-2025-194, fixed in 2.13.0), `opentelemetry-api`
+1.43.0 (CVE-2026-114603, fixed in 1.45.1), plus `certifi` and `setuptools`
+behind, and `chromadb` 1.5.9 with PYSEC-2026-311, -3813, -3814 and -3815
+(CVE-2026-45829 to -45833) and no fixed release.
+
+**Decision:** bump `next` and `eslint-config-next` to 16.4.1, `torch` to
+2.13.0, the OpenTelemetry pins to 1.45.1, and refresh `certifi` and
+`setuptools` through the lock. The chromadb advisories are accepted: all four
+are in the Chroma HTTP server (pre-auth code injection in its endpoints,
+cross-tenant access, the RBAC provider) and askRAG runs Chroma embedded
+through `PersistentClient` with no server process and no network listener
+(`retrieval/vector_store.py`), so none of the vulnerable code is reachable.
+The exact pin stays (D4: the on-disk format must not drift).
+
+**Revisit trigger:** a chromadb release that lists a fix for any of the four,
+or any change that starts a Chroma server (D4's pgvector move would replace
+it instead). Also in the same change: `*.db-shm`, `*.db-wal` and
+`session-*.md*` are gitignored, since untracked side files of `traces.db`
+and an exported session sat at the repo root one `git add -A` from publication.
