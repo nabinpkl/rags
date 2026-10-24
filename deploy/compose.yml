@@ -142,7 +142,7 @@ services:
   # token is `:-` not `:?` because compose interpolates every service,
   # profiled or not, and a required variable here would fail tailnet deploys.
   tunnel:
-    image: cloudflare/cloudflared:2026.9.1
+    image: cloudflare/cloudflared:2026.10.3
     profiles: [public]
     command: tunnel --no-autoupdate run
     environment:
