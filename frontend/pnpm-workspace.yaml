@@ -5,3 +5,20 @@
 allowBuilds:
   sharp: false
   unrs-resolver: false
+# pnpm 11 holds any release younger than a day. Next.js 16.4.3 was a day old when
+# taken (2026-10-24): a bug-fix backport from Vercel's own pipeline, SLSA provenance
+# verified for next, eslint-config-next and every @next/* binary below. The pins are
+# exact versions, so they stop mattering once the release ages past the window.
+minimumReleaseAgeExclude:
+  - '@next/env@16.4.3'
+  - '@next/swc-darwin-arm64@16.4.3'
+  - '@next/swc-darwin-x64@16.4.3'
+  - '@next/swc-linux-arm64-gnu@16.4.3'
+  - '@next/swc-linux-arm64-musl@16.4.3'
+  - '@next/swc-linux-x64-gnu@16.4.3'
+  - '@next/swc-linux-x64-musl@16.4.3'
+  - '@next/swc-win32-arm64-msvc@16.4.3'
+  - '@next/swc-win32-x64-msvc@16.4.3'
+  - next@16.4.3
+  - '@next/eslint-plugin-next@16.4.3'
+  - eslint-config-next@16.4.3
